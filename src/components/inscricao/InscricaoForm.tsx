@@ -1,0 +1,151 @@
+import React, { useState, useEffect } from 'react';
+import type { Inscricao, InscricaoFormData } from '../../types/inscricao';
+import type { Pessoa } from '../../types/pessoa';
+import type { Encontro } from '../../types/encontro';
+import type { Equipe } from '../../types/equipe';
+import { pessoaService } from '../../services/pessoaService';
+import { encontroService } from '../../services/encontroService';
+import { equipeService } from '../../services/equipeService';
+import { Save, Loader, User, Calendar, Shield, X } from 'lucide-react';
+import { FormSection } from '../ui/FormSection';
+import { FormRow } from '../ui/FormRow';
+
+interface InscricaoFormProps {
+    initialData?: Inscricao;
+    onSubmit: (data: InscricaoFormData) => Promise<void>;
+    onCancel: () => void;
+    isLoading?: boolean;
+}
+
+export function InscricaoForm({ initialData, onSubmit, onCancel, isLoading = false }: InscricaoFormProps) {
+    const [form, setForm] = useState<InscricaoFormData>({
+        pessoa_id: initialData?.pessoa_id ?? '',
+        encontro_id: initialData?.encontro_id ?? '',
+        participante: initialData?.participante ?? true,
+        equipe_id: initialData?.equipe_id ?? null,
+        coordenador: initialData?.coordenador ?? false,
+    });
+
+    const [pessoas, setPessoas] = useState<Pessoa[]>([]);
+    const [encontros, setEncontros] = useState<Encontro[]>([]);
+    const [equipes, setEquipes] = useState<Equipe[]>([]);
+    const [isDataLoading, setIsDataLoading] = useState(true);
+
+    useEffect(() => {
+        async function loadData() {
+            try {
+                const [ps, es, eqs] = await Promise.all([
+                    pessoaService.listar(),
+                    encontroService.listar(),
+                    equipeService.listar(),
+                ]);
+                setPessoas(ps);
+                setEncontros(es);
+                setEquipes(eqs);
+            } finally {
+                setIsDataLoading(false);
+            }
+        }
+        loadData();
+    }, []);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!form.pessoa_id || !form.encontro_id) return;
+        onSubmit(form);
+    };
+
+    if (isDataLoading) return <div className="empty-state">Carregando opções...</div>;
+
+    return (
+        <form onSubmit={handleSubmit} noValidate>
+            <FormSection title="Dados do Vínculo" icon={<Shield size={18} />} columns={0}>
+                <FormRow>
+                    <div className="form-group col-6">
+                        <label className="form-label">Pessoa <User size={12} /></label>
+                        <select
+                            className="form-input"
+                            value={form.pessoa_id}
+                            onChange={e => setForm({ ...form, pessoa_id: e.target.value })}
+                            required
+                        >
+                            <option value="">Selecione uma pessoa...</option>
+                            {pessoas.map(p => <option key={p.id} value={p.id}>{p.nome_completo} ({p.cpf})</option>)}
+                        </select>
+                    </div>
+
+                    <div className="form-group col-6">
+                        <label className="form-label">Encontro <Calendar size={12} /></label>
+                        <select
+                            className="form-input"
+                            value={form.encontro_id}
+                            onChange={e => setForm({ ...form, encontro_id: e.target.value })}
+                            required
+                        >
+                            <option value="">Selecione um encontro...</option>
+                            {encontros.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                        </select>
+                    </div>
+                </FormRow>
+
+                <FormRow>
+                    <div className="col-12" style={{ display: 'flex', gap: '2rem', marginBottom: '1rem', padding: '1rem', background: 'var(--secondary-bg)', borderRadius: '8px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <input
+                                type="checkbox"
+                                id="is_participante"
+                                checked={form.participante ?? false}
+                                onChange={e => setForm({ ...form, participante: e.target.checked })}
+                                style={{ width: '1.2rem', height: '1.2rem' }}
+                            />
+                            <label htmlFor="is_participante" style={{ margin: 0, fontWeight: 500 }}>É Participante?</label>
+                        </div>
+
+                        {!form.participante && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <input
+                                    type="checkbox"
+                                    id="is_coordenador"
+                                    checked={form.coordenador ?? false}
+                                    onChange={e => setForm({ ...form, coordenador: e.target.checked })}
+                                    style={{ width: '1.2rem', height: '1.2rem' }}
+                                />
+                                <label htmlFor="is_coordenador" style={{ margin: 0, fontWeight: 500 }}>É Coordenador?</label>
+                            </div>
+                        )}
+                    </div>
+                </FormRow>
+
+                {!form.participante && (
+                    <FormRow>
+                        <div className="form-group col-12">
+                            <label className="form-label">Equipe de Trabalho <Shield size={12} /></label>
+                            <select
+                                className="form-input"
+                                value={form.equipe_id ?? ''}
+                                onChange={e => setForm({ ...form, equipe_id: e.target.value || null })}
+                            >
+                                <option value="">Nenhuma equipe selecionada</option>
+                                {equipes.map(eq => <option key={eq.id} value={eq.id}>{eq.nome}</option>)}
+                            </select>
+                        </div>
+                    </FormRow>
+                )}
+            </FormSection>
+
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+                <button type="button" className="btn-cancel" onClick={onCancel}>
+                    <X size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                    Cancelar
+                </button>
+                <button type="submit" disabled={isLoading}>
+                    {isLoading ? (
+                        <><Loader size={16} className="animate-spin" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Salvando...</>
+                    ) : (
+                        <><Save size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Salvar Vínculo</>
+                    )}
+                </button>
+            </div>
+        </form>
+    );
+}
