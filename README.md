@@ -1,73 +1,55 @@
-# React + TypeScript + Vite
+# EJC - Encontro de Jovens com Cristo (Capelinha)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Este é o sistema de gestão do **EJC Capelinha**, desenvolvido para facilitar o cadastro de participantes, montagem de equipes e coordenação de eventos.
 
-Currently, two official plugins are available:
+## 🚀 Funcionalidades
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Autenticação Segura**: Login e controle de acesso integrados ao Supabase.
+- **Cadastro de Pessoas**: Gestão completa de participantes (dados pessoais, contatos, etc.).
+- **Montagem de Equipes**: Ferramenta para organizar equipes de trabalho para os encontros.
+- **Interface Responsiva**: Design moderno e otimizado para dispositivos móveis (mobile-first).
+- **Gestão de Eventos**: (Em desenvolvimento) Controle de datas e locais.
 
-## React Compiler
+## 🛠️ Tecnologias Utilizadas
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend**: [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+- **Build Tool**: [Vite](https://vitejs.dev/)
+- **Backend/Database**: [Supabase](https://supabase.com/)
+- **Roteamento**: [React Router DOM](https://reactrouter.com/)
+- **Ícones**: [Lucide React](https://lucide.dev/)
+- **Estilização**: Vanilla CSS (CSS Puro)
 
-## Expanding the ESLint configuration
+## 📦 Como Instalar e Rodar
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Pré-requisitos
+- Node.js (v18+)
+- pnpm (recomendado) ou npm/yarn
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Passos
+1. Clone o repositório.
+2. Instale as dependências:
+   ```bash
+   pnpm install
+   ```
+3. Configure as variáveis de ambiente:
+   Crie um arquivo `.env` na raiz do projeto com as credenciais do Supabase:
+   ```env
+   VITE_SUPABASE_URL=sua_url_do_supabase
+   VITE_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
+   ```
+4. Inicie o servidor de desenvolvimento:
+   ```bash
+   pnpm dev
+   ```
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 🏗️ Estrutura do Projeto
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- `src/components`: Componentes reutilizáveis da interface.
+- `src/pages`: Páginas da aplicação.
+- `src/contexts`: Contextos do React (Auth, Theme, etc.).
+- `src/services`: Integrações com APIs e Supabase.
+- `src/types`: Definições de tipos TypeScript.
+- `src/assets`: Imagens e recursos estáticos.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+---
+Desenvolvido para o **EJC Capelinha**.
