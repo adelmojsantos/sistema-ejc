@@ -5,6 +5,7 @@ import { EncontroRow } from '../../components/encontro/EncontroRow';
 import { EncontroForm } from '../../components/encontro/EncontroForm';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { encontroService } from '../../services/encontroService';
+import { normalizeString } from '../../utils/stringUtils';
 import type { Encontro, EncontroFormData } from '../../types/encontro';
 
 type Mode = 'list' | 'create' | 'edit';
@@ -39,13 +40,13 @@ export function EncontrosPage() {
     useEffect(() => { load(); }, [load]);
 
     useEffect(() => {
-        const q = search.toLowerCase();
+        const q = normalizeString(search);
         setFiltered(
             !q ? encontros : encontros.filter(
                 (p) =>
-                    p.nome.toLowerCase().includes(q) ||
-                    (p.tema?.toLowerCase().includes(q) ?? false) ||
-                    (p.local?.toLowerCase().includes(q) ?? false)
+                    normalizeString(p.nome).includes(q) ||
+                    normalizeString(p.tema || '').includes(q) ||
+                    normalizeString(p.local || '').includes(q)
             )
         );
     }, [search, encontros]);

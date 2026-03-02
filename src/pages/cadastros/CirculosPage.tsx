@@ -4,6 +4,7 @@ import { ChevronLeft, Search, UsersRound, Plus, X, Check, Loader } from 'lucide-
 import { CirculoRow } from '../../components/circulo/CirculoRow';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { circuloService } from '../../services/circuloService';
+import { normalizeString } from '../../utils/stringUtils';
 import type { Circulo, CirculoFormData } from '../../types/circulo';
 
 export function CirculosPage() {
@@ -36,8 +37,8 @@ export function CirculosPage() {
     useEffect(() => { load(); }, [load]);
 
     useEffect(() => {
-        const q = search.toLowerCase();
-        setFiltered(!q ? circulos : circulos.filter((p) => p.nome?.toLowerCase().includes(q)));
+        const q = normalizeString(search);
+        setFiltered(!q ? circulos : circulos.filter((p) => normalizeString(p.nome || '').includes(q)));
     }, [search, circulos]);
 
     const handleBack = () => {

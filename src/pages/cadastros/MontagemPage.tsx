@@ -7,6 +7,7 @@ import { inscricaoService } from '../../services/inscricaoService';
 import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
 import { pessoaService } from '../../services/pessoaService';
+import { normalizeString } from '../../utils/stringUtils';
 import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
@@ -101,16 +102,19 @@ export function MontagemPage() {
     // Filtragem de busca de pessoas
     const searchResults = useMemo(() => {
         if (searchPessoa.length < 2) return [];
-        const q = searchPessoa.toLowerCase();
-        // Não mostrar quem já está no encontro ou já está no staging
-        const jaNoEncontroIds = new Set(inscricoes.map(i => i.pessoa_id));
+        const q = normalizeString(searchPessoa);
+
+        // Mapear quem já está no encontro para saber a equipe
+        const inscricoesMap = new Map(inscricoes.map(i => [i.pessoa_id, i.equipes?.nome || 'Outra equipe']));
         const jaNoStagingIds = new Set(staging.map(s => s.pessoa_id));
 
-        return pessoas.filter(p =>
-            (p.nome_completo.toLowerCase().includes(q) || p.cpf.includes(q)) &&
-            !jaNoEncontroIds.has(p.id) &&
-            !jaNoStagingIds.has(p.id)
-        );
+        return pessoas
+            .filter(p => normalizeString(p.nome_completo).includes(q) || p.cpf.includes(q))
+            .map(p => ({
+                ...p,
+                equipeAtual: inscricoesMap.get(p.id),
+                noStaging: jaNoStagingIds.has(p.id)
+            }));
     }, [searchPessoa, pessoas, inscricoes, staging]);
 
     // Handlers
@@ -327,15 +331,42 @@ export function MontagemPage() {
                                             </div>
                                         ) : (
                                             <>
-                                                {searchResults.map(p => (
-                                                    <div key={p.id} onClick={() => addToStaging(p)} className="pessoa-row row-hover" style={{ borderRadius: 0, borderBottom: '1px solid var(--border-color)', cursor: 'pointer', padding: '0.75rem 1rem' }}>
-                                                        <div style={{ flex: 1 }}>
-                                                            <div style={{ fontWeight: 500 }}>{p.nome_completo}</div>
-                                                            <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>CPF: {p.cpf}</div>
+                                                {searchResults.map(p => {
+                                                    const isDisabled = !!p.equipeAtual || p.noStaging;
+                                                    return (
+                                                        <div
+                                                            key={p.id}
+                                                            onClick={() => !isDisabled && addToStaging(p)}
+                                                            className={`pessoa-row ${!isDisabled ? 'row-hover' : ''}`}
+                                                            style={{
+                                                                borderRadius: 0,
+                                                                borderBottom: '1px solid var(--border-color)',
+                                                                cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                                                padding: '0.75rem 1rem',
+                                                                opacity: isDisabled ? 0.6 : 1,
+                                                                background: isDisabled ? 'var(--secondary-bg)' : 'transparent'
+                                                            }}
+                                                        >
+                                                            <div style={{ flex: 1 }}>
+                                                                <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                    {p.nome_completo}
+                                                                    {p.equipeAtual && (
+                                                                        <span style={{ fontSize: '0.65rem', background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>
+                                                                            EQUIPE: {p.equipeAtual.toUpperCase()}
+                                                                        </span>
+                                                                    )}
+                                                                    {p.noStaging && (
+                                                                        <span style={{ fontSize: '0.65rem', background: '#f59e0b', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>
+                                                                            NO RASCUNHO
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>CPF: {p.cpf}</div>
+                                                            </div>
+                                                            {!isDisabled ? <Plus size={16} /> : <Check size={16} style={{ color: p.noStaging ? '#f59e0b' : '#ef4444' }} />}
                                                         </div>
-                                                        <Plus size={16} />
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                                 <div style={{ padding: '0.75rem', borderTop: '1px solid var(--border-color)', background: 'var(--secondary-bg)' }}>
                                                     <button
                                                         onClick={() => { setShowQuickAddPerson(true); setShowSearchResults(false); }}

@@ -11,6 +11,8 @@ import { MontagemPage } from './pages/cadastros/MontagemPage';
 import { PessoasPage } from './pages/cadastros/PessoasPage';
 import { Home } from './pages/Home';
 import { Login } from './pages/Login';
+import { VinculoPage } from './pages/visitacao/VinculoPage';
+import { VinculoCirculoPage } from './pages/circulos/VinculoCirculoPage';
 
 function PlaceholderPage({ title }: { title: string }) {
   return (
@@ -45,7 +47,12 @@ function App() {
 
             <Route path="/visitacao" element={
               <ProtectedRoute>
-                <PlaceholderPage title="Visitação (Em Breve)" />
+                <VinculoPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/circulos" element={
+              <ProtectedRoute>
+                <VinculoCirculoPage />
               </ProtectedRoute>
             } />
 

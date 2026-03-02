@@ -5,6 +5,7 @@ import { PessoaCard } from '../../components/pessoa/PessoaCard';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { pessoaService } from '../../services/pessoaService';
+import { normalizeString } from '../../utils/stringUtils';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 
 type Mode = 'list' | 'create' | 'edit';
@@ -40,13 +41,13 @@ export function PessoasPage() {
     useEffect(() => { load(); }, [load]);
 
     useEffect(() => {
-        const q = search.toLowerCase();
+        const q = normalizeString(search);
         setFiltered(
             !q ? pessoas : pessoas.filter(
                 (p) =>
-                    p.nome_completo.toLowerCase().includes(q) ||
-                    p.email.toLowerCase().includes(q) ||
-                    p.comunidade.toLowerCase().includes(q) ||
+                    normalizeString(p.nome_completo).includes(q) ||
+                    normalizeString(p.email).includes(q) ||
+                    normalizeString(p.comunidade).includes(q) ||
                     p.cpf.includes(q)
             )
         );

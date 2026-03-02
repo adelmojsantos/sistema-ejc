@@ -1,7 +1,7 @@
 
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
-import { Users, Calendar, FileText } from 'lucide-react';
+import { Users, Calendar, FileText, CircleDot } from 'lucide-react';
 
 export function Home() {
     const navigate = useNavigate();
@@ -47,6 +47,20 @@ export function Home() {
                             </div>
                             <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Visitação</h2>
                             <p style={{ margin: 0, opacity: 0.7 }}>Controle de visitas às famílias e acompanhamento.</p>
+                        </div>
+
+                        <div
+                            className="card flex flex-col items-center gap-4 text-center"
+                            style={{ transition: 'transform 0.2s', cursor: 'pointer' }}
+                            onClick={() => navigate('/circulos')}
+                            onMouseOver={e => e.currentTarget.style.transform = 'translateY(-5px)'}
+                            onMouseOut={e => e.currentTarget.style.transform = 'none'}
+                        >
+                            <div style={{ padding: '1rem', backgroundColor: 'rgba(139, 92, 246, 0.1)', borderRadius: '50%' }}>
+                                <CircleDot size={40} color="#8b5cf6" />
+                            </div>
+                            <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Círculos</h2>
+                            <p style={{ margin: 0, opacity: 0.7 }}>Divisão dos participantes em grupos de estudo e partilha.</p>
                         </div>
 
                         <div

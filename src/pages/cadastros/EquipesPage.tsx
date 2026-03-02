@@ -4,6 +4,7 @@ import { ChevronLeft, Search, Shield, Plus, X, Loader, Check } from 'lucide-reac
 import { EquipeRow } from '../../components/equipe/EquipeRow';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { equipeService } from '../../services/equipeService';
+import { normalizeString } from '../../utils/stringUtils';
 import type { Equipe, EquipeFormData } from '../../types/equipe';
 
 export function EquipesPage() {
@@ -35,8 +36,8 @@ export function EquipesPage() {
     useEffect(() => { load(); }, [load]);
 
     useEffect(() => {
-        const q = search.toLowerCase();
-        setFiltered(!q ? equipes : equipes.filter((p) => p.nome?.toLowerCase().includes(q)));
+        const q = normalizeString(search);
+        setFiltered(!q ? equipes : equipes.filter((p) => normalizeString(p.nome || '').includes(q)));
     }, [search, equipes]);
 
     const handleBack = () => {
