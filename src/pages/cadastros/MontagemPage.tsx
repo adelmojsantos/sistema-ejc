@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Search, Plus, Shield, Users, Trash2, Loader, Check, X, UserPlus } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -15,7 +16,7 @@ import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 interface StagedMembro {
     pessoa_id: string;
     nome_completo: string;
-    cpf: string;
+    cpf: string | null;
     coordenador: boolean;
 }
 
@@ -109,7 +110,7 @@ export function MontagemPage() {
         const jaNoStagingIds = new Set(staging.map(s => s.pessoa_id));
 
         return pessoas
-            .filter(p => normalizeString(p.nome_completo).includes(q) || p.cpf.includes(q))
+            .filter(p => normalizeString(p.nome_completo).includes(q) || (p.cpf && p.cpf.includes(q)))
             .map(p => ({
                 ...p,
                 equipeAtual: inscricoesMap.get(p.id),
@@ -146,11 +147,12 @@ export function MontagemPage() {
             // Adiciona direto ao staging
             addToStaging(newPerson);
             setShowQuickAddPerson(false);
+            toast.success('Pessoa cadastrada e adicionada com sucesso!');
         } catch (err: any) {
             if (err.message?.includes('unique_cpf')) {
-                alert('Já existe uma pessoa cadastrada com este CPF.');
+                toast.error('Já existe uma pessoa cadastrada com este CPF.');
             } else {
-                alert('Erro ao cadastrar pessoa.');
+                toast.error('Erro ao cadastrar pessoa.');
             }
         } finally {
             setIsSavingPerson(false);
@@ -168,7 +170,7 @@ export function MontagemPage() {
             const validStaging = staging.filter(s => !jaCadastradosIds.has(s.pessoa_id));
 
             if (validStaging.length !== staging.length) {
-                alert('Alguns membros já foram vinculados a outras equipes por outro usuário. O rascunho será atualizado.');
+                toast.error('Alguns membros já foram vinculados a outras equipes. O rascunho será atualizado.');
                 setInscricoes(updatedInscricoes);
                 setStaging(validStaging);
                 setIsLoading(false);
@@ -184,8 +186,9 @@ export function MontagemPage() {
             }));
             await inscricaoService.criarMuitos(payload);
             await loadInscricoes();
+            toast.success('Membros salvos com sucesso!');
         } catch (err: any) {
-            alert('Erro ao salvar novos membros. Verifique se as pessoas já não estão em outras equipes.');
+            toast.error('Erro ao salvar novos membros. Verifique se já não estão vinculados.');
         } finally {
             setIsLoading(false);
         }
@@ -195,8 +198,9 @@ export function MontagemPage() {
         try {
             await inscricaoService.atualizar(membro.id, { coordenador: !membro.coordenador });
             setInscricoes(prev => prev.map(i => i.id === membro.id ? { ...i, coordenador: !i.coordenador } : i));
+            toast.success('Cargo atualizado com sucesso!');
         } catch (err) {
-            alert('Erro ao atualizar cargo.');
+            toast.error('Erro ao atualizar cargo.');
         }
     };
 
@@ -207,6 +211,9 @@ export function MontagemPage() {
             await inscricaoService.excluir(deleteTarget.id);
             setInscricoes(prev => prev.filter(i => i.id !== deleteTarget.id));
             setDeleteTarget(null);
+            toast.success('Membro removido com sucesso!');
+        } catch {
+            toast.error('Erro ao remover membro.');
         } finally {
             setIsLoading(false);
         }

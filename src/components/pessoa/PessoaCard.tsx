@@ -31,7 +31,34 @@ function getInitials(name: string | null | undefined) {
         .join('');
 }
 
+function formatAddress(p: Pessoa) {
+    const parts = [];
+    if (p.endereco) parts.push(p.endereco);
+    if (p.numero) parts.push(p.numero);
+    if (p.bairro) parts.push(p.bairro);
+    if (p.cidade) parts.push(p.cidade);
+
+    if (parts.length === 0) return { fullAddress: 'Endereço não informado', partAddress: '' };
+
+    let fullAddress = p.endereco || '';
+    if (p.numero) fullAddress += `, ${p.numero}`;
+    if (p.bairro) fullAddress += ` - ${p.bairro}`;
+    if (p.cidade) fullAddress += `, ${p.cidade}`;
+
+    let partAddress = p.bairro || '';
+    if (p.cidade) partAddress += `, ${p.cidade}`;
+    return {
+        fullAddress,
+        partAddress
+    }
+}
+
 export function PessoaCard({ pessoa, onEdit, onDelete }: PessoaCardProps) {
+    const { fullAddress, partAddress } = formatAddress(pessoa);
+    const mapsUrl = fullAddress !== 'Endereço não informado'
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${fullAddress}, Brazil`)}`
+        : null;
+
     return (
         <div className="pessoa-row">
             {/* Avatar + Main Info */}
@@ -41,10 +68,29 @@ export function PessoaCard({ pessoa, onEdit, onDelete }: PessoaCardProps) {
                 </div>
                 <div className="pessoa-row-info">
                     <h3 className="pessoa-row-name">{pessoa.nome_completo}</h3>
-                    <span className="pessoa-row-sub">
-                        <MapPin size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                        {pessoa.comunidade}
-                    </span>
+                    {mapsUrl ? (
+                        <a
+                            href={mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="pessoa-row-sub"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                color: 'var(--primary-color)',
+                                textDecoration: 'none',
+                                opacity: 1 /* Ensure full visibility */
+                            }}
+                        >
+                            <MapPin size={12} style={{ marginRight: '4px' }} />
+                            <span style={{ textDecoration: 'underline' }}>{partAddress}</span>
+                        </a>
+                    ) : (
+                        <span className="pessoa-row-sub">
+                            <MapPin size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                            {fullAddress}
+                        </span>
+                    )}
                 </div>
             </div>
 

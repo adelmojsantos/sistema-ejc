@@ -1,64 +1,84 @@
 import { supabase } from '../lib/supabase';
-import type { VisitaDupla, VisitaDuplaFormData, VisitaVinculo, VisitaVinculoFormData } from '../types/visitacao';
+import type { VisitaGrupo, VisitaGrupoFormData, VisitaParticipacao, VisitaParticipacaoFormData } from '../types/visitacao';
 
-const DUPLAS_TABLE = 'visita_duplas';
-const VINCULOS_TABLE = 'visita_vinculos';
+const GRUPOS_TABLE = 'visita_grupos';
+const PARTICIPACAO_TABLE = 'visita_participacao';
 
 export const visitacaoService = {
-    async listarDuplas(encontroId: string): Promise<VisitaDupla[]> {
+    // Group Management
+    async listarGrupos(encontroId: string): Promise<VisitaGrupo[]> {
         const { data, error } = await supabase
-            .from(DUPLAS_TABLE)
-            .select('*, pessoa1:pessoas!pessoa1_id(nome_completo), pessoa2:pessoas!pessoa2_id(nome_completo)')
-            .eq('encontro_id', encontroId);
+            .from(GRUPOS_TABLE)
+            .select('*')
+            .eq('encontro_id', encontroId)
+            .order('created_at', { ascending: true });
 
         if (error) throw error;
-        return data as any[];
+        return data || [];
     },
 
-    async criarDupla(formData: VisitaDuplaFormData): Promise<VisitaDupla> {
+    async criarGrupo(formData: VisitaGrupoFormData): Promise<VisitaGrupo> {
         const { data, error } = await supabase
-            .from(DUPLAS_TABLE)
+            .from(GRUPOS_TABLE)
             .insert([formData])
             .select()
             .single();
 
         if (error) throw error;
-        return data as VisitaDupla;
+        return data;
     },
 
-    async excluirDupla(id: string): Promise<void> {
+    async atualizarGrupo(id: string, nome: string): Promise<void> {
         const { error } = await supabase
-            .from(DUPLAS_TABLE)
+            .from(GRUPOS_TABLE)
+            .update({ nome })
+            .eq('id', id);
+
+        if (error) throw error;
+    },
+
+    async excluirGrupo(id: string): Promise<void> {
+        const { error } = await supabase
+            .from(GRUPOS_TABLE)
             .delete()
             .eq('id', id);
 
         if (error) throw error;
     },
 
-    async listarVinculos(duplaId: string): Promise<VisitaVinculo[]> {
+    // Participation Management
+    async listarParticipacaoPorEncontro(encontroId: string): Promise<VisitaParticipacao[]> {
         const { data, error } = await supabase
-            .from(VINCULOS_TABLE)
-            .select('*, participante:pessoas!participante_id(nome_completo)')
-            .eq('dupla_id', duplaId);
+            .from(PARTICIPACAO_TABLE)
+            .select(`
+                *,
+                participacoes:participacao_id (
+                    id,
+                    encontro_id,
+                    pessoas (nome_completo)
+                ),
+                visita_grupos:grupo_id (nome)
+            `)
+            .filter('participacoes.encontro_id', 'eq', encontroId);
 
         if (error) throw error;
-        return data as any[];
+        return data || [];
     },
 
-    async vincularParticipante(formData: VisitaVinculoFormData): Promise<VisitaVinculo> {
+    async vincular(formData: VisitaParticipacaoFormData): Promise<VisitaParticipacao> {
         const { data, error } = await supabase
-            .from(VINCULOS_TABLE)
+            .from(PARTICIPACAO_TABLE)
             .insert([formData])
             .select()
             .single();
 
         if (error) throw error;
-        return data as VisitaVinculo;
+        return data;
     },
 
-    async desvincularParticipante(id: string): Promise<void> {
+    async desvincular(id: string): Promise<void> {
         const { error } = await supabase
-            .from(VINCULOS_TABLE)
+            .from(PARTICIPACAO_TABLE)
             .delete()
             .eq('id', id);
 

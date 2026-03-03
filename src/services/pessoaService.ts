@@ -56,4 +56,20 @@ export const pessoaService = {
 
         if (error) throw error;
     },
+
+    async buscarPorSemelhanca(nome: string, cpf?: string | null): Promise<Pessoa[]> {
+        let query = supabase
+            .from(TABLE)
+            .select('*');
+
+        if (cpf) {
+            query = query.or(`nome_completo.ilike.%${nome}%,cpf.eq.${cpf}`);
+        } else {
+            query = query.ilike('nome_completo', `%${nome}%`);
+        }
+
+        const { data, error } = await query.limit(5);
+        if (error) throw error;
+        return data as Pessoa[];
+    },
 };

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Search, Shield, Plus, X, Loader, Check } from 'lucide-react';
 import { EquipeRow } from '../../components/equipe/EquipeRow';
@@ -53,8 +54,10 @@ export function EquipesPage() {
             setEquipes((prev) => [...prev, nova].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')));
             setNovoNome('');
             setIsAdding(false);
+            toast.success('Equipe criada com sucesso!');
         } catch {
             setError('Erro ao criar equipe.');
+            toast.error('Erro ao criar equipe.');
         } finally {
             setIsLoading(false);
         }
@@ -65,8 +68,10 @@ export function EquipesPage() {
         try {
             const atualizada = await equipeService.atualizar(id, data);
             setEquipes((prev) => prev.map((p) => (p.id === atualizada.id ? atualizada : p)));
+            toast.success('Equipe atualizada com sucesso!');
         } catch {
             setError('Erro ao atualizar equipe.');
+            toast.error('Erro ao atualizar equipe.');
             throw new Error('Atualização falhou');
         }
     };
@@ -78,6 +83,13 @@ export function EquipesPage() {
             await equipeService.excluir(deleteTarget.id);
             setEquipes((prev) => prev.filter((p) => p.id !== deleteTarget.id));
             setDeleteTarget(null);
+            toast.success('Equipe excluída com sucesso!');
+        } catch (err: any) {
+            if (err.code === '23503') {
+                toast.error('Não é possível excluir pois existem registros vinculados.');
+            } else {
+                toast.error('Erro ao excluir equipe.');
+            }
         } finally {
             setIsDeleting(false);
         }

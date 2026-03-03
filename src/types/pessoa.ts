@@ -1,8 +1,8 @@
 export interface Pessoa {
     id: string;
     nome_completo: string;
-    cpf: string;
-    email: string;
+    cpf: string | null;
+    email: string | null;
     telefone: string;
     comunidade: string;
     data_nascimento: string;
@@ -20,8 +20,8 @@ export type PessoaFormData = Omit<Pessoa, 'id' | 'qr_code_token' | 'created_at'>
 
 export const pessoaFormDataVazia = (): PessoaFormData => ({
     nome_completo: '',
-    cpf: '',
-    email: '',
+    cpf: null,
+    email: null,
     telefone: '',
     comunidade: '',
     data_nascimento: '',

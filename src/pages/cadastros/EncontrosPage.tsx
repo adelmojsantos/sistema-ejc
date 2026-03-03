@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Search, Calendar as CalIcon, Plus } from 'lucide-react';
 import { EncontroRow } from '../../components/encontro/EncontroRow';
@@ -31,7 +32,9 @@ export function EncontrosPage() {
             setEncontros(data);
             setFiltered(data);
         } catch (err: any) {
-            setFetchError(err.message || 'Erro ao carregar encontros. Tente novamente.');
+            const msg = err.message || 'Erro ao carregar encontros.';
+            setFetchError(msg);
+            toast.error(msg);
         } finally {
             setIsFetching(false);
         }
@@ -70,13 +73,16 @@ export function EncontrosPage() {
             if (mode === 'create') {
                 const nova = await encontroService.criar(data);
                 setEncontros((prev) => [nova, ...prev]);
+                toast.success('Encontro criado com sucesso!');
             } else if (mode === 'edit' && selected) {
                 const atualizada = await encontroService.atualizar(selected.id, data);
                 setEncontros((prev) => prev.map((p) => (p.id === atualizada.id ? atualizada : p)));
+                toast.success('Encontro atualizado com sucesso!');
             }
             backToList();
         } catch {
             setFormError('Erro ao salvar encontro.');
+            toast.error('Erro ao salvar encontro.');
         } finally {
             setIsLoading(false);
         }
@@ -89,6 +95,13 @@ export function EncontrosPage() {
             await encontroService.excluir(deleteTarget.id);
             setEncontros((prev) => prev.filter((p) => p.id !== deleteTarget.id));
             setDeleteTarget(null);
+            toast.success('Encontro excluído com sucesso!');
+        } catch (err: any) {
+            if (err.code === '23503') {
+                toast.error('Não é possível excluir pois existem registros vinculados.');
+            } else {
+                toast.error('Erro ao excluir encontro.');
+            }
         } finally {
             setIsDeleting(false);
         }

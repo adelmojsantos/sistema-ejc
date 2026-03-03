@@ -1,22 +1,28 @@
-export interface VisitaDupla {
-    id: string;
-    encontro_id: string;
-    pessoa1_id: string;
-    pessoa2_id: string;
+export interface VisitaGrupo {
+    id: string; // uuid
+    encontro_id: string; // uuid
+    nome: string | null;
     created_at: string;
-    // Helper fields for UI
-    pessoa1?: { nome_completo: string };
-    pessoa2?: { nome_completo: string };
 }
 
-export interface VisitaVinculo {
-    id: string;
-    dupla_id: string;
-    participante_id: string;
+export interface VisitaParticipacao {
+    id: string; // uuid
+    grupo_id: string; // uuid
+    participacao_id: string; // uuid from participacoes
+    visitante: boolean;
     created_at: string;
     // Helper fields for UI
-    participante?: { nome_completo: string };
+    participacoes?: {
+        id: string;
+        encontro_id: string;
+        pessoas: {
+            nome_completo: string;
+        };
+    };
+    visita_grupos?: {
+        nome: string;
+    };
 }
 
-export type VisitaDuplaFormData = Omit<VisitaDupla, 'id' | 'created_at' | 'pessoa1' | 'pessoa2'>;
-export type VisitaVinculoFormData = Omit<VisitaVinculo, 'id' | 'created_at' | 'participante'>;
+export type VisitaGrupoFormData = Omit<VisitaGrupo, 'id' | 'created_at'>;
+export type VisitaParticipacaoFormData = Omit<VisitaParticipacao, 'id' | 'created_at' | 'participacoes' | 'visita_grupos'>;

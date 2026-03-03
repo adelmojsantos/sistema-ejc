@@ -65,4 +65,16 @@ export const inscricaoService = {
 
         if (error) throw error;
     },
+
+    async verificarSeJaFoiParticipante(pessoaId: string): Promise<boolean> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('id')
+            .eq('pessoa_id', pessoaId)
+            .eq('participante', true)
+            .limit(1);
+
+        if (error) throw error;
+        return data && data.length > 0;
+    }
 };

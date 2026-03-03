@@ -31,9 +31,10 @@ export function Header() {
     const NavItems = () => (
         <>
             <Link to="/" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Início</Link>
+            <Link to="/inscricao" className="nav-link" style={{ color: 'var(--primary-color)', fontWeight: 'bold' }} onClick={() => setIsMobileMenuOpen(false)}>Inscrição</Link>
             <Link to="/secretaria" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Secretaria</Link>
-            <Link to="/visitacao" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Visitação</Link>
-            <Link to="/circulos" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Círculos</Link>
+            <Link to="/cadastros/montagem-visitacao" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Visitação</Link>
+            <Link to="/cadastros/montagem-circulos" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Círculos</Link>
             <Link to="/cadastros" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>Cadastros</Link>
         </>
     );

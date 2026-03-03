@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Search, UsersRound, Plus, X, Check, Loader } from 'lucide-react';
 import { CirculoRow } from '../../components/circulo/CirculoRow';
@@ -53,16 +54,22 @@ export function CirculosPage() {
             setCirculos((prev) => [...prev, nova].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')));
             setNewNome('');
             setIsAdding(false);
+            toast.success('Círculo criado com sucesso!');
         } catch {
-            alert('Erro ao criar círculo.');
+            toast.error('Erro ao criar círculo.');
         } finally {
             setIsLoading(false);
         }
     };
 
     const handleUpdate = async (id: number, data: CirculoFormData) => {
-        const atualizada = await circuloService.atualizar(id, data);
-        setCirculos((prev) => prev.map((p) => (p.id === atualizada.id ? atualizada : p)));
+        try {
+            const atualizada = await circuloService.atualizar(id, data);
+            setCirculos((prev) => prev.map((p) => (p.id === atualizada.id ? atualizada : p)));
+            toast.success('Círculo atualizado com sucesso!');
+        } catch {
+            toast.error('Erro ao atualizar círculo.');
+        }
     };
 
     const handleDeleteConfirm = async () => {
@@ -72,6 +79,13 @@ export function CirculosPage() {
             await circuloService.excluir(deleteTarget.id);
             setCirculos((prev) => prev.filter((p) => p.id !== deleteTarget.id));
             setDeleteTarget(null);
+            toast.success('Círculo excluído com sucesso!');
+        } catch (err: any) {
+            if (err.code === '23503') {
+                toast.error('Não é possível excluir pois existem registros vinculados.');
+            } else {
+                toast.error('Erro ao excluir círculo.');
+            }
         } finally {
             setIsDeleting(false);
         }

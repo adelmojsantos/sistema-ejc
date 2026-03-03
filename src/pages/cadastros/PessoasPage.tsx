@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, UserPlus, Search, X, Users } from 'lucide-react';
 import { PessoaCard } from '../../components/pessoa/PessoaCard';
@@ -33,6 +34,7 @@ export function PessoasPage() {
             setFiltered(data);
         } catch {
             setFetchError('Erro ao carregar cadastros. Tente novamente.');
+            toast.error('Erro ao carregar pessoas.');
         } finally {
             setIsFetching(false);
         }
@@ -46,9 +48,9 @@ export function PessoasPage() {
             !q ? pessoas : pessoas.filter(
                 (p) =>
                     normalizeString(p.nome_completo).includes(q) ||
-                    normalizeString(p.email).includes(q) ||
-                    normalizeString(p.comunidade).includes(q) ||
-                    p.cpf.includes(q)
+                    normalizeString(p.email || '').includes(q) ||
+                    normalizeString(p.comunidade || '').includes(q) ||
+                    (p.cpf && p.cpf.includes(q))
             )
         );
     }, [search, pessoas]);
@@ -72,13 +74,16 @@ export function PessoasPage() {
             if (mode === 'create') {
                 const nova = await pessoaService.criar(data);
                 setPessoas((prev) => [...prev, nova].sort((a, b) => a.nome_completo.localeCompare(b.nome_completo)));
+                toast.success('Pessoa cadastrada com sucesso!');
             } else if (mode === 'edit' && selected) {
                 const atualizada = await pessoaService.atualizar(selected.id, data);
                 setPessoas((prev) => prev.map((p) => (p.id === atualizada.id ? atualizada : p)));
+                toast.success('Cadastro atualizado com sucesso!');
             }
             backToList();
         } catch {
             setFormError('Erro ao salvar. Verifique os dados e tente novamente.');
+            toast.error('Erro ao salvar cadastro.');
         } finally {
             setIsLoading(false);
         }
@@ -91,8 +96,13 @@ export function PessoasPage() {
             await pessoaService.excluir(deleteTarget.id);
             setPessoas((prev) => prev.filter((p) => p.id !== deleteTarget.id));
             setDeleteTarget(null);
-        } catch {
-            setDeleteTarget(null);
+            toast.success('Cadastro excluído com sucesso!');
+        } catch (err: any) {
+            if (err.code === '23503') {
+                toast.error('Não é possível excluir pois existem registros vinculados.');
+            } else {
+                toast.error('Erro ao excluir cadastro.');
+            }
         } finally {
             setIsDeleting(false);
         }

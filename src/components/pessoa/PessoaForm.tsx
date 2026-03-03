@@ -36,10 +36,21 @@ function validate(data: PessoaFormData): FormErrors {
     const errors: FormErrors = {};
 
     if (!data.nome_completo.trim()) errors.nome_completo = 'Nome completo é obrigatório.';
-    if (!data.cpf.trim() || data.cpf.replace(/\D/g, '').length !== 11)
-        errors.cpf = 'CPF inválido (11 dígitos).';
-    if (!data.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))
-        errors.email = 'E-mail inválido.';
+
+    // Optional CPF validation
+    if (data.cpf && data.cpf.trim().length > 0) {
+        if (data.cpf.replace(/\D/g, '').length !== 11) {
+            errors.cpf = 'CPF inválido (11 dígitos).';
+        }
+    }
+
+    // Optional email validation
+    if (data.email && data.email.trim().length > 0) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
+            errors.email = 'E-mail inválido.';
+        }
+    }
+
     if (!data.telefone.trim() || data.telefone.replace(/\D/g, '').length < 10)
         errors.telefone = 'Telefone inválido.';
     if (!data.data_nascimento) errors.data_nascimento = 'Data de nascimento é obrigatória.';
@@ -70,7 +81,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false 
         if (field === 'cpf') formatted = formatCpf(value);
         if (field === 'telefone') formatted = formatTelefone(value);
 
-        setForm((prev) => ({ ...prev, [field]: formatted || null }));
+        setForm((prev) => ({ ...prev, [field]: value }));
         if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
     };
 
@@ -85,7 +96,8 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false 
         // Strip formatting before sending
         const payload: PessoaFormData = {
             ...form,
-            cpf: form.cpf.replace(/\D/g, ''),
+            cpf: form.cpf ? form.cpf.replace(/\D/g, '') : null,
+            email: form.email ? form.email.trim() : null,
             telefone: form.telefone.replace(/\D/g, ''),
         };
 
@@ -111,26 +123,24 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false 
                         label="E-mail"
                         name="email"
                         type="email"
-                        value={form.email}
+                        value={form.email || ''}
                         onChange={(e) => handleChange('email', e.target.value)}
                         error={errors.email}
-                        required
                         colSpan={6}
                         autoComplete="email"
-                        placeholder="joao@email.com"
+                        placeholder="joao@email.com (Opcional)"
                     />
                 </FormRow>
                 <FormRow>
                     <FormField
                         label="CPF"
                         name="cpf"
-                        value={form.cpf}
+                        value={form.cpf || ''}
                         onChange={(e) => handleChange('cpf', e.target.value)}
                         error={errors.cpf}
-                        required
                         colSpan={3}
                         inputMode="numeric"
-                        placeholder="000.000.000-00"
+                        placeholder="000.000.000-00 (Opcional)"
                     />
                     <FormField
                         label="Data de Nascimento"

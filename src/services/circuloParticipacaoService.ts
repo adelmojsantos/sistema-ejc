@@ -33,10 +33,10 @@ export const circuloParticipacaoService = {
         return data;
     },
 
-    async vincular(participacao_id: string, circulo_id: number): Promise<any> {
+    async vincular(participacao_id: string, circulo_id: number, mediador: boolean = false): Promise<any> {
         const { data, error } = await supabase
             .from(TABLE)
-            .insert([{ participacao: participacao_id, circulo_id }])
+            .insert([{ participacao: participacao_id, circulo_id, mediador }])
             .select()
             .single();
 

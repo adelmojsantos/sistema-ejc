@@ -58,6 +58,24 @@ const CATEGORIES: CadastroCategory[] = [
         color: '#ec4899',
         available: true,
     },
+    {
+        id: 'montagem-visitacao',
+        path: 'montagem-visitacao',
+        label: 'Montagem Visitação',
+        description: 'Vincular duplas e participantes para visitas.',
+        icon: <Users size={38} />,
+        color: '#10b981',
+        available: true,
+    },
+    {
+        id: 'montagem-circulos',
+        path: 'montagem-circulos',
+        label: 'Montagem Círculos',
+        description: 'Vincular participantes e casais aos círculos.',
+        icon: <UsersRound size={38} />,
+        color: '#8b5cf6',
+        available: true,
+    },
 ];
 
 export function Cadastros() {
