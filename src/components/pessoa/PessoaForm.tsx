@@ -81,7 +81,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false 
         if (field === 'cpf') formatted = formatCpf(value);
         if (field === 'telefone') formatted = formatTelefone(value);
 
-        setForm((prev) => ({ ...prev, [field]: value }));
+        setForm((prev) => ({ ...prev, [field]: formatted }));
         if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
     };
 
