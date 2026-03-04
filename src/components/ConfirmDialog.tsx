@@ -40,10 +40,9 @@ export function ConfirmDialog({
                         {cancelText}
                     </button>
                     <button
-                        className={isDestructive ? 'btn-danger' : ''}
+                        className={`dialog-confirm ${isDestructive ? 'btn-danger' : ''}`}
                         onClick={onConfirm}
                         disabled={isLoading}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}
                     >
                         {isLoading && <Loader2 size={16} className="animate-spin" />}
                         {confirmText}

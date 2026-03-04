@@ -16,13 +16,15 @@ import { Login } from './pages/Login';
 import { InscricaoPage } from './pages/InscricaoPage';
 import { MontagemVisitacao } from './pages/cadastros/MontagemVisitacao';
 import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
+import LandingPage from './pages/LandingPage';
+
 
 function PlaceholderPage({ title }: { title: string }) {
   return (
-    <div className="flex flex-col" style={{ minHeight: '100vh' }}>
+    <div className="app-shell">
       <Header />
-      <main className="main-content container flex items-center justify-center text-center">
-        <h1 style={{ fontSize: '2.5rem', opacity: 0.5 }}>{title}</h1>
+      <main className="main-content container page-placeholder">
+        <h1 className="page-placeholder__title">{title}</h1>
       </main>
     </div>
   );
@@ -37,7 +39,9 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
 
-            <Route path="/" element={
+            <Route path="/" element={<LandingPage />} />
+
+            <Route path="/dashboard" element={
               <ProtectedRoute>
                 <Home />
               </ProtectedRoute>

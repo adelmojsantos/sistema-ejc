@@ -269,7 +269,7 @@ export function MontagemVisitacao() {
   if (isFetching && encontros.length === 0) return <div className="empty-state">Carregando...</div>;
 
   return (
-    <div className="flex flex-col" style={{ minHeight: '100vh' }}>
+    <div className="app-shell">
       <Header />
       <main className="main-content container flex-1" style={{ paddingBottom: '4rem' }}>
         <div className="page-header" style={{ marginBottom: '2rem' }}>

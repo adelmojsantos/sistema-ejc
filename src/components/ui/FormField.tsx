@@ -5,14 +5,15 @@ interface BaseProps {
     error?: string;
     hint?: string;
     required?: boolean;
+    icon?: React.ReactNode;
     colSpan?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 }
 
-interface InputProps extends BaseProps, Omit<InputHTMLAttributes<HTMLInputElement>, 'className'> {
+interface InputProps extends BaseProps, InputHTMLAttributes<HTMLInputElement> {
     as?: 'input';
 }
 
-interface TextareaProps extends BaseProps, Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'className'> {
+interface TextareaProps extends BaseProps, TextareaHTMLAttributes<HTMLTextAreaElement> {
     as: 'textarea';
     rows?: number;
 }
@@ -20,34 +21,42 @@ interface TextareaProps extends BaseProps, Omit<TextareaHTMLAttributes<HTMLTextA
 type FormFieldProps = InputProps | TextareaProps;
 
 export function FormField(props: FormFieldProps) {
-    const { label, error, hint, required, colSpan, as: Tag = 'input', ...rest } = props;
+    const { label, error, hint, required, colSpan, icon, className, as: Tag = 'input', ...rest } = props;
     const id = rest.id ?? (rest.name as string);
+    const hasIcon = Boolean(icon);
 
     return (
         <div className={`form-group ${colSpan ? `col-${colSpan}` : ''}`}>
             <label className="form-label" htmlFor={id}>
                 {label}
-                {required && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
+                {required && <span className="form-label-required">*</span>}
             </label>
 
-            {Tag === 'textarea' ? (
-                <textarea
-                    id={id}
-                    className={`form-input${error ? ' input-error' : ''}`}
-                    {...(rest as TextareaHTMLAttributes<HTMLTextAreaElement>)}
-                />
-            ) : (
-                <input
-                    id={id}
-                    className={`form-input${error ? ' input-error' : ''}`}
-                    {...(rest as InputHTMLAttributes<HTMLInputElement>)}
-                />
-            )}
+            <div className="form-input-wrapper">
+                {icon && (
+                    <div className="form-input-icon">
+                        {icon}
+                    </div>
+                )}
+                {Tag === 'textarea' ? (
+                    <textarea
+                        id={id}
+                        className={`form-input ${hasIcon ? 'form-input--with-icon' : ''} ${className || ''} ${error ? ' input-error' : ''}`}
+                        {...(rest as Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'className'>)}
+                    />
+                ) : (
+                    <input
+                        id={id}
+                        className={`form-input ${hasIcon ? 'form-input--with-icon' : ''} ${className || ''} ${error ? ' input-error' : ''}`}
+                        {...(rest as Omit<InputHTMLAttributes<HTMLInputElement>, 'className'>)}
+                    />
+                )}
+            </div>
 
             {hint && !error && (
-                <span style={{ fontSize: '0.8rem', color: 'var(--text-color)', opacity: 0.6 }}>{hint}</span>
+                <span className="form-hint">{hint}</span>
             )}
-            {error && <span className="error-message" style={{ textAlign: 'left' }}>{error}</span>}
+            {error && <span className="error-message">{error}</span>}
         </div>
     );
 }
