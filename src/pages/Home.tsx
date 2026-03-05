@@ -1,7 +1,8 @@
-import { Calendar, CircleDot, FileText, UserPlus, Users } from 'lucide-react';
+﻿import { Calendar, CircleDot, FileText, UserPlus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
+import { useAuth } from '../hooks/useAuth';
 
 interface DashboardAction {
   title: string;
@@ -15,21 +16,21 @@ interface DashboardAction {
 const actions: DashboardAction[] = [
   {
     title: 'Secretaria',
-    description: 'Gestão de documentos e informações gerais do encontro.',
+    description: 'GestÃ£o de documentos e informaÃ§Ãµes gerais do encontro.',
     path: '/secretaria',
     icon: <FileText size={36} />,
     accent: 'primary'
   },
   {
-    title: 'Visitação',
-    description: 'Controle de visitas às famílias e acompanhamento.',
+    title: 'VisitaÃ§Ã£o',
+    description: 'Controle de visitas Ã s famÃ­lias e acompanhamento.',
     path: '/cadastros/montagem-visitacao',
     icon: <Users size={36} />,
     accent: 'success'
   },
   {
-    title: 'Círculos',
-    description: 'Divisão dos participantes em grupos de estudo e partilha.',
+    title: 'CÃ­rculos',
+    description: 'DivisÃ£o dos participantes em grupos de estudo e partilha.',
     path: '/cadastros/montagem-circulos',
     icon: <CircleDot size={36} />,
     accent: 'violet'
@@ -42,8 +43,8 @@ const actions: DashboardAction[] = [
     accent: 'amber'
   },
   {
-    title: 'Inscrições',
-    description: 'Inscrições dos participantes para o EJC.',
+    title: 'InscriÃ§Ãµes',
+    description: 'InscriÃ§Ãµes dos participantes para o EJC.',
     path: '/inscricao',
     icon: <UserPlus size={40} />,
     accent: 'primary',
@@ -53,6 +54,20 @@ const actions: DashboardAction[] = [
 
 export function Home() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
+
+  const dashboardActions = [
+    ...actions,
+    ...(profile?.role === 'admin'
+      ? [{
+        title: 'UsuÃ¡rios',
+        description: 'Cadastro de contas, roles e redefiniÃ§Ã£o de senha temporÃ¡ria.',
+        path: '/admin/usuarios',
+        icon: <Users size={36} />,
+        accent: 'amber' as const
+      }]
+      : [])
+  ];
 
   return (
     <div className="app-shell">
@@ -62,11 +77,11 @@ export function Home() {
         <section className="dashboard">
           <header className="dashboard__header">
             <h1 className="page-title">Dashboard</h1>
-            <p className="text-muted">Acesso rápido aos módulos principais do sistema EJC.</p>
+            <p className="text-muted">Acesso rÃ¡pido aos mÃ³dulos principais do sistema EJC.</p>
           </header>
 
           <div className="dashboard__grid">
-            {actions.map((action) => (
+            {dashboardActions.map((action) => (
               <article
                 key={action.title}
                 className={`dashboard-card card ${action.featured ? 'dashboard-card--featured' : ''}`}
@@ -91,3 +106,4 @@ export function Home() {
     </div>
   );
 }
+

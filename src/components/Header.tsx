@@ -1,7 +1,7 @@
-import { Cloud, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
+﻿import { Cloud, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../contexts/ThemeContext';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -11,7 +11,7 @@ export function Header() {
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { signOut } = useAuth();
+  const { signOut, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -49,12 +49,13 @@ export function Header() {
   };
 
   const navLinks = [
-    { to: '/dashboard', label: 'Início' },
-    { to: '/inscricao', label: 'Inscrição' },
+    { to: '/dashboard', label: 'Inicio' },
+    { to: '/inscricao', label: 'Inscricao' },
     { to: '/secretaria', label: 'Secretaria' },
-    { to: '/cadastros/montagem-visitacao', label: 'Visitação' },
-    { to: '/cadastros/montagem-circulos', label: 'Círculos' },
-    { to: '/cadastros', label: 'Cadastros' }
+    { to: '/cadastros/montagem-visitacao', label: 'Visitacao' },
+    { to: '/cadastros/montagem-circulos', label: 'Circulos' },
+    { to: '/cadastros', label: 'Cadastros' },
+    ...(profile?.role === 'admin' ? [{ to: '/admin/usuarios', label: 'Usuarios' }] : [])
   ];
 
   return (
@@ -71,8 +72,8 @@ export function Header() {
 
         <nav className="nav-links">
           {navLinks.map((link) => {
-            // Check for exact match or if it's a sub-path (avoiding /dashboard matching everything)
-            const isActive = location.pathname === link.to ||
+            const isActive =
+              location.pathname === link.to ||
               (link.to !== '/dashboard' && location.pathname.startsWith(link.to + '/'));
 
             return (
@@ -128,7 +129,8 @@ export function Header() {
       {isMobileMenuOpen && (
         <nav className="mobile-nav">
           {navLinks.map((link) => {
-            const isActive = location.pathname === link.to ||
+            const isActive =
+              location.pathname === link.to ||
               (link.to !== '/dashboard' && location.pathname.startsWith(link.to + '/'));
 
             return (
@@ -162,3 +164,5 @@ export function Header() {
     </header>
   );
 }
+
+

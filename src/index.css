@@ -1505,3 +1505,50 @@ tbody tr:hover {
     display: none !important;
   }
 }
+
+.admin-users-create-form {
+  display: grid;
+  grid-template-columns: 1fr 220px auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.admin-users-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.admin-users-table-wrapper {
+  overflow-x: auto;
+}
+
+.admin-users-table th,
+.admin-users-table td {
+  padding: 0.7rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.admin-users-table td .form-input {
+  min-width: 180px;
+}
+
+.admin-temp-password {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 8px;
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .admin-users-create-form {
+    grid-template-columns: 1fr;
+  }
+}
