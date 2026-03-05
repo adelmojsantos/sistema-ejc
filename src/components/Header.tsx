@@ -1,23 +1,45 @@
-import { LogOut, Menu, Moon, Sun, X } from 'lucide-react';
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Cloud, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { ConfirmDialog } from './ConfirmDialog';
 
 export function Header() {
+  const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
 
   const handleSignOutConfirm = async () => {
     setIsSigningOut(true);
     try {
       await signOut();
-      navigate('/login');
+      navigate('/');
     } catch (error) {
       console.error('Failed to sign out', error);
     } finally {
@@ -28,7 +50,7 @@ export function Header() {
 
   const navLinks = [
     { to: '/dashboard', label: 'Início' },
-    { to: '/inscricao', label: 'Inscrição', featured: true },
+    { to: '/inscricao', label: 'Inscrição' },
     { to: '/secretaria', label: 'Secretaria' },
     { to: '/cadastros/montagem-visitacao', label: 'Visitação' },
     { to: '/cadastros/montagem-circulos', label: 'Círculos' },
@@ -36,23 +58,33 @@ export function Header() {
   ];
 
   return (
-    <header className="header">
+    <header className={`header ${isScrolled ? 'is-scrolled' : ''}`}>
       <div className="container header-bar">
         <Link to="/dashboard" className="header-brand">
-          <span>EJC - Capelinha</span>
+          <span className="header-brand-icon">
+            <Cloud size={20} fill="currentColor" />
+          </span>
+          <span className="header-brand-text">
+            EJC <strong>Capelinha</strong>
+          </span>
         </Link>
 
         <nav className="nav-links">
-          {navLinks.map((link) => (
-            <Link
-              key={link.to}
-              to={link.to}
-              className={`nav-link ${link.featured ? 'is-featured' : ''}`}
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) => {
+            // Check for exact match or if it's a sub-path (avoiding /dashboard matching everything)
+            const isActive = location.pathname === link.to ||
+              (link.to !== '/dashboard' && location.pathname.startsWith(link.to + '/'));
+
+            return (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={`nav-link ${isActive ? 'active' : ''}`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
 
           <div className="header-divider" />
 
@@ -81,21 +113,35 @@ export function Header() {
             aria-label="Alternar tema"
             title={theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
           >
-            {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-          <button onClick={() => setIsMobileMenuOpen((prev) => !prev)} className="mobile-menu-btn" aria-label="Menu">
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          <button
+            onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+            className="mobile-menu-btn"
+            aria-label="Menu"
+          >
+            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </div>
 
       {isMobileMenuOpen && (
-        <nav className="mobile-nav mobile-controls-container">
-          {navLinks.map((link) => (
-            <Link key={link.to} to={link.to} className={`nav-link ${link.featured ? 'is-featured' : ''}`} onClick={() => setIsMobileMenuOpen(false)}>
-              {link.label}
-            </Link>
-          ))}
+        <nav className="mobile-nav">
+          {navLinks.map((link) => {
+            const isActive = location.pathname === link.to ||
+              (link.to !== '/dashboard' && location.pathname.startsWith(link.to + '/'));
+
+            return (
+              <Link
+                key={link.to}
+                to={link.to}
+                className={`nav-link ${isActive ? 'active' : ''}`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
           <button onClick={() => setIsSignOutModalOpen(true)} className="nav-link nav-link-danger">
             <LogOut size={20} /> Sair
           </button>

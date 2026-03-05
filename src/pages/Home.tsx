@@ -14,14 +14,6 @@ interface DashboardAction {
 
 const actions: DashboardAction[] = [
   {
-    title: 'Nova Inscrição',
-    description: 'Cadastre novos participantes para o encontro atual.',
-    path: '/inscricao',
-    icon: <UserPlus size={40} />,
-    accent: 'primary',
-    featured: true
-  },
-  {
     title: 'Secretaria',
     description: 'Gestão de documentos e informações gerais do encontro.',
     path: '/secretaria',
@@ -48,6 +40,14 @@ const actions: DashboardAction[] = [
     path: '/cadastros',
     icon: <Calendar size={36} />,
     accent: 'amber'
+  },
+  {
+    title: 'Inscrições',
+    description: 'Inscrições dos participantes para o EJC.',
+    path: '/inscricao',
+    icon: <UserPlus size={40} />,
+    accent: 'primary',
+    featured: true
   }
 ];
 

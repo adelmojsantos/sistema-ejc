@@ -61,12 +61,12 @@ export function LandingHeader() {
                 {link.name}
               </a>
             ))}
-            <Link to="/login" className="landing-button landing-button--dark landing-header__login">
+            <Link to="/login" className={`landing-button ${theme === 'dark' ? 'landing-button--dark' : 'landing-button--light'} landing-header__login`}>
               <span>Área Restrita</span>
               <LogIn size={16} />
             </Link>
-            <button type="button" className="landing-theme-toggle" onClick={toggleTheme} aria-label="Alternar tema">
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            <button type="button" className={`landing-theme-toggle ${theme === 'dark' ? 'landing-theme-toggle--dark' : 'landing-theme-toggle--light'}`} onClick={toggleTheme} aria-label="Alternar tema">
+              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
             </button>
           </nav>
 
