@@ -17,6 +17,8 @@ import { InscricaoPage } from './pages/InscricaoPage';
 import { MontagemVisitacao } from './pages/cadastros/MontagemVisitacao';
 import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
 import LandingPage from './pages/LandingPage';
+import { ChangePasswordPage } from './pages/ChangePasswordPage';
+import { UsersAdminPage } from './pages/admin/UsersAdminPage';
 
 
 function PlaceholderPage({ title }: { title: string }) {
@@ -47,9 +49,21 @@ function App() {
               </ProtectedRoute>
             } />
 
+            <Route path="/alterar-senha" element={
+              <ProtectedRoute allowTemporaryPassword>
+                <ChangePasswordPage />
+              </ProtectedRoute>
+            } />
+
             <Route path="/inscricao" element={
               <ProtectedRoute>
                 <InscricaoPage />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/admin/usuarios" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <UsersAdminPage />
               </ProtectedRoute>
             } />
 
@@ -59,12 +73,12 @@ function App() {
               </ProtectedRoute>
             } />
 
-            <Route path="/cadastros/montagem-visitacao" element={
+            <Route path="/montagem-visitacao" element={
               <ProtectedRoute>
                 <MontagemVisitacao />
               </ProtectedRoute>
             } />
-            <Route path="/cadastros/montagem-circulos" element={
+            <Route path="/montagem-circulos" element={
               <ProtectedRoute>
                 <MontagemCirculos />
               </ProtectedRoute>

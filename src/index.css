@@ -413,18 +413,25 @@ h2 {
   gap: 1rem;
   min-height: 72px;
   padding: 0.5rem 0.8rem;
-  border: 1px solid transparent;
-  border-radius: 999px;
+  /* border: 1px solid transparent; */
+  /* border-radius: 999px; */
   transition: all 0.3s var(--ease-smooth);
 }
 
 .header.is-scrolled {
-  padding: 0.5rem 0;
+  padding: 0;
 }
 
 .header.is-scrolled .header-bar {
-  background: color-mix(in srgb, var(--surface-1) 85%, transparent);
+  background: color-mix(in srgb, var(--surface-1) 100%, transparent);
   border-color: var(--border-color);
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  border-radius: 0;
+  max-width: 100%;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -1503,5 +1510,52 @@ tbody tr:hover {
 @media (min-width: 768px) {
   .mobile-controls-container {
     display: none !important;
+  }
+}
+
+.admin-users-create-form {
+  display: grid;
+  grid-template-columns: 1fr 220px auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.admin-users-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.admin-users-table-wrapper {
+  overflow-x: auto;
+}
+
+.admin-users-table th,
+.admin-users-table td {
+  padding: 0.7rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.admin-users-table td .form-input {
+  min-width: 180px;
+}
+
+.admin-temp-password {
+  display: inline-block;
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 8px;
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .admin-users-create-form {
+    grid-template-columns: 1fr;
   }
 }

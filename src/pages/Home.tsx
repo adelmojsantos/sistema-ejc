@@ -1,7 +1,8 @@
-import { Calendar, CircleDot, FileText, UserPlus, Users } from 'lucide-react';
+﻿import { Calendar, CircleDot, FileText, UserPlus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
+import { useAuth } from '../hooks/useAuth';
 
 interface DashboardAction {
   title: string;
@@ -23,14 +24,14 @@ const actions: DashboardAction[] = [
   {
     title: 'Visitação',
     description: 'Controle de visitas às famílias e acompanhamento.',
-    path: '/cadastros/montagem-visitacao',
+    path: '/montagem-visitacao',
     icon: <Users size={36} />,
     accent: 'success'
   },
   {
     title: 'Círculos',
     description: 'Divisão dos participantes em grupos de estudo e partilha.',
-    path: '/cadastros/montagem-circulos',
+    path: '/montagem-circulos',
     icon: <CircleDot size={36} />,
     accent: 'violet'
   },
@@ -46,13 +47,26 @@ const actions: DashboardAction[] = [
     description: 'Inscrições dos participantes para o EJC.',
     path: '/inscricao',
     icon: <UserPlus size={40} />,
-    accent: 'primary',
-    featured: true
+    accent: 'primary'
   }
 ];
 
 export function Home() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
+
+  const dashboardActions: DashboardAction[] = [
+    ...actions,
+    ...(profile?.role === 'admin'
+      ? [{
+        title: 'Usuários',
+        description: 'Cadastro de contas, roles e redefinição de senha temporária.',
+        path: '/admin/usuarios',
+        icon: <Users size={36} />,
+        accent: 'amber' as const
+      }]
+      : [])
+  ];
 
   return (
     <div className="app-shell">
@@ -66,7 +80,7 @@ export function Home() {
           </header>
 
           <div className="dashboard__grid">
-            {actions.map((action) => (
+            {dashboardActions.map((action) => (
               <article
                 key={action.title}
                 className={`dashboard-card card ${action.featured ? 'dashboard-card--featured' : ''}`}
@@ -91,3 +105,4 @@ export function Home() {
     </div>
   );
 }
+
