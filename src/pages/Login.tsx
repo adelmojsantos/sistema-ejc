@@ -80,6 +80,17 @@ export function Login() {
           <button type="submit" className="btn-primary auth-submit" disabled={loading}>
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
+
+          <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+            <button
+              type="button"
+              className="auth-link"
+              onClick={() => navigate('/esqueci-senha')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}
+            >
+              Esqueci minha senha
+            </button>
+          </div>
         </form>
       </div>
     </div>

@@ -16,6 +16,14 @@ export const authService = {
             .eq('id', userId);
 
         if (error) throw error;
+    },
+
+    async resetPassword(email: string): Promise<void> {
+        const { error } = await supabase.functions.invoke('admin-users', {
+            body: { action: 'public-reset', email }
+        });
+
+        if (error) throw error;
     }
 };
 

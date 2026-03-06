@@ -18,14 +18,6 @@ function jsonResponse(status: number, body: unknown) {
   });
 }
 
-function generateTemporaryPassword(length = 12) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%&*';
-  const randomValues = crypto.getRandomValues(new Uint32Array(length));
-
-  return Array.from(randomValues)
-    .map((value) => chars[value % chars.length])
-    .join('');
-}
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -45,17 +37,63 @@ Deno.serve(async (request) => {
       return jsonResponse(500, { error: 'Missing Supabase environment variables' });
     }
 
+    const body = await request.json();
+    const action = body?.action as string | undefined;
+
+    if (!action) {
+      return jsonResponse(400, { error: 'Missing action' });
+    }
+
+    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false }
+    });
+
+    // Public actions (No admin check required)
+    if (action === 'public-reset') {
+      const email = body?.email as string | undefined;
+      if (!email) {
+        return jsonResponse(400, { error: 'email is required' });
+      }
+
+      // Check if user exists in profiles
+      const { data: profile, error: profileError } = await adminClient
+        .from('profiles')
+        .select('id, email')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (profileError || !profile) {
+        // We return success anyway to avoid email enumeration, 
+        // but the user specifically asked to "verify if email exists".
+        // In this internal/controlled context, we can return error if not found.
+        return jsonResponse(404, { error: 'Usuário não encontrado com este e-mail.' });
+      }
+
+      // Reset password to email
+      const temporaryPassword = profile.email;
+      const { error: updateError } = await adminClient.auth.admin.updateUserById(profile.id, {
+        password: temporaryPassword
+      });
+
+      if (updateError) {
+        return jsonResponse(400, { error: updateError.message });
+      }
+
+      await adminClient
+        .from('profiles')
+        .update({ temporary_password: true })
+        .eq('id', profile.id);
+
+      return jsonResponse(200, { success: true });
+    }
+
+    // Admin protected actions
     const authHeader = request.headers.get('Authorization');
     if (!authHeader) {
       return jsonResponse(401, { error: 'Missing authorization header' });
     }
 
     const jwt = authHeader.replace('Bearer ', '');
-
-    const adminClient = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false }
-    });
-
     const { data: authUserData, error: authUserError } = await adminClient.auth.getUser(jwt);
     if (authUserError || !authUserData.user) {
       return jsonResponse(401, { error: 'Invalid token' });
@@ -77,13 +115,6 @@ Deno.serve(async (request) => {
       return jsonResponse(403, { error: 'Admin role required' });
     }
 
-    const body = await request.json();
-    const action = body?.action as string | undefined;
-
-    if (!action) {
-      return jsonResponse(400, { error: 'Missing action' });
-    }
-
     if (action === 'list') {
       const { data, error } = await adminClient
         .from('profiles')
@@ -102,7 +133,8 @@ Deno.serve(async (request) => {
         return jsonResponse(400, { error: 'email and role are required' });
       }
 
-      const temporaryPassword = generateTemporaryPassword();
+      // Using email as temporary password
+      const temporaryPassword = email;
       const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
         email,
         password: temporaryPassword,
@@ -159,7 +191,18 @@ Deno.serve(async (request) => {
         return jsonResponse(400, { error: 'userId is required' });
       }
 
-      const temporaryPassword = generateTemporaryPassword();
+      // Fetch user email to use as password
+      const { data: profile, error: fetchError } = await adminClient
+        .from('profiles')
+        .select('email')
+        .eq('id', userId)
+        .single();
+
+      if (fetchError || !profile?.email) {
+        return jsonResponse(404, { error: 'User profile not found' });
+      }
+
+      const temporaryPassword = profile.email;
       const { error: updateError } = await adminClient.auth.admin.updateUserById(userId, {
         password: temporaryPassword
       });
