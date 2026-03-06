@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
 
 export function ChangePasswordPage() {
     const [newPassword, setNewPassword] = useState('');
@@ -95,9 +96,26 @@ export function ChangePasswordPage() {
 
                     {error && <div className="error-message">{error}</div>}
 
-                    <button type="submit" className="btn-primary auth-submit" disabled={loading}>
-                        {loading ? 'Salvando...' : 'Salvar nova senha'}
-                    </button>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <button
+                            type="button"
+                            className="btn-secondary"
+                            onClick={async () => {
+                                if (mustChangePassword) {
+                                    await supabase.auth.signOut();
+                                    navigate('/login', { replace: true });
+                                } else {
+                                    navigate('/dashboard', { replace: true });
+                                }
+                            }}
+                            disabled={loading}
+                        >
+                            Cancelar
+                        </button>
+                        <button type="submit" className="btn-primary" style={{ width: '100%' }} disabled={loading}>
+                            {loading ? 'Salvando...' : 'Salvar nova senha'}
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>

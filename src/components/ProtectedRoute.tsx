@@ -17,7 +17,7 @@ export function ProtectedRoute({
     const { user, profile, mustChangePassword, profileLoading } = useAuth();
 
     if (!user) {
-        return <Navigate to="/login" replace />;
+        return <Navigate to="/" replace />;
     }
 
     if (profileLoading) {

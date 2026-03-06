@@ -18,6 +18,7 @@ import { MontagemVisitacao } from './pages/cadastros/MontagemVisitacao';
 import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
 import LandingPage from './pages/LandingPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { UsersAdminPage } from './pages/admin/UsersAdminPage';
 
 
@@ -40,6 +41,7 @@ function App() {
         <Router>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
 
             <Route path="/" element={<LandingPage />} />
 
