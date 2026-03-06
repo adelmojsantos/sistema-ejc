@@ -413,18 +413,25 @@ h2 {
   gap: 1rem;
   min-height: 72px;
   padding: 0.5rem 0.8rem;
-  border: 1px solid transparent;
-  border-radius: 999px;
+  /* border: 1px solid transparent; */
+  /* border-radius: 999px; */
   transition: all 0.3s var(--ease-smooth);
 }
 
 .header.is-scrolled {
-  padding: 0.5rem 0;
+  padding: 0;
 }
 
 .header.is-scrolled .header-bar {
-  background: color-mix(in srgb, var(--surface-1) 85%, transparent);
+  background: color-mix(in srgb, var(--surface-1) 100%, transparent);
   border-color: var(--border-color);
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  border-radius: 0;
+  max-width: 100%;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);

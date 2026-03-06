@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useState } from 'react';
+﻿import { type FormEvent, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
@@ -23,17 +23,17 @@ export function ChangePasswordPage() {
         setError(null);
 
         if (newPassword.length < 8) {
-            setError('A nova senha deve ter no mÃ­nimo 8 caracteres.');
+            setError('A nova senha deve ter no mínimo 8 caracteres.');
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            setError('As senhas nÃ£o conferem.');
+            setError('As senhas não conferem.');
             return;
         }
 
         if (!user) {
-            setError('SessÃ£o invÃ¡lida. FaÃ§a login novamente.');
+            setError('Sessão inválida. Faça login novamente.');
             return;
         }
 
@@ -59,7 +59,7 @@ export function ChangePasswordPage() {
             <div className="auth-card card fade-in">
                 <div className="auth-brand">
                     <div>
-                        <h1 className="auth-title">Troca obrigatÃ³ria de senha</h1>
+                        <h1 className="auth-title">Troca obrigatória de senha</h1>
                         <p className="auth-subtitle">Defina uma nova senha para liberar o acesso ao sistema.</p>
                     </div>
                 </div>
@@ -73,7 +73,7 @@ export function ChangePasswordPage() {
                             className="form-input"
                             value={newPassword}
                             onChange={(event) => setNewPassword(event.target.value)}
-                            placeholder="No mÃ­nimo 8 caracteres"
+                            placeholder="No mínimo 8 caracteres"
                             minLength={8}
                             required
                         />

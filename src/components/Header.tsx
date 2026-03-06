@@ -1,8 +1,8 @@
-﻿import { Cloud, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+﻿import { Heart, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../hooks/useAuth';
 import { ConfirmDialog } from './ConfirmDialog';
 
 export function Header() {
@@ -15,9 +15,19 @@ export function Header() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const headerRef = useRef<HTMLElement>(null);
+
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+      const scrollPos = window.scrollY;
+
+      setIsScrolled((prev) => {
+        // Ativa com apenas 10px de scroll
+        if (!prev && scrollPos > 10) return true;
+        // Desativa apenas se voltar quase ao topo (menos de 5px)
+        if (prev && scrollPos < 5) return false;
+        return prev;
+      });
     };
 
     const handleResize = () => {
@@ -49,21 +59,21 @@ export function Header() {
   };
 
   const navLinks = [
-    { to: '/dashboard', label: 'Inicio' },
-    { to: '/inscricao', label: 'Inscricao' },
+    { to: '/dashboard', label: 'Início' },
+    { to: '/inscricao', label: 'Inscrições' },
     { to: '/secretaria', label: 'Secretaria' },
-    { to: '/cadastros/montagem-visitacao', label: 'Visitacao' },
-    { to: '/cadastros/montagem-circulos', label: 'Circulos' },
+    { to: '/montagem-visitacao', label: 'Visitação' },
+    { to: '/montagem-circulos', label: 'Círculos' },
     { to: '/cadastros', label: 'Cadastros' },
-    ...(profile?.role === 'admin' ? [{ to: '/admin/usuarios', label: 'Usuarios' }] : [])
+    ...(profile?.role === 'admin' ? [{ to: '/admin/usuarios', label: 'Usuários' }] : [])
   ];
 
   return (
-    <header className={`header ${isScrolled ? 'is-scrolled' : ''}`}>
+    <header ref={headerRef} className={`header ${isScrolled ? 'is-scrolled' : ''}`}>
       <div className="container header-bar">
         <Link to="/dashboard" className="header-brand">
           <span className="header-brand-icon">
-            <Cloud size={20} fill="currentColor" />
+            <Heart size={20} fill="currentColor" />
           </span>
           <span className="header-brand-text">
             EJC <strong>Capelinha</strong>

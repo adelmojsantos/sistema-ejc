@@ -73,12 +73,12 @@ function App() {
               </ProtectedRoute>
             } />
 
-            <Route path="/cadastros/montagem-visitacao" element={
+            <Route path="/montagem-visitacao" element={
               <ProtectedRoute>
                 <MontagemVisitacao />
               </ProtectedRoute>
             } />
-            <Route path="/cadastros/montagem-circulos" element={
+            <Route path="/montagem-circulos" element={
               <ProtectedRoute>
                 <MontagemCirculos />
               </ProtectedRoute>

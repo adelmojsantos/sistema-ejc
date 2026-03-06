@@ -44,7 +44,7 @@ export function Login() {
           <LogoImage height="96" width="96" />
           <div>
             <h1 className="auth-title">EJC Capelinha</h1>
-            <p className="auth-subtitle">FaÃ§a login para continuar</p>
+            <p className="auth-subtitle">Faça login para continuar</p>
           </div>
         </div>
 
@@ -70,7 +70,7 @@ export function Login() {
               className="form-input"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+              placeholder="••••••••"
               required
             />
           </div>

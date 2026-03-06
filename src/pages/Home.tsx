@@ -16,22 +16,22 @@ interface DashboardAction {
 const actions: DashboardAction[] = [
   {
     title: 'Secretaria',
-    description: 'GestÃ£o de documentos e informaÃ§Ãµes gerais do encontro.',
+    description: 'Gestão de documentos e informações gerais do encontro.',
     path: '/secretaria',
     icon: <FileText size={36} />,
     accent: 'primary'
   },
   {
-    title: 'VisitaÃ§Ã£o',
-    description: 'Controle de visitas Ã s famÃ­lias e acompanhamento.',
-    path: '/cadastros/montagem-visitacao',
+    title: 'Visitação',
+    description: 'Controle de visitas às famílias e acompanhamento.',
+    path: '/montagem-visitacao',
     icon: <Users size={36} />,
     accent: 'success'
   },
   {
-    title: 'CÃ­rculos',
-    description: 'DivisÃ£o dos participantes em grupos de estudo e partilha.',
-    path: '/cadastros/montagem-circulos',
+    title: 'Círculos',
+    description: 'Divisão dos participantes em grupos de estudo e partilha.',
+    path: '/montagem-circulos',
     icon: <CircleDot size={36} />,
     accent: 'violet'
   },
@@ -43,12 +43,11 @@ const actions: DashboardAction[] = [
     accent: 'amber'
   },
   {
-    title: 'InscriÃ§Ãµes',
-    description: 'InscriÃ§Ãµes dos participantes para o EJC.',
+    title: 'Inscrições',
+    description: 'Inscrições dos participantes para o EJC.',
     path: '/inscricao',
     icon: <UserPlus size={40} />,
-    accent: 'primary',
-    featured: true
+    accent: 'primary'
   }
 ];
 
@@ -56,12 +55,12 @@ export function Home() {
   const navigate = useNavigate();
   const { profile } = useAuth();
 
-  const dashboardActions = [
+  const dashboardActions: DashboardAction[] = [
     ...actions,
     ...(profile?.role === 'admin'
       ? [{
-        title: 'UsuÃ¡rios',
-        description: 'Cadastro de contas, roles e redefiniÃ§Ã£o de senha temporÃ¡ria.',
+        title: 'Usuários',
+        description: 'Cadastro de contas, roles e redefinição de senha temporária.',
         path: '/admin/usuarios',
         icon: <Users size={36} />,
         accent: 'amber' as const
@@ -77,7 +76,7 @@ export function Home() {
         <section className="dashboard">
           <header className="dashboard__header">
             <h1 className="page-title">Dashboard</h1>
-            <p className="text-muted">Acesso rÃ¡pido aos mÃ³dulos principais do sistema EJC.</p>
+            <p className="text-muted">Acesso rápido aos módulos principais do sistema EJC.</p>
           </header>
 
           <div className="dashboard__grid">

@@ -24,10 +24,19 @@ interface ResetPasswordResponse {
     temporaryPassword: string;
 }
 
+async function getAuthHeaders(): Promise<Record<string, string>> {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+    return { Authorization: `Bearer ${token}` };
+}
+
 export const adminUserService = {
     async listUsers(): Promise<AdminUserListItem[]> {
+        const headers = await getAuthHeaders();
         const { data, error } = await supabase.functions.invoke('admin-users', {
-            body: { action: 'list' }
+            body: { action: 'list' },
+            headers,
         });
 
         if (error) throw error;
@@ -35,8 +44,10 @@ export const adminUserService = {
     },
 
     async createUser(payload: CreateAdminUserPayload): Promise<CreateAdminUserResponse> {
+        const headers = await getAuthHeaders();
         const { data, error } = await supabase.functions.invoke('admin-users', {
-            body: { action: 'create', ...payload }
+            body: { action: 'create', ...payload },
+            headers,
         });
 
         if (error) throw error;
@@ -44,20 +55,23 @@ export const adminUserService = {
     },
 
     async updateRole(userId: string, role: UserRole): Promise<void> {
+        const headers = await getAuthHeaders();
         const { error } = await supabase.functions.invoke('admin-users', {
-            body: { action: 'update-role', userId, role }
+            body: { action: 'update-role', userId, role },
+            headers,
         });
 
         if (error) throw error;
     },
 
     async resetTemporaryPassword(userId: string): Promise<ResetPasswordResponse> {
+        const headers = await getAuthHeaders();
         const { data, error } = await supabase.functions.invoke('admin-users', {
-            body: { action: 'reset-password', userId }
+            body: { action: 'reset-password', userId },
+            headers,
         });
 
         if (error) throw error;
         return data as ResetPasswordResponse;
-    }
+    },
 };
-

@@ -1,27 +1,41 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import type { SyntheticEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { RotateCcw, ShieldCheck, UserPlus } from 'lucide-react';
+import { RotateCcw, Search, ShieldCheck, UserPlus, X } from 'lucide-react';
+import { FormRow } from '../../components/ui/FormRow';
+import { supabase } from '../../lib/supabase';
 import { adminUserService } from '../../services/adminUserService';
+import { pessoaService } from '../../services/pessoaService';
+import type { Pessoa } from '../../types/pessoa';
 import type { UserRole } from '../../types/auth';
 import { USER_ROLES } from '../../types/auth';
+import { Header } from '../../components/Header';
 
 const roleLabels: Record<UserRole, string> = {
     admin: 'Administrador',
     secretaria: 'Secretaria',
     visitacao: 'Visitação',
-    viewer: 'Visualização'
+    viewer: 'Visualização',
 };
 
 export function UsersAdminPage() {
     const [users, setUsers] = useState<Awaited<ReturnType<typeof adminUserService.listUsers>>>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [email, setEmail] = useState('');
     const [role, setRole] = useState<UserRole>('viewer');
     const [creating, setCreating] = useState(false);
     const [tempPasswords, setTempPasswords] = useState<Record<string, string>>({});
     const [updatingRoleById, setUpdatingRoleById] = useState<Record<string, boolean>>({});
     const [resettingPasswordById, setResettingPasswordById] = useState<Record<string, boolean>>({});
+
+    // Live search state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<Pessoa[]>([]);
+    const [searching, setSearching] = useState(false);
+    const [selectedPessoa, setSelectedPessoa] = useState<Pessoa | null>(null);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const wrapperRef = useRef<HTMLDivElement>(null);
 
     const loadUsers = useCallback(async () => {
         setLoading(true);
@@ -37,24 +51,84 @@ export function UsersAdminPage() {
     }, []);
 
     useEffect(() => {
-        loadUsers();
+        supabase.auth.getSession().then(({ data }) => {
+            if (data.session) {
+                loadUsers();
+            } else {
+                setError('Sessão não encontrada. Faça login novamente.');
+                setLoading(false);
+            }
+        });
     }, [loadUsers]);
 
-    const sortedUsers = useMemo(
-        () => [...users].sort((a, b) => a.email.localeCompare(b.email)),
-        [users]
-    );
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setShowDropdown(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
-    const handleCreateUser = async (event: FormEvent) => {
+    const handleSearchChange = (value: string) => {
+        setSearchQuery(value);
+        setSelectedPessoa(null);
+        setShowDropdown(true);
+
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+
+        if (value.trim().length < 2) {
+            setSearchResults([]);
+            setShowDropdown(false);
+            return;
+        }
+
+        debounceRef.current = setTimeout(async () => {
+            setSearching(true);
+            try {
+                const results = await pessoaService.buscarPorSemelhanca(value.trim());
+                setSearchResults(results);
+                setShowDropdown(true);
+            } catch {
+                setSearchResults([]);
+            } finally {
+                setSearching(false);
+            }
+        }, 300);
+    };
+
+    const handleSelectPessoa = (pessoa: Pessoa) => {
+        setSelectedPessoa(pessoa);
+        setSearchQuery(pessoa.nome_completo);
+        setShowDropdown(false);
+        setSearchResults([]);
+    };
+
+    const handleClearSelection = () => {
+        setSelectedPessoa(null);
+        setSearchQuery('');
+        setSearchResults([]);
+        setShowDropdown(false);
+    };
+
+    const handleCreateUser = async (event: SyntheticEvent) => {
         event.preventDefault();
-        setCreating(true);
 
+        const email = selectedPessoa?.email;
+        if (!selectedPessoa || !email) {
+            toast.error('Selecione uma pessoa com e-mail cadastrado.');
+            return;
+        }
+
+        setCreating(true);
         try {
             const result = await adminUserService.createUser({ email, role });
             setUsers((prev) => [...prev, result.user]);
             setTempPasswords((prev) => ({ ...prev, [result.user.id]: result.temporaryPassword }));
             toast.success('Usuário criado com senha temporária.');
-            setEmail('');
+            handleClearSelection();
             setRole('viewer');
         } catch (createError: unknown) {
             const message = createError instanceof Error ? createError.message : 'Erro ao criar usuário.';
@@ -93,8 +167,14 @@ export function UsersAdminPage() {
         }
     };
 
+    const sortedUsers = useMemo(
+        () => [...users].sort((a, b) => a.email.localeCompare(b.email)),
+        [users]
+    );
+
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
+            <Header />
             <div className="page-header">
                 <div>
                     <h1 className="page-title" style={{ fontSize: '1.5rem' }}>
@@ -109,40 +189,151 @@ export function UsersAdminPage() {
 
             <section className="card" style={{ marginBottom: '1rem' }}>
                 <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Novo usuário</h2>
-                <form onSubmit={handleCreateUser} className="admin-users-create-form">
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="new-user-email">E-mail</label>
-                        <input
-                            id="new-user-email"
-                            className="form-input"
-                            type="email"
-                            required
-                            value={email}
-                            onChange={(event) => setEmail(event.target.value)}
-                            placeholder="usuario@email.com"
-                        />
-                    </div>
+                <form onSubmit={handleCreateUser}>
+                    <FormRow>
+                        {/* Live search combobox */}
+                        <div className="form-group col-6" ref={wrapperRef} style={{ position: 'relative' }}>
+                            <label className="form-label" htmlFor="pessoa-search">
+                                Pessoa <span className="form-label-required">*</span>
+                            </label>
+                            <div className="form-input-wrapper">
+                                <div className="form-input-icon">
+                                    <Search size={16} />
+                                </div>
+                                <input
+                                    id="pessoa-search"
+                                    className="form-input form-input--with-icon"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="Buscar pelo nome..."
+                                    value={searchQuery}
+                                    onChange={(e) => handleSearchChange(e.target.value)}
+                                    onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
+                                />
+                                {searchQuery && (
+                                    <button
+                                        type="button"
+                                        onClick={handleClearSelection}
+                                        style={{
+                                            position: 'absolute',
+                                            right: '0.6rem',
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            color: 'var(--color-text-muted)',
+                                            padding: '0.2rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                        }}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
 
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="new-user-role">Role</label>
-                        <select
-                            id="new-user-role"
-                            className="form-input"
-                            value={role}
-                            onChange={(event) => setRole(event.target.value as UserRole)}
-                        >
-                            {USER_ROLES.map((roleOption) => (
-                                <option key={roleOption} value={roleOption}>
-                                    {roleLabels[roleOption]}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                            {/* Selected person badge */}
+                            {selectedPessoa && (
+                                <div style={{ marginTop: '0.35rem', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                                    {selectedPessoa.email
+                                        ? <span>✉ {selectedPessoa.email}</span>
+                                        : <span style={{ color: 'var(--color-danger, #e53e3e)' }}>⚠ Esta pessoa não tem e-mail cadastrado</span>
+                                    }
+                                </div>
+                            )}
 
-                    <button className="btn-primary" type="submit" disabled={creating}>
-                        <UserPlus size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
-                        {creating ? 'Criando...' : 'Criar usuário'}
-                    </button>
+                            {/* Dropdown */}
+                            {showDropdown && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: 'calc(100% + 2px)',
+                                    left: 0,
+                                    right: 0,
+                                    zIndex: 50,
+                                    background: 'var(--surface-1)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '0.5rem',
+                                    boxShadow: 'var(--shadow-lg)',
+                                    overflow: 'hidden',
+                                    maxHeight: '220px',
+                                    overflowY: 'auto',
+                                }}>
+                                    {searching && (
+                                        <div style={{ padding: '0.75rem 1rem', color: 'var(--muted-text)', fontSize: '0.875rem' }}>
+                                            Buscando...
+                                        </div>
+                                    )}
+                                    {!searching && searchResults.length === 0 && (
+                                        <div style={{ padding: '0.75rem 1rem', color: 'var(--muted-text)', fontSize: '0.875rem' }}>
+                                            Nenhuma pessoa encontrada.
+                                        </div>
+                                    )}
+                                    {!searching && searchResults.map((pessoa) => (
+                                        <button
+                                            key={pessoa.id}
+                                            type="button"
+                                            disabled={!pessoa.email}
+                                            onClick={() => handleSelectPessoa(pessoa)}
+                                            style={{
+                                                display: 'block',
+                                                width: '100%',
+                                                textAlign: 'left',
+                                                padding: '0.6rem 1rem',
+                                                // Reset global button styles
+                                                background: 'var(--surface-1)',
+                                                color: 'var(--text-color)',
+                                                border: 'none',
+                                                borderBottom: '1px solid var(--border-color)',
+                                                borderRadius: 0,
+                                                boxShadow: 'none',
+                                                cursor: pessoa.email ? 'pointer' : 'not-allowed',
+                                                opacity: pessoa.email ? 1 : 0.5,
+                                                fontSize: '0.875rem',
+                                                fontWeight: 'normal',
+                                                minHeight: 'unset',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (pessoa.email) (e.currentTarget as HTMLButtonElement).style.background = 'var(--secondary-bg)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-1)';
+                                            }}
+                                        >
+                                            <div style={{ fontWeight: 500, color: 'var(--text-color)' }}>{pessoa.nome_completo}</div>
+                                            <div style={{ color: 'var(--muted-text)', fontSize: '0.78rem' }}>
+                                                {pessoa.email ?? '— sem e-mail'}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Role select */}
+                        <div className="form-group col-6">
+                            <label className="form-label" htmlFor="new-user-role">Role</label>
+                            <select
+                                id="new-user-role"
+                                className="form-input"
+                                value={role}
+                                onChange={(event) => setRole(event.target.value as UserRole)}
+                            >
+                                {USER_ROLES.map((roleOption) => (
+                                    <option key={roleOption} value={roleOption}>
+                                        {roleLabels[roleOption]}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </FormRow>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                        <button className="btn-primary" type="submit" disabled={creating || !selectedPessoa?.email}>
+                            <UserPlus size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                            {creating ? 'Criando...' : 'Criar usuário'}
+                        </button>
+                    </div>
                 </form>
             </section>
 
