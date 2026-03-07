@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { LogoImage } from '../components/utils/Image';
 
 export function Login() {
@@ -10,13 +10,13 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, mustChangePassword } = useAuth();
 
   useEffect(() => {
     if (user) {
-      navigate('/dashboard', { replace: true });
+      navigate(mustChangePassword ? '/alterar-senha' : '/dashboard', { replace: true });
     }
-  }, [user, navigate]);
+  }, [mustChangePassword, user, navigate]);
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -80,8 +80,20 @@ export function Login() {
           <button type="submit" className="btn-primary auth-submit" disabled={loading}>
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
+
+          <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+            <button
+              type="button"
+              className="auth-link"
+              onClick={() => navigate('/esqueci-senha')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.875rem' }}
+            >
+              Esqueci minha senha
+            </button>
+          </div>
         </form>
       </div>
     </div>
   );
 }
+

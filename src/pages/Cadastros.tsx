@@ -16,7 +16,7 @@ interface CadastroCategory {
 const CATEGORIES: CadastroCategory[] = [
   {
     id: 'pessoas',
-    path: 'pessoas',
+    path: '/cadastros/pessoas',
     label: 'Pessoas',
     description: 'Cadastro de jovens, tios e membros das equipes do EJC.',
     icon: <Users size={34} />,
@@ -25,7 +25,7 @@ const CATEGORIES: CadastroCategory[] = [
   },
   {
     id: 'encontros',
-    path: 'encontros',
+    path: '/cadastros/encontros',
     label: 'Encontros',
     description: 'Gerenciamento dos finais de semana do EJC.',
     icon: <CalIcon size={34} />,
@@ -34,7 +34,7 @@ const CATEGORIES: CadastroCategory[] = [
   },
   {
     id: 'equipes',
-    path: 'equipes',
+    path: '/cadastros/equipes',
     label: 'Equipes',
     description: 'Cadastro das equipes de trabalho (Cozinha, Secretaria, etc).',
     icon: <Shield size={34} />,
@@ -43,7 +43,7 @@ const CATEGORIES: CadastroCategory[] = [
   },
   {
     id: 'circulos',
-    path: 'circulos',
+    path: '/cadastros/circulos',
     label: 'Círculos',
     description: 'Cadastro dos círculos de discussão.',
     icon: <UsersRound size={34} />,
@@ -52,7 +52,7 @@ const CATEGORIES: CadastroCategory[] = [
   },
   {
     id: 'montagem',
-    path: 'montagem',
+    path: '/cadastros/montagem',
     label: 'Montagem de equipes',
     description: 'Montar equipes para os encontros.',
     icon: <UserPlus size={34} />,
@@ -61,7 +61,7 @@ const CATEGORIES: CadastroCategory[] = [
   },
   {
     id: 'montagem-visitacao',
-    path: 'montagem-visitacao',
+    path: '/montagem-visitacao',
     label: 'Montagem Visitação',
     description: 'Vincular duplas e participantes para visitas.',
     icon: <Users size={34} />,
@@ -70,7 +70,7 @@ const CATEGORIES: CadastroCategory[] = [
   },
   {
     id: 'montagem-circulos',
-    path: 'montagem-circulos',
+    path: '/montagem-circulos',
     label: 'Montagem Círculos',
     description: 'Vincular participantes e casais aos círculos.',
     icon: <UsersRound size={34} />,
@@ -100,14 +100,14 @@ export function Cadastros() {
                 <article
                   key={category.id}
                   className={`cadastros-hub__card card ${!category.available ? 'is-disabled' : ''}`}
-                  onClick={() => category.available && navigate(`/cadastros/${category.path}`)}
+                  onClick={() => category.available && navigate(category.path)}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(event) => {
                     if (!category.available) return;
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
-                      navigate(`/cadastros/${category.path}`);
+                      navigate(category.path);
                     }
                   }}
                 >
