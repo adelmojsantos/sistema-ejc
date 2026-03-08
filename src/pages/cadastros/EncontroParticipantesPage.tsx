@@ -7,6 +7,7 @@ import { ChevronLeft, Search, Filter, Users, UserCheck, Shield, User } from 'luc
 import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
 import { toast } from 'react-hot-toast';
+import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 
 export function EncontroParticipantesPage() {
   const navigate = useNavigate();
@@ -89,17 +90,16 @@ export function EncontroParticipantesPage() {
         <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', alignItems: 'end' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Encontro</label>
-            <select
-              className="form-input"
+            <LiveSearchSelect<Encontro>
               value={selectedEncontroId}
-              onChange={(e) => setSelectedEncontroId(e.target.value)}
-            >
-              {encontros.map(e => (
-                <option key={e.id} value={e.id}>
-                  {e.nome} {e.tema ? `(${e.tema})` : ''} {e.ativo ? ' (Ativo)' : ''}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setSelectedEncontroId(val)}
+              fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
+              getOptionLabel={(e) => `${e.nome}${e.tema ? ` (${e.tema})` : ''} ${e.ativo ? '(Ativo)' : ''}`}
+              getOptionValue={(e) => String(e.id)}
+              placeholder="Selecione um Encontro..."
+              initialOptions={encontros}
+              className="montagem-header-select"
+            />
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>

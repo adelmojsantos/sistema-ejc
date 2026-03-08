@@ -10,7 +10,12 @@ import type { Pessoa } from '../../types/pessoa';
 import type { UserRole } from '../../types/auth';
 import { USER_ROLES } from '../../types/auth';
 import { Header } from '../../components/Header';
-
+import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import { encontroService } from '../../services/encontroService';
+import { equipeService } from '../../services/equipeService';
+import { inscricaoService } from '../../services/inscricaoService';
+import type { Encontro } from '../../types/encontro';
+import type { Equipe } from '../../types/equipe';
 const roleLabels: Record<UserRole, string> = {
     admin: 'Administrador',
     secretaria: 'Secretaria',
@@ -37,14 +42,33 @@ export function UsersAdminPage() {
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const wrapperRef = useRef<HTMLDivElement>(null);
 
+    // Bulk creation state
+    const [creationMode, setCreationMode] = useState<'individual' | 'lote'>('individual');
+    const [encontros, setEncontros] = useState<Encontro[]>([]);
+    const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
+    const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
+    const [teamMembers, setTeamMembers] = useState<any[]>([]);
+    const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+    const [bulkRole, setBulkRole] = useState<UserRole>('viewer');
+    const [loadingMembers, setLoadingMembers] = useState(false);
+    const [bulkResults, setBulkResults] = useState<{ id: string; success: boolean; message?: string }[]>([]);
+
     const loadUsers = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
             const data = await adminUserService.listUsers();
             setUsers(data);
+
+            const encontrosData = await encontroService.listar();
+            setEncontros(encontrosData);
+
+            const active = encontrosData.find(e => e.ativo);
+            if (active) setSelectedEncontroId(active.id);
+            else if (encontrosData.length > 0) setSelectedEncontroId(encontrosData[0].id);
+
         } catch {
-            setError('Erro ao carregar usuários.');
+            setError('Erro ao carregar usuários ou filtros.');
         } finally {
             setLoading(false);
         }
@@ -138,6 +162,64 @@ export function UsersAdminPage() {
         }
     };
 
+    const handleLoadTeamMembers = async () => {
+        if (!selectedEncontroId || !selectedEquipeId) return;
+        setLoadingMembers(true);
+        setSelectedMemberIds([]);
+        setBulkResults([]);
+        try {
+            const inscricoes = await inscricaoService.listarPorEncontro(selectedEncontroId);
+            const teamFilteres = inscricoes.filter(i => i.equipe_id === selectedEquipeId);
+            setTeamMembers(teamFilteres);
+        } catch {
+            toast.error('Erro ao carregar membros da equipe.');
+        } finally {
+            setLoadingMembers(false);
+        }
+    };
+
+    const handleToggleBulkMember = (pessoaId: string) => {
+        setSelectedMemberIds(prev =>
+            prev.includes(pessoaId) ? prev.filter(id => id !== pessoaId) : [...prev, pessoaId]
+        );
+    };
+
+    const handleToggleAllBulkMembers = () => {
+        const availableMembers = teamMembers.filter(m => m.pessoas?.email && !users.some(u => u.email === m.pessoas.email));
+        if (selectedMemberIds.length === availableMembers.length) {
+            setSelectedMemberIds([]);
+        } else {
+            setSelectedMemberIds(availableMembers.map(m => m.pessoa_id));
+        }
+    };
+
+    const handleBulkCreate = async () => {
+        if (selectedMemberIds.length === 0) return;
+        setCreating(true);
+        const results = [];
+
+        for (const pessoaId of selectedMemberIds) {
+            const member = teamMembers.find(m => m.pessoa_id === pessoaId);
+            if (!member || !member.pessoas?.email) continue;
+
+            try {
+                const result = await adminUserService.createUser({ email: member.pessoas.email, role: bulkRole });
+                setUsers(prev => [...prev, result.user]);
+                setTempPasswords(prev => ({ ...prev, [result.user.id]: result.temporaryPassword }));
+                results.push({ id: pessoaId, success: true });
+            } catch (err: any) {
+                results.push({ id: pessoaId, success: false, message: err.message || 'Erro ao criar' });
+            }
+        }
+
+        setBulkResults(results);
+        setCreating(false);
+        const successes = results.filter(r => r.success).length;
+        if (successes > 0) toast.success(`${successes} usuário(s) criado(s) com sucesso.`);
+        if (results.length > successes) toast.error(`${results.length - successes} erro(s) encontrados.`);
+        setSelectedMemberIds([]);
+    };
+
     const handleChangeRole = async (userId: string, newRole: UserRole) => {
         setUpdatingRoleById((prev) => ({ ...prev, [userId]: true }));
         try {
@@ -188,153 +270,312 @@ export function UsersAdminPage() {
             </div>
 
             <section className="card" style={{ marginBottom: '1rem' }}>
-                <h2 style={{ marginTop: 0, fontSize: '1.1rem' }}>Novo usuário</h2>
-                <form onSubmit={handleCreateUser}>
-                    <FormRow>
-                        {/* Live search combobox */}
-                        <div className="form-group col-6" ref={wrapperRef} style={{ position: 'relative' }}>
-                            <label className="form-label" htmlFor="pessoa-search">
-                                Pessoa <span className="form-label-required">*</span>
-                            </label>
-                            <div className="form-input-wrapper">
-                                <div className="form-input-icon">
-                                    <Search size={16} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Novo usuário</h2>
+                    <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: 'var(--secondary-bg)', padding: '0.25rem', borderRadius: '12px' }}>
+                        <button
+                            type="button"
+                            className={`btn-text ${creationMode === 'individual' ? 'active' : ''}`}
+                            onClick={() => setCreationMode('individual')}
+                            style={{
+                                backgroundColor: creationMode === 'individual' ? 'var(--surface-1)' : 'transparent',
+                                color: creationMode === 'individual' ? 'var(--primary-color)' : 'var(--muted-text)',
+                                boxShadow: creationMode === 'individual' ? 'var(--shadow-sm)' : 'none',
+                                borderRadius: '8px',
+                                padding: '0.5rem 1rem',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            Individual
+                        </button>
+                        <button
+                            type="button"
+                            className={`btn-text ${creationMode === 'lote' ? 'active' : ''}`}
+                            onClick={() => setCreationMode('lote')}
+                            style={{
+                                backgroundColor: creationMode === 'lote' ? 'var(--surface-1)' : 'transparent',
+                                color: creationMode === 'lote' ? 'var(--primary-color)' : 'var(--muted-text)',
+                                boxShadow: creationMode === 'lote' ? 'var(--shadow-sm)' : 'none',
+                                borderRadius: '8px',
+                                padding: '0.5rem 1rem',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            Em Lote (Equipe)
+                        </button>
+                    </div>
+                </div>
+
+                {creationMode === 'individual' ? (
+                    <form onSubmit={handleCreateUser}>
+                        <FormRow>
+                            {/* Live search combobox */}
+                            <div className="form-group col-6" ref={wrapperRef} style={{ position: 'relative' }}>
+                                <label className="form-label" htmlFor="pessoa-search">
+                                    Pessoa <span className="form-label-required">*</span>
+                                </label>
+                                <div className="form-input-wrapper">
+                                    <div className="form-input-icon">
+                                        <Search size={16} />
+                                    </div>
+                                    <input
+                                        id="pessoa-search"
+                                        className="form-input form-input--with-icon"
+                                        type="text"
+                                        autoComplete="off"
+                                        placeholder="Buscar pelo nome..."
+                                        value={searchQuery}
+                                        onChange={(e) => handleSearchChange(e.target.value)}
+                                        onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
+                                    />
+                                    {searchQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={handleClearSelection}
+                                            style={{
+                                                position: 'absolute',
+                                                right: '0.6rem',
+                                                top: '50%',
+                                                transform: 'translateY(-50%)',
+                                                background: 'none',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                color: 'var(--color-text-muted)',
+                                                padding: '0.2rem',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                            }}
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
                                 </div>
-                                <input
-                                    id="pessoa-search"
-                                    className="form-input form-input--with-icon"
-                                    type="text"
-                                    autoComplete="off"
-                                    placeholder="Buscar pelo nome..."
-                                    value={searchQuery}
-                                    onChange={(e) => handleSearchChange(e.target.value)}
-                                    onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
-                                />
-                                {searchQuery && (
-                                    <button
-                                        type="button"
-                                        onClick={handleClearSelection}
-                                        style={{
-                                            position: 'absolute',
-                                            right: '0.6rem',
-                                            top: '50%',
-                                            transform: 'translateY(-50%)',
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            color: 'var(--color-text-muted)',
-                                            padding: '0.2rem',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                        }}
-                                    >
-                                        <X size={14} />
-                                    </button>
+
+                                {/* Selected person badge */}
+                                {selectedPessoa && (
+                                    <div style={{ marginTop: '0.35rem', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                                        {selectedPessoa.email
+                                            ? <span>✉ {selectedPessoa.email}</span>
+                                            : <span style={{ color: 'var(--color-danger, #e53e3e)' }}>⚠ Esta pessoa não tem e-mail cadastrado</span>
+                                        }
+                                    </div>
+                                )}
+
+                                {/* Dropdown */}
+                                {showDropdown && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: 'calc(100% + 2px)',
+                                        left: 0,
+                                        right: 0,
+                                        zIndex: 50,
+                                        background: 'var(--surface-1)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '0.5rem',
+                                        boxShadow: 'var(--shadow-lg)',
+                                        overflow: 'hidden',
+                                        maxHeight: '220px',
+                                        overflowY: 'auto',
+                                    }}>
+                                        {searching && (
+                                            <div style={{ padding: '0.75rem 1rem', color: 'var(--muted-text)', fontSize: '0.875rem' }}>
+                                                Buscando...
+                                            </div>
+                                        )}
+                                        {!searching && searchResults.length === 0 && (
+                                            <div style={{ padding: '0.75rem 1rem', color: 'var(--muted-text)', fontSize: '0.875rem' }}>
+                                                Nenhuma pessoa encontrada.
+                                            </div>
+                                        )}
+                                        {!searching && searchResults.map((pessoa) => (
+                                            <button
+                                                key={pessoa.id}
+                                                type="button"
+                                                disabled={!pessoa.email}
+                                                onClick={() => handleSelectPessoa(pessoa)}
+                                                style={{
+                                                    display: 'block',
+                                                    width: '100%',
+                                                    textAlign: 'left',
+                                                    padding: '0.6rem 1rem',
+                                                    // Reset global button styles
+                                                    background: 'var(--surface-1)',
+                                                    color: 'var(--text-color)',
+                                                    border: 'none',
+                                                    borderBottom: '1px solid var(--border-color)',
+                                                    borderRadius: 0,
+                                                    boxShadow: 'none',
+                                                    cursor: pessoa.email ? 'pointer' : 'not-allowed',
+                                                    opacity: pessoa.email ? 1 : 0.5,
+                                                    fontSize: '0.875rem',
+                                                    fontWeight: 'normal',
+                                                    minHeight: 'unset',
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    if (pessoa.email) (e.currentTarget as HTMLButtonElement).style.background = 'var(--secondary-bg)';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-1)';
+                                                }}
+                                            >
+                                                <div style={{ fontWeight: 500, color: 'var(--text-color)' }}>{pessoa.nome_completo}</div>
+                                                <div style={{ color: 'var(--muted-text)', fontSize: '0.78rem' }}>
+                                                    {pessoa.email ?? '— sem e-mail'}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
                                 )}
                             </div>
 
-                            {/* Selected person badge */}
-                            {selectedPessoa && (
-                                <div style={{ marginTop: '0.35rem', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                                    {selectedPessoa.email
-                                        ? <span>✉ {selectedPessoa.email}</span>
-                                        : <span style={{ color: 'var(--color-danger, #e53e3e)' }}>⚠ Esta pessoa não tem e-mail cadastrado</span>
-                                    }
-                                </div>
-                            )}
-
-                            {/* Dropdown */}
-                            {showDropdown && (
-                                <div style={{
-                                    position: 'absolute',
-                                    top: 'calc(100% + 2px)',
-                                    left: 0,
-                                    right: 0,
-                                    zIndex: 50,
-                                    background: 'var(--surface-1)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: '0.5rem',
-                                    boxShadow: 'var(--shadow-lg)',
-                                    overflow: 'hidden',
-                                    maxHeight: '220px',
-                                    overflowY: 'auto',
-                                }}>
-                                    {searching && (
-                                        <div style={{ padding: '0.75rem 1rem', color: 'var(--muted-text)', fontSize: '0.875rem' }}>
-                                            Buscando...
-                                        </div>
-                                    )}
-                                    {!searching && searchResults.length === 0 && (
-                                        <div style={{ padding: '0.75rem 1rem', color: 'var(--muted-text)', fontSize: '0.875rem' }}>
-                                            Nenhuma pessoa encontrada.
-                                        </div>
-                                    )}
-                                    {!searching && searchResults.map((pessoa) => (
-                                        <button
-                                            key={pessoa.id}
-                                            type="button"
-                                            disabled={!pessoa.email}
-                                            onClick={() => handleSelectPessoa(pessoa)}
-                                            style={{
-                                                display: 'block',
-                                                width: '100%',
-                                                textAlign: 'left',
-                                                padding: '0.6rem 1rem',
-                                                // Reset global button styles
-                                                background: 'var(--surface-1)',
-                                                color: 'var(--text-color)',
-                                                border: 'none',
-                                                borderBottom: '1px solid var(--border-color)',
-                                                borderRadius: 0,
-                                                boxShadow: 'none',
-                                                cursor: pessoa.email ? 'pointer' : 'not-allowed',
-                                                opacity: pessoa.email ? 1 : 0.5,
-                                                fontSize: '0.875rem',
-                                                fontWeight: 'normal',
-                                                minHeight: 'unset',
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                if (pessoa.email) (e.currentTarget as HTMLButtonElement).style.background = 'var(--secondary-bg)';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface-1)';
-                                            }}
-                                        >
-                                            <div style={{ fontWeight: 500, color: 'var(--text-color)' }}>{pessoa.nome_completo}</div>
-                                            <div style={{ color: 'var(--muted-text)', fontSize: '0.78rem' }}>
-                                                {pessoa.email ?? '— sem e-mail'}
-                                            </div>
-                                        </button>
+                            {/* Role select */}
+                            <div className="form-group col-6">
+                                <label className="form-label" htmlFor="new-user-role">Role</label>
+                                <select
+                                    id="new-user-role"
+                                    className="form-input"
+                                    value={role}
+                                    onChange={(event) => setRole(event.target.value as UserRole)}
+                                >
+                                    {USER_ROLES.map((roleOption) => (
+                                        <option key={roleOption} value={roleOption}>
+                                            {roleLabels[roleOption]}
+                                        </option>
                                     ))}
+                                </select>
+                            </div>
+                        </FormRow>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                            <button className="btn-primary" type="submit" disabled={creating || !selectedPessoa?.email}>
+                                <UserPlus size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                                {creating ? 'Criando...' : 'Criar usuário'}
+                            </button>
+                        </div>
+                    </form>
+                ) : (
+                    <div className="bulk-creation-form">
+                        <FormRow>
+                            <div className="form-group col-4">
+                                <label className="form-label">Encontro</label>
+                                <LiveSearchSelect<Encontro>
+                                    value={selectedEncontroId}
+                                    onChange={(val) => setSelectedEncontroId(val)}
+                                    fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
+                                    getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
+                                    getOptionValue={(e) => String(e.id)}
+                                    placeholder="Selecione um Encontro..."
+                                    initialOptions={encontros}
+                                />
+                            </div>
+                            <div className="form-group col-4">
+                                <label className="form-label">Equipe</label>
+                                <LiveSearchSelect<Equipe>
+                                    value={selectedEquipeId}
+                                    onChange={(val) => setSelectedEquipeId(val)}
+                                    fetchData={async (search, page) => await equipeService.buscarComPaginacao(search, page)}
+                                    getOptionLabel={(e) => e.nome}
+                                    getOptionValue={(e) => String(e.id)}
+                                    placeholder="Selecione uma Equipe..."
+                                />
+                            </div>
+                            <div className="form-group col-4" style={{ display: 'flex', flexDirection: 'column' }}>
+                                <label className="form-label" style={{ visibility: 'hidden' }}>Buscar</label>
+                                <button className="btn-primary" style={{ width: '100%', flex: 1 }} onClick={handleLoadTeamMembers} disabled={!selectedEncontroId || !selectedEquipeId || loadingMembers}>
+                                    <Search size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                                    {loadingMembers ? 'Buscando...' : 'Buscar Membros'}
+                                </button>
+                            </div>
+                        </FormRow>
+
+                        {teamMembers.length > 0 && (
+                            <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+                                    <h3 style={{ margin: 0, fontSize: '1.05rem' }}>Membros da Equipe ({teamMembers.length})</h3>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <label className="form-label" style={{ margin: 0 }}>Role (para todos):</label>
+                                            <select className="form-input" style={{ width: 'auto', padding: '0.4rem 1.5rem 0.4rem 0.75rem' }} value={bulkRole} onChange={e => setBulkRole(e.target.value as UserRole)}>
+                                                {USER_ROLES.map((r) => <option key={r} value={r}>{roleLabels[r]}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
-                            )}
-                        </div>
 
-                        {/* Role select */}
-                        <div className="form-group col-6">
-                            <label className="form-label" htmlFor="new-user-role">Role</label>
-                            <select
-                                id="new-user-role"
-                                className="form-input"
-                                value={role}
-                                onChange={(event) => setRole(event.target.value as UserRole)}
-                            >
-                                {USER_ROLES.map((roleOption) => (
-                                    <option key={roleOption} value={roleOption}>
-                                        {roleLabels[roleOption]}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    </FormRow>
+                                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', padding: '0.75rem', background: 'var(--secondary-bg)', borderRadius: '8px' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedMemberIds.length > 0 && selectedMemberIds.length === teamMembers.filter(m => m.pessoas?.email && !users.some(u => u.email === m.pessoas.email)).length}
+                                            onChange={handleToggleAllBulkMembers}
+                                            style={{ width: '1.2rem', height: '1.2rem' }}
+                                        />
+                                        Selecionar todos elegíveis
+                                    </label>
+                                    <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--muted-text)' }}>
+                                        {selectedMemberIds.length} selecionados
+                                    </span>
+                                </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                        <button className="btn-primary" type="submit" disabled={creating || !selectedPessoa?.email}>
-                            <UserPlus size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
-                            {creating ? 'Criando...' : 'Criar usuário'}
-                        </button>
+                                <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+                                    {teamMembers.map(member => {
+                                        const pessoa = member.pessoas;
+                                        const hasEmail = !!pessoa?.email;
+                                        const existingUser = users.find(u => u.email === pessoa?.email);
+                                        const isEligible = hasEmail && !existingUser;
+                                        const isSelected = selectedMemberIds.includes(member.pessoa_id);
+                                        const result = bulkResults.find(r => r.id === member.pessoa_id);
+
+                                        return (
+                                            <div key={member.id} className="bulk-member-card" style={{
+                                                display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
+                                                background: isSelected ? 'var(--primary-light)' : 'var(--card-bg)',
+                                                border: `1px solid ${isSelected ? 'var(--primary-color)' : 'var(--border-color)'}`,
+                                                borderRadius: '8px',
+                                                opacity: isEligible ? 1 : 0.6,
+                                            }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    disabled={!isEligible || creating}
+                                                    onChange={() => handleToggleBulkMember(member.pessoa_id)}
+                                                    style={{ width: '1.2rem', height: '1.2rem', cursor: isEligible ? 'pointer' : 'not-allowed' }}
+                                                />
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pessoa?.nome_completo}</div>
+                                                    <div style={{ fontSize: '0.8rem', color: 'var(--muted-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {pessoa?.email || 'Sem e-mail'}
+                                                    </div>
+                                                </div>
+                                                <div style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: '100px' }}>
+                                                    {!hasEmail && <span style={{ color: 'var(--danger-text)' }}>Falta e-mail</span>}
+                                                    {existingUser && <span style={{ color: 'var(--success-text)' }}>Já cadastrado ({existingUser.role})</span>}
+                                                    {result && (
+                                                        <span style={{ color: result.success ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 600 }}>
+                                                            {result.success ? '✓ Criado' : `✗ ${result.message}`}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                                    <button className="btn-primary" onClick={handleBulkCreate} disabled={creating || selectedMemberIds.length === 0}>
+                                        <UserPlus size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                                        {creating ? 'Processando...' : `Criar ${selectedMemberIds.length} usuário(s)`}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        {!loadingMembers && selectedEquipeId && teamMembers.length === 0 && (
+                            <div className="text-center text-muted" style={{ padding: '2rem' }}>
+                                Nenhum membro encontrado ou busca não realizada.
+                            </div>
+                        )}
                     </div>
-                </form>
+                )}
             </section>
 
             <section className="card">

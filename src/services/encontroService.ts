@@ -13,7 +13,25 @@ export const encontroService = {
             console.error('Erro ao buscar encontros:', error);
             throw error;
         }
-        console.log('Encontros carregados:', data);
+        return data as Encontro[];
+    },
+
+    async buscarComPaginacao(busca: string = '', pagina: number = 0, limite: number = 5): Promise<Encontro[]> {
+        let query = supabase
+            .from(TABLE)
+            .select('*')
+            .order('edicao', { ascending: false });
+
+        if (busca.trim() !== '') {
+            query = query.ilike('nome', `%${busca}%`);
+        }
+
+        const from = pagina * limite;
+        const to = from + limite - 1;
+
+        const { data, error } = await query.range(from, to);
+
+        if (error) throw error;
         return data as Encontro[];
     },
 

@@ -167,11 +167,10 @@ h2 {
   border-radius: 16px;
   padding: 2.5rem;
   box-shadow: var(--shadow-lg);
-  transition: transform 0.3s var(--ease-spring), box-shadow 0.3s ease;
+  transition: box-shadow 0.3s ease;
 }
 
 .card:hover {
-  transform: translateY(-4px);
   box-shadow: var(--shadow-xl);
 }
 
@@ -1558,4 +1557,24 @@ tbody tr:hover {
   .admin-users-create-form {
     grid-template-columns: 1fr;
   }
+}
+
+/* Live Search Select Option Hover Effect */
+.live-search-option {
+  transition: background 0.2s;
+}
+
+.live-search-option:hover:not([style*="var(--primary-light)"]) {
+  background-color: var(--secondary-bg) !important;
+}
+
+/* Bulk Member Card - hover effect without flickering */
+/* We only transition the box-shadow so React can freely update inline bg/border without fighting CSS */
+.bulk-member-card {
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+
+.bulk-member-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }

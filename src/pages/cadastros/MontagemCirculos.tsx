@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../../components/Header';
+import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
 import { circuloService } from '../../services/circuloService';
 import { circuloParticipacaoService } from '../../services/circuloParticipacaoService';
@@ -239,14 +240,18 @@ export function MontagemCirculos() {
                 <button onClick={() => navigate('/cadastros')} className="icon-btn"><ChevronLeft size={20} /></button>
                 <div>
                   <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Montagem Círculos</h1>
-                  <select
-                    className="form-input"
-                    style={{ border: 'none', background: 'transparent', padding: 0, fontWeight: 'bold', cursor: 'pointer' }}
-                    value={selectedEncontroId}
-                    onChange={e => setSelectedEncontroId(e.target.value)}
-                  >
-                    {encontros.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
-                  </select>
+                  <div style={{ width: '300px' }}>
+                    <LiveSearchSelect<Encontro>
+                      value={selectedEncontroId}
+                      onChange={(val) => setSelectedEncontroId(val)}
+                      fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
+                      getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
+                      getOptionValue={(e) => String(e.id)}
+                      placeholder="Selecione um Encontro..."
+                      initialOptions={encontros}
+                      className="montagem-header-select"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
