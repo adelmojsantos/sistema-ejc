@@ -1,6 +1,6 @@
+import { LogIn, Menu, Moon, Sun, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, LogIn, Menu, Moon, Sun, X } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export function LandingHeader() {
