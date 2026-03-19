@@ -15,6 +15,26 @@ export const equipeService = {
         return data as Equipe[];
     },
 
+    async buscarComPaginacao(busca: string = '', pagina: number = 0, limite: number = 5): Promise<Equipe[]> {
+        let query = supabase
+            .from(TABLE)
+            .select('*')
+            .is('deleted_at', null)
+            .order('nome', { ascending: true });
+
+        if (busca.trim() !== '') {
+            query = query.ilike('nome', `%${busca}%`);
+        }
+
+        const from = pagina * limite;
+        const to = from + limite - 1;
+
+        const { data, error } = await query.range(from, to);
+
+        if (error) throw error;
+        return data as Equipe[];
+    },
+
     async criar(formData: EquipeFormData): Promise<Equipe> {
         const { data, error } = await supabase
             .from(TABLE)

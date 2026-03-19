@@ -3,6 +3,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Search, Plus, Shield, Users, Trash2, Loader, Check, X, UserPlus } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { inscricaoService } from '../../services/inscricaoService';
 import { encontroService } from '../../services/encontroService';
@@ -239,14 +240,18 @@ export function MontagemPage() {
                     <button onClick={() => navigate('/cadastros')} className="icon-btn" title="Voltar"><ChevronLeft size={18} /></button>
                     <div>
                         <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Equipes por Encontro</p>
-                        <select
-                            className="form-input"
-                            style={{ padding: '0.2rem 0.5rem', fontWeight: 'bold', border: 'none', background: 'transparent', fontSize: '1.4rem', color: 'var(--primary-color)', cursor: 'pointer' }}
-                            value={selectedEncontroId}
-                            onChange={e => setSelectedEncontroId(e.target.value)}
-                        >
-                            {encontros.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
-                        </select>
+                        <div style={{ width: '300px' }}>
+                            <LiveSearchSelect<Encontro>
+                                value={selectedEncontroId}
+                                onChange={(val) => setSelectedEncontroId(val)}
+                                fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
+                                getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
+                                getOptionValue={(e) => String(e.id)}
+                                placeholder="Selecione um Encontro..."
+                                initialOptions={encontros}
+                                className="montagem-header-select"
+                            />
+                        </div>
                     </div>
                 </div>
 

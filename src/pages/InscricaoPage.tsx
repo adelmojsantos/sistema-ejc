@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { ChevronLeft, AlertTriangle, CheckCircle2, Users, Search, History } from 'lucide-react';
 import { Header } from '../components/Header';
+import { LiveSearchSelect } from '../components/ui/LiveSearchSelect';
 import { PessoaForm } from '../components/pessoa/PessoaForm';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { encontroService } from '../services/encontroService';
@@ -206,18 +207,15 @@ export function InscricaoPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <select
-                    className="form-input"
+                  <LiveSearchSelect<Encontro>
                     value={selectedEncontroId}
-                    onChange={(e) => setSelectedEncontroId(e.target.value)}
-                    style={{ width: '100%', padding: '0.75rem' }}
-                  >
-                    {encontros.map(e => (
-                      <option key={e.id} value={e.id}>
-                        {e.nome} {e.tema ? `(${e.tema})` : ''} {e.ativo ? '(Ativo)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setSelectedEncontroId(val)}
+                    fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
+                    getOptionLabel={(e) => `${e.nome}${e.tema ? ` (${e.tema})` : ''} ${e.ativo ? '(Ativo)' : ''}`}
+                    getOptionValue={(e) => String(e.id)}
+                    placeholder="Selecione um Encontro..."
+                    initialOptions={encontros}
+                  />
                 </div>
                 {encontros.find(e => e.id === selectedEncontroId)?.ativo && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success-text)', fontWeight: 'bold', fontSize: '0.9rem', marginTop: '0.25rem' }}>

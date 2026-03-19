@@ -17,7 +17,7 @@ export const inscricaoService = {
     async listarPorEncontro(encontroId: string): Promise<any[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('*, pessoas(nome_completo, cpf), equipes(nome)')
+            .select('*, pessoas(nome_completo, cpf, email), equipes(nome)')
             .eq('encontro_id', encontroId);
 
         if (error) throw error;

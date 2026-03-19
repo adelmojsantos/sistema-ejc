@@ -9,6 +9,7 @@ import { equipeService } from '../../services/equipeService';
 import { Save, Loader, User, Calendar, Shield, X } from 'lucide-react';
 import { FormSection } from '../ui/FormSection';
 import { FormRow } from '../ui/FormRow';
+import { LiveSearchSelect } from '../ui/LiveSearchSelect';
 
 interface InscricaoFormProps {
     initialData?: Inscricao;
@@ -76,15 +77,15 @@ export function InscricaoForm({ initialData, onSubmit, onCancel, isLoading = fal
 
                     <div className="form-group col-6">
                         <label className="form-label">Encontro <Calendar size={12} /></label>
-                        <select
-                            className="form-input"
+                        <LiveSearchSelect<Encontro>
                             value={form.encontro_id}
-                            onChange={e => setForm({ ...form, encontro_id: e.target.value })}
-                            required
-                        >
-                            <option value="">Selecione um encontro...</option>
-                            {encontros.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
-                        </select>
+                            onChange={(val) => setForm({ ...form, encontro_id: val })}
+                            fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
+                            getOptionLabel={(e) => `${e.nome}${e.tema ? ` (${e.tema})` : ''} ${e.ativo ? '(Ativo)' : ''}`}
+                            getOptionValue={(e) => String(e.id)}
+                            placeholder="Selecione um Encontro..."
+                            initialOptions={encontros}
+                        />
                     </div>
                 </FormRow>
 
@@ -120,14 +121,15 @@ export function InscricaoForm({ initialData, onSubmit, onCancel, isLoading = fal
                     <FormRow>
                         <div className="form-group col-12">
                             <label className="form-label">Equipe de Trabalho <Shield size={12} /></label>
-                            <select
-                                className="form-input"
+                            <LiveSearchSelect<Equipe>
                                 value={form.equipe_id ?? ''}
-                                onChange={e => setForm({ ...form, equipe_id: e.target.value || null })}
-                            >
-                                <option value="">Nenhuma equipe selecionada</option>
-                                {equipes.map(eq => <option key={eq.id} value={eq.id}>{eq.nome}</option>)}
-                            </select>
+                                onChange={(val) => setForm({ ...form, equipe_id: val || null })}
+                                fetchData={async (search, page) => await equipeService.buscarComPaginacao(search, page)}
+                                getOptionLabel={(e) => String(e.nome)}
+                                getOptionValue={(e) => String(e.id)}
+                                placeholder="Nenhuma equipe selecionada"
+                                initialOptions={equipes}
+                            />
                         </div>
                     </FormRow>
                 )}
