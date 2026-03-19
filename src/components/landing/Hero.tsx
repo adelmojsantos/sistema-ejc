@@ -43,7 +43,7 @@ export function Hero() {
             decoding="async"
             fetchPriority="high"
           />
-          <figcaption>
+          {/* <figcaption>
             <span>
               <Users size={18} />
             </span>
@@ -51,7 +51,7 @@ export function Hero() {
               <strong>+500 Jovens</strong>
               <small>Vidas transformadas</small>
             </div>
-          </figcaption>
+          </figcaption> */}
         </figure>
       </div>
     </div>

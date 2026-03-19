@@ -170,6 +170,20 @@ html {
   align-items: center;
   justify-content: center;
   box-shadow: 0 8px 20px rgba(37, 99, 235, 0.32);
+  overflow: hidden;
+}
+
+.landing-header__brand-icon.has-image {
+  background: transparent;
+  box-shadow: none;
+  width: auto;
+  height: 42px;
+}
+
+.landing-header__brand-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .landing-header__brand-text {
@@ -881,13 +895,13 @@ html {
 .faq__item {
   border-radius: var(--landing-radius-md);
   border: 1px solid var(--landing-border);
-  background: #ffffff;
+  background: var(--landing-surface);
   overflow: hidden;
   transition: border-color 300ms var(--landing-ease), box-shadow 300ms var(--landing-ease);
 }
 
 .faq__item.is-open {
-  border-color: #bfdbfe;
+  border-color: var(--landing-primary);
   box-shadow: var(--landing-shadow-sm);
 }
 
@@ -907,7 +921,7 @@ html {
   justify-content: space-between;
   gap: 1rem;
   cursor: pointer;
-  color: #0f172a;
+  color: var(--landing-text);
   font: inherit;
   font-weight: 700;
 }
@@ -941,9 +955,10 @@ html {
 .faq__panel p {
   margin: 0;
   overflow: hidden;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--landing-border);
   padding: 0 1rem 1rem;
   line-height: 1.75;
+  color: var(--landing-muted);
 }
 
 .landing-footer {
@@ -994,6 +1009,19 @@ html {
   justify-content: center;
   background: rgba(59, 130, 246, 0.24);
   color: #93c5fd;
+  overflow: hidden;
+}
+
+.landing-footer__brand-icon.has-image {
+  background: transparent;
+  width: auto;
+  height: 32px;
+}
+
+.landing-footer__brand-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .landing-footer__text {

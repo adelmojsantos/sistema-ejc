@@ -1,6 +1,8 @@
-import { ArrowUp, Facebook, Heart, Instagram, Mail, MapPin, Phone } from 'lucide-react';
+import { ArrowUp, Facebook, Instagram, Mail, MapPin, Phone } from 'lucide-react';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export function LandingFooter() {
+  const { theme } = useTheme();
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -11,8 +13,8 @@ export function LandingFooter() {
         <div className="landing-footer__grid">
           <section className="landing-footer__brand" aria-labelledby="footer-brand">
             <h3 id="footer-brand" className="landing-footer__title landing-footer__brand-title">
-              <span className="landing-footer__brand-icon">
-                <Heart size={18} fill="currentColor" />
+              <span className="landing-footer__brand-icon has-image">
+                <img src="/logo.png" alt="Logo" />
               </span>
               EJC Capelinha
             </h3>
@@ -55,9 +57,9 @@ export function LandingFooter() {
               <li>
                 <MapPin size={16} />
                 <span>
-                  Capelinha - MG
+                  Franca - SP
                   <br />
-                  Paróquia Nossa Senhora Aparecida
+                  Paróquia Nossa Senhora Aparecida (Capelinha)
                 </span>
               </li>
               <li>
@@ -77,8 +79,13 @@ export function LandingFooter() {
           <div className="landing-footer__legal">
             <a href="#">Privacidade</a>
             <a href="#">Termos</a>
-            <button type="button" onClick={scrollToTop} aria-label="Voltar para o topo">
-              <ArrowUp size={16} />
+            <button
+              type="button"
+              onClick={scrollToTop}
+              aria-label="Voltar para o topo"
+              className={`landing-theme-toggle ${theme === 'dark' ? 'landing-theme-toggle--dark' : 'landing-theme-toggle--light'}`}
+            >
+              <ArrowUp size={16} color={theme === 'dark' ? 'white' : 'black'} />
             </button>
           </div>
         </div>

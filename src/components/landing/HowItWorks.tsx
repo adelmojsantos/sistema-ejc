@@ -1,4 +1,4 @@
-import { ClipboardList, Mail, PartyPopper } from 'lucide-react';
+import { Car, Check, ClipboardList, PartyPopper } from 'lucide-react';
 
 const steps = [
   {
@@ -7,9 +7,14 @@ const steps = [
     description: 'Preencha o formulário nesta página informando seu interesse em participar do próximo encontro.'
   },
   {
-    icon: Mail,
-    title: 'Convocação',
-    description: 'Fique atento aos nossos canais. Entraremos em contato para confirmar sua vaga e detalhes.'
+    icon: Check,
+    title: 'Inscrição',
+    description: 'Vá na data de inscrição e efetive sua inscrição.'
+  },
+  {
+    icon: Car,
+    title: 'Preparação',
+    description: 'Aguarde o contato EJC para receber as orientações sobre o encontro.'
   },
   {
     icon: PartyPopper,

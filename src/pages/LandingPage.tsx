@@ -98,7 +98,7 @@ export default function LandingPage() {
               As vagas são limitadas e o próximo encontro pode mudar a sua vida. Não adie sua renovação.
             </p>
             <a href="#cadastro" className="landing-button landing-button--light">
-              Garantir minha vaga
+              Ir para o pré-cadastro
             </a>
           </div>
         </Section>
@@ -113,8 +113,10 @@ export default function LandingPage() {
               <header className="section-heading section-heading--left">
                 <h2>Pré-Cadastro</h2>
                 <p>
-                  Preencha seus dados reais para garantir sua pré-inscrição para o próximo evento. A equipe entra em
-                  contato com as orientações da próxima etapa.
+                  Preencha seus dados reais para garantir sua pré-inscrição para o próximo encontro.
+                </p>
+                <p>
+                  Depois vá no dia das inscrições e efetive sua inscrição.
                 </p>
               </header>
 
@@ -201,7 +203,7 @@ export default function LandingPage() {
                       </>
                     ) : (
                       <>
-                        Realizar Inscrição
+                        Realizar pré-cadastro
                         <Send size={18} />
                       </>
                     )}

@@ -1,4 +1,4 @@
-﻿import { Heart, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
+import { Heart, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
@@ -72,8 +72,9 @@ export function Header() {
     <header ref={headerRef} className={`header ${isScrolled ? 'is-scrolled' : ''}`}>
       <div className="container header-bar">
         <Link to="/dashboard" className="header-brand">
-          <span className="header-brand-icon">
-            <Heart size={20} fill="currentColor" />
+          <span className="header-brand-icon has-image">
+            {/* <Heart size={20} fill="currentColor" /> */}
+            <img src="/logo.png" alt="Logo" />
           </span>
           <span className="header-brand-text">
             EJC <strong>Capelinha</strong>

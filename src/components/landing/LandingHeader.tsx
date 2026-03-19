@@ -47,8 +47,8 @@ export function LandingHeader() {
       <div className="container">
         <div className="landing-header__bar">
           <a className="landing-header__brand" href="#" onClick={handleScrollToTop} aria-label="Ir para o topo">
-            <span className="landing-header__brand-icon">
-              <Heart size={20} fill="currentColor" />
+            <span className="landing-header__brand-icon has-image">
+              <img src="/logo.png" alt="Logo" />
             </span>
             <span className="landing-header__brand-text">
               EJC <strong>Capelinha</strong>
