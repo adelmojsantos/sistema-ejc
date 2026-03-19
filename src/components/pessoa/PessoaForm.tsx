@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import type { Pessoa, PessoaFormData } from '../../types/pessoa';
+import type { PessoaFormData } from '../../types/pessoa';
 import { FormField } from '../ui/FormField';
 import { FormSection } from '../ui/FormSection';
 import { FormRow } from '../ui/FormRow';
 import { User, Phone, UsersRound, X, Check, Loader } from 'lucide-react';
 
 interface PessoaFormProps {
-    initialData?: Pessoa;
+    initialData?: Partial<PessoaFormData>;
     onSubmit: (data: PessoaFormData) => Promise<void>;
     onCancel: () => void;
     isLoading?: boolean;

@@ -11,7 +11,9 @@ export interface VisitaParticipacao {
     participacao_id: string; // uuid from participacoes
     visitante: boolean;
     created_at: string;
-    // Helper fields for UI
+}
+
+export interface VisitaParticipacaoEnriched extends VisitaParticipacao {
     participacoes?: {
         id: string;
         encontro_id: string;
@@ -25,4 +27,8 @@ export interface VisitaParticipacao {
 }
 
 export type VisitaGrupoFormData = Omit<VisitaGrupo, 'id' | 'created_at'>;
-export type VisitaParticipacaoFormData = Omit<VisitaParticipacao, 'id' | 'created_at' | 'participacoes' | 'visita_grupos'>;
+export type VisitaParticipacaoFormData = {
+    grupo_id: string;
+    participacao_id: string;
+    visitante: boolean;
+};

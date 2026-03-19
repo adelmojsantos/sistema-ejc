@@ -6,6 +6,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { inscricaoService } from '../../services/inscricaoService';
+import type { InscricaoEnriched } from '../../types/inscricao';
 import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
 import { pessoaService } from '../../services/pessoaService';
@@ -27,7 +28,7 @@ export function MontagemPage() {
     // States
     const [encontros, setEncontros] = useState<Encontro[]>([]);
     const [equipes, setEquipes] = useState<Equipe[]>([]);
-    const [inscricoes, setInscricoes] = useState<any[]>([]); // Membros persistidos
+    const [inscricoes, setInscricoes] = useState<InscricaoEnriched[]>([]); // Membros persistidos
     const [pessoas, setPessoas] = useState<Pessoa[]>([]); // Para busca
 
     const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
@@ -42,7 +43,7 @@ export function MontagemPage() {
     const [isFetching, setIsFetching] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [isSavingPerson, setIsSavingPerson] = useState(false);
-    const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<InscricaoEnriched | null>(null);
 
     const searchRef = useRef<HTMLDivElement>(null);
 
@@ -149,12 +150,8 @@ export function MontagemPage() {
             addToStaging(newPerson);
             setShowQuickAddPerson(false);
             toast.success('Pessoa cadastrada e adicionada com sucesso!');
-        } catch (err: any) {
-            if (err.message?.includes('unique_cpf')) {
-                toast.error('Já existe uma pessoa cadastrada com este CPF.');
-            } else {
-                toast.error('Erro ao cadastrar pessoa.');
-            }
+        } catch {
+            toast.error('Erro ao cadastrar pessoa.');
         } finally {
             setIsSavingPerson(false);
         }
@@ -188,19 +185,19 @@ export function MontagemPage() {
             await inscricaoService.criarMuitos(payload);
             await loadInscricoes();
             toast.success('Membros salvos com sucesso!');
-        } catch (err: any) {
+        } catch {
             toast.error('Erro ao salvar novos membros. Verifique se já não estão vinculados.');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleToggleCoord = async (membro: any) => {
+    const handleToggleCoord = async (membro: InscricaoEnriched) => {
         try {
             await inscricaoService.atualizar(membro.id, { coordenador: !membro.coordenador });
             setInscricoes(prev => prev.map(i => i.id === membro.id ? { ...i, coordenador: !i.coordenador } : i));
             toast.success('Cargo atualizado com sucesso!');
-        } catch (err) {
+        } catch {
             toast.error('Erro ao atualizar cargo.');
         }
     };

@@ -6,10 +6,11 @@ import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
 import { visitacaoService } from '../../services/visitacaoService';
 import { inscricaoService } from '../../services/inscricaoService';
+import type { InscricaoEnriched } from '../../types/inscricao';
 import { equipeService } from '../../services/equipeService';
 import { normalizeString } from '../../utils/stringUtils';
 import type { Encontro } from '../../types/encontro';
-import type { VisitaGrupo, VisitaParticipacao } from '../../types/visitacao';
+import type { VisitaGrupo, VisitaParticipacaoEnriched } from '../../types/visitacao';
 import { UserPlus, Trash2, Plus, ChevronLeft, Users, Loader, Search, X, Shield, Info, Edit2, Check } from 'lucide-react';
 
 export function MontagemVisitacao() {
@@ -20,9 +21,9 @@ export function MontagemVisitacao() {
   const [grupos, setGrupos] = useState<VisitaGrupo[]>([]);
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [selectedGrupoId, setSelectedGrupoId] = useState<string>('');
-  const [participantes, setParticipantes] = useState<any[]>([]); // All people (participante: true)
-  const [equipeVisitacao, setEquipeVisitacao] = useState<any[]>([]); // People from the visitation team
-  const [vinculos, setVinculos] = useState<VisitaParticipacao[]>([]); // Relationships for the meeting/groups
+  const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]); // All people (participante: true)
+  const [equipeVisitacao, setEquipeVisitacao] = useState<InscricaoEnriched[]>([]); // People from the visitation team
+  const [vinculos, setVinculos] = useState<VisitaParticipacaoEnriched[]>([]); // Relationships for the meeting/groups
 
   // Selection states for forming pairs (Visitantes)
   const [selectedPessoa1, setSelectedPessoa1] = useState<string>('');
@@ -42,8 +43,8 @@ export function MontagemVisitacao() {
         const es = await encontroService.listar();
         setEncontros(es);
         if (es.length > 0) setSelectedEncontroId(es[es.length - 1].id);
-      } catch (error) {
-        console.error('Error loading base data:', error);
+      } catch (_error) {
+        console.error('Error loading base data:', _error);
       } finally {
         setIsFetching(false);
       }
@@ -82,8 +83,8 @@ export function MontagemVisitacao() {
       if (gData.length > 0 && !selectedGrupoId) {
         setSelectedGrupoId(gData[0].id);
       }
-    } catch (error) {
-      console.error('Error loading meeting data:', error);
+    } catch (_error) {
+      console.error('Error loading meeting data:', _error);
     } finally {
       setIsFetching(false);
     }
@@ -108,12 +109,11 @@ export function MontagemVisitacao() {
       await visitacaoService.vincular({
         grupo_id: selectedGrupoId,
         participacao_id: participacaoId,
-        visitante: false,
-        encontro_id: selectedEncontroId // Assuming service handles it or it's in the formData
-      } as any);
+        visitante: false
+      });
       await loadData();
       toast.success('Pessoa vinculada com sucesso!');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao vincular à visita.');
     } finally {
       setIsLoading(false);
@@ -149,7 +149,7 @@ export function MontagemVisitacao() {
       setSelectedGrupoId(newGroup.id);
       await loadData();
       toast.success('Dupla de visitação criada com sucesso!');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao criar grupo de visitação.');
     } finally {
       setIsLoading(false);
@@ -164,7 +164,7 @@ export function MontagemVisitacao() {
       setEditingName(null);
       await loadData();
       toast.success('Grupo renomeado com sucesso!');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao renomear grupo.');
     } finally {
       setIsLoading(false);
@@ -177,7 +177,7 @@ export function MontagemVisitacao() {
       await visitacaoService.desvincular(id);
       await loadData();
       toast.success('Desvinculado com sucesso!');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao desvincular.');
     } finally {
       setIsLoading(false);
@@ -192,7 +192,7 @@ export function MontagemVisitacao() {
       if (selectedGrupoId === id) setSelectedGrupoId('');
       await loadData();
       toast.success('Grupo excluído com sucesso!');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao excluir grupo.');
     } finally {
       setIsLoading(false);

@@ -1,9 +1,10 @@
 import { User, Shield, Pencil, Trash2, Calendar } from 'lucide-react';
+import type { InscricaoEnriched } from '../../types/inscricao';
 
 interface InscricaoRowProps {
-    inscricao: any; // Using any because service returns joined data
-    onEdit: (inscricao: any) => void;
-    onDelete: (inscricao: any) => void;
+    inscricao: InscricaoEnriched;
+    onEdit: (inscricao: InscricaoEnriched) => void;
+    onDelete: (inscricao: InscricaoEnriched) => void;
 }
 
 export function InscricaoRow({ inscricao, onEdit, onDelete }: InscricaoRowProps) {

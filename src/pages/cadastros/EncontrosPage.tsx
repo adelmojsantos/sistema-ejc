@@ -31,8 +31,9 @@ export function EncontrosPage() {
             const data = await encontroService.listar();
             setEncontros(data);
             setFiltered(data);
-        } catch (err: any) {
-            const msg = err.message || 'Erro ao carregar encontros.';
+        } catch (err: unknown) {
+            const errorObj = err as { message?: string };
+            const msg = errorObj.message || 'Erro ao carregar encontros.';
             setFetchError(msg);
             toast.error(msg);
         } finally {
@@ -96,8 +97,9 @@ export function EncontrosPage() {
             setEncontros((prev) => prev.filter((p) => p.id !== deleteTarget.id));
             setDeleteTarget(null);
             toast.success('Encontro excluído com sucesso!');
-        } catch (err: any) {
-            if (err.code === '23503') {
+        } catch (err: unknown) {
+            const errorObj = err as { code?: string };
+            if (errorObj.code === '23503') {
                 toast.error('Não é possível excluir pois existem registros vinculados.');
             } else {
                 toast.error('Erro ao excluir encontro.');

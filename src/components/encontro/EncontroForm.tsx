@@ -39,7 +39,7 @@ export function EncontroForm({ initialData, onSubmit, onCancel, isLoading = fals
 
     const [errors, setErrors] = useState<FormErrors>({});
 
-    const handleChange = (field: keyof EncontroFormData, value: any) => {
+    const handleChange = (field: keyof EncontroFormData, value: string | number | boolean | null) => {
         setForm((prev) => ({ ...prev, [field]: value }));
         if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
     };

@@ -8,6 +8,20 @@ export interface Inscricao {
     coordenador: boolean | null;
 }
 
+export interface InscricaoEnriched extends Inscricao {
+    pessoas?: {
+        nome_completo: string;
+        cpf: string | null;
+        email?: string | null;
+    };
+    encontros?: {
+        nome: string;
+    };
+    equipes?: {
+        nome: string | null;
+    };
+}
+
 export type InscricaoFormData = Omit<Inscricao, 'id' | 'data_inscricao'>;
 
 export const inscricaoFormDataVazia = (): InscricaoFormData => ({

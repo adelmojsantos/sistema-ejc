@@ -14,6 +14,7 @@ import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
 import { inscricaoService } from '../../services/inscricaoService';
+import type { InscricaoEnriched } from '../../types/inscricao';
 import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
 const roleLabels: Record<UserRole, string> = {
@@ -47,7 +48,7 @@ export function UsersAdminPage() {
     const [encontros, setEncontros] = useState<Encontro[]>([]);
     const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
     const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
-    const [teamMembers, setTeamMembers] = useState<any[]>([]);
+    const [teamMembers, setTeamMembers] = useState<InscricaoEnriched[]>([]);
     const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
     const [bulkRole, setBulkRole] = useState<UserRole>('viewer');
     const [loadingMembers, setLoadingMembers] = useState(false);
@@ -185,7 +186,7 @@ export function UsersAdminPage() {
     };
 
     const handleToggleAllBulkMembers = () => {
-        const availableMembers = teamMembers.filter(m => m.pessoas?.email && !users.some(u => u.email === m.pessoas.email));
+        const availableMembers = teamMembers.filter(m => m.pessoas?.email && !users.some(u => u.email === m.pessoas?.email));
         if (selectedMemberIds.length === availableMembers.length) {
             setSelectedMemberIds([]);
         } else {
@@ -207,8 +208,9 @@ export function UsersAdminPage() {
                 setUsers(prev => [...prev, result.user]);
                 setTempPasswords(prev => ({ ...prev, [result.user.id]: result.temporaryPassword }));
                 results.push({ id: pessoaId, success: true });
-            } catch (err: any) {
-                results.push({ id: pessoaId, success: false, message: err.message || 'Erro ao criar' });
+            } catch (err: unknown) {
+                const message = err instanceof Error ? err.message : 'Erro ao criar';
+                results.push({ id: pessoaId, success: false, message });
             }
         }
 
@@ -474,7 +476,7 @@ export function UsersAdminPage() {
                                     value={selectedEquipeId}
                                     onChange={(val) => setSelectedEquipeId(val)}
                                     fetchData={async (search, page) => await equipeService.buscarComPaginacao(search, page)}
-                                    getOptionLabel={(e) => e.nome}
+                                    getOptionLabel={(e) => e.nome || ''}
                                     getOptionValue={(e) => String(e.id)}
                                     placeholder="Selecione uma Equipe..."
                                 />
@@ -506,7 +508,7 @@ export function UsersAdminPage() {
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>
                                         <input
                                             type="checkbox"
-                                            checked={selectedMemberIds.length > 0 && selectedMemberIds.length === teamMembers.filter(m => m.pessoas?.email && !users.some(u => u.email === m.pessoas.email)).length}
+                                            checked={selectedMemberIds.length > 0 && selectedMemberIds.length === teamMembers.filter(m => (m.pessoas?.email ?? '') !== '' && !users.some(u => u.email === m.pessoas?.email)).length}
                                             onChange={handleToggleAllBulkMembers}
                                             style={{ width: '1.2rem', height: '1.2rem' }}
                                         />
@@ -521,7 +523,7 @@ export function UsersAdminPage() {
                                     {teamMembers.map(member => {
                                         const pessoa = member.pessoas;
                                         const hasEmail = !!pessoa?.email;
-                                        const existingUser = users.find(u => u.email === pessoa?.email);
+                                        const existingUser = users.find(u => u.email === (pessoa?.email || ''));
                                         const isEligible = hasEmail && !existingUser;
                                         const isSelected = selectedMemberIds.includes(member.pessoa_id);
                                         const result = bulkResults.find(r => r.id === member.pessoa_id);

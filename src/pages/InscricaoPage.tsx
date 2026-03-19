@@ -44,7 +44,7 @@ export function InscricaoPage() {
         const active = data.find(e => e.ativo);
         if (active) setSelectedEncontroId(active.id);
         else if (data.length > 0) setSelectedEncontroId(data[0].id);
-      } catch (err) {
+      } catch {
         toast.error('Erro ao carregar encontros.');
       } finally {
         setIsLoadingEvents(false);
@@ -72,7 +72,7 @@ export function InscricaoPage() {
 
       toast.success(isNew ? 'Pessoa cadastrada e inscrita com sucesso!' : 'Pessoa vinculada ao encontro com sucesso!');
       navigate('/');
-    } catch (err) {
+    } catch {
       toast.error('Erro ao realizar inscrição.');
     } finally {
       setIsSaving(false);
@@ -97,7 +97,7 @@ export function InscricaoPage() {
       const novaPessoa = await pessoaService.criar(data);
 
       await performRegistration(novaPessoa.id, true);
-    } catch (err) {
+    } catch {
       toast.error('Erro ao processar cadastro.');
       setIsSaving(false);
     }
@@ -112,7 +112,7 @@ export function InscricaoPage() {
       if (results.length === 0) {
         toast.error('Nenhum pré-cadastro pendente encontrado.');
       }
-    } catch (err) {
+    } catch {
       toast.error('Erro ao buscar pré-cadastro.');
     } finally {
       setIsSearchingPre(false);
@@ -153,7 +153,7 @@ export function InscricaoPage() {
     try {
       const novaPessoa = await pessoaService.criar(pendingData);
       await performRegistration(novaPessoa.id, true);
-    } catch (err) {
+    } catch {
       toast.error('Erro ao criar novo cadastro.');
       setIsSaving(false);
     }
@@ -328,7 +328,7 @@ export function InscricaoPage() {
               onSubmit={handleSubmit}
               onCancel={() => navigate(-1)}
               isLoading={isSaving}
-              initialData={initialFormData as any}
+              initialData={initialFormData}
             />
           </div>
         </div>

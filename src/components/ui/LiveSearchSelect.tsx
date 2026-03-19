@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, ChevronDown, Check } from 'lucide-react';
-import { debounce } from 'lodash';
 
 export interface LiveSearchSelectProps<T> {
     value: string;
@@ -50,7 +49,7 @@ export function LiveSearchSelect<T>({
         if (node) observer.current.observe(node);
     }, [loading, hasMore]);
 
-    const loadOptions = async (query: string, pageNum: number, isNewSearch: boolean) => {
+    const loadOptions = useCallback(async (query: string, pageNum: number, isNewSearch: boolean) => {
         try {
             setLoading(true);
             const data = await fetchData(query, pageNum);
@@ -68,35 +67,32 @@ export function LiveSearchSelect<T>({
         } finally {
             setLoading(false);
         }
-    };
+    }, [fetchData, pageSize]);
 
-    // Debounced search
-    const debouncedLoadOptions = useCallback(
-        debounce((query: string) => {
+    // Custom debounce logic
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handler = setTimeout(() => {
             setPage(0);
-            loadOptions(query, 0, true);
-        }, 300),
-        [fetchData] // React hook dependency
-    );
+            loadOptions(searchTerm, 0, true);
+        }, 300);
+
+        return () => clearTimeout(handler);
+    }, [searchTerm, loadOptions, isOpen]);
 
     useEffect(() => {
-        if (isOpen) {
-            if (page === 0 && options.length === 0 && !searchTerm) {
-                // initial load when opened if empty
-                loadOptions('', 0, true);
-            } else if (page > 0) {
-                // load more on pagination
-                loadOptions(searchTerm, page, false);
-            }
+        if (isOpen && page > 0) {
+            loadOptions(searchTerm, page, false);
         }
-    }, [isOpen, page]); // Intentionally omitting others to avoid loops
+    }, [page, isOpen, loadOptions, searchTerm]);
 
+    // Initial load when opened if empty
     useEffect(() => {
-        if (isOpen) {
-            debouncedLoadOptions(searchTerm);
+        if (isOpen && page === 0 && options.length === 0 && !searchTerm) {
+            loadOptions('', 0, true);
         }
-        return () => debouncedLoadOptions.cancel();
-    }, [searchTerm, debouncedLoadOptions, isOpen]);
+    }, [isOpen, page, options.length, searchTerm, loadOptions]);
 
     // Close dropdown on click outside
     useEffect(() => {
@@ -108,9 +104,8 @@ export function LiveSearchSelect<T>({
         document.addEventListener('mousedown', handleClickOutside);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
-            debouncedLoadOptions.cancel();
         };
-    }, [debouncedLoadOptions]);
+    }, []);
 
     const selectedItem = options.find(opt => getOptionValue(opt) === value) || initialOptions.find(opt => getOptionValue(opt) === value);
     const displayValue = selectedItem ? getOptionLabel(selectedItem) : '';

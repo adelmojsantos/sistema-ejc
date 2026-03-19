@@ -7,10 +7,12 @@ import { encontroService } from '../../services/encontroService';
 import { circuloService } from '../../services/circuloService';
 import { circuloParticipacaoService } from '../../services/circuloParticipacaoService';
 import { inscricaoService } from '../../services/inscricaoService';
+import type { InscricaoEnriched } from '../../types/inscricao';
 import { equipeService } from '../../services/equipeService';
 import { normalizeString } from '../../utils/stringUtils';
 import type { Encontro } from '../../types/encontro';
-import type { Circulo, CirculoParticipacao } from '../../types/circulo';
+import type { Circulo } from '../../types/circulo';
+import type { CirculoParticipacaoEnriched } from '../../types/circuloParticipacao';
 import { UserPlus, Trash2, Plus, ChevronLeft, Users, Loader, Search, X, Shield, Info } from 'lucide-react';
 
 export function MontagemCirculos() {
@@ -21,9 +23,9 @@ export function MontagemCirculos() {
   const [circulos, setCirculos] = useState<Circulo[]>([]);
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [selectedCirculoId, setSelectedCirculoId] = useState<string>('');
-  const [participantes, setParticipantes] = useState<any[]>([]); // All people (participante: true)
-  const [equipeCirculo, setEquipeCirculo] = useState<any[]>([]); // People from the circle team
-  const [vinculos, setVinculos] = useState<CirculoParticipacao[]>([]); // Relationships for the meeting/circles
+  const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]); // All people (participante: true)
+  const [equipeCirculo, setEquipeCirculo] = useState<InscricaoEnriched[]>([]); // People from the circle team
+  const [vinculos, setVinculos] = useState<CirculoParticipacaoEnriched[]>([]); // Relationships for the meeting/circles
 
   // Selection states for forming pairs (Casais/Mediadores)
   const [selectedPessoa1, setSelectedPessoa1] = useState<string>('');
@@ -46,8 +48,8 @@ export function MontagemCirculos() {
         setCirculos(cs);
         if (es.length > 0) setSelectedEncontroId(es[es.length - 1].id);
         if (cs.length > 0) setSelectedCirculoId(cs[0].id.toString());
-      } catch (error) {
-        console.error('Error loading base data:', error);
+      } catch (_error) {
+        console.error('Error loading base data:', _error);
       } finally {
         setIsFetching(false);
       }
@@ -78,8 +80,8 @@ export function MontagemCirculos() {
       // Get all circle linkings for this meeting
       const vData = await circuloParticipacaoService.listarPorEncontro(selectedEncontroId);
       setVinculos(vData || []);
-    } catch (error) {
-      console.error('Error loading meeting data:', error);
+    } catch (_error) {
+      console.error('Error loading meeting data:', _error);
     } finally {
       setIsFetching(false);
     }
@@ -104,7 +106,7 @@ export function MontagemCirculos() {
       await circuloParticipacaoService.vincular(participacaoId, parseInt(selectedCirculoId), false);
       await loadData();
       toast.success('Pessoa vinculada com sucesso!');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao vincular ao círculo.');
     } finally {
       setIsLoading(false);
@@ -140,7 +142,7 @@ export function MontagemCirculos() {
       setSelectedPessoa2('');
       await loadData();
       toast.success('Casal mediador vinculado com sucesso!');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao vincular casal ao círculo.');
     } finally {
       setIsLoading(false);
@@ -153,7 +155,7 @@ export function MontagemCirculos() {
       await circuloParticipacaoService.desvincular(id);
       await loadData();
       toast.success('Desvinculado com sucesso!');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao desvincular.');
     } finally {
       setIsLoading(false);

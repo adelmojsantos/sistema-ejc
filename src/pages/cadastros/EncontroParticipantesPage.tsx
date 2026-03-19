@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
+import type { InscricaoEnriched } from '../../types/inscricao';
 import { equipeService } from '../../services/equipeService';
 import { ChevronLeft, Search, Filter, Users, UserCheck, Shield, User } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
@@ -14,7 +15,7 @@ export function EncontroParticipantesPage() {
   const [encontros, setEncontros] = useState<Encontro[]>([]);
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [equipes, setEquipes] = useState<Equipe[]>([]);
-  const [participantes, setParticipantes] = useState<any[]>([]);
+  const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters
@@ -34,7 +35,7 @@ export function EncontroParticipantesPage() {
         const active = encontrosData.find(e => e.ativo);
         if (active) setSelectedEncontroId(active.id);
         else if (encontrosData.length > 0) setSelectedEncontroId(encontrosData[0].id);
-      } catch (err) {
+      } catch {
         toast.error('Erro ao carregar dados iniciais.');
       }
     };
@@ -49,7 +50,7 @@ export function EncontroParticipantesPage() {
       try {
         const data = await inscricaoService.listarPorEncontro(selectedEncontroId);
         setParticipantes(data);
-      } catch (err) {
+      } catch {
         toast.error('Erro ao carregar participantes.');
       } finally {
         setIsLoading(false);

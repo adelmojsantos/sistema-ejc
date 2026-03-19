@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { VisitaGrupo, VisitaGrupoFormData, VisitaParticipacao, VisitaParticipacaoFormData } from '../types/visitacao';
+import type { VisitaGrupo, VisitaGrupoFormData, VisitaParticipacao, VisitaParticipacaoFormData, VisitaParticipacaoEnriched } from '../types/visitacao';
 
 const GRUPOS_TABLE = 'visita_grupos';
 const PARTICIPACAO_TABLE = 'visita_participacao';
@@ -47,7 +47,7 @@ export const visitacaoService = {
     },
 
     // Participation Management
-    async listarParticipacaoPorEncontro(encontroId: string): Promise<VisitaParticipacao[]> {
+    async listarParticipacaoPorEncontro(encontroId: string): Promise<VisitaParticipacaoEnriched[]> {
         const { data, error } = await supabase
             .from(PARTICIPACAO_TABLE)
             .select(`

@@ -28,8 +28,9 @@ export function CirculosPage() {
             const data = await circuloService.listar();
             setCirculos(data);
             setFiltered(data);
-        } catch (err: any) {
-            setFetchError(err.message || 'Erro ao carregar círculos. Tente novamente.');
+        } catch (err: unknown) {
+            const errorObj = err as { message?: string };
+            setFetchError(errorObj.message || 'Erro ao carregar círculos. Tente novamente.');
         } finally {
             setIsFetching(false);
         }
@@ -80,8 +81,9 @@ export function CirculosPage() {
             setCirculos((prev) => prev.filter((p) => p.id !== deleteTarget.id));
             setDeleteTarget(null);
             toast.success('Círculo excluído com sucesso!');
-        } catch (err: any) {
-            if (err.code === '23503') {
+        } catch (err: unknown) {
+            const errorObj = err as { code?: string };
+            if (errorObj.code === '23503') {
                 toast.error('Não é possível excluir pois existem registros vinculados.');
             } else {
                 toast.error('Erro ao excluir círculo.');

@@ -97,8 +97,9 @@ export function PessoasPage() {
             setPessoas((prev) => prev.filter((p) => p.id !== deleteTarget.id));
             setDeleteTarget(null);
             toast.success('Cadastro excluído com sucesso!');
-        } catch (err: any) {
-            if (err.code === '23503') {
+        } catch (err: unknown) {
+            const errorObj = err as { code?: string };
+            if (errorObj.code === '23503') {
                 toast.error('Não é possível excluir pois existem registros vinculados.');
             } else {
                 toast.error('Erro ao excluir cadastro.');

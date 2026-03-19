@@ -1,10 +1,10 @@
 import { supabase } from '../lib/supabase';
-import type { Inscricao, InscricaoFormData } from '../types/inscricao';
+import type { Inscricao, InscricaoFormData, InscricaoEnriched } from '../types/inscricao';
 
 const TABLE = 'participacoes';
 
 export const inscricaoService = {
-    async listar(): Promise<any[]> {
+    async listar(): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
             .select('*, pessoas(nome_completo, cpf), encontros(nome), equipes(nome)')
@@ -14,7 +14,7 @@ export const inscricaoService = {
         return data;
     },
 
-    async listarPorEncontro(encontroId: string): Promise<any[]> {
+    async listarPorEncontro(encontroId: string): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
             .select('*, pessoas(nome_completo, cpf, email), equipes(nome)')

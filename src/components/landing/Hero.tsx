@@ -1,4 +1,4 @@
-import { Send, Sparkles, Users } from 'lucide-react';
+import { Send, Sparkles } from 'lucide-react';
 
 export function Hero() {
   return (

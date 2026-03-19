@@ -1,9 +1,10 @@
 import { supabase } from '../lib/supabase';
+import type { CirculoParticipacao, CirculoParticipacaoEnriched } from '../types/circuloParticipacao';
 
 const TABLE = 'circulo_participacao';
 
 export const circuloParticipacaoService = {
-    async listarPorEncontro(encontroId: string): Promise<any[]> {
+    async listarPorEncontro(encontroId: string): Promise<CirculoParticipacaoEnriched[]> {
         // Here we first need to get the "participacoes" for the meeting
         // and then join with "circulo_participacao"
         const { data, error } = await supabase
@@ -23,7 +24,7 @@ export const circuloParticipacaoService = {
         return data;
     },
 
-    async listarPorCirculo(circulo_id: number): Promise<any[]> {
+    async listarPorCirculo(circulo_id: number): Promise<CirculoParticipacaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
             .select('*, participacoes!participacao(pessoas(nome_completo))')
@@ -33,7 +34,7 @@ export const circuloParticipacaoService = {
         return data;
     },
 
-    async vincular(participacao_id: string, circulo_id: number, mediador: boolean = false): Promise<any> {
+    async vincular(participacao_id: string, circulo_id: number, mediador: boolean = false): Promise<CirculoParticipacao> {
         const { data, error } = await supabase
             .from(TABLE)
             .insert([{ participacao: participacao_id, circulo_id, mediador }])
