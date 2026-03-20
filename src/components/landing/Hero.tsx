@@ -37,6 +37,7 @@ export function Hero() {
           <img
             src="/51-tema.png"
             alt="Jovens do EJC"
+            className="animate-float"
             width={960}
             height={1200}
             loading="eager"

@@ -26,31 +26,23 @@ export function FormField(props: FormFieldProps) {
     const hasIcon = Boolean(icon);
 
     return (
-        <div className={`form-group ${colSpan ? `col-${colSpan}` : ''}`}>
-            <label className="form-label" htmlFor={id}>
-                {label}
-                {required && <span className="form-label-required">*</span>}
-            </label>
-
+        <div className={`form-group floating-label-group ${colSpan ? `col-${colSpan}` : ''}`}>
             <div className="form-input-wrapper">
                 {icon && (
                     <div className="form-input-icon">
                         {icon}
                     </div>
                 )}
-                {Tag === 'textarea' ? (
-                    <textarea
-                        id={id}
-                        className={`form-input ${hasIcon ? 'form-input--with-icon' : ''} ${className || ''} ${error ? ' input-error' : ''}`}
-                        {...(rest as Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'className'>)}
-                    />
-                ) : (
-                    <input
-                        id={id}
-                        className={`form-input ${hasIcon ? 'form-input--with-icon' : ''} ${className || ''} ${error ? ' input-error' : ''}`}
-                        {...(rest as Omit<InputHTMLAttributes<HTMLInputElement>, 'className'>)}
-                    />
-                )}
+                <Tag
+                    id={id}
+                    placeholder={rest.placeholder || " "}
+                    className={`form-input floating-input ${hasIcon ? 'form-input--with-icon' : ''} ${className || ''} ${error ? ' input-error' : ''}`}
+                    {...((rest as any))}
+                />
+                <label className={`form-label floating-label ${hasIcon ? 'floating-label--icon' : ''}`} htmlFor={id}>
+                    {label}
+                    {required && <span className="form-label-required">*</span>}
+                </label>
             </div>
 
             {hint && !error && (

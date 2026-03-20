@@ -1,6 +1,7 @@
-﻿import { Calendar, CircleDot, FileText, UserPlus, Users } from 'lucide-react';
+import { Calendar, CircleDot, FileText, UserPlus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Header } from '../components/Header';
 import { useAuth } from '../hooks/useAuth';
 
@@ -51,6 +52,25 @@ const actions: DashboardAction[] = [
   }
 ];
 
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: { type: 'spring', stiffness: 300, damping: 24 }
+  }
+};
+
 export function Home() {
   const navigate = useNavigate();
   const { profile } = useAuth();
@@ -79,15 +99,21 @@ export function Home() {
             <p className="text-muted">Acesso rápido aos módulos principais do sistema EJC.</p>
           </header>
 
-          <div className="dashboard__grid">
+          <motion.div 
+            className="dashboard__grid"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
             {dashboardActions.map((action) => (
-              <article
+              <motion.article
                 key={action.title}
-                className={`dashboard-card card ${action.featured ? 'dashboard-card--featured' : ''}`}
+                variants={itemVariants}
+                className={`dashboard-card card gradient-border-reveal ${action.featured ? 'dashboard-card--featured' : ''}`}
                 onClick={() => navigate(action.path)}
                 role="button"
                 tabIndex={0}
-                onKeyDown={(event) => {
+                onKeyDown={(event: React.KeyboardEvent) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault();
                     navigate(action.path);
@@ -97,9 +123,9 @@ export function Home() {
                 <span className={`dashboard-card__icon dashboard-card__icon--${action.accent}`}>{action.icon}</span>
                 <h2>{action.title}</h2>
                 <p>{action.description}</p>
-              </article>
+              </motion.article>
             ))}
-          </div>
+          </motion.div>
         </section>
       </main>
     </div>
