@@ -10,6 +10,7 @@ import { encontroService } from '../services/encontroService';
 import { pessoaService } from '../services/pessoaService';
 import { inscricaoService } from '../services/inscricaoService';
 import { preCadastroService } from '../services/preCadastroService';
+import { maskCpf } from '../utils/cpfUtils';
 import type { Encontro } from '../types/encontro';
 import type { Pessoa, PessoaFormData } from '../types/pessoa';
 import type { PreCadastroEntry } from '../types/preCadastro';
@@ -365,7 +366,7 @@ export function InscricaoPage() {
                 >
                   <div>
                     <div style={{ fontWeight: 'bold' }}>{p.nome_completo}</div>
-                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>CPF: {p.cpf || '—'} | {p.cidade || '—'}</div>
+                    <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>CPF: {maskCpf(p.cpf)} | {p.cidade || '—'}</div>
                   </div>
                   {selectedMatch?.id === p.id && <CheckCircle2 size={18} color="var(--primary-color)" />}
                 </div>

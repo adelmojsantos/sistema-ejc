@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { BadgeCheck, Calendar, CheckCircle2, Phone, Send, ShieldCheck, User } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { FormField } from '../components/ui/FormField';
@@ -24,8 +25,12 @@ export default function LandingPage() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
-  const [errors, setErrors] = useState<Partial<Record<keyof PreCadastroFormData, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof PreCadastroFormData | 'consent', string>>>({});
   const [scrollProgress, setScrollProgress] = useState(0);
+  // LGPD A1 — consentimento explícito obrigatório antes do envio
+  const [consent, setConsent] = useState(false);
+  // LGPD B3 — cooldown anti-spam: impede reenvios rápidos
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -45,22 +50,29 @@ export default function LandingPage() {
   };
 
   const validate = (): boolean => {
-    const newErrors: Partial<Record<keyof PreCadastroFormData, string>> = {};
+    const newErrors: Partial<Record<keyof PreCadastroFormData | 'consent', string>> = {};
     if (!form.nome_completo.trim()) newErrors.nome_completo = 'Nome é obrigatório';
     if (!form.telefone.trim()) newErrors.telefone = 'Telefone é obrigatório';
+    // LGPD A1 — consentimento explícito
+    if (!consent) newErrors.consent = 'Você precisa aceitar a Política de Privacidade para prosseguir.';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  const isCoolingDown = cooldownUntil !== null && Date.now() < cooldownUntil;
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isCoolingDown) return;
     if (!validate()) return;
 
     setIsLoading(true);
     try {
       await preCadastroService.join(form);
       setIsSubmitted(true);
+      // LGPD B3 — cooldown de 30 s após envio bem-sucedido
+      setCooldownUntil(Date.now() + 30_000);
       toast.success('Pré-cadastro realizado com sucesso!');
     } catch (error) {
       const err = error as Error;
@@ -195,7 +207,47 @@ export default function LandingPage() {
                     className="landing-form__input"
                   />
 
-                  <button type="submit" className="landing-button landing-button--primary landing-form__submit" disabled={isLoading}>
+                  {/* LGPD A1 — Checkbox de consentimento obrigatório */}
+                  <div style={{
+                    display: 'flex', flexDirection: 'column', gap: '0.4rem',
+                    padding: '0.875rem 1rem',
+                    background: 'rgba(255,255,255,0.07)',
+                    border: `1px solid ${errors.consent ? '#f87171' : 'rgba(255,255,255,0.18)'}`,
+                    borderRadius: '8px',
+                  }}>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                      <input
+                        type="checkbox"
+                        checked={consent}
+                        onChange={(e) => {
+                          setConsent(e.target.checked);
+                          if (e.target.checked) setErrors(prev => ({ ...prev, consent: undefined }));
+                        }}
+                        style={{ marginTop: '2px', width: '16px', height: '16px', flexShrink: 0, cursor: 'pointer' }}
+                        required
+                        aria-describedby={errors.consent ? 'consent-error' : undefined}
+                      />
+                      <span>
+                        Li e concordo com a{' '}
+                        <Link
+                          to="/privacidade"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: '#93c5fd', textDecoration: 'underline', fontWeight: 600 }}
+                        >
+                          Política de Privacidade
+                        </Link>.
+                        Meus dados serão usados exclusivamente para contato e organização do evento.
+                      </span>
+                    </label>
+                    {errors.consent && (
+                      <span id="consent-error" style={{ color: '#f87171', fontSize: '0.78rem', marginLeft: '1.6rem' }}>
+                        {errors.consent}
+                      </span>
+                    )}
+                  </div>
+
+                  <button type="submit" className="landing-button landing-button--primary landing-form__submit" disabled={isLoading || isCoolingDown}>
                     {isLoading ? (
                       <>
                         <span className="landing-spinner" />

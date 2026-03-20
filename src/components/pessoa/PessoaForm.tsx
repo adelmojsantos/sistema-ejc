@@ -4,6 +4,7 @@ import { FormField } from '../ui/FormField';
 import { FormSection } from '../ui/FormSection';
 import { FormRow } from '../ui/FormRow';
 import { User, Phone, UsersRound, X, Check, Loader } from 'lucide-react';
+import { formatCpf, isValidCpf } from '../../utils/cpfUtils';
 
 interface PessoaFormProps {
     initialData?: Partial<PessoaFormData>;
@@ -13,15 +14,6 @@ interface PessoaFormProps {
 }
 
 type FormErrors = Partial<Record<keyof PessoaFormData, string>>;
-
-function formatCpf(value: string | null | undefined): string {
-    if (!value) return '';
-    const digits = value.replace(/\D/g, '').slice(0, 11);
-    return digits
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-}
 
 function formatTelefone(value: string | null | undefined): string {
     if (!value) return '';
@@ -37,10 +29,10 @@ function validate(data: PessoaFormData): FormErrors {
 
     if (!data.nome_completo.trim()) errors.nome_completo = 'Nome completo é obrigatório.';
 
-    // Optional CPF validation
+    // Validação matemática completa do CPF (LGPD B2 — identificação confiável do titular)
     if (data.cpf && data.cpf.trim().length > 0) {
-        if (data.cpf.replace(/\D/g, '').length !== 11) {
-            errors.cpf = 'CPF inválido (11 dígitos).';
+        if (!isValidCpf(data.cpf)) {
+            errors.cpf = 'CPF inválido.';
         }
     }
 

@@ -11,8 +11,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [profileLoading, setProfileLoading] = useState(false);
     const [loading, setLoading] = useState(true);
 
-    const loadProfile = useCallback(async (userId: string) => {
-        setProfileLoading(true);
+    const loadProfile = useCallback(async (userId: string, isInitialLoad = false) => {
+        // Só exibe o estado de loading na carga inicial (perfil ainda não carregado).
+        // Em recargas subsequentes (ex: renovação de token ao voltar de outra aba),
+        // atualizamos silenciosamente para não desmontar a árvore de componentes.
+        if (isInitialLoad) setProfileLoading(true);
 
         const { data, error } = await supabase
             .from('profiles')
@@ -22,13 +25,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (error) {
             console.error('Erro ao buscar perfil do usuário', error);
-            setProfile(null);
-            setProfileLoading(false);
+            if (isInitialLoad) {
+                setProfile(null);
+                setProfileLoading(false);
+            }
             return;
         }
 
         setProfile((data as UserProfile | null) ?? null);
-        setProfileLoading(false);
+        if (isInitialLoad) setProfileLoading(false);
     }, []);
 
     const refreshProfile = useCallback(async () => {
@@ -43,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(session?.user ?? null);
 
             if (session?.user) {
-                loadProfile(session.user.id).finally(() => setLoading(false));
+                loadProfile(session.user.id, true).finally(() => setLoading(false));
                 return;
             }
 
@@ -52,12 +57,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            // TOKEN_REFRESHED apenas renova o JWT em segundo plano — não altera a
+            // identidade do usuário, portanto não precisamos recarregar nada.
+            if (event === 'TOKEN_REFRESHED') return;
+
             setSession(session);
             setUser(session?.user ?? null);
 
             if (session?.user) {
-                loadProfile(session.user.id);
+                // Carga subsequente: silenciosa, sem mostrar loading
+                loadProfile(session.user.id, false);
             } else {
                 setProfile(null);
             }

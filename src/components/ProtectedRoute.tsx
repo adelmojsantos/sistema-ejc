@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import type { UserRole } from '../types/auth';
@@ -20,7 +20,10 @@ export function ProtectedRoute({
         return <Navigate to="/" replace />;
     }
 
-    if (profileLoading) {
+    // Só bloqueia a renderização se o perfil ainda não foi carregado.
+    // Em recargas em segundo plano (ex: renovação de token), o perfil já existe
+    // e a UI não deve ser desmontada, o que resetaria estados de formulários abertos.
+    if (profileLoading && !profile) {
         return null;
     }
 

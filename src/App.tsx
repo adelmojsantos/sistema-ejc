@@ -20,6 +20,7 @@ import LandingPage from './pages/LandingPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { UsersAdminPage } from './pages/admin/UsersAdminPage';
+import { PrivacidadePage } from './pages/PrivacidadePage';
 
 
 function PlaceholderPage({ title }: { title: string }) {
@@ -42,6 +43,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/esqueci-senha" element={<ForgotPasswordPage />} />
+            <Route path="/privacidade" element={<PrivacidadePage />} />
 
             <Route path="/" element={<LandingPage />} />
 

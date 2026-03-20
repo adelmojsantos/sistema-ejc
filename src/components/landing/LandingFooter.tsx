@@ -1,4 +1,5 @@
 import { ArrowUp, Facebook, Instagram, Mail, MapPin, Phone } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export function LandingFooter() {
@@ -77,8 +78,8 @@ export function LandingFooter() {
         <div className="landing-footer__bottom">
           <p>© {new Date().getFullYear()} EJC Capelinha. Desenvolvido com carinho para a juventude.</p>
           <div className="landing-footer__legal">
-            <a href="#">Privacidade</a>
-            <a href="#">Termos</a>
+            <Link to="/privacidade">Privacidade</Link>
+            <a href="mailto:contato@ejccapelinha.com.br">Contato</a>
             <button
               type="button"
               onClick={scrollToTop}

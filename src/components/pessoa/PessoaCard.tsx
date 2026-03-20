@@ -1,15 +1,11 @@
 import type { Pessoa } from '../../types/pessoa';
-import { MapPin, Pencil, Trash2 } from 'lucide-react';
+import { MapPin, Pencil, Trash2, KeyRound } from 'lucide-react';
+import { maskCpf } from '../../utils/cpfUtils';
 
 interface PessoaCardProps {
     pessoa: Pessoa;
     onEdit: (pessoa: Pessoa) => void;
     onDelete: (pessoa: Pessoa) => void;
-}
-
-function formatCpf(cpf: string | null | undefined) {
-    if (!cpf) return '—';
-    return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
 }
 
 function formatTelefone(tel: string | null | undefined) {
@@ -96,8 +92,9 @@ export function PessoaCard({ pessoa, onEdit, onDelete }: PessoaCardProps) {
 
             {/* CPF Column (Desktop) */}
             <div className="pessoa-row-col desktop-only">
+                <span className="pessoa-row-icon"><KeyRound size={14} /></span>
                 <span className="pessoa-row-label">CPF</span>
-                <span className="pessoa-row-value">{formatCpf(pessoa.cpf)}</span>
+                <span className="pessoa-row-value">{maskCpf(pessoa.cpf)}</span>
             </div>
 
             {/* Contact Column */}
