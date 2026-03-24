@@ -9,11 +9,8 @@ export const authService = {
         if (error) throw error;
     },
 
-    async clearTemporaryPassword(userId: string): Promise<void> {
-        const { error } = await supabase
-            .from('profiles')
-            .update({ temporary_password: false })
-            .eq('id', userId);
+    async clearTemporaryPassword(): Promise<void> {
+        const { error } = await supabase.rpc('clear_temporary_password');
 
         if (error) throw error;
     },

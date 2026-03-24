@@ -1,6 +1,7 @@
 import { createContext } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import type { UserProfile } from '../types/auth';
+import type { InscricaoEnriched } from '../types/inscricao';
 
 export interface AuthContextType {
     session: Session | null;
@@ -11,6 +12,7 @@ export interface AuthContextType {
     mustChangePassword: boolean;
     profileLoading: boolean;
     loading: boolean;
+    userParticipacao: InscricaoEnriched | null;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

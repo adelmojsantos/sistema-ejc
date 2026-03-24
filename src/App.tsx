@@ -1,8 +1,9 @@
-import { Route, BrowserRouter as Router, Routes, useLocation } from 'react-router-dom';
+import { Route, BrowserRouter as Router, Routes, useLocation, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AnimatePresence } from 'framer-motion';
 import { Header } from './components/Header';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { useAuth } from './hooks/useAuth';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { PageTransition } from './components/ui/PageTransition';
@@ -23,6 +24,7 @@ import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { UsersAdminPage } from './pages/admin/UsersAdminPage';
 import { PrivacidadePage } from './pages/PrivacidadePage';
+import { VisitacaoMeusParticipantesPage } from './pages/visitacao/VisitacaoMeusParticipantesPage';
 
 
 function PlaceholderPage({ title }: { title: string }) {
@@ -38,6 +40,7 @@ function PlaceholderPage({ title }: { title: string }) {
 
 function AnimatedRoutes() {
   const location = useLocation();
+  const { profile, userParticipacao } = useAuth();
   
   return (
     <AnimatePresence mode="wait">
@@ -50,7 +53,15 @@ function AnimatedRoutes() {
 
         <Route path="/dashboard" element={
           <ProtectedRoute>
-            <PageTransition><Home /></PageTransition>
+            {profile?.role === 'visitacao' ? (
+              userParticipacao?.coordenador ? (
+                <Navigate to="/montagem-visitacao" replace />
+              ) : (
+                <Navigate to="/visitacao/meus-participantes" replace />
+              )
+            ) : (
+              <PageTransition><Home /></PageTransition>
+            )}
           </ProtectedRoute>
         } />
 
@@ -79,10 +90,21 @@ function AnimatedRoutes() {
         } />
 
         <Route path="/montagem-visitacao" element={
-          <ProtectedRoute>
-            <PageTransition><MontagemVisitacao /></PageTransition>
+          <ProtectedRoute allowedRoles={['admin', 'secretaria', 'visitacao']}>
+            {profile?.role === 'visitacao' && !userParticipacao?.coordenador ? (
+              <Navigate to="/visitacao/meus-participantes" replace />
+            ) : (
+              <PageTransition><MontagemVisitacao /></PageTransition>
+            )}
           </ProtectedRoute>
         } />
+
+        <Route path="/visitacao/meus-participantes" element={
+          <ProtectedRoute allowedRoles={['visitacao']}>
+            <PageTransition><VisitacaoMeusParticipantesPage /></PageTransition>
+          </ProtectedRoute>
+        } />
+
         <Route path="/montagem-circulos" element={
           <ProtectedRoute>
             <PageTransition><MontagemCirculos /></PageTransition>
@@ -103,6 +125,8 @@ function AnimatedRoutes() {
           <Route path="circulos" element={<CirculosPage />} />
           <Route path="montagem" element={<MontagemPage />} />
         </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AnimatePresence>
   );

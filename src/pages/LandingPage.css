@@ -223,12 +223,17 @@ html {
   height: 44px;
   border-radius: 12px;
   border: 1px solid var(--landing-border);
-  background: #ffffff;
-  color: #1e293b;
+  background: var(--landing-surface);
+  color: var(--landing-text);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: transform 300ms var(--landing-ease), box-shadow 300ms var(--landing-ease), background-color 300ms var(--landing-ease);
+  flex-shrink: 0;
+}
+
+.landing-header__menu-toggle svg {
+  flex-shrink: 0;
 }
 
 .landing-header__menu-toggle:hover {
@@ -266,7 +271,7 @@ html {
 }
 
 .landing-header__mobile-panel {
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--landing-surface);
   border-radius: var(--landing-radius-lg);
   border: 1px solid var(--landing-border);
   box-shadow: var(--landing-shadow-lg);
@@ -286,7 +291,7 @@ html {
   padding: 0.875rem 1rem;
   border-radius: 12px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--landing-text);
   transition: transform 300ms var(--landing-ease), background-color 300ms var(--landing-ease);
 }
 

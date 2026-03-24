@@ -1,4 +1,4 @@
-﻿import { LogOut, Menu, Moon, Sun, X } from 'lucide-react';
+import { LogOut, Menu, Moon, Sun, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
@@ -10,24 +10,19 @@ export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { signOut, profile } = useAuth();
+  const { signOut, profile, userParticipacao } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const headerRef = useRef<HTMLElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleScroll = () => {
       const scrollPos = window.scrollY;
-
-      setIsScrolled((prev) => {
-        // Ativa com apenas 10px de scroll
-        if (!prev && scrollPos > 10) return true;
-        // Desativa apenas se voltar quase ao topo (menos de 5px)
-        if (prev && scrollPos < 5) return false;
-        return prev;
-      });
+      setIsScrolled(scrollPos > 10);
     };
 
     const handleResize = () => {
@@ -36,12 +31,20 @@ export function Header() {
       }
     };
 
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
     window.addEventListener('scroll', handleScroll, { passive: true });
     window.addEventListener('resize', handleResize);
+    document.addEventListener('mousedown', handleClickOutside);
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleResize);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
@@ -60,20 +63,34 @@ export function Header() {
 
   const navLinks = [
     { to: '/dashboard', label: 'Início' },
-    { to: '/inscricao', label: 'Inscrições' },
-    { to: '/secretaria', label: 'Secretaria' },
-    { to: '/montagem-visitacao', label: 'Visitação' },
-    { to: '/montagem-circulos', label: 'Círculos' },
-    { to: '/cadastros', label: 'Cadastros' },
-    ...(profile?.role === 'admin' ? [{ to: '/admin/usuarios', label: 'Usuários' }] : [])
   ];
+
+  if (profile?.role === 'admin' || profile?.role === 'secretaria') {
+    navLinks.push(
+      { to: '/inscricao', label: 'Inscrições' },
+      { to: '/secretaria', label: 'Secretaria' },
+      { to: '/montagem-visitacao', label: 'Visitação' },
+      { to: '/montagem-circulos', label: 'Círculos' },
+      { to: '/cadastros', label: 'Cadastros' },
+    );
+    if (profile?.role === 'admin') {
+      navLinks.push({ to: '/admin/usuarios', label: 'Usuários' });
+    }
+  } else if (profile?.role === 'visitacao') {
+    if (userParticipacao?.coordenador) {
+      navLinks.push({ to: '/montagem-visitacao', label: 'Montagem Visitação' });
+    } else {
+      navLinks.push({ to: '/visitacao/meus-participantes', label: 'Meus Participantes' });
+    }
+  } else if (profile?.role === 'viewer') {
+    navLinks.push({ to: '/inscricao', label: 'Inscrições' });
+  }
 
   return (
     <header ref={headerRef} className={`header ${isScrolled ? 'is-scrolled' : ''}`}>
       <div className="container header-bar">
         <Link to="/dashboard" className="header-brand">
           <span className="header-brand-icon has-image">
-            {/* <Heart size={20} fill="currentColor" /> */}
             <img src="/logo.png" alt="Logo" />
           </span>
           <span className="header-brand-text">
@@ -100,45 +117,69 @@ export function Header() {
 
           <div className="header-divider" />
 
-          <button
-            onClick={toggleTheme}
-            className="mobile-menu-btn"
-            aria-label="Alternar tema"
-            title={theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
-          >
-            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
+          <div className="user-menu-container" ref={userMenuRef}>
+            <button
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className={`user-menu-trigger ${isUserMenuOpen ? 'active' : ''}`}
+            >
+              <div className="user-avatar-sm">
+                {profile?.email?.charAt(0).toUpperCase()}
+              </div>
+              <div className="user-details hide-mobile">
+                <span className="user-email">{profile?.email}</span>
+                <span className="user-role">{profile?.role}</span>
+              </div>
+            </button>
 
-          <button
-            onClick={() => setIsSignOutModalOpen(true)}
-            className="mobile-menu-btn header-logout-btn"
-            title="Sair"
-          >
-            <LogOut size={20} />
-          </button>
+            {isUserMenuOpen && (
+              <div className="user-dropdown-menu fade-in">
+                <button onClick={toggleTheme} className="dropdown-item">
+                  {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+                  <span>{theme === 'dark' ? 'Tema Claro' : 'Tema Escuro'}</span>
+                </button>
+                <div className="dropdown-divider" />
+                <button
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    setIsSignOutModalOpen(true);
+                  }}
+                  className="dropdown-item danger"
+                >
+                  <LogOut size={18} />
+                  <span>Sair</span>
+                </button>
+              </div>
+            )}
+          </div>
         </nav>
 
         <div className="mobile-controls-container">
-          <button
-            onClick={toggleTheme}
-            className="mobile-menu-btn"
-            aria-label="Alternar tema"
-            title={theme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'}
-          >
-            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
           <button
             onClick={() => setIsMobileMenuOpen((prev) => !prev)}
             className="mobile-menu-btn"
             aria-label="Menu"
           >
-            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </div>
 
       {isMobileMenuOpen && (
         <nav className="mobile-nav">
+          <div className="mobile-user-profile">
+            <div className="user-avatar">
+              {profile?.email?.charAt(0).toUpperCase()}
+            </div>
+            <div className="user-info">
+              <span className="user-email">{profile?.email}</span>
+              <span className="user-role">{profile?.role}</span>
+            </div>
+          </div>
+          <button onClick={toggleTheme} className="nav-link">
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            {theme === 'dark' ? 'Tema Claro' : 'Tema Escuro'}
+          </button>
+          <div className="mobile-nav-divider" />
           {navLinks.map((link) => {
             const isActive =
               location.pathname === link.to ||
@@ -155,6 +196,7 @@ export function Header() {
               </Link>
             );
           })}
+          <div className="mobile-nav-divider" />
           <button onClick={() => setIsSignOutModalOpen(true)} className="nav-link nav-link-danger">
             <LogOut size={20} /> Sair
           </button>
@@ -175,5 +217,3 @@ export function Header() {
     </header>
   );
 }
-
-

@@ -2,6 +2,7 @@ import { Calendar, CircleDot, FileText, UserPlus, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import { Header } from '../components/Header';
 import { useAuth } from '../hooks/useAuth';
 
@@ -52,7 +53,7 @@ const actions: DashboardAction[] = [
   }
 ];
 
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -62,7 +63,7 @@ const containerVariants = {
   }
 };
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { y: 20, opacity: 0 },
   visible: {
     y: 0,

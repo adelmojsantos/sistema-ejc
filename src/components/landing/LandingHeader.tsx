@@ -63,22 +63,22 @@ export function LandingHeader() {
             ))}
             <Link to="/login" className={`landing-button ${theme === 'dark' ? 'landing-button--dark' : 'landing-button--light'} landing-header__login`}>
               <span>Área Restrita</span>
-              <LogIn size={16} />
+              <LogIn size={20} />
             </Link>
             <button type="button" className={`landing-theme-toggle ${theme === 'dark' ? 'landing-theme-toggle--dark' : 'landing-theme-toggle--light'}`} onClick={toggleTheme} aria-label="Alternar tema">
-              {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+              {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
             </button>
           </nav>
 
-          <button
-            type="button"
-            className="landing-header__menu-toggle"
-            aria-label={isMobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
-            aria-expanded={isMobileMenuOpen}
-            onClick={() => setIsMobileMenuOpen((previous) => !previous)}
-          >
-            {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
+            <button
+              type="button"
+              className="landing-header__menu-toggle"
+              aria-label={isMobileMenuOpen ? 'Fechar menu' : 'Abrir menu'}
+              aria-expanded={isMobileMenuOpen}
+              onClick={() => setIsMobileMenuOpen((previous) => !previous)}
+            >
+              {isMobileMenuOpen ? <X size={26} /> : <Menu size={26} />}
+            </button>
         </div>
       </div>
 
@@ -102,11 +102,11 @@ export function LandingHeader() {
               className="landing-button landing-button--primary landing-header__mobile-login"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              <LogIn size={18} />
+              <LogIn size={24} />
               <span>Acessar Sistema</span>
             </Link>
             <button type="button" className="landing-theme-toggle landing-theme-toggle--mobile" onClick={toggleTheme} aria-label="Alternar tema">
-              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+              {theme === 'dark' ? <Sun size={22} /> : <Moon size={22} />}
               <span>{theme === 'dark' ? 'Tema claro' : 'Tema escuro'}</span>
             </button>
           </div>

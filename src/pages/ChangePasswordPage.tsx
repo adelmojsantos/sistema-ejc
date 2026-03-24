@@ -1,4 +1,4 @@
-﻿import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
@@ -42,7 +42,7 @@ export function ChangePasswordPage() {
 
         try {
             await authService.updatePassword(newPassword);
-            await authService.clearTemporaryPassword(user.id);
+            await authService.clearTemporaryPassword();
             await refreshProfile();
 
             toast.success('Senha atualizada com sucesso.');
