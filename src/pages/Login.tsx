@@ -1,8 +1,9 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { LogoImage } from '../components/utils/Image';
+import { PasswordInput } from '../components/ui/PasswordInput';
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -64,13 +65,10 @@ export function Login() {
 
           <div className="form-group">
             <label className="form-label" htmlFor="password">Senha</label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
-              className="form-input"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
+              onChange={setPassword}
               required
             />
           </div>
