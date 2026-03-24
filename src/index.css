@@ -591,19 +591,27 @@ h2 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 1rem 0.5rem 0.6rem;
-  background: var(--surface-2);
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
+  padding: 0.5rem 0.75rem 0.5rem 0.6rem;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s var(--ease-smooth);
 }
 
 .user-menu-trigger:hover,
 .user-menu-trigger.active {
-  background: var(--surface-3);
-  border-color: var(--primary-color);
-  box-shadow: var(--shadow-sm);
+  background: var(--surface-2);
+}
+
+.user-menu-chevron {
+  color: var(--muted-text);
+  transition: transform 0.2s var(--ease-smooth);
+  flex-shrink: 0;
+}
+
+.user-menu-chevron.open {
+  transform: rotate(180deg);
 }
 
 .user-avatar-sm {
