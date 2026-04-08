@@ -1,6 +1,5 @@
+import { MapPin, Pencil, Trash2 } from 'lucide-react';
 import type { Pessoa } from '../../types/pessoa';
-import { MapPin, Pencil, Trash2, KeyRound } from 'lucide-react';
-import { maskCpf } from '../../utils/cpfUtils';
 
 interface PessoaCardProps {
     pessoa: Pessoa;
@@ -14,8 +13,6 @@ function formatTelefone(tel: string | null | undefined) {
     if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
     return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
 }
-
-
 
 function getInitials(name: string | null | undefined) {
     if (!name) return '?';
