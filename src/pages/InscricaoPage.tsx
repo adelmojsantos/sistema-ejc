@@ -166,18 +166,23 @@ export function InscricaoPage() {
 
       <main className="main-content container">
         <div className="page-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button onClick={() => navigate(-1)} className="icon-btn">
-              <ChevronLeft size={18} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <button 
+              onClick={() => navigate(-1)} 
+              className="mobile-menu-btn"
+              aria-label="Voltar"
+              title="Voltar"
+            >
+              <ChevronLeft size={24} />
             </button>
             <div>
-              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Inscrição</p>
-              <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Nova Inscrição Encontrista</h1>
+              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Inscrição</p>
+              <h1 className="page-title text-gradient" style={{ fontSize: '1.75rem' }}>Nova Inscrição Encontrista</h1>
             </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '800px', margin: '0 auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', margin: '0 auto' }}>
           {/* Step 1: Event Selection */}
           <div className="card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -228,11 +233,31 @@ export function InscricaoPage() {
             )}
           </div>
 
-          {/* Step 1.5: Pre-Cadastro Search */}
+          {/* Step 1.5: Pre-Cadastro Search (Optional/Toggle) */}
           <div className="card">
-            <h3 style={{ margin: 0, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
-              <History size={18} /> Importar do Pré-Cadastro
-            </h3>
+            <button 
+              onClick={() => {
+                const el = document.getElementById('pre-cadastro-content');
+                if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+              }}
+              style={{ 
+                width: '100%', 
+                background: 'none', 
+                border: 'none', 
+                padding: 0, 
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '1.1rem', color: 'var(--text-color)' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <History size={18} className="text-gradient" /> Importar do Pré-Cadastro
+                </span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 600 }}>Clique para buscar</span>
+              </h3>
+            </button>
+            
+            <div id="pre-cadastro-content" style={{ display: 'none', marginTop: '1.5rem' }}>
             <p style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '1rem' }}>
               Se o jovem realizou o pré-cadastro na landing page, você pode buscar os dados dele aqui para agilizar o preenchimento.
             </p>
@@ -317,6 +342,7 @@ export function InscricaoPage() {
                 </button>
               </div>
             )}
+            </div>
           </div>
 
           {/* Step 2: Person Data */}

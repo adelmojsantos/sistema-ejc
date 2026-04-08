@@ -56,6 +56,7 @@ export function PessoaCard({ pessoa, onEdit, onDelete }: PessoaCardProps) {
         : null;
 
     return (
+
         <div className="pessoa-row">
             {/* Avatar + Main Info */}
             <div className="pessoa-row-main">
@@ -64,47 +65,44 @@ export function PessoaCard({ pessoa, onEdit, onDelete }: PessoaCardProps) {
                 </div>
                 <div className="pessoa-row-info">
                     <h3 className="pessoa-row-name">{pessoa.nome_completo}</h3>
-                    {mapsUrl ? (
-                        <a
-                            href={mapsUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="pessoa-row-sub"
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                color: 'var(--primary-color)',
-                                textDecoration: 'none',
-                                opacity: 1 /* Ensure full visibility */
-                            }}
-                        >
-                            <MapPin size={12} style={{ marginRight: '4px' }} />
-                            <span style={{ textDecoration: 'underline' }}>{partAddress}</span>
-                        </a>
-                    ) : (
-                        <span className="pessoa-row-sub">
-                            <MapPin size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                            {fullAddress}
+                    <span className="pessoa-row-sub">
+                        <span style={{ opacity: 0.6 }}>{pessoa.comunidade || formatTelefone(pessoa.telefone)}</span>
+                    </span>
+                </div>
+            </div>
+
+            {/* Contact Column — hidden on mobile */}
+            <div className="pessoa-row-col desktop-only">
+                <span className="pessoa-row-label">Contato</span>
+                <div className="pessoa-row-value-group">
+                    <span className="pessoa-row-value">{formatTelefone(pessoa.telefone)}</span>
+                    {pessoa.email && (
+                        <span className="pessoa-row-sub" style={{ opacity: 0.65, fontSize: '0.75rem' }}>
+                            {pessoa.email}
                         </span>
                     )}
                 </div>
             </div>
 
-            {/* CPF Column (Desktop) */}
-            <div className="pessoa-row-col desktop-only">
-                <span className="pessoa-row-icon"><KeyRound size={14} /></span>
-                <span className="pessoa-row-label">CPF</span>
-                <span className="pessoa-row-value">{maskCpf(pessoa.cpf)}</span>
-            </div>
-
-            {/* Contact Column */}
-            <div className="pessoa-row-col">
-                <span className="pessoa-row-label">Contato</span>
-                <div className="pessoa-row-value-group">
-                    <span className="pessoa-row-value">{formatTelefone(pessoa.telefone)}</span>
-                    <span className="pessoa-row-sub">{pessoa.email}</span>
-                </div>
-            </div>
+            {/* Address Column — tablets and up */}
+            {mapsUrl ? (
+                <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="pessoa-row-col desktop-only"
+                    style={{ textDecoration: 'none', color: 'var(--primary-color)' }}
+                    title={fullAddress}
+                >
+                    <span className="pessoa-row-label">Endereço</span>
+                    <span className="pessoa-row-value" style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                        <MapPin size={12} style={{ flexShrink: 0 }} />
+                        <span style={{ textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {partAddress || fullAddress}
+                        </span>
+                    </span>
+                </a>
+            ) : null}
 
             {/* Actions */}
             <div className="pessoa-row-actions">
@@ -114,7 +112,7 @@ export function PessoaCard({ pessoa, onEdit, onDelete }: PessoaCardProps) {
                     title="Editar"
                     aria-label="Editar pessoa"
                 >
-                    <Pencil size={16} />
+                    <Pencil size={15} />
                 </button>
                 <button
                     className="icon-btn icon-btn-danger"
@@ -122,7 +120,7 @@ export function PessoaCard({ pessoa, onEdit, onDelete }: PessoaCardProps) {
                     title="Excluir"
                     aria-label="Excluir pessoa"
                 >
-                    <Trash2 size={16} />
+                    <Trash2 size={15} />
                 </button>
             </div>
         </div>

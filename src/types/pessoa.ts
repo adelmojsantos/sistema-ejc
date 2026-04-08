@@ -14,6 +14,11 @@ export interface Pessoa {
     numero: string | null;
     bairro: string | null;
     cidade: string | null;
+    telefone_pai: string | null;
+    telefone_mae: string | null;
+    outros_contatos: string | null;
+    fez_ejc_outra_paroquia: boolean;
+    qual_paroquia_ejc: string | null;
 }
 
 export type PessoaFormData = Omit<Pessoa, 'id' | 'qr_code_token' | 'created_at'>;
@@ -31,4 +36,9 @@ export const pessoaFormDataVazia = (): PessoaFormData => ({
     numero: null,
     bairro: null,
     cidade: null,
+    telefone_pai: null,
+    telefone_mae: null,
+    outros_contatos: null,
+    fez_ejc_outra_paroquia: false,
+    qual_paroquia_ejc: null,
 });

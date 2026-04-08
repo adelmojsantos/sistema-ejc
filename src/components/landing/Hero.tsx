@@ -20,7 +20,7 @@ export function Hero() {
             fortalecer seus laços.
           </p>
 
-          <div className="hero__actions">
+          <div className="hero__actions btn-group-responsive">
             <a href="#cadastro" className="landing-button landing-button--primary">
               <span>Quero Participar</span>
               <Send size={18} />

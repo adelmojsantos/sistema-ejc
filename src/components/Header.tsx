@@ -155,6 +155,13 @@ export function Header() {
 
         <div className="mobile-controls-container">
           <button
+            onClick={toggleTheme}
+            className="mobile-menu-btn"
+            aria-label="Alternar Tema"
+          >
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+          <button
             onClick={() => setIsMobileMenuOpen((prev) => !prev)}
             className="mobile-menu-btn"
             aria-label="Menu"

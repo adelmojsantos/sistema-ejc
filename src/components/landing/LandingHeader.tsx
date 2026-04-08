@@ -70,6 +70,9 @@ export function LandingHeader() {
             </button>
           </nav>
 
+            <button type="button" className="landing-theme-toggle hide-desktop" onClick={toggleTheme} aria-label="Alternar tema" style={{ marginRight: '0.5rem' }}>
+              {theme === 'dark' ? <Sun size={24} /> : <Moon size={24} />}
+            </button>
             <button
               type="button"
               className="landing-header__menu-toggle"

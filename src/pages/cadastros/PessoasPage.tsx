@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, UserPlus, Search, X, Users } from 'lucide-react';
+import { ChevronLeft, UserPlus, Search, X, Users, User } from 'lucide-react';
 import { PessoaCard } from '../../components/pessoa/PessoaCard';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -112,44 +112,62 @@ export function PessoasPage() {
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
             <div className="page-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className="flex items-center gap-4">
                     <button
                         onClick={handleBack}
-                        className="icon-btn"
+                        className="mobile-menu-btn"
                         aria-label="Voltar"
                         title="Voltar"
                     >
-                        <ChevronLeft size={18} />
+                        <ChevronLeft size={20} />
                     </button>
                     <div>
-                        <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>
-                            Cadastros
+                        <p className="cadastro-hub-desc" style={{ marginBottom: 0 }}>
+                            Gestão de Cadastros
                         </p>
-                        <h1 className="page-title" style={{ fontSize: '1.5rem' }}>
-                            <Users size={22} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                        <h1 className="page-title text-gradient" style={{ margin: 0, fontSize: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Users size={28} />
                             Pessoas
                         </h1>
                     </div>
                 </div>
 
                 {mode === 'list' && (
-                    <button onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <UserPlus size={18} /> Nova Pessoa
-                    </button>
+                    <>
+                        <button onClick={openCreate} className="btn-primary flex items-center gap-2 hide-mobile">
+                            <UserPlus size={18} /> 
+                            <span>Nova Pessoa</span>
+                        </button>
+                        <button 
+                            onClick={openCreate} 
+                            className="fab-mobile"
+                            aria-label="Nova Pessoa"
+                            title="Nova Pessoa"
+                        >
+                            <UserPlus size={24} />
+                        </button>
+                    </>
                 )}
             </div>
 
             {/* Form mode */}
             {(mode === 'create' || mode === 'edit') && (
-                <div className="card" style={{ marginTop: '1rem' }}>
-                    <h2 style={{ marginTop: 0, marginBottom: '1.5rem', fontSize: '1.2rem' }}>
-                        {mode === 'create' ? 'Nova Pessoa' : `Editando: ${selected?.nome_completo}`}
-                    </h2>
+                <div className="card animate-fade-in" style={{ marginTop: '1.5rem' }}>
+                    <div className="form-section-header" style={{ borderBottom: 'none', marginBottom: '2rem' }}>
+                        <div className="form-section-icon">
+                            {mode === 'create' ? <UserPlus size={18} /> : <User size={18} />}
+                        </div>
+                        <h2 className="form-section-title" style={{ fontSize: '1.4rem' }}>
+                            {mode === 'create' ? 'Novo Cadastro de Pessoa' : `Editando: ${selected?.nome_completo}`}
+                        </h2>
+                    </div>
+
                     {formError && (
-                        <div className="error-message" style={{ marginBottom: '1rem', padding: '0.75rem', background: 'rgba(239,68,68,0.1)', borderRadius: '8px' }}>
+                        <div className="alert alert--error" style={{ marginBottom: '1.5rem' }}>
                             {formError}
                         </div>
                     )}
+
                     <PessoaForm
                         initialData={selected ?? undefined}
                         onSubmit={handleSubmit}
