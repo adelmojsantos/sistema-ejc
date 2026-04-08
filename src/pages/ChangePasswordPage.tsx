@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
+import { PasswordInput } from '../components/ui/PasswordInput';
 
 export function ChangePasswordPage() {
     const [newPassword, setNewPassword] = useState('');
@@ -68,12 +69,10 @@ export function ChangePasswordPage() {
                 <form onSubmit={handleSubmit} className="auth-form">
                     <div className="form-group">
                         <label className="form-label" htmlFor="new-password">Nova senha</label>
-                        <input
+                        <PasswordInput
                             id="new-password"
-                            type="password"
-                            className="form-input"
                             value={newPassword}
-                            onChange={(event) => setNewPassword(event.target.value)}
+                            onChange={setNewPassword}
                             placeholder="No mínimo 8 caracteres"
                             minLength={8}
                             required
@@ -82,12 +81,10 @@ export function ChangePasswordPage() {
 
                     <div className="form-group">
                         <label className="form-label" htmlFor="confirm-password">Confirmar nova senha</label>
-                        <input
+                        <PasswordInput
                             id="confirm-password"
-                            type="password"
-                            className="form-input"
                             value={confirmPassword}
-                            onChange={(event) => setConfirmPassword(event.target.value)}
+                            onChange={setConfirmPassword}
                             placeholder="Repita a senha"
                             minLength={8}
                             required

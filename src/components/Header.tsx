@@ -1,4 +1,4 @@
-import { LogOut, Menu, Moon, Sun, X } from 'lucide-react';
+import { ChevronDown, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
@@ -127,8 +127,11 @@ export function Header() {
               </div>
               <div className="user-details hide-mobile">
                 <span className="user-email">{profile?.email}</span>
-                <span className="user-role">{profile?.role}</span>
               </div>
+              <ChevronDown
+                size={16}
+                className={`user-menu-chevron hide-mobile ${isUserMenuOpen ? 'open' : ''}`}
+              />
             </button>
 
             {isUserMenuOpen && (
