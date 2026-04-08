@@ -190,7 +190,7 @@ export function InscricaoPage() {
                 Encontro
               </h3>
               <button
-                onClick={() => navigate('/cadastros/encontros/participantes')}
+                onClick={() => navigate(`/cadastros/encontros/participantes?filter=encontristas${selectedEncontroId ? `&encontro=${selectedEncontroId}` : ''}`)}
                 className="btn-text"
                 style={{
                   fontSize: '0.85rem',
@@ -204,7 +204,7 @@ export function InscricaoPage() {
                   fontWeight: 600
                 }}
               >
-                <Users size={16} /> Visualizar Listagem Geral
+                <Users size={16} /> Ver Encontristas Inscritos
               </button>
             </div>
 

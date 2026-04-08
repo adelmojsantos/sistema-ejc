@@ -13,6 +13,12 @@ export interface InscricaoEnriched extends Inscricao {
         nome_completo: string;
         cpf: string | null;
         email?: string | null;
+        telefone?: string | null;
+        comunidade?: string | null;
+        data_nascimento?: string | null;
+        endereco?: string | null;
+        bairro?: string | null;
+        cidade?: string | null;
     };
     encontros?: {
         nome: string;

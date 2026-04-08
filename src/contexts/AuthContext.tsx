@@ -36,11 +36,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .limit(1)
                 .maybeSingle();
 
-            if (!encounterError && encounterData) {
+            if (!encounterError && encounterData && profileData?.email) {
                 const { data: partData, error: partError } = await supabase
                     .from('participacoes')
-                    .select('*, pessoas(nome_completo, cpf, email), equipes(nome)')
-                    .eq('pessoa_id', userId)
+                    .select('*, pessoas!inner(nome_completo, cpf, email), equipes(nome)')
+                    .eq('pessoas.email', profileData.email)
                     .eq('encontro_id', encounterData.id)
                     .maybeSingle();
 

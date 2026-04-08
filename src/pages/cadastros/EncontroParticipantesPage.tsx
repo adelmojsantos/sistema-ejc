@@ -1,26 +1,56 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import { equipeService } from '../../services/equipeService';
-import { ChevronLeft, Search, Filter, Users, UserCheck, Shield, User } from 'lucide-react';
+import { ChevronLeft, Search, Filter, Users, UserCheck, Shield, User, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+
+function formatTelefone(tel: string | null | undefined) {
+  if (!tel) return '—';
+  const d = tel.replace(/\D/g, '');
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return tel;
+}
+
+function formatDate(date: string | null | undefined) {
+  if (!date) return '—';
+  try {
+    const d = new Date(date + 'T00:00:00');
+    return d.toLocaleDateString('pt-BR');
+  } catch {
+    return date;
+  }
+}
+
+function maskCpf(cpf: string | null | undefined) {
+  if (!cpf) return '—';
+  const d = cpf.replace(/\D/g, '');
+  if (d.length === 11) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+  return cpf;
+}
 
 export function EncontroParticipantesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [encontros, setEncontros] = useState<Encontro[]>([]);
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
-  // Filters
+  // Filters — read initial values from URL query params
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterTeamId, setFilterTeamId] = useState<string>('all'); // 'all', 'encontristas', or teamId
+  const [filterTeamId, setFilterTeamId] = useState<string>(searchParams.get('filter') || 'all');
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -32,15 +62,21 @@ export function EncontroParticipantesPage() {
         setEncontros(encontrosData);
         setEquipes(equipesData);
 
-        const active = encontrosData.find(e => e.ativo);
-        if (active) setSelectedEncontroId(active.id);
-        else if (encontrosData.length > 0) setSelectedEncontroId(encontrosData[0].id);
+        // Check if a specific encontro was passed via URL
+        const encontroParam = searchParams.get('encontro');
+        if (encontroParam) {
+          setSelectedEncontroId(encontroParam);
+        } else {
+          const active = encontrosData.find(e => e.ativo);
+          if (active) setSelectedEncontroId(active.id);
+          else if (encontrosData.length > 0) setSelectedEncontroId(encontrosData[0].id);
+        }
       } catch {
         toast.error('Erro ao carregar dados iniciais.');
       }
     };
     loadInitialData();
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!selectedEncontroId) return;
@@ -72,6 +108,131 @@ export function EncontroParticipantesPage() {
     return matchesSearch && matchesFilter;
   }).sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
 
+  const selectedEncontro = encontros.find(e => e.id === selectedEncontroId);
+
+  const getFilterLabel = () => {
+    if (filterTeamId === 'all') return 'Todos';
+    if (filterTeamId === 'encontristas') return 'Encontristas';
+    const eq = equipes.find(e => e.id === filterTeamId);
+    return eq?.nome || 'Equipe';
+  };
+
+  // ─── Export helpers ────────────────────────────────────────────────
+  const getExportData = () => {
+    return filteredParticipantes.map((p, idx) => ({
+      '#': idx + 1,
+      'Nome Completo': p.pessoas?.nome_completo || '—',
+      'CPF': maskCpf(p.pessoas?.cpf),
+      'Telefone': formatTelefone(p.pessoas?.telefone),
+      'E-mail': p.pessoas?.email || '—',
+      'Comunidade': p.pessoas?.comunidade || '—',
+      'Data de Nascimento': formatDate(p.pessoas?.data_nascimento),
+      'Cidade': p.pessoas?.cidade || '—',
+      'Bairro': p.pessoas?.bairro || '—',
+      'Tipo': p.participante ? 'Encontrista' : (p.equipes?.nome || 'Equipe'),
+      'Função': p.coordenador ? 'Coordenador' : (p.participante ? 'Encontrista' : 'Membro'),
+    }));
+  };
+
+  const getExportTitle = () => {
+    const encontroName = selectedEncontro?.nome || 'Encontro';
+    const filterLabel = getFilterLabel();
+    return `${encontroName} - ${filterLabel}`;
+  };
+
+  const handleExportPDF = () => {
+    const data = getExportData();
+    if (data.length === 0) {
+      toast.error('Nenhum registro para exportar.');
+      return;
+    }
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+    // Title
+    const title = getExportTitle();
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, 14, 18);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100);
+    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')} • Total: ${data.length} registro(s)`, 14, 24);
+    doc.setTextColor(0);
+
+    const columns = ['#', 'Nome Completo', 'Telefone', 'Comunidade', 'Nasc.', 'Cidade', 'Tipo', 'Função'];
+    const rows = data.map(d => [
+      d['#'],
+      d['Nome Completo'],
+      d['Telefone'],
+      d['Comunidade'],
+      d['Data de Nascimento'],
+      d['Cidade'],
+      d['Tipo'],
+      d['Função'],
+    ]);
+
+    autoTable(doc, {
+      head: [columns],
+      body: rows,
+      startY: 30,
+      styles: {
+        fontSize: 8,
+        cellPadding: 3,
+        lineColor: [220, 220, 220],
+        lineWidth: 0.25,
+      },
+      headStyles: {
+        fillColor: [37, 99, 235],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 8.5,
+      },
+      alternateRowStyles: {
+        fillColor: [245, 247, 250],
+      },
+      margin: { left: 14, right: 14 },
+    });
+
+    const fileName = `participantes_${selectedEncontro?.nome?.replace(/\s+/g, '_') || 'encontro'}_${getFilterLabel().toLowerCase()}.pdf`;
+    doc.save(fileName);
+    toast.success('PDF exportado com sucesso!');
+    setShowExportMenu(false);
+  };
+
+  const handleExportExcel = () => {
+    const data = getExportData();
+    if (data.length === 0) {
+      toast.error('Nenhum registro para exportar.');
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(data);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 5 },   // #
+      { wch: 35 },  // Nome
+      { wch: 16 },  // CPF
+      { wch: 18 },  // Telefone
+      { wch: 28 },  // E-mail
+      { wch: 20 },  // Comunidade
+      { wch: 14 },  // Nasc
+      { wch: 16 },  // Cidade
+      { wch: 16 },  // Bairro
+      { wch: 14 },  // Tipo
+      { wch: 14 },  // Função
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Participantes');
+
+    const fileName = `participantes_${selectedEncontro?.nome?.replace(/\s+/g, '_') || 'encontro'}_${getFilterLabel().toLowerCase()}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    toast.success('Excel exportado com sucesso!');
+    setShowExportMenu(false);
+  };
 
   return (
     <div className="fade-in">
@@ -84,6 +245,123 @@ export function EncontroParticipantesPage() {
             <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Listagem</p>
             <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Participantes do Encontro</h1>
           </div>
+        </div>
+
+        {/* Export Button */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowExportMenu(!showExportMenu)}
+            className="btn-primary flex items-center gap-2"
+            style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+            disabled={filteredParticipantes.length === 0}
+          >
+            <Download size={16} />
+            <span className="hide-mobile">Exportar</span>
+          </button>
+
+          {showExportMenu && (
+            <>
+              {/* Overlay to close on click outside */}
+              <div
+                onClick={() => setShowExportMenu(false)}
+                style={{
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 99,
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '110%',
+                  zIndex: 100,
+                  backgroundColor: 'var(--card-bg)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '12px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+                  minWidth: '220px',
+                  overflow: 'hidden',
+                  animation: 'fadeInUp 0.2s ease',
+                }}
+              >
+                <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-color)', opacity: 0.5, fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Exportar como
+                </div>
+                <button
+                  onClick={handleExportPDF}
+                  style={{
+                    width: '100%',
+                    padding: '0.85rem 1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-color)',
+                    fontSize: '0.9rem',
+                    transition: 'background-color 0.15s',
+                    borderBottom: '1px solid var(--border-color)',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 0, 254), 0.06)')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                >
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ef4444',
+                  }}>
+                    <FileText size={18} />
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>PDF</div>
+                    <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Documento formatado</div>
+                  </div>
+                </button>
+                <button
+                  onClick={handleExportExcel}
+                  style={{
+                    width: '100%',
+                    padding: '0.85rem 1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.75rem',
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--text-color)',
+                    fontSize: '0.9rem',
+                    transition: 'background-color 0.15s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 0, 254), 0.06)')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                >
+                  <div style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '8px',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#10b981',
+                  }}>
+                    <FileSpreadsheet size={18} />
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>Excel</div>
+                    <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Planilha editável</div>
+                  </div>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -150,10 +428,26 @@ export function EncontroParticipantesPage() {
         </div>
       ) : (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
             <h2 style={{ margin: 0, fontSize: '1.1rem' }}>
               {filteredParticipantes.length} Registro(s) Encontrado(s)
             </h2>
+            {filterTeamId !== 'all' && (
+              <span style={{
+                padding: '0.25rem 0.75rem',
+                borderRadius: '20px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                backgroundColor: 'rgba(var(--primary-rgb, 0, 0, 254), 0.08)',
+                color: 'var(--primary-color)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}>
+                <Filter size={12} />
+                Filtro: {getFilterLabel()}
+              </span>
+            )}
           </div>
 
           <div style={{ overflowX: 'auto' }}>
@@ -161,6 +455,7 @@ export function EncontroParticipantesPage() {
               <thead>
                 <tr style={{ backgroundColor: 'rgba(0,0,0,0.02)', textAlign: 'left' }}>
                   <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Participante</th>
+                  <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Contato</th>
                   <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Tipo / Equipe</th>
                   <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Função</th>
                 </tr>
@@ -168,8 +463,9 @@ export function EncontroParticipantesPage() {
               <tbody>
                 {filteredParticipantes.length === 0 ? (
                   <tr>
-                    <td colSpan={3} style={{ padding: '3rem', textAlign: 'center', opacity: 0.5 }}>
-                      Nenhum participante encontrado para este filtro.
+                    <td colSpan={4} style={{ padding: '3rem', textAlign: 'center', opacity: 0.5 }}>
+                      <Users size={40} style={{ marginBottom: '0.75rem', opacity: 0.3 }} />
+                      <p style={{ margin: 0 }}>Nenhum participante encontrado para este filtro.</p>
                     </td>
                   </tr>
                 ) : (
@@ -189,7 +485,20 @@ export function EncontroParticipantesPage() {
                           }}>
                             <User size={16} />
                           </div>
-                          <span style={{ fontWeight: 500 }}>{p.pessoas?.nome_completo}</span>
+                          <div>
+                            <span style={{ fontWeight: 500, display: 'block' }}>{p.pessoas?.nome_completo}</span>
+                            {p.pessoas?.comunidade && (
+                              <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>{p.pessoas.comunidade}</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: '1rem 1.25rem' }}>
+                        <div style={{ fontSize: '0.85rem' }}>
+                          <span style={{ display: 'block' }}>{formatTelefone(p.pessoas?.telefone)}</span>
+                          {p.pessoas?.email && (
+                            <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>{p.pessoas.email}</span>
+                          )}
                         </div>
                       </td>
                       <td style={{ padding: '1rem 1.25rem' }}>

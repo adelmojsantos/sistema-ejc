@@ -25,6 +25,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { UsersAdminPage } from './pages/admin/UsersAdminPage';
 import { PrivacidadePage } from './pages/PrivacidadePage';
 import { VisitacaoMeusParticipantesPage } from './pages/visitacao/VisitacaoMeusParticipantesPage';
+import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
 
 
 function PlaceholderPage({ title }: { title: string }) {
@@ -59,6 +60,8 @@ function AnimatedRoutes() {
               ) : (
                 <Navigate to="/visitacao/meus-participantes" replace />
               )
+            ) : profile?.role === 'coordenador' ? (
+              <Navigate to="/coordenador/minha-equipe" replace />
             ) : (
               <PageTransition><Home /></PageTransition>
             )}
@@ -108,6 +111,12 @@ function AnimatedRoutes() {
         <Route path="/montagem-circulos" element={
           <ProtectedRoute>
             <PageTransition><MontagemCirculos /></PageTransition>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/coordenador/minha-equipe" element={
+          <ProtectedRoute allowedRoles={['coordenador']}>
+            <PageTransition><CoordenadorMinhaEquipePage /></PageTransition>
           </ProtectedRoute>
         } />
 

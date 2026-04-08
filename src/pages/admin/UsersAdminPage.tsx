@@ -21,6 +21,7 @@ const roleLabels: Record<UserRole, string> = {
     admin: 'Administrador',
     secretaria: 'Secretaria',
     visitacao: 'Visitação',
+    coordenador: 'Coordenador',
     viewer: 'Visualização',
 };
 

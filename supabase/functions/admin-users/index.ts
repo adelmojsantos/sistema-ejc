@@ -1,6 +1,6 @@
 import { createClient } from 'supabase';
 
-type UserRole = 'admin' | 'secretaria' | 'visitacao' | 'viewer';
+type UserRole = 'admin' | 'secretaria' | 'visitacao' | 'coordenador' | 'viewer';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

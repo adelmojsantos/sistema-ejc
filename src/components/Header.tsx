@@ -82,6 +82,8 @@ export function Header() {
     } else {
       navLinks.push({ to: '/visitacao/meus-participantes', label: 'Meus Participantes' });
     }
+  } else if (profile?.role === 'coordenador') {
+    navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });
   } else if (profile?.role === 'viewer') {
     navLinks.push({ to: '/inscricao', label: 'Inscrições' });
   }
