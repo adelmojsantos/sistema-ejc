@@ -12,6 +12,7 @@ import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { exportConfigService } from '../../services/exportConfigService';
 
 function formatTelefone(tel: string | null | undefined) {
   if (!tel) return '—';
@@ -140,26 +141,74 @@ export function EncontroParticipantesPage() {
     return `${encontroName} - ${filterLabel}`;
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     const data = getExportData();
     if (data.length === 0) {
       toast.error('Nenhum registro para exportar.');
       return;
     }
 
+    let config = null;
+    try {
+      config = await exportConfigService.obter(selectedEncontroId);
+    } catch (e) {
+      console.warn('Config de exportação não encontrada', e);
+    }
+    const hasConfig = config && config.config_telas && config.config_telas['EncontroParticipantes'];
+
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    let startY = 30;
 
-    // Title
-    const title = getExportTitle();
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text(title, 14, 18);
+    if (hasConfig && config) {
+        if (config.imagem_esq_base64) {
+            try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch(e) {}
+        }
+        if (config.imagem_dir_base64) {
+            try { doc.addImage(config.imagem_dir_base64, 'PNG', 253, 10, 30, 30); } catch(e) {}
+        }
+        
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(config.titulo || '', 148.5, 18, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(config.subtitulo || '', 148.5, 24, { align: 'center' });
+        
+        doc.text(config.tema || '', 148.5, 30, { align: 'center' });
+        
+        if (config.observacoes) {
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'italic');
+            doc.text(config.observacoes, 148.5, 38, { align: 'center' });
+            startY = 58;
+        } else {
+            startY = 52;
+        }
 
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100);
-    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')} • Total: ${data.length} registro(s)`, 14, 24);
-    doc.setTextColor(0);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        const title = getExportTitle();
+        doc.text(title, 14, startY - 6);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100);
+        doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')} • Total: ${data.length} registro(s)`, 14, startY + 2);
+        doc.setTextColor(0);
+        startY += 8;
+
+    } else {
+        const title = getExportTitle();
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text(title, 14, 18);
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100);
+        doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')} • Total: ${data.length} registro(s)`, 14, 24);
+        doc.setTextColor(0);
+    }
 
     const columns = ['#', 'Nome Completo', 'Telefone', 'Comunidade', 'Nasc.', 'Cidade', 'Tipo', 'Função'];
     const rows = data.map(d => [
@@ -176,7 +225,7 @@ export function EncontroParticipantesPage() {
     autoTable(doc, {
       head: [columns],
       body: rows,
-      startY: 30,
+      startY: startY,
       styles: {
         fontSize: 8,
         cellPadding: 3,
@@ -201,14 +250,35 @@ export function EncontroParticipantesPage() {
     setShowExportMenu(false);
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const data = getExportData();
     if (data.length === 0) {
       toast.error('Nenhum registro para exportar.');
       return;
     }
 
-    const ws = XLSX.utils.json_to_sheet(data);
+    let config = null;
+    try {
+      config = await exportConfigService.obter(selectedEncontroId);
+    } catch (e) {
+      console.warn('Config de exportação não encontrada', e);
+    }
+    const hasConfig = config && config.config_telas && config.config_telas['EncontroParticipantes'];
+
+    const ws = XLSX.utils.json_to_sheet([]);
+
+    if (hasConfig && config) {
+        XLSX.utils.sheet_add_aoa(ws, [
+            [config.titulo],
+            [config.subtitulo],
+            [config.tema],
+            [config.observacoes || ''],
+            [`${getExportTitle()} - Gerado em: ${new Date().toLocaleDateString('pt-BR')}`]
+        ], { origin: 'A1' });
+        XLSX.utils.sheet_add_json(ws, data, { origin: 'A6', skipHeader: false });
+    } else {
+        XLSX.utils.sheet_add_json(ws, data, { origin: 'A1', skipHeader: false });
+    }
 
     // Set column widths
     ws['!cols'] = [

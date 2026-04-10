@@ -1,4 +1,4 @@
-import { CheckCircle, FileSpreadsheet } from 'lucide-react';
+import { CheckCircle, FileSpreadsheet, FileText } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
@@ -30,6 +30,15 @@ const CATEGORIES: SecretariaCategory[] = [
     description: 'Carga em massa de pessoas e equipes via Excel.',
     icon: <FileSpreadsheet size={34} />,
     color: '#6366f1',
+    available: true
+  },
+  {
+    id: 'configuracao-pdf',
+    path: '/admin/configuracoes-exportacao',
+    label: 'Cabeçalho PDF/Excel',
+    description: 'Configurar logotipos e textos dos relatórios.',
+    icon: <FileText size={34} />,
+    color: '#ef4444',
     available: true
   }
 ];

@@ -12,6 +12,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { inscricaoService } from '../../services/inscricaoService';
+import { exportConfigService } from '../../services/exportConfigService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -189,25 +190,74 @@ export function CoordenadorMinhaEquipePage() {
     });
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     const data = getExportData();
     if (data.length === 0) {
       toast.error('Nenhum registro para exportar.');
       return;
     }
 
+    let config = null;
+    try {
+      config = await exportConfigService.obter(userParticipacao!.encontro_id);
+    } catch (e) {
+      console.warn('Config de exportação não encontrada', e);
+    }
+    const hasConfig = config && config.config_telas && config.config_telas['CoordenadorMinhaEquipe'];
+
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    let startY = 30;
 
-    const title = `Equipe: ${equipeNome || 'Minha Equipe'}`;
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text(title, 14, 18);
+    if (hasConfig && config) {
+        if (config.imagem_esq_base64) {
+            try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch(e) {}
+        }
+        if (config.imagem_dir_base64) {
+            try { doc.addImage(config.imagem_dir_base64, 'PNG', 253, 10, 30, 30); } catch(e) {}
+        }
+        
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(config.titulo || '', 148.5, 18, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(config.subtitulo || '', 148.5, 24, { align: 'center' });
+        
+        doc.text(config.tema || '', 148.5, 30, { align: 'center' });
+        
+        if (config.observacoes) {
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'italic');
+            doc.text(config.observacoes, 148.5, 38, { align: 'center' });
+            startY = 58;
+        } else {
+            startY = 52;
+        }
 
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100);
-    doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')} • Total: ${data.length} membro(s)`, 14, 24);
-    doc.setTextColor(0);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        const title = `Equipe: ${equipeNome || 'Minha Equipe'}`;
+        doc.text(title, 14, startY - 6);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100);
+        doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')} • Total: ${data.length} membro(s)`, 14, startY + 2);
+        doc.setTextColor(0);
+        startY += 8;
+
+    } else {
+        const title = `Equipe: ${equipeNome || 'Minha Equipe'}`;
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text(title, 14, 18);
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(100);
+        doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')} • Total: ${data.length} membro(s)`, 14, 24);
+        doc.setTextColor(0);
+    }
 
     const columns = ['#', 'Nome Completo', 'Telefone', 'E-mail', 'Nasc.', 'Comunidade', 'Endereço', 'Cidade', 'Função'];
     const rows = data.map(d => [
@@ -225,7 +275,7 @@ export function CoordenadorMinhaEquipePage() {
     autoTable(doc, {
       head: [columns],
       body: rows,
-      startY: 30,
+      startY: startY,
       styles: {
         fontSize: 7.5,
         cellPadding: 2.5,
@@ -250,14 +300,36 @@ export function CoordenadorMinhaEquipePage() {
     setShowExportMenu(false);
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const data = getExportData();
     if (data.length === 0) {
       toast.error('Nenhum registro para exportar.');
       return;
     }
 
-    const ws = XLSX.utils.json_to_sheet(data);
+    let config = null;
+    try {
+      config = await exportConfigService.obter(userParticipacao!.encontro_id);
+    } catch (e) {
+      console.warn('Config de exportação não encontrada', e);
+    }
+    const hasConfig = config && config.config_telas && config.config_telas['CoordenadorMinhaEquipe'];
+
+    const ws = XLSX.utils.json_to_sheet([]);
+    
+    if (hasConfig && config) {
+        XLSX.utils.sheet_add_aoa(ws, [
+            [config.titulo],
+            [config.subtitulo],
+            [config.tema],
+            [config.observacoes || ''],
+            [`Equipe: ${equipeNome || 'Minha Equipe'} - Gerado em: ${new Date().toLocaleDateString('pt-BR')}`]
+        ], { origin: 'A1' });
+        XLSX.utils.sheet_add_json(ws, data, { origin: 'A6', skipHeader: false });
+    } else {
+        XLSX.utils.sheet_add_json(ws, data, { origin: 'A1', skipHeader: false });
+    }
+
     ws['!cols'] = [
       { wch: 5 },   // #
       { wch: 35 },  // Nome
