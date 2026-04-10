@@ -1,36 +1,36 @@
-import { Route, BrowserRouter as Router, Routes, useLocation, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
 import { AnimatePresence } from 'framer-motion';
+import { Toaster } from 'react-hot-toast';
+import { Navigate, Route, BrowserRouter as Router, Routes, useLocation } from 'react-router-dom';
 import { Header } from './components/Header';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { useAuth } from './hooks/useAuth';
+import { PageTransition } from './components/ui/PageTransition';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { PageTransition } from './components/ui/PageTransition';
-import { Cadastros } from './pages/Cadastros';
-import { Secretaria } from './pages/Secretaria';
-import { CirculosPage } from './pages/cadastros/CirculosPage';
-import { EncontrosPage } from './pages/cadastros/EncontrosPage';
-import { EncontroParticipantesPage } from './pages/cadastros/EncontroParticipantesPage';
-import { EquipesPage } from './pages/cadastros/EquipesPage';
-import { MontagemPage } from './pages/cadastros/MontagemPage';
-import { PessoasPage } from './pages/cadastros/PessoasPage';
-import { Home } from './pages/Home';
-import { Login } from './pages/Login';
-import { InscricaoPage } from './pages/InscricaoPage';
-import { MontagemVisitacao } from './pages/cadastros/MontagemVisitacao';
-import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
-import LandingPage from './pages/LandingPage';
-import { ChangePasswordPage } from './pages/ChangePasswordPage';
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { useAuth } from './hooks/useAuth';
 import { UsersAdminPage } from './pages/admin/UsersAdminPage';
-import { PrivacidadePage } from './pages/PrivacidadePage';
-import { VisitacaoMeusParticipantesPage } from './pages/visitacao/VisitacaoMeusParticipantesPage';
+import { Cadastros } from './pages/Cadastros';
+import { CirculosPage } from './pages/cadastros/CirculosPage';
+import { EncontroParticipantesPage } from './pages/cadastros/EncontroParticipantesPage';
+import { EncontrosPage } from './pages/cadastros/EncontrosPage';
+import { EquipesPage } from './pages/cadastros/EquipesPage';
+import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
+import { MontagemPage } from './pages/cadastros/MontagemPage';
+import { MontagemVisitacao } from './pages/cadastros/MontagemVisitacao';
+import { PessoasPage } from './pages/cadastros/PessoasPage';
+import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { Home } from './pages/Home';
+import { InscricaoPage } from './pages/InscricaoPage';
+import LandingPage from './pages/LandingPage';
+import { Login } from './pages/Login';
+import { PrivacidadePage } from './pages/PrivacidadePage';
+import { Secretaria } from './pages/Secretaria';
 import { ConfirmationReportPage } from './pages/secretaria/ConfirmationReportPage';
+import { VisitacaoMeusParticipantesPage } from './pages/visitacao/VisitacaoMeusParticipantesPage';
 
 
-function PlaceholderPage({ title }: { title: string }) {
+export function PlaceholderPage({ title }: { title: string }) {
   return (
     <div className="app-shell">
       <Header />
@@ -44,7 +44,7 @@ function PlaceholderPage({ title }: { title: string }) {
 function AnimatedRoutes() {
   const location = useLocation();
   const { profile, userParticipacao } = useAuth();
-  
+
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>

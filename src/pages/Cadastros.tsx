@@ -1,4 +1,4 @@
-import { Calendar as CalIcon, Shield, UserPlus, Users, UsersRound, CheckCircle } from 'lucide-react';
+import { Calendar as CalIcon, Shield, UserPlus, Users, UsersRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
