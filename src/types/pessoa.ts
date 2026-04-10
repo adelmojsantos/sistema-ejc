@@ -5,7 +5,7 @@ export interface Pessoa {
     email: string | null;
     telefone: string;
     comunidade: string;
-    data_nascimento: string;
+    data_nascimento: string | null;
     qr_code_token: string;
     created_at: string;
     nome_pai: string | null;

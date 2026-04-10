@@ -1,4 +1,4 @@
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, FileSpreadsheet } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
@@ -21,6 +21,15 @@ const CATEGORIES: SecretariaCategory[] = [
     description: 'Relatório de conferência de dados pelas equipes.',
     icon: <CheckCircle size={34} />,
     color: '#10b981',
+    available: true
+  },
+  {
+    id: 'importar',
+    path: '/admin/importar',
+    label: 'Importar Planilha',
+    description: 'Carga em massa de pessoas e equipes via Excel.',
+    icon: <FileSpreadsheet size={34} />,
+    color: '#6366f1',
     available: true
   }
 ];

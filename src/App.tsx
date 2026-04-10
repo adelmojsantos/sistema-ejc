@@ -8,6 +8,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { useAuth } from './hooks/useAuth';
 import { UsersAdminPage } from './pages/admin/UsersAdminPage';
+import { ImportarDadosPage } from './pages/admin/ImportarDadosPage';
 import { Cadastros } from './pages/Cadastros';
 import { CirculosPage } from './pages/cadastros/CirculosPage';
 import { EncontroParticipantesPage } from './pages/cadastros/EncontroParticipantesPage';
@@ -85,6 +86,12 @@ function AnimatedRoutes() {
         <Route path="/admin/usuarios" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <PageTransition><UsersAdminPage /></PageTransition>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/importar" element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <PageTransition><ImportarDadosPage /></PageTransition>
           </ProtectedRoute>
         } />
 

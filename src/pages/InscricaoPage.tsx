@@ -358,6 +358,7 @@ export function InscricaoPage() {
               onCancel={() => navigate(-1)}
               isLoading={isSaving}
               initialData={initialFormData}
+              requireBirthDate={true}
             />
           </div>
         </div>

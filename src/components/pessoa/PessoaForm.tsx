@@ -12,6 +12,7 @@ interface PessoaFormProps {
     onSubmit: (data: PessoaFormData) => Promise<void>;
     onCancel: () => void;
     isLoading?: boolean;
+    requireBirthDate?: boolean;
 }
 
 type FormErrors = Partial<Record<keyof PessoaFormData | 'cep', string>>;
@@ -29,7 +30,7 @@ function formatCep(value: string): string {
     return value.replace(/\D/g, '').slice(0, 8).replace(/(\d{5})(\d{0,3})/, '$1-$2');
 }
 
-function validate(data: PessoaFormData): FormErrors {
+function validate(data: PessoaFormData, requireBirthDate: boolean = false): FormErrors {
     const errors: FormErrors = {};
 
     if (!data.nome_completo.trim()) errors.nome_completo = 'Nome completo é obrigatório.';
@@ -48,12 +49,15 @@ function validate(data: PessoaFormData): FormErrors {
 
     if (!data.telefone.trim() || data.telefone.replace(/\D/g, '').length < 10)
         errors.telefone = 'Telefone inválido.';
-    if (!data.data_nascimento) errors.data_nascimento = 'Data de nascimento é obrigatória.';
+    
+    if (requireBirthDate && !data.data_nascimento) {
+        errors.data_nascimento = 'Data de nascimento é obrigatória.';
+    }
 
     return errors;
 }
 
-export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false }: PessoaFormProps) {
+export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false, requireBirthDate = false }: PessoaFormProps) {
     const [form, setForm] = useState<PessoaFormData>({
         nome_completo: initialData?.nome_completo ?? '',
         cpf: initialData?.cpf ? formatCpf(initialData.cpf) : '',
@@ -117,7 +121,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false 
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const erros = validate(form);
+        const erros = validate(form, requireBirthDate);
         if (Object.keys(erros).length > 0) {
             setErrors(erros);
             return;
@@ -182,10 +186,10 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false 
                         label="Data de Nascimento"
                         name="data_nascimento"
                         type="date"
-                        value={form.data_nascimento}
+                        value={form.data_nascimento || ''}
                         onChange={(e) => handleChange('data_nascimento', e.target.value)}
                         error={errors.data_nascimento}
-                        required
+                        required={requireBirthDate}
                         colSpan={4}
                         icon={<Calendar size={18} />}
                     />
