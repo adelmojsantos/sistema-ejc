@@ -25,6 +25,8 @@ export function InscricaoForm({ initialData, onSubmit, onCancel, isLoading = fal
         participante: initialData?.participante ?? true,
         equipe_id: initialData?.equipe_id ?? null,
         coordenador: initialData?.coordenador ?? false,
+        dados_confirmados: initialData?.dados_confirmados ?? false,
+        confirmado_em: initialData?.confirmado_em ?? null,
     });
 
     const [pessoas, setPessoas] = useState<Pessoa[]>([]);
