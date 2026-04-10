@@ -69,19 +69,16 @@ export function Header() {
     navLinks.push(
       { to: '/inscricao', label: 'Inscrições' },
       { to: '/secretaria', label: 'Secretaria' },
-      { to: '/montagem-visitacao', label: 'Visitação' },
-      { to: '/montagem-circulos', label: 'Círculos' },
       { to: '/cadastros', label: 'Cadastros' },
     );
     if (profile?.role === 'admin') {
       navLinks.push({ to: '/admin/usuarios', label: 'Usuários' });
     }
-  } else if (profile?.role === 'visitacao') {
     if (userParticipacao?.coordenador) {
-      navLinks.push({ to: '/montagem-visitacao', label: 'Montagem Visitação' });
-    } else {
-      navLinks.push({ to: '/visitacao/meus-participantes', label: 'Meus Participantes' });
+      navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });
     }
+  } else if (profile?.role === 'visitacao') {
+    navLinks.push({ to: '/visitacao/meus-participantes', label: 'Meus Participantes' });
   } else if (profile?.role === 'coordenador') {
     navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });
   } else if (profile?.role === 'viewer') {

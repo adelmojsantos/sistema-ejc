@@ -63,7 +63,9 @@ export function InscricaoPage() {
         encontro_id: selectedEncontroId,
         participante: true,
         equipe_id: null,
-        coordenador: false
+        coordenador: false,
+        dados_confirmados: false,
+        confirmado_em: null
       });
 
       // Se veio de um pré-cadastro, marca como convertido

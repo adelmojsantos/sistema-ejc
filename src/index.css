@@ -540,7 +540,7 @@ h2 {
   background: transparent;
   box-shadow: none;
   width: auto;
-  height: 38px;
+  height: 48px;
 }
 
 .header-brand-icon img {
@@ -575,6 +575,7 @@ h2 {
   text-decoration: none;
   transition: all 0.3s var(--ease-smooth);
 }
+
 
 .nav-link:hover {
   background: var(--primary-light);
@@ -777,6 +778,7 @@ h2 {
   background: var(--border-color);
   margin: 0.4rem;
 }
+
 
 @keyframes slide-up {
   from {

@@ -6,6 +6,8 @@ export interface Inscricao {
     participante: boolean | null;
     equipe_id: string | null;
     coordenador: boolean | null;
+    dados_confirmados: boolean | null;
+    confirmado_em: string | null;
 }
 
 export interface InscricaoEnriched extends Inscricao {
@@ -36,4 +38,6 @@ export const inscricaoFormDataVazia = (): InscricaoFormData => ({
     participante: false,
     equipe_id: null,
     coordenador: false,
+    dados_confirmados: false,
+    confirmado_em: null,
 });

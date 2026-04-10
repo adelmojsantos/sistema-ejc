@@ -66,6 +66,21 @@ export const inscricaoService = {
         if (error) throw error;
     },
 
+    async confirmarDados(id: string): Promise<Inscricao> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .update({
+                dados_confirmados: true,
+                confirmado_em: new Date().toISOString()
+            })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as Inscricao;
+    },
+
     async verificarSeJaFoiParticipante(pessoaId: string): Promise<boolean> {
         const { data, error } = await supabase
             .from(TABLE)

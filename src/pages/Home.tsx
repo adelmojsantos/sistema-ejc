@@ -1,4 +1,4 @@
-import { Calendar, CircleDot, FileText, UserPlus, Users } from 'lucide-react';
+import { Calendar, CircleDot, FileText, UserPlus, Users, Users2Icon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -50,6 +50,13 @@ const actions: DashboardAction[] = [
     path: '/inscricao',
     icon: <UserPlus size={40} />,
     accent: 'primary'
+  },
+  {
+    title: 'Minha Equipe',
+    description: 'Informações da sua equipe.',
+    path: '/coordenador/minha-equipe',
+    icon: <Users2Icon size={40} />,
+    accent: 'primary'
   }
 ];
 
@@ -100,7 +107,7 @@ export function Home() {
             <p className="text-muted">Acesso rápido aos módulos principais do sistema EJC.</p>
           </header>
 
-          <motion.div 
+          <motion.div
             className="dashboard__grid"
             variants={containerVariants}
             initial="hidden"

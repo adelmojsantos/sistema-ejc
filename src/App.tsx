@@ -8,6 +8,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { PageTransition } from './components/ui/PageTransition';
 import { Cadastros } from './pages/Cadastros';
+import { Secretaria } from './pages/Secretaria';
 import { CirculosPage } from './pages/cadastros/CirculosPage';
 import { EncontrosPage } from './pages/cadastros/EncontrosPage';
 import { EncontroParticipantesPage } from './pages/cadastros/EncontroParticipantesPage';
@@ -26,6 +27,7 @@ import { UsersAdminPage } from './pages/admin/UsersAdminPage';
 import { PrivacidadePage } from './pages/PrivacidadePage';
 import { VisitacaoMeusParticipantesPage } from './pages/visitacao/VisitacaoMeusParticipantesPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
+import { ConfirmationReportPage } from './pages/secretaria/ConfirmationReportPage';
 
 
 function PlaceholderPage({ title }: { title: string }) {
@@ -88,9 +90,11 @@ function AnimatedRoutes() {
 
         <Route path="/secretaria" element={
           <ProtectedRoute>
-            <PageTransition><PlaceholderPage title="Secretaria (Em Breve)" /></PageTransition>
+            <PageTransition><Secretaria /></PageTransition>
           </ProtectedRoute>
-        } />
+        }>
+          <Route path="confirmacoes" element={<ConfirmationReportPage />} />
+        </Route>
 
         <Route path="/montagem-visitacao" element={
           <ProtectedRoute allowedRoles={['admin', 'secretaria', 'visitacao']}>
@@ -115,7 +119,7 @@ function AnimatedRoutes() {
         } />
 
         <Route path="/coordenador/minha-equipe" element={
-          <ProtectedRoute allowedRoles={['coordenador']}>
+          <ProtectedRoute allowedRoles={['coordenador', 'admin']}>
             <PageTransition><CoordenadorMinhaEquipePage /></PageTransition>
           </ProtectedRoute>
         } />

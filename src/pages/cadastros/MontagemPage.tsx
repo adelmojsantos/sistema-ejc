@@ -180,7 +180,9 @@ export function MontagemPage() {
                 equipe_id: selectedEquipeId,
                 pessoa_id: s.pessoa_id,
                 coordenador: s.coordenador,
-                participante: false
+                participante: false,
+                dados_confirmados: false,
+                confirmado_em: null
             }));
             await inscricaoService.criarMuitos(payload);
             await loadInscricoes();
