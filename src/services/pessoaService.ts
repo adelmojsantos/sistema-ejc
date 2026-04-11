@@ -63,9 +63,9 @@ export const pessoaService = {
             .select('*');
 
         if (cpf) {
-            query = query.or(`nome_completo.ilike.%${nome}%,cpf.eq.${cpf}`);
+            query = query.or(`nome_completo.ilike.%${nome}%,cpf.eq.${cpf},email.ilike.%${nome}%,telefone.ilike.%${nome}%`);
         } else {
-            query = query.ilike('nome_completo', `%${nome}%`);
+            query = query.or(`nome_completo.ilike.%${nome}%,email.ilike.%${nome}%,telefone.ilike.%${nome}%`);
         }
 
         const { data, error } = await query.limit(5);

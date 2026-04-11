@@ -6,9 +6,10 @@ import { equipeService } from '../../services/equipeService';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
-import { ChevronLeft, CheckCircle, AlertCircle, Users, Shield, Calendar, Search } from 'lucide-react';
+import { ChevronLeft, CheckCircle, AlertCircle, Users, Calendar, Search, Mail, MailWarning } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import { Modal } from '../../components/ui/Modal';
 
 function formatDate(date: string | null | undefined) {
   if (!date) return '—';
@@ -34,6 +35,7 @@ interface TeamConfirmationStatus {
   confirmado_em?: string;
   coordenadores: {
     nome: string;
+    email: string | null;
     confirmou: boolean;
     data_confirmacao: string | null;
   }[];
@@ -47,6 +49,7 @@ export function ConfirmationReportPage() {
   const [participacoes, setParticipacoes] = useState<InscricaoEnriched[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [modalData, setModalData] = useState<{ title: string; coordinators: TeamConfirmationStatus['coordenadores'] } | null>(null);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -89,9 +92,9 @@ export function ConfirmationReportPage() {
     const statuses: TeamConfirmationStatus[] = equipes.map(eq => {
       const teamParticipacoes = participacoes.filter(p => p.equipe_id === eq.id);
       const coordinators = teamParticipacoes.filter(p => p.coordenador);
-      
+
       const confirmation = coordinators.find(c => c.dados_confirmados);
-      
+
       return {
         equipe_id: eq.id,
         equipe_nome: eq.nome || 'Sem nome',
@@ -100,6 +103,7 @@ export function ConfirmationReportPage() {
         confirmado_em: confirmation?.confirmado_em || undefined,
         coordenadores: coordinators.map(c => ({
           nome: c.pessoas?.nome_completo || 'Sem nome',
+          email: c.pessoas?.email || null,
           confirmou: !!c.dados_confirmados,
           data_confirmacao: c.confirmado_em
         }))
@@ -174,7 +178,7 @@ export function ConfirmationReportPage() {
           <div style={{
             width: '48px', height: '48px', borderRadius: '12px',
             backgroundColor: stats.percent === 100 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(37, 99, 235, 0.1)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: stats.percent === 100 ? '#10b981' : 'var(--primary-color)',
           }}>
             <Calendar size={24} />
@@ -219,7 +223,7 @@ export function ConfirmationReportPage() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1rem' }}>
           {teamStatuses.map(status => (
-            <div key={status.equipe_id} className="card" style={{ 
+            <div key={status.equipe_id} className="card" style={{
               padding: '1.25rem',
               borderLeft: `4px solid ${status.confirmado ? '#10b981' : '#f59e0b'}`,
               display: 'flex',
@@ -253,9 +257,9 @@ export function ConfirmationReportPage() {
               </div>
 
               {status.confirmado && (
-                <div style={{ 
-                  padding: '0.75rem', 
-                  borderRadius: '8px', 
+                <div style={{
+                  padding: '0.75rem',
+                  borderRadius: '8px',
                   backgroundColor: 'rgba(16, 185, 129, 0.05)',
                   fontSize: '0.85rem'
                 }}>
@@ -275,23 +279,48 @@ export function ConfirmationReportPage() {
                   {status.coordenadores.length === 0 ? (
                     <div style={{ fontSize: '0.85rem', opacity: 0.5, fontStyle: 'italic' }}>Nenhum coordenador vinculado</div>
                   ) : (
-                    status.coordenadores.map((coord, i) => (
-                      <div key={i} style={{ 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        justifyContent: 'space-between',
-                        fontSize: '0.85rem',
-                        opacity: coord.confirmou ? 1 : 0.6
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Shield size={14} style={{ opacity: 0.5 }} />
-                          <span>{coord.nome}</span>
+                    <>
+                      {status.coordenadores.slice(0, 2).map((coord, i) => (
+                        <div key={i} style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          fontSize: '0.85rem',
+                          opacity: coord.confirmou ? 1 : 0.9,
+                          padding: '0.45rem 0.75rem',
+                          borderRadius: '8px',
+                          backgroundColor: coord.email ? 'var(--success-bg)' : 'rgba(245, 158, 11, 0.1)',
+                          border: `1px solid ${coord.email ? 'var(--success-border)' : 'var(--accent-color)'}`,
+                          color: coord.email ? 'var(--success-text)' : 'var(--accent-color)',
+                          fontWeight: 600
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
+                            {coord.email ? <Mail size={14} style={{ opacity: 0.8, flexShrink: 0 }} /> : <MailWarning size={14} style={{ opacity: 0.8, flexShrink: 0 }} />}
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>{coord.nome}</span>
+                          </div>
+                          {coord.confirmou && (
+                            <CheckCircle size={14} style={{ color: '#10b981', flexShrink: 0 }} />
+                          )}
                         </div>
-                        {coord.confirmou && (
-                          <CheckCircle size={14} style={{ color: '#10b981' }} />
-                        )}
-                      </div>
-                    ))
+                      ))}
+
+                      {status.coordenadores.length > 2 && (
+                        <button
+                          onClick={() => setModalData({ title: `Coordenadores: ${status.equipe_nome}`, coordinators: status.coordenadores })}
+                          className="btn-text"
+                          style={{
+                            fontSize: '0.75rem',
+                            padding: '0.25rem 0.5rem',
+                            textAlign: 'left',
+                            color: 'var(--primary-color)',
+                            fontWeight: 600,
+                            marginTop: '0.2rem'
+                          }}
+                        >
+                          + {status.coordenadores.length - 2} coordenador(es)...
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -299,6 +328,50 @@ export function ConfirmationReportPage() {
           ))}
         </div>
       )}
+
+      <Modal
+        isOpen={!!modalData}
+        onClose={() => setModalData(null)}
+        title={modalData?.title || ''}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {modalData?.coordinators.map((coord, i) => (
+            <div key={i} style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '1rem',
+              borderRadius: '12px',
+              backgroundColor: coord.email ? 'var(--success-bg)' : 'rgba(245, 158, 11, 0.08)',
+              border: `1px solid ${coord.email ? 'var(--success-border)' : 'var(--accent-color)'}`,
+              color: 'var(--text-color)',
+              marginBottom: '0.5rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '50%',
+                  backgroundColor: coord.email ? 'var(--success-bg)' : 'rgba(245, 158, 11, 0.15)',
+                  color: coord.email ? 'var(--success-text)' : 'var(--accent-color)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: `1px solid ${coord.email ? 'var(--success-border)' : 'var(--accent-color)'}`
+                }}>
+                  {coord.email ? <Mail size={18} /> : <MailWarning size={18} />}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-color)' }}>{coord.nome}</div>
+                  <div style={{ fontSize: '0.8rem', opacity: 0.6, color: 'var(--text-color)' }}>{coord.email || 'Sem e-mail cadastrado'}</div>
+                </div>
+              </div>
+              {coord.confirmou && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981', fontSize: '0.75rem', fontWeight: 800 }}>
+                  <CheckCircle size={16} />
+                  CONFIRMOU
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }

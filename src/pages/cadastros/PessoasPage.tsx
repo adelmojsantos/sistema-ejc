@@ -49,6 +49,7 @@ export function PessoasPage() {
                 (p) =>
                     normalizeString(p.nome_completo).includes(q) ||
                     normalizeString(p.email || '').includes(q) ||
+                    normalizeString(p.telefone || '').includes(q) ||
                     normalizeString(p.comunidade || '').includes(q) ||
                     (p.cpf && p.cpf.includes(q))
             )
@@ -135,11 +136,11 @@ export function PessoasPage() {
                 {mode === 'list' && (
                     <>
                         <button onClick={openCreate} className="btn-primary flex items-center gap-2 hide-mobile">
-                            <UserPlus size={18} /> 
+                            <UserPlus size={18} />
                             <span>Nova Pessoa</span>
                         </button>
-                        <button 
-                            onClick={openCreate} 
+                        <button
+                            onClick={openCreate}
                             className="fab-mobile"
                             aria-label="Nova Pessoa"
                             title="Nova Pessoa"
@@ -185,7 +186,7 @@ export function PessoasPage() {
                         <input
                             className="search-input"
                             type="search"
-                            placeholder="Buscar por nome, e-mail, CPF ou comunidade…"
+                            placeholder="Buscar por nome, e-mail, telefone ou comunidade…"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
