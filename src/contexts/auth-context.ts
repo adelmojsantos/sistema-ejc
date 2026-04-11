@@ -13,6 +13,7 @@ export interface AuthContextType {
     profileLoading: boolean;
     loading: boolean;
     userParticipacao: InscricaoEnriched | null;
+    hasPermission: (permission: string) => boolean;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

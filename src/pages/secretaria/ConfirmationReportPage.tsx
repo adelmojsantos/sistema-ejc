@@ -31,6 +31,9 @@ interface TeamConfirmationStatus {
   equipe_id: string;
   equipe_nome: string;
   confirmado: boolean;
+  membros_confirmados: number;
+  total_membros: number;
+  progresso: number;
   confirmado_por?: string;
   confirmado_em?: string;
   coordenadores: {
@@ -47,6 +50,7 @@ export function ConfirmationReportPage() {
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [participacoes, setParticipacoes] = useState<InscricaoEnriched[]>([]);
+  const [equipeConfirmacoes, setEquipeConfirmacoes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [modalData, setModalData] = useState<{ title: string; coordinators: TeamConfirmationStatus['coordenadores'] } | null>(null);
@@ -77,8 +81,12 @@ export function ConfirmationReportPage() {
     const loadData = async () => {
       setIsLoading(true);
       try {
-        const data = await inscricaoService.listarPorEncontro(selectedEncontroId);
+        const [data, confs] = await Promise.all([
+          inscricaoService.listarPorEncontro(selectedEncontroId),
+          equipeService.listarConfirmacoes(selectedEncontroId)
+        ]);
         setParticipacoes(data);
+        setEquipeConfirmacoes(confs);
       } catch {
         toast.error('Erro ao carregar participações.');
       } finally {
@@ -91,16 +99,22 @@ export function ConfirmationReportPage() {
   const teamStatuses = useMemo(() => {
     const statuses: TeamConfirmationStatus[] = equipes.map(eq => {
       const teamParticipacoes = participacoes.filter(p => p.equipe_id === eq.id);
-      const coordinators = teamParticipacoes.filter(p => p.coordenador);
+      const membersConfirmed = teamParticipacoes.filter(p => p.dados_confirmados).length;
+      const totalMembers = teamParticipacoes.length;
+      const progresso = totalMembers > 0 ? (membersConfirmed / totalMembers) * 100 : 0;
 
-      const confirmation = coordinators.find(c => c.dados_confirmados);
+      const coordinators = teamParticipacoes.filter(p => p.coordenador);
+      const teamConf = equipeConfirmacoes.find(c => c.equipe_id === eq.id);
 
       return {
         equipe_id: eq.id,
         equipe_nome: eq.nome || 'Sem nome',
-        confirmado: !!confirmation,
-        confirmado_por: confirmation?.pessoas?.nome_completo,
-        confirmado_em: confirmation?.confirmado_em || undefined,
+        confirmado: !!teamConf,
+        membros_confirmados: membersConfirmed,
+        total_membros: totalMembers,
+        progresso,
+        confirmado_por: teamConf?.profiles?.email || 'Coordenador',
+        confirmado_em: teamConf?.confirmada_em || undefined,
         coordenadores: coordinators.map(c => ({
           nome: c.pessoas?.nome_completo || 'Sem nome',
           email: c.pessoas?.email || null,
@@ -240,19 +254,44 @@ export function ConfirmationReportPage() {
                   </div>
                   <div>
                     <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>{status.equipe_nome}</h3>
-                    <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{status.coordenadores.length} coordenador(es)</div>
+                    <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{status.membros_confirmados} de {status.total_membros} confirmados</div>
                   </div>
                 </div>
                 {status.confirmado ? (
                   <span style={{
                     padding: '0.25rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700,
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981'
-                  }}>✓ CONFIRMADO</span>
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)'
+                  }}>✓ FINALIZADA</span>
                 ) : (
                   <span style={{
                     padding: '0.25rem 0.6rem', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700,
-                    backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b'
-                  }}>⚠ PENDENTE</span>
+                    backgroundColor: status.progresso > 0 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(0,0,0,0.05)', 
+                    color: status.progresso > 0 ? '#f59e0b' : '#666',
+                    border: `1px solid ${status.progresso > 0 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(0,0,0,0.1)'}`
+                  }}>{status.progresso === 0 ? 'AGUARDANDO' : 'EM ANDAMENTO'}</span>
+                )}
+              </div>
+
+              {/* Progress Bar */}
+              <div style={{ marginTop: '-0.25rem' }}>
+                <div style={{ 
+                  width: '100%', 
+                  height: '6px', 
+                  backgroundColor: 'rgba(0,0,0,0.05)', 
+                  borderRadius: '3px',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ 
+                    width: `${status.progresso}%`, 
+                    height: '100%', 
+                    backgroundColor: status.confirmado ? '#10b981' : (status.progresso > 80 ? '#f59e0b' : '#3b82f6'),
+                    transition: 'width 0.4s ease-out'
+                  }} />
+                </div>
+                {status.progresso > 0 && !status.confirmado && (
+                  <div style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 700, marginTop: '0.3rem', textAlign: 'right' }}>
+                    {Math.round(status.progresso)}% completo
+                  </div>
                 )}
               </div>
 
@@ -261,9 +300,10 @@ export function ConfirmationReportPage() {
                   padding: '0.75rem',
                   borderRadius: '8px',
                   backgroundColor: 'rgba(16, 185, 129, 0.05)',
-                  fontSize: '0.85rem'
+                  fontSize: '0.85rem',
+                  border: '1px solid rgba(16, 185, 129, 0.1)'
                 }}>
-                  <div style={{ fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Dados confirmados por:</div>
+                  <div style={{ fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Equipe Finalizada:</div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.8 }}>
                     <span>{status.confirmado_por}</span>
                     <span>{formatDate(status.confirmado_em)}</span>

@@ -154,11 +154,11 @@ export function PessoasPage() {
             {/* Form mode */}
             {(mode === 'create' || mode === 'edit') && (
                 <div className="card animate-fade-in" style={{ marginTop: '1.5rem' }}>
-                    <div className="form-section-header" style={{ borderBottom: 'none', marginBottom: '2rem' }}>
-                        <div className="form-section-icon">
+                    <div className="page-form-header" style={{ borderBottom: 'none', marginBottom: '2rem' }}>
+                        <div className="page-form-icon">
                             {mode === 'create' ? <UserPlus size={18} /> : <User size={18} />}
                         </div>
-                        <h2 className="form-section-title" style={{ fontSize: '1.4rem' }}>
+                        <h2 className="page-form-title" style={{ fontSize: '1.4rem' }}>
                             {mode === 'create' ? 'Novo Cadastro de Pessoa' : `Editando: ${selected?.nome_completo}`}
                         </h2>
                     </div>

@@ -67,4 +67,42 @@ export const equipeService = {
 
         if (error) throw error;
     },
+
+    async confirmarEquipe(equipeId: string, encontroId: string, usuarioId: string): Promise<void> {
+        const { error } = await supabase
+            .from('equipe_confirmacoes')
+            .insert([{
+                equipe_id: equipeId,
+                encontro_id: encontroId,
+                confirmado_por: usuarioId,
+                confirmado_em: new Date().toISOString()
+            }]);
+
+        if (error) {
+            if (error.code === '23505') return; // Já confirmado
+            throw error;
+        }
+    },
+
+    async obterConfirmacao(equipeId: string, encontroId: string) {
+        const { data, error } = await supabase
+            .from('equipe_confirmacoes')
+            .select('*, profiles(email)')
+            .eq('equipe_id', equipeId)
+            .eq('encontro_id', encontroId)
+            .maybeSingle();
+
+        if (error) throw error;
+        return data;
+    },
+
+    async listarConfirmacoes(encontroId: string) {
+        const { data, error } = await supabase
+            .from('equipe_confirmacoes')
+            .select('*, profiles(email)')
+            .eq('encontro_id', encontroId);
+
+        if (error) throw error;
+        return data;
+    }
 };

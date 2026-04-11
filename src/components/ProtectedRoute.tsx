@@ -1,20 +1,19 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import type { UserRole } from '../types/auth';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
-    allowedRoles?: UserRole[];
+    requiredPermissions?: string[];
     allowTemporaryPassword?: boolean;
 }
 
 export function ProtectedRoute({
     children,
-    allowedRoles,
+    requiredPermissions,
     allowTemporaryPassword = false
 }: ProtectedRouteProps) {
-    const { user, profile, mustChangePassword, profileLoading } = useAuth();
+    const { user, profile, mustChangePassword, profileLoading, hasPermission } = useAuth();
 
     if (!user) {
         return <Navigate to="/" replace />;
@@ -31,12 +30,15 @@ export function ProtectedRoute({
         return <Navigate to="/alterar-senha" replace />;
     }
 
-    if (allowedRoles && !profile) {
+    if (requiredPermissions && !profile) {
         return <Navigate to="/login" replace />;
     }
 
-    if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
-        return <Navigate to="/dashboard" replace />;
+    if (requiredPermissions && profile) {
+        const hasAccess = requiredPermissions.some(permission => hasPermission(permission));
+        if (!hasAccess) {
+            return <Navigate to="/dashboard" replace />;
+        }
     }
 
     return <>{children}</>;

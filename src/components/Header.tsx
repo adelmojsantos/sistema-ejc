@@ -12,7 +12,7 @@ export function Header() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { signOut, profile, userParticipacao } = useAuth();
+  const { signOut, profile, userParticipacao, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -65,24 +65,32 @@ export function Header() {
     { to: '/dashboard', label: 'Início' },
   ];
 
-  if (profile?.role === 'admin' || profile?.role === 'secretaria') {
+  if (hasPermission('modulo_secretaria') || hasPermission('modulo_admin')) {
     navLinks.push(
       { to: '/inscricao', label: 'Inscrições' },
       { to: '/secretaria', label: 'Secretaria' },
       { to: '/cadastros', label: 'Cadastros' },
     );
-    if (profile?.role === 'admin') {
-      navLinks.push({ to: '/admin/usuarios', label: 'Usuários' });
+  }
+  
+  if (hasPermission('modulo_admin')) {
+    navLinks.push({ to: '/admin/usuarios', label: 'Usuários' });
+  }
+
+  if (hasPermission('modulo_coordenador') || userParticipacao?.coordenador) {
+    if (!navLinks.some(link => link.to === '/coordenador/minha-equipe')) {
+       navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });
     }
-    if (userParticipacao?.coordenador) {
-      navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });
-    }
-  } else if (profile?.role === 'visitacao') {
+  }
+
+  if (hasPermission('modulo_visitacao') && !hasPermission('modulo_secretaria') && !hasPermission('modulo_admin')) {
     navLinks.push({ to: '/visitacao/meus-participantes', label: 'Meus Participantes' });
-  } else if (profile?.role === 'coordenador') {
-    navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });
-  } else if (profile?.role === 'viewer') {
-    navLinks.push({ to: '/inscricao', label: 'Inscrições' });
+  }
+
+  if (hasPermission('modulo_inscricao') && !hasPermission('modulo_secretaria') && !hasPermission('modulo_admin')) {
+    if (!navLinks.some(link => link.to === '/inscricao')) {
+       navLinks.push({ to: '/inscricao', label: 'Inscrições' });
+    }
   }
 
   return (
@@ -181,7 +189,7 @@ export function Header() {
             </div>
             <div className="user-info">
               <span className="user-email">{profile?.email}</span>
-              <span className="user-role">{profile?.role}</span>
+              <span className="user-role">{profile?.grupos?.join(', ')}</span>
             </div>
           </div>
           <button onClick={toggleTheme} className="nav-link">

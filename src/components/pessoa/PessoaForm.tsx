@@ -13,6 +13,7 @@ interface PessoaFormProps {
     onCancel: () => void;
     isLoading?: boolean;
     requireBirthDate?: boolean;
+    isConfirmationContext?: boolean;
 }
 
 type FormErrors = Partial<Record<keyof PessoaFormData | 'cep', string>>;
@@ -57,7 +58,7 @@ function validate(data: PessoaFormData, requireBirthDate: boolean = false): Form
     return errors;
 }
 
-export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false, requireBirthDate = false }: PessoaFormProps) {
+export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false, requireBirthDate = false, isConfirmationContext = false }: PessoaFormProps) {
     const [form, setForm] = useState<PessoaFormData>({
         nome_completo: initialData?.nome_completo ?? '',
         cpf: initialData?.cpf ? formatCpf(initialData.cpf) : '',
@@ -366,7 +367,10 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                     {isLoading ? (
                         <><Loader size={16} className="animate-spin" /> Salvando...</>
                     ) : (
-                        <><Check size={16} /> Salvar Alterações</>
+                        <>
+                            <Check size={16} /> 
+                            {isConfirmationContext ? 'Salvar e Confirmar Dados' : 'Salvar Alterações'}
+                        </>
                     )}
                 </button>
             </div>

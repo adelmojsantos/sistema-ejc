@@ -1,4 +1,4 @@
-import { Calendar, CircleDot, FileText, UserPlus, Users, Users2Icon } from 'lucide-react';
+import { Calendar, CircleDot, FileText, UserPlus, Users, Users2Icon, Shield } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -15,50 +15,7 @@ interface DashboardAction {
   featured?: boolean;
 }
 
-const actions: DashboardAction[] = [
-  {
-    title: 'Secretaria',
-    description: 'Gestão de documentos e informações gerais do encontro.',
-    path: '/secretaria',
-    icon: <FileText size={36} />,
-    accent: 'primary'
-  },
-  {
-    title: 'Visitação',
-    description: 'Controle de visitas às famílias e acompanhamento.',
-    path: '/montagem-visitacao',
-    icon: <Users size={36} />,
-    accent: 'success'
-  },
-  {
-    title: 'Círculos',
-    description: 'Divisão dos participantes em grupos de estudo e partilha.',
-    path: '/montagem-circulos',
-    icon: <CircleDot size={36} />,
-    accent: 'violet'
-  },
-  {
-    title: 'Cadastros',
-    description: 'Cadastro de jovens, tios e membros das equipes.',
-    path: '/cadastros',
-    icon: <Calendar size={36} />,
-    accent: 'amber'
-  },
-  {
-    title: 'Inscrições',
-    description: 'Inscrições dos participantes para o EJC.',
-    path: '/inscricao',
-    icon: <UserPlus size={40} />,
-    accent: 'primary'
-  },
-  {
-    title: 'Minha Equipe',
-    description: 'Informações da sua equipe.',
-    path: '/coordenador/minha-equipe',
-    icon: <Users2Icon size={40} />,
-    accent: 'primary'
-  }
-];
+
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -81,20 +38,83 @@ const itemVariants: Variants = {
 
 export function Home() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { hasPermission } = useAuth();
 
-  const dashboardActions: DashboardAction[] = [
-    ...actions,
-    ...(profile?.role === 'admin'
-      ? [{
+  const dashboardActions: DashboardAction[] = [];
+
+  if (hasPermission('modulo_secretaria')) {
+      dashboardActions.push({
+        title: 'Secretaria',
+        description: 'Gestão de documentos e informações gerais do encontro.',
+        path: '/secretaria',
+        icon: <FileText size={36} />,
+        accent: 'primary'
+      });
+  }
+
+  if (hasPermission('modulo_visitacao') || hasPermission('modulo_admin')) {
+      dashboardActions.push({
+        title: 'Visitação',
+        description: 'Controle de visitas às famílias e acompanhamento.',
+        path: '/montagem-visitacao',
+        icon: <Users size={36} />,
+        accent: 'success'
+      });
+  }
+
+  if (hasPermission('modulo_cadastros') || hasPermission('modulo_admin')) {
+      dashboardActions.push({
+        title: 'Círculos',
+        description: 'Divisão dos participantes em grupos de estudo e partilha.',
+        path: '/montagem-circulos',
+        icon: <CircleDot size={36} />,
+        accent: 'violet'
+      });
+      dashboardActions.push({
+        title: 'Cadastros',
+        description: 'Cadastro de jovens, tios e membros das equipes.',
+        path: '/cadastros',
+        icon: <Calendar size={36} />,
+        accent: 'amber'
+      });
+  }
+
+  if (hasPermission('modulo_inscricao')) {
+      dashboardActions.push({
+        title: 'Inscrições',
+        description: 'Inscrições dos participantes para o EJC.',
+        path: '/inscricao',
+        icon: <UserPlus size={40} />,
+        accent: 'primary'
+      });
+  }
+
+  if (hasPermission('modulo_coordenador') || hasPermission('modulo_admin')) {
+      dashboardActions.push({
+        title: 'Minha Equipe',
+        description: 'Informações da sua equipe.',
+        path: '/coordenador/minha-equipe',
+        icon: <Users2Icon size={40} />,
+        accent: 'primary'
+      });
+  }
+
+  if (hasPermission('modulo_admin')) {
+      dashboardActions.push({
         title: 'Usuários',
-        description: 'Cadastro de contas, roles e redefinição de senha temporária.',
+        description: 'Gestão de contas, redefinição de senha e permissões do sistema.',
         path: '/admin/usuarios',
         icon: <Users size={36} />,
         accent: 'amber' as const
-      }]
-      : [])
-  ];
+      });
+      dashboardActions.push({
+        title: 'Acessos e Grupos',
+        description: 'Configure que módulos e telas cada perfil pode acessar.',
+        path: '/admin/acessos',
+        icon: <Shield size={36} />,
+        accent: 'success'
+      });
+  }
 
   return (
     <div className="app-shell">

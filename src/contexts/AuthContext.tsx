@@ -20,28 +20,79 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // 1. Fetch Profile
             const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
-                .select('id, email, role, temporary_password, created_at, updated_at')
+                .select('id, email, temporary_password, created_at, updated_at')
                 .eq('id', userId)
                 .maybeSingle();
 
             if (profileError) throw profileError;
-            setProfile((profileData as UserProfile | null) ?? null);
 
-            // 2. Fetch Latest Participation for the active/latest encounter
-            // First, get the latest encounter
+            // 2. Fetch Active Encounter
             const { data: encounterData, error: encounterError } = await supabase
                 .from('encontros')
                 .select('id')
-                .order('edicao', { ascending: false })
+                .eq('ativo', true)
                 .limit(1)
                 .maybeSingle();
 
-            if (!encounterError && encounterData && profileData?.email) {
+            const activeEncontroId = (!encounterError && encounterData) ? encounterData.id : null;
+
+            if (profileError) throw profileError;
+
+            // 3. Fetch User Groups and Permissions
+            let grupos: string[] = [];
+            let permissions: string[] = [];
+
+            const { data: ugData, error: ugError } = await supabase
+                .from('usuario_grupos')
+                .select(`
+                    encontro_id,
+                    grupos (
+                        nome,
+                        grupo_permissoes (
+                            permissoes (
+                                chave
+                            )
+                        )
+                    )
+                `)
+                .eq('usuario_id', userId);
+
+            if (!ugError && ugData) {
+                // Flatten results, only allowing global groups OR groups for the active encounter
+                ugData.forEach((ug: any) => {
+                    const isGlobal = !ug.encontro_id;
+                    const isActiveEncounter = activeEncontroId && ug.encontro_id === activeEncontroId;
+
+                    if (ug.grupos && (isGlobal || isActiveEncounter)) {
+                        grupos.push(ug.grupos.nome);
+                        if (ug.grupos.grupo_permissoes) {
+                            ug.grupos.grupo_permissoes.forEach((gp: any) => {
+                                if (gp.permissoes && gp.permissoes.chave) {
+                                    if (!permissions.includes(gp.permissoes.chave)) {
+                                        permissions.push(gp.permissoes.chave);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+
+            const extendedProfile: UserProfile = {
+                ...(profileData as any),
+                grupos,
+                permissions
+            };
+
+            setProfile(extendedProfile);
+
+            // 4. Fetch Latest Participation for the active encounter
+            if (activeEncontroId && profileData?.email) {
                 const { data: partData, error: partError } = await supabase
                     .from('participacoes')
                     .select('*, pessoas!inner(nome_completo, cpf, email), equipes(nome)')
                     .eq('pessoas.email', profileData.email)
-                    .eq('encontro_id', encounterData.id)
+                    .eq('encontro_id', activeEncontroId)
                     .maybeSingle();
 
                 if (!partError) {
@@ -128,6 +179,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await supabase.auth.signOut();
     };
 
+    const hasPermission = useCallback((permission: string) => {
+        if (!profile?.permissions) return false;
+        // Admins can be configured to have all permissions by db entry. Or we can hardcode fallback:
+        if (profile.permissions.includes('modulo_admin')) return true;
+        return profile.permissions.includes(permission);
+    }, [profile]);
+
     return (
         <AuthContext.Provider
             value={{
@@ -139,7 +197,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 userParticipacao,
                 mustChangePassword: !!profile?.temporary_password,
                 profileLoading,
-                loading
+                loading,
+                hasPermission
             }}
         >
             {!loading && children}

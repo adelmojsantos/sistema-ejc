@@ -9,6 +9,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { useAuth } from './hooks/useAuth';
 import { UsersAdminPage } from './pages/admin/UsersAdminPage';
 import { ImportarDadosPage } from './pages/admin/ImportarDadosPage';
+import { AccessAdminPage } from './pages/admin/AccessAdminPage';
 import { ExportConfigListPage } from './pages/admin/ExportConfigListPage';
 import { ExportConfigFormPage } from './pages/admin/ExportConfigFormPage';
 import { Cadastros } from './pages/Cadastros';
@@ -46,7 +47,7 @@ export function PlaceholderPage({ title }: { title: string }) {
 
 function AnimatedRoutes() {
   const location = useLocation();
-  const { profile, userParticipacao } = useAuth();
+  const { profile, userParticipacao, hasPermission } = useAuth();
 
   return (
     <AnimatePresence mode="wait">
@@ -59,17 +60,16 @@ function AnimatedRoutes() {
 
         <Route path="/dashboard" element={
           <ProtectedRoute>
-            {profile?.role === 'visitacao' ? (
-              userParticipacao?.coordenador ? (
-                <Navigate to="/montagem-visitacao" replace />
-              ) : (
-                <Navigate to="/visitacao/meus-participantes" replace />
-              )
-            ) : profile?.role === 'coordenador' ? (
-              <Navigate to="/coordenador/minha-equipe" replace />
-            ) : (
-              <PageTransition><Home /></PageTransition>
-            )}
+            {(() => {
+              
+              if (hasPermission('modulo_visitacao') && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length === 1) {
+                  return userParticipacao?.coordenador ? <Navigate to="/montagem-visitacao" replace /> : <Navigate to="/visitacao/meus-participantes" replace />;
+              } else if (hasPermission('modulo_coordenador') && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length === 1) {
+                  return <Navigate to="/coordenador/minha-equipe" replace />;
+              } else {
+                  return <PageTransition><Home /></PageTransition>;
+              }
+            })()}
           </ProtectedRoute>
         } />
 
@@ -86,35 +86,41 @@ function AnimatedRoutes() {
         } />
 
         <Route path="/admin/usuarios" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute requiredPermissions={['modulo_admin']}>
             <PageTransition><UsersAdminPage /></PageTransition>
           </ProtectedRoute>
         } />
 
+        <Route path="/admin/acessos" element={
+          <ProtectedRoute requiredPermissions={['modulo_admin']}>
+            <PageTransition><AccessAdminPage /></PageTransition>
+          </ProtectedRoute>
+        } />
+
         <Route path="/admin/importar" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute requiredPermissions={['modulo_admin']}>
             <PageTransition><ImportarDadosPage /></PageTransition>
           </ProtectedRoute>
         } />
 
         <Route path="/admin/configuracoes-exportacao" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute requiredPermissions={['modulo_admin']}>
             <PageTransition><ExportConfigListPage /></PageTransition>
           </ProtectedRoute>
         } />
         <Route path="/admin/configuracoes-exportacao/novo" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute requiredPermissions={['modulo_admin']}>
             <PageTransition><ExportConfigFormPage /></PageTransition>
           </ProtectedRoute>
         } />
         <Route path="/admin/configuracoes-exportacao/:id" element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute requiredPermissions={['modulo_admin']}>
             <PageTransition><ExportConfigFormPage /></PageTransition>
           </ProtectedRoute>
         } />
 
         <Route path="/secretaria" element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermissions={['modulo_secretaria']}>
             <PageTransition><Secretaria /></PageTransition>
           </ProtectedRoute>
         }>
@@ -122,29 +128,30 @@ function AnimatedRoutes() {
         </Route>
 
         <Route path="/montagem-visitacao" element={
-          <ProtectedRoute allowedRoles={['admin', 'secretaria', 'visitacao']}>
-            {profile?.role === 'visitacao' && !userParticipacao?.coordenador ? (
-              <Navigate to="/visitacao/meus-participantes" replace />
-            ) : (
-              <PageTransition><MontagemVisitacao /></PageTransition>
-            )}
+          <ProtectedRoute requiredPermissions={['modulo_visitacao', 'modulo_admin']}>
+            {(() => {
+              if (hasPermission('modulo_visitacao') && !userParticipacao?.coordenador && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length <= 2) {
+                return <Navigate to="/visitacao/meus-participantes" replace />;
+              }
+              return <PageTransition><MontagemVisitacao /></PageTransition>;
+            })()}
           </ProtectedRoute>
         } />
 
         <Route path="/visitacao/meus-participantes" element={
-          <ProtectedRoute allowedRoles={['visitacao']}>
+          <ProtectedRoute requiredPermissions={['modulo_visitacao']}>
             <PageTransition><VisitacaoMeusParticipantesPage /></PageTransition>
           </ProtectedRoute>
         } />
 
         <Route path="/montagem-circulos" element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
             <PageTransition><MontagemCirculos /></PageTransition>
           </ProtectedRoute>
         } />
 
         <Route path="/coordenador/minha-equipe" element={
-          <ProtectedRoute allowedRoles={['coordenador', 'admin']}>
+          <ProtectedRoute requiredPermissions={['modulo_coordenador', 'modulo_admin']}>
             <PageTransition><CoordenadorMinhaEquipePage /></PageTransition>
           </ProtectedRoute>
         } />
@@ -152,7 +159,7 @@ function AnimatedRoutes() {
         {/* Note: In nested routes we shouldn't wrap with PageTransition if we don't want the surrounding UI to animate in/out. 
             Here we wrap Cadastros because it's the root layout for this section. */}
         <Route path="/cadastros" element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
             <PageTransition><Cadastros /></PageTransition>
           </ProtectedRoute>
         }>
