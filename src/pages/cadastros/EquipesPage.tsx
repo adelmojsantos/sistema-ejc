@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { Search, Shield, Plus, X, Loader, Check } from 'lucide-react';
+import { Search, Plus, X, Loader, Check } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { EquipeRow } from '../../components/equipe/EquipeRow';
 import { ConfirmDialog } from '../../components/ConfirmDialog';

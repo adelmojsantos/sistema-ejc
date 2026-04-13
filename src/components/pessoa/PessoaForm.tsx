@@ -6,7 +6,7 @@ import { FormRow } from '../ui/FormRow';
 import { RadioGroup } from '../ui/RadioGroup';
 import { User, Phone, UsersRound, X, Check, Loader, MapPin, Mail, CreditCard, Calendar, Home } from 'lucide-react';
 import { formatCpf, isValidCpf } from '../../utils/cpfUtils';
-import { geocodeAddress, constructFullAddress } from '../../utils/geocoding';
+import { geocodeWithFallback } from '../../utils/geocoding';
 
 interface PessoaFormProps {
     initialData?: Partial<PessoaFormData>;
@@ -78,6 +78,9 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
         outros_contatos: initialData?.outros_contatos ?? '',
         fez_ejc_outra_paroquia: initialData?.fez_ejc_outra_paroquia ?? false,
         qual_paroquia_ejc: initialData?.qual_paroquia_ejc ?? '',
+        // Preserve existing geolocation — never overwrite with undefined
+        latitude: initialData?.latitude ?? null,
+        longitude: initialData?.longitude ?? null,
     });
 
     const [cep, setCep] = useState('');
@@ -143,10 +146,9 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
             longitude: form.longitude || null,
         };
 
-        // Silent Geocoding before submitting
+        // Silent geocoding before submitting — tries multiple address variants
         if (form.endereco && (!form.latitude || !form.longitude)) {
-            const fullAddr = constructFullAddress(form);
-            const coords = await geocodeAddress(fullAddr);
+            const coords = await geocodeWithFallback(form);
             if (coords) {
                 payload.latitude = coords[0];
                 payload.longitude = coords[1];

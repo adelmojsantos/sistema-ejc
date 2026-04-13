@@ -1,19 +1,27 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Header } from '../../components/Header';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus } from 'lucide-react';
+import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
-import { geocodeAddress, constructFullAddress } from '../../utils/geocoding';
+import { geocodeWithFallback } from '../../utils/geocoding';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
+
+type GeoItemStatus = 'pending' | 'processing' | 'success' | 'error' | 'skipped';
+
+interface GeoProgressItem {
+  pessoa_id: string;
+  nome: string;
+  status: GeoItemStatus;
+  message?: string;
+}
 
 function formatTelefone(tel: string | null | undefined) {
   if (!tel) return '—';
@@ -33,8 +41,12 @@ export function SecretariaParticipantesPage() {
   const [isUpdatingGeo, setIsUpdatingGeo] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showConfirmGeoModal, setShowConfirmGeoModal] = useState(false);
+  const [showProgressModal, setShowProgressModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingGeoCount, setPendingGeoCount] = useState(0);
+  const [geoProgressItems, setGeoProgressItems] = useState<GeoProgressItem[]>([]);
+  const [geoDone, setGeoDone] = useState(false);
+  const progressListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -73,7 +85,7 @@ export function SecretariaParticipantesPage() {
     loadParticipantes();
   }, [selectedEncontroId]);
 
-  const filteredParticipantes = participantes.filter(p => 
+  const filteredParticipantes = participantes.filter(p =>
     p.pessoas?.nome_completo?.toLowerCase().includes(searchTerm.toLowerCase())
   ).sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
 
@@ -92,35 +104,79 @@ export function SecretariaParticipantesPage() {
   const executeBulkGeocoding = async () => {
     setShowConfirmGeoModal(false);
     const pending = filteredParticipantes.filter(p => !p.pessoas?.latitude || !p.pessoas?.longitude);
+
+    // Build initial progress items
+    const initialItems: GeoProgressItem[] = pending.map(p => ({
+      pessoa_id: p.pessoa_id,
+      nome: p.pessoas?.nome_completo || p.pessoa_id,
+      status: 'pending',
+    }));
+    setGeoProgressItems(initialItems);
+    setGeoDone(false);
+    setShowProgressModal(true);
     setIsUpdatingGeo(true);
+
     let successCount = 0;
-    let processedCount = 0;
-    
+    let errorCount = 0;
+    let skippedCount = 0;
+
     try {
-      for (const p of pending) {
-        processedCount++;
-        if (!p.pessoas?.endereco) continue;
-        const fullAddr = constructFullAddress(p.pessoas);
-        const coords = await geocodeAddress(fullAddr);
+      for (let i = 0; i < pending.length; i++) {
+        const p = pending[i];
+
+        // Mark as processing
+        setGeoProgressItems(prev =>
+          prev.map((item, idx) => idx === i ? { ...item, status: 'processing' } : item)
+        );
+
+        // Auto-scroll to current item
+        setTimeout(() => {
+          const el = progressListRef.current?.querySelector(`[data-idx="${i}"]`);
+          el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+
+        if (!p.pessoas?.endereco) {
+          setGeoProgressItems(prev =>
+            prev.map((item, idx) => idx === i ? { ...item, status: 'skipped', message: 'Sem endereço' } : item)
+          );
+          skippedCount++;
+          continue;
+        }
+
+        const coords = await geocodeWithFallback(p.pessoas);
         if (coords) {
           await pessoaService.atualizar(p.pessoa_id, {
             latitude: coords[0],
-            longitude: coords[1]
+            longitude: coords[1],
           });
+          setGeoProgressItems(prev =>
+            prev.map((item, idx) => idx === i
+              ? { ...item, status: 'success', message: `${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}` }
+              : item
+            )
+          );
           successCount++;
+        } else {
+          setGeoProgressItems(prev =>
+            prev.map((item, idx) => idx === i ? { ...item, status: 'error', message: 'Endereço não encontrado' } : item)
+          );
+          errorCount++;
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // geocodeWithFallback already handles internal delays; add a small
+        // extra gap only when the address was found on the first variant
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
-      
+
       await loadParticipantes();
-      toast.success(`${successCount} geolocalizações atualizadas!`);
     } catch (error) {
       console.error('Erro no bulk geocode:', error);
-      toast.error('Erro durante a atualização.');
     } finally {
       setIsUpdatingGeo(false);
+      setGeoDone(true);
     }
   };
+
 
   const getExportData = () => {
     return filteredParticipantes.map((p, idx) => ({
@@ -164,7 +220,7 @@ export function SecretariaParticipantesPage() {
             </div>
 
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-              <button 
+              <button
                 onClick={() => navigate('/inscricao')}
                 className="btn-secondary flex items-center gap-2"
                 style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
@@ -352,6 +408,7 @@ export function SecretariaParticipantesPage() {
         </div>
       </main>
 
+      {/* ── Confirm geo modal ── */}
       <Modal
         isOpen={showConfirmGeoModal}
         onClose={() => setShowConfirmGeoModal(false)}
@@ -359,30 +416,113 @@ export function SecretariaParticipantesPage() {
       >
         <div style={{ textAlign: 'center', padding: '1rem 0' }}>
           <div style={{
-            width: '64px',
-            height: '64px',
-            borderRadius: '50%',
+            width: '64px', height: '64px', borderRadius: '50%',
             backgroundColor: 'rgba(37, 99, 235, 0.1)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--primary-color)',
-            margin: '0 auto 1.5rem auto'
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--primary-color)', margin: '0 auto 1.5rem auto'
           }}>
             <MapPin size={32} />
           </div>
-          <h3 style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Deseja atualizar coordenadas?</h3>
+          <h3 style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Atualizar coordenadas?</h3>
           <p style={{ opacity: 0.7, marginBottom: '2rem' }}>
-            Iniciaremos o processo de geolocalização para <strong>{pendingGeoCount}</strong> participante(s). 
-            <br />Pode levar alguns minutos.
+            Serão processados <strong>{pendingGeoCount}</strong> participante(s) sem geolocalização.
+            <br />O processo pode levar alguns minutos (1 req/s).
           </p>
-
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-            <button onClick={() => setShowConfirmGeoModal(false)} className="btn-secondary">
-              Cancelar
-            </button>
-            <button onClick={executeBulkGeocoding} className="btn-primary">
-              Sim, Iniciar Atualização
+            <button onClick={() => setShowConfirmGeoModal(false)} className="btn-secondary">Cancelar</button>
+            <button onClick={executeBulkGeocoding} className="btn-primary">Sim, Iniciar</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Progress modal ── */}
+      <Modal
+        isOpen={showProgressModal}
+        onClose={() => { if (geoDone) setShowProgressModal(false); }}
+        title="Atualizando Geolocalização"
+        maxWidth="680px"
+      >
+        <div style={{ width: '100%' }}>
+          <div style={{
+            display: 'flex', gap: '0.75rem', flexWrap: 'wrap',
+            marginBottom: '1.25rem', padding: '1rem',
+            backgroundColor: 'rgba(37,99,235,0.04)',
+            borderRadius: '10px', border: '1px solid var(--border-color)',
+          }}>
+            {([
+              { label: 'Total', count: geoProgressItems.length, color: 'var(--text-color)' },
+              { label: 'Sucesso', count: geoProgressItems.filter(i => i.status === 'success').length, color: '#10b981' },
+              { label: 'Erro', count: geoProgressItems.filter(i => i.status === 'error').length, color: '#ef4444' },
+              { label: 'Sem endereço', count: geoProgressItems.filter(i => i.status === 'skipped').length, color: '#f59e0b' },
+              { label: 'Pendente', count: geoProgressItems.filter(i => i.status === 'pending' || i.status === 'processing').length, color: '#94a3b8' },
+            ] as { label: string; count: number; color: string }[]).map(({ label, count, color }) => (
+              <div key={label} style={{ flex: '1 1 80px', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.4rem', fontWeight: 700, color, lineHeight: 1 }}>{count}</div>
+                <div style={{ fontSize: '0.7rem', opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: '2px' }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div
+            ref={progressListRef}
+            style={{ maxHeight: '340px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}
+          >
+            {geoProgressItems.map((item, idx) => {
+              type CfgMap = Record<GeoItemStatus, { icon: React.ReactNode; color: string; bg: string; label: string }>;
+              const statusConfig: CfgMap = {
+                pending: { icon: <Clock size={15} />, color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', label: 'Aguardando' },
+                processing: { icon: <Loader size={15} className="animate-spin" />, color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', label: 'Processando' },
+                success: { icon: <CheckCircle size={15} />, color: '#10b981', bg: 'rgba(16,185,129,0.1)', label: 'Sucesso' },
+                error: { icon: <XCircle size={15} />, color: '#ef4444', bg: 'rgba(239,68,68,0.1)', label: 'Erro' },
+                skipped: { icon: <MapPin size={15} />, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'Ignorado' },
+              };
+              const cfg = statusConfig[item.status];
+              return (
+                <div
+                  key={item.pessoa_id}
+                  data-idx={idx}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                    padding: '0.6rem 0.9rem', borderRadius: '8px',
+                    backgroundColor: cfg.bg,
+                    border: `1px solid ${cfg.color}33`,
+                    transition: 'background-color 0.3s',
+                  }}
+                >
+                  <div style={{ color: cfg.color, flexShrink: 0, display: 'flex' }}>{cfg.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.875rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {item.nome}
+                    </div>
+                    {item.message && (
+                      <div style={{ fontSize: '0.75rem', color: cfg.color, opacity: 0.85 }}>{item.message}</div>
+                    )}
+                  </div>
+                  <div style={{
+                    fontSize: '0.7rem', fontWeight: 700, color: cfg.color,
+                    padding: '0.15rem 0.45rem', borderRadius: '4px', whiteSpace: 'nowrap',
+                    border: `1px solid ${cfg.color}44`,
+                  }}>
+                    {cfg.label}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', alignItems: 'center' }}>
+            {!geoDone && (
+              <span style={{ fontSize: '0.8rem', opacity: 0.55, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Loader size={13} className="animate-spin" /> Processando, aguarde...
+              </span>
+            )}
+            <button
+              className="btn-primary"
+              disabled={!geoDone}
+              onClick={() => setShowProgressModal(false)}
+              style={{ opacity: geoDone ? 1 : 0.4, cursor: geoDone ? 'pointer' : 'not-allowed' }}
+            >
+              {geoDone ? 'Concluído ✓' : 'Aguarde...'}
             </button>
           </div>
         </div>

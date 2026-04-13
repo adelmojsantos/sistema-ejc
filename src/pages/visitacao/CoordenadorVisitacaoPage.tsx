@@ -1,6 +1,7 @@
 import {
   Check,
   Edit2,
+  ExternalLink,
   Link2,
   List,
   Loader,
@@ -52,6 +53,10 @@ export function CoordenadorVisitacaoPage() {
   const [vincularSubTab, setVincularSubTab] = useState<'lista' | 'buscar' | 'mapa'>('lista');
   const [neighborhoodFilter, setNeighborhoodFilter] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // New Filter States
+  const [hideLinkedToSelected, setHideLinkedToSelected] = useState(false);
+  const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
 
   // UI States
   const [isFetching, setIsFetching] = useState(true);
@@ -259,8 +264,21 @@ export function CoordenadorVisitacaoPage() {
           return { id: p.id, vinculoId: vinculo.id, nome: p.pessoas?.nome_completo, status: 'in_other_group' as const, grupoNome: vinculo.visita_grupos?.nome || 'Outra Visita' };
         });
     }
+    // Apply filters
+
+    if (hideLinkedToSelected && selectedGrupoId) {
+      results = results.filter(r => r.status !== 'in_this_group' && r.status !== 'visitor_here');
+    }
+
+    if (showOnlyUnmapped) {
+      results = results.filter(r => {
+        const p = participantes.find(part => part.id === r.id);
+        return p && (!p.pessoas?.latitude || !p.pessoas?.longitude);
+      });
+    }
+
     return results.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
-  }, [participantes, vinculos, selectedGrupoId, searchParticipant]);
+  }, [participantes, vinculos, selectedGrupoId, searchParticipant, hideLinkedToSelected, showOnlyUnmapped]);
 
   const stats = useMemo(() => {
     const totalP = vinculos.filter(v => !v.visitante).length;
@@ -380,7 +398,7 @@ export function CoordenadorVisitacaoPage() {
                           <h4 className="visita-card-title">{g.nome}</h4>
                           <div className="visita-card-actions">
                             <button
-                              onClick={() => { setEditingName(g.id); setTempName(g.nome); }}
+                              onClick={() => { setEditingName(g.id); setTempName(g.nome || ''); }}
                               className="icon-btn"
                               title="Editar Nome"
                             >
@@ -555,7 +573,7 @@ export function CoordenadorVisitacaoPage() {
                 <div className="vincular-scroll-content">
                   {vincularSubTab === 'lista' && (
                     <div className="flex-col gap-6">
-                       <div className="flex gap-4 items-center flex-wrap">
+                      <div className="flex gap-4 items-center flex-wrap">
                         <div className="search-bar-container">
                           <div className="search-bar" style={{ flex: 1, marginBottom: 0, width: '100%' }}>
                             <SearchIcon size={18} style={{ opacity: 0.5 }} />
@@ -580,6 +598,18 @@ export function CoordenadorVisitacaoPage() {
                         </div>
                       </div>
 
+                      {/* New Filters Row */}
+                      <div className="flex gap-4 items-center mb-4" style={{ flexWrap: 'wrap' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                          <input type="checkbox" checked={hideLinkedToSelected} onChange={e => setHideLinkedToSelected(e.target.checked)} />
+                          Ocultar vinculados a esta dupla
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                          <input type="checkbox" checked={showOnlyUnmapped} onChange={e => setShowOnlyUnmapped(e.target.checked)} />
+                          Apenas sem coordenadas
+                        </label>
+                      </div>
+
                       <div className="link-cards-grid">
                         {participantes
                           .filter(p => {
@@ -587,6 +617,14 @@ export function CoordenadorVisitacaoPage() {
                             const n = normalizeString(neighborhoodFilter);
                             const nameMatch = normalizeString(p.pessoas?.nome_completo || '').includes(q);
                             const neighborhoodMatch = normalizeString(p.pessoas?.bairro || '').includes(n);
+
+                            const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
+                            const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
+                            const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
+
+                            if (hideLinkedToSelected && isLinkedToSelected) return false;
+                            if (showOnlyUnmapped && !isUnmapped) return false;
+
                             return nameMatch && neighborhoodMatch;
                           })
                           .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''))
@@ -594,11 +632,28 @@ export function CoordenadorVisitacaoPage() {
                             const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
                             return (
                               <div key={p.id} className={`item-link-card compact ${vinculo ? 'linked' : ''} ${vinculo?.grupo_id === selectedGrupoId ? 'selected' : ''} ${vinculo && vinculo.grupo_id !== selectedGrupoId ? 'busy' : ''}`}>
-                                <div className="item-link-card-info">
+                                <div className="item-link-card-info" style={{ flex: 1 }}>
                                   <h4 className="item-link-card-name">{p.pessoas?.nome_completo}</h4>
-                                  <span className="item-link-card-address">
-                                    {p.pessoas?.endereco}{p.pessoas?.numero ? `, ${p.pessoas.numero}` : ''} - {p.pessoas?.bairro || 'Sem Bairro'}
-                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    <span className="item-link-card-address">
+                                      {p.pessoas?.endereco}{p.pessoas?.numero ? `, ${p.pessoas.numero}` : ''} - {p.pessoas?.bairro || 'Sem Bairro'}
+                                    </span>
+                                    <a
+                                      href={
+                                        p.pessoas?.latitude && p.pessoas?.longitude
+                                          ? `https://www.google.com/maps/search/?api=1&query=${p.pessoas.latitude},${p.pessoas.longitude}`
+                                          : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.pessoas?.endereco || ''}, ${p.pessoas?.numero || ''}, ${p.pessoas?.bairro || ''}, Franca, SP`)}`
+                                      }
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-primary hover-opacity"
+                                      title="Abrir no Google Maps"
+                                      style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none' }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <ExternalLink size={12} /> Ver no Mapa
+                                    </a>
+                                  </div>
                                 </div>
 
                                 <div className="item-link-card-actions">
@@ -656,46 +711,81 @@ export function CoordenadorVisitacaoPage() {
                             </button>
                           )}
                         </div>
+
+                        {/* New Filters Row for Search Tab */}
+                        <div className="flex gap-4 items-center justify-center mt-4" style={{ marginTop: '16px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                            <input type="checkbox" checked={hideLinkedToSelected} onChange={e => setHideLinkedToSelected(e.target.checked)} />
+                            Ocultar vinculados a esta dupla
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                            <input type="checkbox" checked={showOnlyUnmapped} onChange={e => setShowOnlyUnmapped(e.target.checked)} />
+                            Apenas sem coordenadas
+                          </label>
+                        </div>
                       </div>
 
-                        <div className="link-cards-grid">
+                      <div className="link-cards-grid">
                         {searchResults
                           .filter(item => item.status !== 'visitor_here')
-                          .sort((a, b) => a.nome.localeCompare(b.nome))
+                          .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
                           .map(item => (
-                          <div key={item.id} className={`item-link-card compact ${item.status === 'in_this_group' ? 'selected' : ''} ${item.status === 'in_other_group' ? 'busy' : ''}`}>
-                            <div className="item-link-card-info">
-                              <span className="item-link-card-name">{item.nome}</span>
-                              <span className="item-link-card-address" style={{ fontSize: '0.75rem', opacity: 0.6 }}>
-                                {(() => {
-                                  const p = participantes.find(p => p.id === item.id);
-                                  return p ? `${p.pessoas?.endereco || ''}${p.pessoas?.numero ? `, ${p.pessoas.numero}` : ''}${p.pessoas?.bairro ? ` - ${p.pessoas.bairro}` : ''}` : '';
-                                })()}
-                              </span>
-                              <div className="item-link-card-status-compact">
-                                {item.status === 'in_other_group' && <span className="busy-text">Ocupado: {item.grupoNome}</span>}
-                                {item.status === 'in_this_group' && <span className="selected-text">Vinculado aqui</span>}
+                            <div key={item.id} className={`item-link-card compact ${item.status === 'in_this_group' ? 'selected' : ''} ${item.status === 'in_other_group' ? 'busy' : ''}`}>
+                              <div className="item-link-card-info" style={{ flex: 1 }}>
+                                <span className="item-link-card-name">{item.nome}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <span className="item-link-card-address" style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+                                    {(() => {
+                                      const p = participantes.find(p => p.id === item.id);
+                                      return p ? `${p.pessoas?.endereco || ''}${p.pessoas?.numero ? `, ${p.pessoas.numero}` : ''}${p.pessoas?.bairro ? ` - ${p.pessoas.bairro}` : ''}` : '';
+                                    })()}
+                                  </span>
+                                  {(() => {
+                                    const p = participantes.find(p => p.id === item.id);
+                                    if (!p?.pessoas?.endereco) return null;
+                                    return (
+                                      <a
+                                        href={
+                                          p.pessoas?.latitude && p.pessoas?.longitude
+                                            ? `https://www.google.com/maps/search/?api=1&query=${p.pessoas.latitude},${p.pessoas.longitude}`
+                                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.pessoas?.endereco || ''}, ${p.pessoas?.numero || ''}, ${p.pessoas?.bairro || ''}, Franca, SP`)}`
+                                        }
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-primary hover-opacity"
+                                        title="Abrir no Google Maps"
+                                        style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: 600, textDecoration: 'none' }}
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <ExternalLink size={12} /> Maps
+                                      </a>
+                                    );
+                                  })()}
+                                </div>
+                                <div className="item-link-card-status-compact">
+                                  {item.status === 'in_other_group' && <span className="busy-text">Ocupado: {item.grupoNome}</span>}
+                                  {item.status === 'in_this_group' && <span className="selected-text">Vinculado aqui</span>}
+                                </div>
+                              </div>
+                              <div className="item-link-card-actions">
+                                {item.status === 'available' && (
+                                  <button onClick={() => handleVincular(item.id)} disabled={isLoading || !selectedGrupoId} className="btn-primary-sm btn-icon">
+                                    <Link2 size={18} />
+                                  </button>
+                                )}
+                                {item.status === 'in_this_group' && item.vinculoId && (
+                                  <button onClick={() => handleDesvincular(item.vinculoId!)} disabled={isLoading} className="btn-outline-danger-sm btn-icon">
+                                    <Trash2 size={18} />
+                                  </button>
+                                )}
+                                {item.status === 'in_other_group' && (
+                                  <div className="busy-badge">
+                                    <Lock size={16} />
+                                  </div>
+                                )}
                               </div>
                             </div>
-                            <div className="item-link-card-actions">
-                              {item.status === 'available' && (
-                                <button onClick={() => handleVincular(item.id)} disabled={isLoading || !selectedGrupoId} className="btn-primary-sm btn-icon">
-                                  <Link2 size={18} />
-                                </button>
-                              )}
-                              {item.status === 'in_this_group' && item.vinculoId && (
-                                <button onClick={() => handleDesvincular(item.vinculoId!)} disabled={isLoading} className="btn-outline-danger-sm btn-icon">
-                                  <Trash2 size={18} />
-                                </button>
-                              )}
-                              {item.status === 'in_other_group' && (
-                                <div className="busy-badge">
-                                  <Lock size={16} />
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     </div>
                   )}
@@ -706,6 +796,11 @@ export function CoordenadorVisitacaoPage() {
                       vinculos={vinculos}
                       selectedGrupoId={selectedGrupoId}
                       onVincular={handleVincular}
+                      onDesvincular={handleDesvincular}
+                      onShowUnmappedClick={() => {
+                        setShowOnlyUnmapped(true);
+                        setVincularSubTab('lista');
+                      }}
                     />
                   )}
                 </div>

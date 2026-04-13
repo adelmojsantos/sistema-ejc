@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CheckCircle, AlertCircle, Clock, Loader, Users, TrendingUp, DollarSign, MapPin, Edit3 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import type { VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';

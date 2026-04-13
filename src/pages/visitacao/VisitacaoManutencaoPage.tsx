@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Save, Camera, Check, Loader, Info, DollarSign } from 'lucide-react';
+import { ChevronLeft, Save, Camera, Loader, Info, DollarSign } from 'lucide-react';
 import { visitacaoService } from '../../services/visitacaoService';
 import { supabase } from '../../lib/supabase';
 import type { VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';

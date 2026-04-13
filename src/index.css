@@ -2905,6 +2905,7 @@ tbody tr:hover {
   min-width: 0;
   height: calc(100vh - 12rem);
   display: flex;
+  flex-direction: column;
 }
 
 .vincular-main .card {
@@ -2981,8 +2982,10 @@ tbody tr:hover {
   padding: 1.25rem;
   margin-bottom: 1.5rem;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  align-items: stretch;
+  gap: 1rem;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-md);

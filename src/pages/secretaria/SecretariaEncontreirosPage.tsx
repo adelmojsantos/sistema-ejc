@@ -1,15 +1,15 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ChevronLeft, Download, FileSpreadsheet, FileText, Filter, Loader, Search, Shield, User, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '../../components/Header';
+import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
-import { inscricaoService } from '../../services/inscricaoService';
 import { equipeService } from '../../services/equipeService';
-import type { InscricaoEnriched } from '../../types/inscricao';
-import { ChevronLeft, Search, Filter, Users, Shield, User, Download, FileText, FileSpreadsheet, Loader } from 'lucide-react';
+import { inscricaoService } from '../../services/inscricaoService';
 import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
-import { toast } from 'react-hot-toast';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import type { InscricaoEnriched } from '../../types/inscricao';
 
 function formatTelefone(tel: string | null | undefined) {
   if (!tel) return '—';
@@ -21,7 +21,7 @@ function formatTelefone(tel: string | null | undefined) {
 
 export function SecretariaEncontreirosPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+
   const [encontros, setEncontros] = useState<Encontro[]>([]);
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [equipes, setEquipes] = useState<Equipe[]>([]);
@@ -248,19 +248,19 @@ export function SecretariaEncontreirosPage() {
                             </div>
                           </td>
                           <td style={{ padding: '1rem 1.25rem' }}>
-                             <span style={{
-                                padding: '0.25rem 0.6rem',
-                                borderRadius: '4px',
-                                fontSize: '0.75rem',
-                                fontWeight: 'bold',
-                                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                                color: 'var(--primary-color)',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.25rem'
-                              }}>
-                                <Users size={12} /> {p.equipes?.nome || 'Sem Equipe'}
-                              </span>
+                            <span style={{
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: '4px',
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                              color: 'var(--primary-color)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.25rem'
+                            }}>
+                              <Users size={12} /> {p.equipes?.nome || 'Sem Equipe'}
+                            </span>
                           </td>
                           <td style={{ padding: '1rem 1.25rem' }}>
                             {p.coordenador ? (

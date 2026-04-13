@@ -2,7 +2,7 @@ import L from 'leaflet';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
 import { useEffect, useState } from 'react';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { Users, CheckCircle2, MapPin } from 'lucide-react';
+import { Users, CheckCircle2, MapPin, Trash2 } from 'lucide-react';
 import { applyJitter } from '../../utils/geocoding';
 
 // Fix for default marker icons in Leaflet + Vite
@@ -42,9 +42,11 @@ interface EncontristaMapProps {
   vinculos: any[];
   selectedGrupoId: string;
   onVincular: (participacaoId: string) => void;
+  onDesvincular?: (vinculoId: string) => void;
+  onShowUnmappedClick?: () => void;
 }
 
-export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVincular }: EncontristaMapProps) {
+export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVincular, onDesvincular, onShowUnmappedClick }: EncontristaMapProps) {
   const [markers, setMarkers] = useState<any[]>([]);
 
   useEffect(() => {
@@ -58,7 +60,9 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
           bairro: p.pessoas?.bairro,
           coords: applyJitter([p.pessoas!.latitude!, p.pessoas!.longitude!]),
           isLinked: !!vinculo,
-          vinculoGrupo: vinculo?.visita_grupos?.nome
+          vinculoGrupo: vinculo?.visita_grupos?.nome,
+          vinculoGrupoId: vinculo?.grupo_id,
+          vinculoId: vinculo?.id
         };
       });
 
@@ -88,9 +92,24 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
                 </div>
                 
                 {m.isLinked ? (
-                  <div className="map-popup-linked-badge">
-                    <CheckCircle2 size={14} />
-                    <span>Vinculado a: <strong>{m.vinculoGrupo}</strong></span>
+                  <div className="flex-col gap-2">
+                    <div className="map-popup-linked-badge">
+                      <CheckCircle2 size={14} />
+                      <span>Vinculado a: <strong>{m.vinculoGrupo}</strong></span>
+                    </div>
+                    {m.vinculoGrupoId === selectedGrupoId && onDesvincular ? (
+                      <button 
+                        onClick={() => onDesvincular(m.vinculoId)}
+                        className="btn-outline-danger-sm w-full"
+                        style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                      >
+                        <Trash2 size={14} /> Desvincular
+                      </button>
+                    ) : (
+                      <div style={{ marginTop: '8px', fontSize: '0.75rem', textAlign: 'center', opacity: 0.6 }}>
+                        (Vinculado em outra dupla)
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="map-popup-actions">
@@ -129,23 +148,28 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
       </div>
 
       {participantes.length > 0 && markers.length < participantes.length && (
-        <div style={{
-          position: 'absolute',
-          top: '1rem',
-          right: '1rem',
-          zIndex: 1000,
-          backgroundColor: 'var(--card-bg)',
-          padding: '0.5rem 1rem',
-          borderRadius: '8px',
-          boxShadow: 'var(--shadow-md)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          fontSize: '0.8rem',
-          border: '1px solid var(--border-color)',
-          color: 'var(--text-color)',
-          backdropFilter: 'blur(8px)'
-        }}>
+        <div 
+          onClick={onShowUnmappedClick}
+          style={{
+            position: 'absolute',
+            top: '1rem',
+            right: '1rem',
+            zIndex: 1000,
+            backgroundColor: 'var(--card-bg)',
+            padding: '0.5rem 1rem',
+            borderRadius: '8px',
+            boxShadow: 'var(--shadow-md)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            fontSize: '0.8rem',
+            border: '1px solid var(--border-color)',
+            color: 'var(--text-color)',
+            backdropFilter: 'blur(8px)',
+            cursor: onShowUnmappedClick ? 'pointer' : 'default'
+          }}
+          className={onShowUnmappedClick ? 'hover-opacity' : ''}
+        >
           <MapPin size={14} style={{ color: 'var(--accent-color)' }} />
           <span>{participantes.length - markers.length} s/ coordenadas</span>
         </div>

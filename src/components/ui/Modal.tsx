@@ -6,9 +6,10 @@ interface ModalProps {
     onClose: () => void;
     title: string;
     children: ReactNode;
+    maxWidth?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, maxWidth = '500px' }: ModalProps) {
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
@@ -33,7 +34,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
             zIndex: 3000, padding: '1rem'
         }}>
             <div className="modal-content card" onClick={(e) => e.stopPropagation()} style={{
-                maxWidth: '500px', width: '100%', maxHeight: '90vh',
+                maxWidth, width: '100%', maxHeight: '90vh',
                 display: 'flex', flexDirection: 'column', padding: 0,
                 overflow: 'hidden', border: '1px solid var(--border-color)',
                 boxShadow: 'var(--shadow-float)'
