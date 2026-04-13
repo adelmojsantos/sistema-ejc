@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Save, Camera, Loader, Info, DollarSign } from 'lucide-react';
+import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home } from 'lucide-react';
 import { visitacaoService } from '../../services/visitacaoService';
 import { supabase } from '../../lib/supabase';
 import type { VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
 import { toast } from 'react-hot-toast';
 import { Header } from '../../components/Header';
+import { FormSection } from '../../components/ui/FormSection';
+import { FormRow } from '../../components/ui/FormRow';
+import { FormField } from '../../components/ui/FormField';
 
 export function VisitacaoManutencaoPage() {
     const { id } = useParams<{ id: string }>();
@@ -15,12 +18,23 @@ export function VisitacaoManutencaoPage() {
     const [saving, setSaving] = useState(false);
     const [visita, setVisita] = useState<VisitaParticipacaoEnriched | null>(null);
 
-    // Form states
+    // Visit states
     const [status, setStatus] = useState<VisitaStatus>('pendente');
     const [observacoes, setObservacoes] = useState('');
     const [taxaPaga, setTaxaPaga] = useState(false);
     const [fotoUrl, setFotoUrl] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
+    
+    // Correction states
+    const [nomeCompleto, setNomeCompleto] = useState('');
+    const [telefone, setTelefone] = useState('');
+    const [endereco, setEndereco] = useState('');
+    const [numero, setNumero] = useState('');
+    const [bairro, setBairro] = useState('');
+    const [nomePai, setNomePai] = useState('');
+    const [telefonePai, setTelefonePai] = useState('');
+    const [nomeMae, setNomeMae] = useState('');
+    const [telefoneMae, setTelefoneMae] = useState('');
 
     useEffect(() => {
         async function loadVisita() {
@@ -32,7 +46,7 @@ export function VisitacaoManutencaoPage() {
                         *,
                         participacoes:participacao_id (
                             id,
-                            pessoas (nome_completo, cpf)
+                            pessoas (*)
                         )
                     `)
                     .eq('id', id)
@@ -45,6 +59,19 @@ export function VisitacaoManutencaoPage() {
                     setObservacoes(data.observacoes || '');
                     setTaxaPaga(data.taxa_paga || false);
                     setFotoUrl(data.foto_url || null);
+                    
+                    const p = (data.participacoes as any)?.pessoas;
+                    if (p) {
+                        setNomeCompleto(p.nome_completo || '');
+                        setTelefone(p.telefone || '');
+                        setEndereco(p.endereco || '');
+                        setNumero(p.numero || '');
+                        setBairro(p.bairro || '');
+                        setNomePai(p.nome_pai || '');
+                        setTelefonePai(p.telefone_pai || '');
+                        setNomeMae(p.nome_mae || '');
+                        setTelefoneMae(p.telefone_mae || '');
+                    }
                 }
             } catch (error) {
                 console.error('Erro ao buscar dados da visita:', error);
@@ -75,9 +102,10 @@ export function VisitacaoManutencaoPage() {
     };
 
     const handleSave = async () => {
-        if (!id) return;
+        if (!id || !visita) return;
         setSaving(true);
         try {
+            // Update Visit record
             await visitacaoService.atualizarVisita(id, {
                 status,
                 observacoes,
@@ -85,6 +113,23 @@ export function VisitacaoManutencaoPage() {
                 foto_url: fotoUrl,
                 data_visita: status === 'realizada' ? new Date().toISOString() : visita?.data_visita
             });
+
+            // Update Person record (Correction)
+            const pessoaId = (visita.participacoes as any)?.pessoas?.id;
+            if (pessoaId) {
+                await visitacaoService.atualizarPessoa(pessoaId, {
+                    nome_completo: nomeCompleto,
+                    telefone,
+                    endereco,
+                    numero,
+                    bairro,
+                    nome_pai: nomePai,
+                    telefone_pai: telefonePai,
+                    nome_mae: nomeMae,
+                    telefone_mae: telefoneMae
+                });
+            }
+
             toast.success('Dados salvos com sucesso!');
             navigate('/visitacao/meus-participantes');
         } catch (error) {
@@ -134,11 +179,12 @@ export function VisitacaoManutencaoPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Column 1: Info & Photo */}
                     <div className="md:col-span-1 flex flex-col gap-6">
-                        <div className="card" style={{ textAlign: 'center', padding: '1.5rem' }}>
+                        <div className="card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                             <div style={{ 
-                                width: '100%', aspectRatio: '1', borderRadius: '12px', background: 'var(--secondary-bg)',
+                                width: '180px', height: '180px', borderRadius: '16px', background: 'var(--secondary-bg)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-                                marginBottom: '1rem', border: '2px dashed var(--border-color)', position: 'relative'
+                                marginBottom: '1.25rem', border: '2px dashed var(--border-color)', position: 'relative',
+                                boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)'
                             }}>
                                 {fotoUrl ? (
                                     <img src={fotoUrl} alt="Foto do encontrista" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -155,7 +201,7 @@ export function VisitacaoManutencaoPage() {
                                     </div>
                                 )}
                             </div>
-                            <label className="btn-outline" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                            <label className="btn-outline" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', cursor: 'pointer', width: '100%' }}>
                                 <Camera size={18} /> {fotoUrl ? 'Alterar Foto' : 'Tirar/Enviar Foto'}
                                 <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFileUpload} disabled={uploading} />
                             </label>
@@ -209,22 +255,121 @@ export function VisitacaoManutencaoPage() {
                             </div>
 
                             <div style={{ 
-                                marginTop: '2rem', padding: '1.25rem', borderRadius: '12px', background: 'var(--secondary-bg)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                                marginTop: '2rem', padding: '1.5rem', borderRadius: '16px', 
+                                background: taxaPaga ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%)' : 'var(--secondary-bg)',
+                                border: taxaPaga ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--border-color)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                transition: 'all 0.3s ease'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                    <div style={{ background: 'var(--primary-color)', color: 'white', padding: '0.5rem', borderRadius: '8px' }}>
+                                    <div style={{ 
+                                        background: taxaPaga ? '#10b981' : 'var(--muted-text)', 
+                                        color: 'white', padding: '0.6rem', borderRadius: '10px',
+                                        transition: 'all 0.3s ease'
+                                    }}>
                                         <DollarSign size={20} />
                                     </div>
                                     <div>
-                                        <h4 style={{ margin: 0 }}>Pagamento de Taxa</h4>
+                                        <h4 style={{ margin: 0, color: taxaPaga ? '#059669' : 'inherit' }}>Pagamento de Taxa</h4>
                                         <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>O encontrista pagou a taxa de inscrição?</p>
                                     </div>
                                 </div>
-                                <label className="switch">
-                                    <input type="checkbox" checked={taxaPaga} onChange={(e) => setTaxaPaga(e.target.checked)} />
-                                    <span className="slider round"></span>
-                                </label>
+                                <div 
+                                    onClick={() => setTaxaPaga(!taxaPaga)}
+                                    style={{
+                                        width: '56px', height: '30px', borderRadius: '20px',
+                                        background: taxaPaga ? '#10b981' : '#cbd5e1',
+                                        position: 'relative', cursor: 'pointer', transition: 'all 0.3s ease',
+                                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)'
+                                    }}
+                                >
+                                    <div style={{
+                                        width: '24px', height: '24px', borderRadius: '50%',
+                                        background: 'white', position: 'absolute', top: '3px',
+                                        left: taxaPaga ? '29px' : '3px', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                    }} />
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '2rem' }}>
+                                <FormSection title="Correção de Dados Cadastrais" icon={<Info size={20} />}>
+                                    <p style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '1.5rem', marginTop: '-1rem' }}>
+                                        Caso encontre erros nos dados do encontrista durante a visita, corrija-os abaixo para atualizar o sistema.
+                                    </p>
+
+                                    <FormRow>
+                                        <FormField
+                                            label="Nome Completo"
+                                            value={nomeCompleto}
+                                            onChange={e => setNomeCompleto(e.target.value)}
+                                            colSpan={8}
+                                            icon={<User size={18} />}
+                                        />
+                                        <FormField
+                                            label="Telefone Encontrista"
+                                            value={telefone}
+                                            onChange={e => setTelefone(e.target.value)}
+                                            colSpan={4}
+                                            icon={<Phone size={18} />}
+                                        />
+                                    </FormRow>
+
+                                    <FormRow>
+                                        <FormField
+                                            label="Bairro"
+                                            value={bairro}
+                                            onChange={e => setBairro(e.target.value)}
+                                            colSpan={4}
+                                            icon={<Home size={18} />}
+                                        />
+                                        <FormField
+                                            label="Endereço / Rua"
+                                            value={endereco}
+                                            onChange={e => setEndereco(e.target.value)}
+                                            colSpan={6}
+                                        />
+                                        <FormField
+                                            label="Nº"
+                                            value={numero}
+                                            onChange={e => setNumero(e.target.value)}
+                                            colSpan={2}
+                                        />
+                                    </FormRow>
+
+                                    <FormSection title="Filiação & Contatos" icon={<UsersRound size={18} />}>
+                                        <FormRow>
+                                            <FormField
+                                                label="Nome do Pai"
+                                                value={nomePai}
+                                                onChange={e => setNomePai(e.target.value)}
+                                                colSpan={8}
+                                            />
+                                            <FormField
+                                                label="Telefone do Pai"
+                                                value={telefonePai}
+                                                onChange={e => setTelefonePai(e.target.value)}
+                                                colSpan={4}
+                                                icon={<Phone size={18} />}
+                                            />
+                                        </FormRow>
+                                        <FormRow>
+                                            <FormField
+                                                label="Nome da Mãe"
+                                                value={nomeMae}
+                                                onChange={e => setNomeMae(e.target.value)}
+                                                colSpan={8}
+                                            />
+                                            <FormField
+                                                label="Telefone da Mãe"
+                                                value={telefoneMae}
+                                                onChange={e => setTelefoneMae(e.target.value)}
+                                                colSpan={4}
+                                                icon={<Phone size={18} />}
+                                            />
+                                        </FormRow>
+                                    </FormSection>
+                                </FormSection>
                             </div>
 
                             <div style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>

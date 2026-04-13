@@ -57,6 +57,7 @@ export function CoordenadorVisitacaoPage() {
   // New Filter States
   const [hideLinkedToSelected, setHideLinkedToSelected] = useState(false);
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
+  const [showOnlyLinkedToSelected, setShowOnlyLinkedToSelected] = useState(false);
 
   // UI States
   const [isFetching, setIsFetching] = useState(true);
@@ -598,16 +599,51 @@ export function CoordenadorVisitacaoPage() {
                         </div>
                       </div>
 
-                      {/* New Filters Row */}
-                      <div className="flex gap-4 items-center mb-4" style={{ flexWrap: 'wrap' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
-                          <input type="checkbox" checked={hideLinkedToSelected} onChange={e => setHideLinkedToSelected(e.target.checked)} />
-                          Ocultar vinculados a esta dupla
+                      {/* Enhanced Filter Bar */}
+                      <div style={{
+                        display: 'flex',
+                        gap: '1rem',
+                        alignItems: 'center',
+                        marginBottom: '1.5rem',
+                        padding: '1rem',
+                        backgroundColor: 'var(--secondary-bg)',
+                        borderRadius: '12px',
+                        flexWrap: 'wrap',
+                        border: '1px solid var(--border-color)'
+                      }}>
+
+                        <label className="filter-checkbox-modern">
+                          <input type="checkbox" checked={hideLinkedToSelected} onChange={e => {
+                            setHideLinkedToSelected(e.target.checked);
+                            if (e.target.checked) setShowOnlyLinkedToSelected(false);
+                          }} />
+                          <span>Ocultar Vinculados</span>
                         </label>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+
+                        <label className="filter-checkbox-modern">
+                          <input type="checkbox" checked={showOnlyLinkedToSelected} onChange={e => {
+                            setShowOnlyLinkedToSelected(e.target.checked);
+                            if (e.target.checked) setHideLinkedToSelected(false);
+                          }} />
+                          <span>Apenas desta Dupla</span>
+                        </label>
+
+                        <label className="filter-checkbox-modern">
                           <input type="checkbox" checked={showOnlyUnmapped} onChange={e => setShowOnlyUnmapped(e.target.checked)} />
-                          Apenas sem coordenadas
+                          <span>Sem Coordenadas</span>
                         </label>
+
+                        <div style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--primary-color)', fontWeight: 600 }}>
+                          {participantes.filter(p => {
+                            const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
+                            const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
+                            const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
+                            if (hideLinkedToSelected && isLinkedToSelected) return false;
+                            if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
+                            if (showOnlyUnmapped && !isUnmapped) return false;
+                            return true;
+                          }).length} Encontristas
+                        </div>
                       </div>
 
                       <div className="link-cards-grid">
@@ -623,6 +659,7 @@ export function CoordenadorVisitacaoPage() {
                             const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
 
                             if (hideLinkedToSelected && isLinkedToSelected) return false;
+                            if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
                             if (showOnlyUnmapped && !isUnmapped) return false;
 
                             return nameMatch && neighborhoodMatch;
@@ -712,15 +749,34 @@ export function CoordenadorVisitacaoPage() {
                           )}
                         </div>
 
-                        {/* New Filters Row for Search Tab */}
-                        <div className="flex gap-4 items-center justify-center mt-4" style={{ marginTop: '16px' }}>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
-                            <input type="checkbox" checked={hideLinkedToSelected} onChange={e => setHideLinkedToSelected(e.target.checked)} />
-                            Ocultar vinculados a esta dupla
+                        {/* Filter Bar for Search Tab */}
+                        <div style={{
+                          display: 'flex',
+                          gap: '1rem',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginTop: '1.5rem',
+                          flexWrap: 'wrap'
+                        }}>
+                          <label className="filter-checkbox-modern">
+                            <input type="checkbox" checked={hideLinkedToSelected} onChange={e => {
+                              setHideLinkedToSelected(e.target.checked);
+                              if (e.target.checked) setShowOnlyLinkedToSelected(false);
+                            }} />
+                            <span>Ocultar Vinculados</span>
                           </label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+
+                          <label className="filter-checkbox-modern">
+                            <input type="checkbox" checked={showOnlyLinkedToSelected} onChange={e => {
+                              setShowOnlyLinkedToSelected(e.target.checked);
+                              if (e.target.checked) setHideLinkedToSelected(false);
+                            }} />
+                            <span>Apenas desta Dupla</span>
+                          </label>
+
+                          <label className="filter-checkbox-modern">
                             <input type="checkbox" checked={showOnlyUnmapped} onChange={e => setShowOnlyUnmapped(e.target.checked)} />
-                            Apenas sem coordenadas
+                            <span>Sem Coordenadas</span>
                           </label>
                         </div>
                       </div>
@@ -908,6 +964,39 @@ export function CoordenadorVisitacaoPage() {
           </div>
         )}
       </main>
+      <style>{`
+        .filter-checkbox-modern {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          cursor: pointer;
+          font-size: 0.85rem;
+          font-weight: 500;
+          padding: 0.4rem 0.8rem;
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          transition: all 0.2s;
+        }
+        .filter-checkbox-modern:hover {
+          border-color: var(--primary-color);
+          background: var(--primary-light);
+        }
+        .filter-checkbox-modern input {
+          width: 16px;
+          height: 16px;
+          accent-color: var(--primary-color);
+          cursor: pointer;
+        }
+        .filter-checkbox-modern:has(input:checked) {
+          background: var(--primary-color);
+          color: white;
+          border-color: var(--primary-color);
+        }
+        .filter-checkbox-modern:has(input:checked) input {
+          accent-color: white;
+        }
+      `}</style>
     </div>
   );
 }

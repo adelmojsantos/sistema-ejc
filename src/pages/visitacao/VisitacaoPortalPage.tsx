@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../../components/Header';
 import { useAuth } from '../../hooks/useAuth';
-import { 
+import {
     Shield, ArrowRight, MapPin
 } from 'lucide-react';
 
@@ -21,7 +21,7 @@ export function VisitacaoPortalPage() {
         },
         {
             id: 'duplas',
-            title: 'Minha Visitação',
+            title: 'Meus Encontristas',
             description: 'Acesse sua lista de encontristas, registre visitas, controle pagamentos e visualize mapas de localização.',
             icon: <MapPin size={32} />,
             path: '/visitacao/meus-participantes',
@@ -45,13 +45,13 @@ export function VisitacaoPortalPage() {
 
                 <div className="portal-grid">
                     {availableModules.map(module => (
-                        <div 
-                            key={module.id} 
+                        <div
+                            key={module.id}
                             onClick={() => navigate(module.path)}
                             className="portal-card"
                             style={{ cursor: 'pointer' }}
                         >
-                            <div className="portal-card__icon" style={{ 
+                            <div className="portal-card__icon" style={{
                                 background: `${module.color}15`,
                                 color: module.color
                             }}>
@@ -59,12 +59,12 @@ export function VisitacaoPortalPage() {
                             </div>
                             <h2 className="portal-card__title">{module.title}</h2>
                             <p className="portal-card__description">{module.description}</p>
-                            
-                            <div style={{ 
-                                marginTop: 'auto', 
-                                paddingTop: '2rem', 
-                                display: 'flex', 
-                                alignItems: 'center', 
+
+                            <div style={{
+                                marginTop: 'auto',
+                                paddingTop: '2rem',
+                                display: 'flex',
+                                alignItems: 'center',
                                 gap: '0.5rem',
                                 fontWeight: 700,
                                 color: module.color

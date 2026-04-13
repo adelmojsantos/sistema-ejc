@@ -22,7 +22,7 @@ export function Header() {
   useEffect(() => {
     const handleScroll = () => {
       const scrollPos = window.scrollY;
-      setIsScrolled(scrollPos > 10);
+      setIsScrolled(scrollPos > 2);
     };
 
     const handleResize = () => {
@@ -141,10 +141,10 @@ export function Header() {
 
             {isUserMenuOpen && (
               <div className="user-dropdown-menu fade-in">
-              <div className="user-dropdown-info">
-                <span className="user-email-label">Logado como:</span>
-                <span className="user-email-value">{profile?.email}</span>
-              </div>
+                <div className="user-dropdown-info">
+                  <span className="user-email-label">Logado como:</span>
+                  <span className="user-email-value">{profile?.email}</span>
+                </div>
                 <div className="dropdown-item-header">
                   <div className="dropdown-item-label">
                     {theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}

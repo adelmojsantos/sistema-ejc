@@ -111,6 +111,15 @@ export const visitacaoService = {
             .getPublicUrl(filePath);
 
         return data.publicUrl;
+    },
+
+    async atualizarPessoa(id: string, updates: any): Promise<void> {
+        const { error } = await supabase
+            .from('pessoas')
+            .update(updates)
+            .eq('id', id);
+
+        if (error) throw error;
     }
 };
 
