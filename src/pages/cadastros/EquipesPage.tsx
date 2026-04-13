@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Search, Shield, Plus, X, Loader, Check } from 'lucide-react';
+import { Search, Shield, Plus, X, Loader, Check } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { EquipeRow } from '../../components/equipe/EquipeRow';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { equipeService } from '../../services/equipeService';
@@ -98,26 +99,22 @@ export function EquipesPage() {
 
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
-            <div className="page-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <button onClick={handleBack} className="icon-btn" title="Voltar"><ChevronLeft size={18} /></button>
-                    <div>
-                        <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Cadastros</p>
-                        <h1 className="page-title" style={{ fontSize: '1.5rem' }}>
-                            <Shield size={22} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
-                            Equipes
-                        </h1>
-                    </div>
-                </div>
-                <button
-                    onClick={() => setIsAdding(!isAdding)}
-                    disabled={isAdding}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: isAdding ? 'var(--secondary-bg)' : 'var(--primary-color)', color: isAdding ? 'var(--text-color)' : 'white' }}
-                >
-                    <Plus size={18} />
-                    Nova Equipe
-                </button>
-            </div>
+            <PageHeader 
+                title="Equipes"
+                subtitle="Gestão de Cadastros"
+                onBack={handleBack}
+                actions={
+                    <button
+                        onClick={() => setIsAdding(!isAdding)}
+                        disabled={isAdding}
+                        className="btn-primary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                    >
+                        <Plus size={18} />
+                        Nova Equipe
+                    </button>
+                }
+            />
 
             <div className="search-bar" style={{ marginBottom: '1.5rem' }}>
                 <Search size={18} style={{ opacity: 0.5 }} />

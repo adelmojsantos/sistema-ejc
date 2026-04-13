@@ -1,4 +1,4 @@
-import { CheckCircle, FileSpreadsheet, FileText } from 'lucide-react';
+import { CheckCircle, FileSpreadsheet, FileText, Users, MapPin } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
@@ -39,6 +39,24 @@ const CATEGORIES: SecretariaCategory[] = [
     description: 'Configurar logotipos e textos dos relatórios.',
     icon: <FileText size={34} />,
     color: '#ef4444',
+    available: true
+  },
+  {
+    id: 'sec-participantes',
+    path: '/secretaria/participantes',
+    label: 'Listagem de Participantes',
+    description: 'Lista simplificada de encontristas com geolocalização.',
+    icon: <MapPin size={34} />,
+    color: '#3b82f6',
+    available: true
+  },
+  {
+    id: 'sec-encontreiros',
+    path: '/secretaria/encontreiros',
+    label: 'Listagem de Encontreiros',
+    description: 'Lista completa de voluntários de todas as equipes.',
+    icon: <Users size={34} />,
+    color: '#f59e0b',
     available: true
   }
 ];

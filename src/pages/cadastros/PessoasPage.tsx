@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, UserPlus, Search, X, Users, User } from 'lucide-react';
+import { UserPlus, Search, X, Users, User } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { PessoaCard } from '../../components/pessoa/PessoaCard';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -112,44 +113,17 @@ export function PessoasPage() {
 
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
-            <div className="page-header">
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={handleBack}
-                        className="mobile-menu-btn"
-                        aria-label="Voltar"
-                        title="Voltar"
-                    >
-                        <ChevronLeft size={20} />
+            <PageHeader 
+                title="Pessoas"
+                subtitle="Gestão de Cadastros"
+                onBack={handleBack}
+                actions={mode === 'list' && (
+                    <button onClick={openCreate} className="btn-primary flex items-center gap-2">
+                        <UserPlus size={18} />
+                        <span>Nova Pessoa</span>
                     </button>
-                    <div>
-                        <p className="cadastro-hub-desc" style={{ marginBottom: 0 }}>
-                            Gestão de Cadastros
-                        </p>
-                        <h1 className="page-title text-gradient" style={{ margin: 0, fontSize: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Users size={28} />
-                            Pessoas
-                        </h1>
-                    </div>
-                </div>
-
-                {mode === 'list' && (
-                    <>
-                        <button onClick={openCreate} className="btn-primary flex items-center gap-2 hide-mobile">
-                            <UserPlus size={18} />
-                            <span>Nova Pessoa</span>
-                        </button>
-                        <button
-                            onClick={openCreate}
-                            className="fab-mobile"
-                            aria-label="Nova Pessoa"
-                            title="Nova Pessoa"
-                        >
-                            <UserPlus size={24} />
-                        </button>
-                    </>
                 )}
-            </div>
+            />
 
             {/* Form mode */}
             {(mode === 'create' || mode === 'edit') && (

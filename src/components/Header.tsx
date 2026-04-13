@@ -72,24 +72,25 @@ export function Header() {
       { to: '/cadastros', label: 'Cadastros' },
     );
   }
-  
+
   if (hasPermission('modulo_admin')) {
     navLinks.push({ to: '/admin/usuarios', label: 'Usuários' });
   }
 
   if (hasPermission('modulo_coordenador') || userParticipacao?.coordenador) {
     if (!navLinks.some(link => link.to === '/coordenador/minha-equipe')) {
-       navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });
+      navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });
     }
   }
 
-  if (hasPermission('modulo_visitacao') && !hasPermission('modulo_secretaria') && !hasPermission('modulo_admin')) {
-    navLinks.push({ to: '/visitacao/meus-participantes', label: 'Meus Participantes' });
+  const hasVisitacaoAccess = hasPermission('modulo_visitacao_coordenar') || hasPermission('modulo_visitacao_duplas') || hasPermission('modulo_admin');
+  if (hasVisitacaoAccess) {
+    navLinks.push({ to: '/visitacao', label: 'Visitação' });
   }
 
   if (hasPermission('modulo_inscricao') && !hasPermission('modulo_secretaria') && !hasPermission('modulo_admin')) {
     if (!navLinks.some(link => link.to === '/inscricao')) {
-       navLinks.push({ to: '/inscricao', label: 'Inscrições' });
+      navLinks.push({ to: '/inscricao', label: 'Inscrições' });
     }
   }
 
@@ -132,21 +133,32 @@ export function Header() {
               <div className="user-avatar-sm">
                 {profile?.email?.charAt(0).toUpperCase()}
               </div>
-              <div className="user-details hide-mobile">
-                <span className="user-email">{profile?.email}</span>
-              </div>
               <ChevronDown
                 size={16}
-                className={`user-menu-chevron hide-mobile ${isUserMenuOpen ? 'open' : ''}`}
+                className={`user-menu-chevron ${isUserMenuOpen ? 'open' : ''}`}
               />
             </button>
 
             {isUserMenuOpen && (
               <div className="user-dropdown-menu fade-in">
-                <button onClick={toggleTheme} className="dropdown-item">
-                  {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-                  <span>{theme === 'dark' ? 'Tema Claro' : 'Tema Escuro'}</span>
-                </button>
+              <div className="user-dropdown-info">
+                <span className="user-email-label">Logado como:</span>
+                <span className="user-email-value">{profile?.email}</span>
+              </div>
+                <div className="dropdown-item-header">
+                  <div className="dropdown-item-label">
+                    {theme === 'dark' ? <Moon size={18} /> : <Sun size={18} />}
+                    <span>{theme === 'dark' ? 'Modo Escuro' : 'Modo Claro'}</span>
+                  </div>
+                  <label className="theme-toggle">
+                    <input
+                      type="checkbox"
+                      checked={theme === 'dark'}
+                      onChange={toggleTheme}
+                    />
+                    <span className="theme-toggle-slider"></span>
+                  </label>
+                </div>
                 <div className="dropdown-divider" />
                 <button
                   onClick={() => {

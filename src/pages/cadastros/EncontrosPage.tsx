@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Search, Calendar as CalIcon, Plus } from 'lucide-react';
+import { Search, Calendar as CalIcon, Plus } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { EncontroRow } from '../../components/encontro/EncontroRow';
 import { EncontroForm } from '../../components/encontro/EncontroForm';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -111,23 +112,17 @@ export function EncontrosPage() {
 
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
-            <div className="page-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <button onClick={handleBack} className="icon-btn" title="Voltar"><ChevronLeft size={18} /></button>
-                    <div>
-                        <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Cadastros</p>
-                        <h1 className="page-title" style={{ fontSize: '1.5rem' }}>
-                            <CalIcon size={22} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
-                            Encontros
-                        </h1>
-                    </div>
-                </div>
-                {mode === 'list' && (
-                    <button onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Plus size={18} /> Novo Encontro
+            <PageHeader 
+                title="Encontros"
+                subtitle="Gestão de Cadastros"
+                onBack={handleBack}
+                actions={mode === 'list' && (
+                    <button onClick={openCreate} className="btn-primary flex items-center gap-2">
+                        <Plus size={18} />
+                        <span>Novo Encontro</span>
                     </button>
                 )}
-            </div>
+            />
 
             {(mode === 'create' || mode === 'edit') && (
                 <div className="card" style={{ marginTop: '1rem' }}>

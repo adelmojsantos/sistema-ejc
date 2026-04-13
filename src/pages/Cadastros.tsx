@@ -61,8 +61,8 @@ const CATEGORIES: CadastroCategory[] = [
   },
   {
     id: 'montagem-visitacao',
-    path: '/montagem-visitacao',
-    label: 'Montagem Visitação',
+    path: '/visitacao',
+    label: 'Visitação',
     description: 'Vincular duplas e participantes para visitas.',
     icon: <Users size={34} />,
     color: '#10b981',

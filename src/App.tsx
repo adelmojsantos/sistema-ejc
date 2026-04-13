@@ -19,7 +19,6 @@ import { EncontrosPage } from './pages/cadastros/EncontrosPage';
 import { EquipesPage } from './pages/cadastros/EquipesPage';
 import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
 import { MontagemPage } from './pages/cadastros/MontagemPage';
-import { MontagemVisitacao } from './pages/cadastros/MontagemVisitacao';
 import { PessoasPage } from './pages/cadastros/PessoasPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
@@ -32,6 +31,11 @@ import { PrivacidadePage } from './pages/PrivacidadePage';
 import { Secretaria } from './pages/Secretaria';
 import { ConfirmationReportPage } from './pages/secretaria/ConfirmationReportPage';
 import { VisitacaoMeusParticipantesPage } from './pages/visitacao/VisitacaoMeusParticipantesPage';
+import { CoordenadorVisitacaoPage } from './pages/visitacao/CoordenadorVisitacaoPage';
+import { VisitacaoManutencaoPage } from './pages/visitacao/VisitacaoManutencaoPage';
+import { VisitacaoPortalPage } from './pages/visitacao/VisitacaoPortalPage';
+import { SecretariaParticipantesPage } from './pages/secretaria/SecretariaParticipantesPage';
+import { SecretariaEncontreirosPage } from './pages/secretaria/SecretariaEncontreirosPage';
 
 
 export function PlaceholderPage({ title }: { title: string }) {
@@ -47,7 +51,7 @@ export function PlaceholderPage({ title }: { title: string }) {
 
 function AnimatedRoutes() {
   const location = useLocation();
-  const { profile, userParticipacao, hasPermission } = useAuth();
+  const { profile, hasPermission } = useAuth();
 
   return (
     <AnimatePresence mode="wait">
@@ -61,13 +65,12 @@ function AnimatedRoutes() {
         <Route path="/dashboard" element={
           <ProtectedRoute>
             {(() => {
-              
-              if (hasPermission('modulo_visitacao') && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length === 1) {
-                  return userParticipacao?.coordenador ? <Navigate to="/montagem-visitacao" replace /> : <Navigate to="/visitacao/meus-participantes" replace />;
+              if ((hasPermission('modulo_visitacao_coordenar') || hasPermission('modulo_visitacao_duplas')) && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length === 1) {
+                return <Navigate to="/visitacao" replace />;
               } else if (hasPermission('modulo_coordenador') && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length === 1) {
-                  return <Navigate to="/coordenador/minha-equipe" replace />;
+                return <Navigate to="/coordenador/minha-equipe" replace />;
               } else {
-                  return <PageTransition><Home /></PageTransition>;
+                return <PageTransition><Home /></PageTransition>;
               }
             })()}
           </ProtectedRoute>
@@ -82,6 +85,16 @@ function AnimatedRoutes() {
         <Route path="/inscricao" element={
           <ProtectedRoute>
             <PageTransition><InscricaoPage /></PageTransition>
+          </ProtectedRoute>
+        } />
+        <Route path="/inscricao/participantes" element={
+          <ProtectedRoute requiredPermissions={['modulo_inscricao', 'modulo_secretaria', 'modulo_admin']}>
+            <PageTransition><SecretariaParticipantesPage /></PageTransition>
+          </ProtectedRoute>
+        } />
+        <Route path="/secretaria/participantes" element={
+          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+            <PageTransition><SecretariaParticipantesPage /></PageTransition>
           </ProtectedRoute>
         } />
 
@@ -120,29 +133,50 @@ function AnimatedRoutes() {
         } />
 
         <Route path="/secretaria" element={
-          <ProtectedRoute requiredPermissions={['modulo_secretaria']}>
+          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
             <PageTransition><Secretaria /></PageTransition>
           </ProtectedRoute>
-        }>
-          <Route path="confirmacoes" element={<ConfirmationReportPage />} />
-        </Route>
+        } />
+        <Route path="/secretaria/confirmacoes" element={
+          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+            <PageTransition><ConfirmationReportPage /></PageTransition>
+          </ProtectedRoute>
+        } />
+        <Route path="/secretaria/participantes" element={
+          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+            <PageTransition><SecretariaParticipantesPage /></PageTransition>
+          </ProtectedRoute>
+        } />
+        <Route path="/secretaria/encontreiros" element={
+          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+            <PageTransition><SecretariaEncontreirosPage /></PageTransition>
+          </ProtectedRoute>
+        } />
 
-        <Route path="/montagem-visitacao" element={
-          <ProtectedRoute requiredPermissions={['modulo_visitacao', 'modulo_admin']}>
-            {(() => {
-              if (hasPermission('modulo_visitacao') && !userParticipacao?.coordenador && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length <= 2) {
-                return <Navigate to="/visitacao/meus-participantes" replace />;
-              }
-              return <PageTransition><MontagemVisitacao /></PageTransition>;
-            })()}
+        <Route path="/visitacao" element={
+          <ProtectedRoute requiredPermissions={['modulo_visitacao_coordenar', 'modulo_visitacao_duplas', 'modulo_admin']}>
+            <PageTransition><VisitacaoPortalPage /></PageTransition>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/visitacao/coordenador" element={
+          <ProtectedRoute requiredPermissions={['modulo_visitacao_coordenar', 'modulo_admin']}>
+            <PageTransition><CoordenadorVisitacaoPage /></PageTransition>
           </ProtectedRoute>
         } />
 
         <Route path="/visitacao/meus-participantes" element={
-          <ProtectedRoute requiredPermissions={['modulo_visitacao']}>
+          <ProtectedRoute requiredPermissions={['modulo_visitacao_duplas']}>
             <PageTransition><VisitacaoMeusParticipantesPage /></PageTransition>
           </ProtectedRoute>
         } />
+
+        <Route path="/visitacao/manutencao/:id" element={
+          <ProtectedRoute requiredPermissions={['modulo_visitacao_duplas']}>
+            <PageTransition><VisitacaoManutencaoPage /></PageTransition>
+          </ProtectedRoute>
+        } />
+
 
         <Route path="/montagem-circulos" element={
           <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>

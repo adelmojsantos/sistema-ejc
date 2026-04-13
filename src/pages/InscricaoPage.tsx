@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { ChevronLeft, AlertTriangle, CheckCircle2, Users, Search, History } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Users, Search, History } from 'lucide-react';
 import { Header } from '../components/Header';
+import { PageHeader } from '../components/ui/PageHeader';
 import { LiveSearchSelect } from '../components/ui/LiveSearchSelect';
 import { PessoaForm } from '../components/pessoa/PessoaForm';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -167,22 +168,11 @@ export function InscricaoPage() {
       <Header />
 
       <main className="main-content container">
-        <div className="page-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button 
-              onClick={() => navigate(-1)} 
-              className="mobile-menu-btn"
-              aria-label="Voltar"
-              title="Voltar"
-            >
-              <ChevronLeft size={24} />
-            </button>
-            <div>
-              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Inscrição</p>
-              <h1 className="page-title text-gradient" style={{ fontSize: '1.75rem' }}>Nova Inscrição Encontrista</h1>
-            </div>
-          </div>
-        </div>
+        <PageHeader 
+          title="Nova Inscrição Encontrista"
+          subtitle="Portal / Inscrição"
+          backPath="/dashboard"
+        />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', margin: '0 auto' }}>
           {/* Step 1: Event Selection */}
@@ -192,7 +182,7 @@ export function InscricaoPage() {
                 Encontro
               </h3>
               <button
-                onClick={() => navigate(`/cadastros/encontros/participantes?filter=encontristas${selectedEncontroId ? `&encontro=${selectedEncontroId}` : ''}`)}
+                onClick={() => navigate(`/inscricao/participantes${selectedEncontroId ? `?encontro=${selectedEncontroId}` : ''}`)}
                 className="btn-text"
                 style={{
                   fontSize: '0.85rem',

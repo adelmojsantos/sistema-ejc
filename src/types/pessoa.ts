@@ -19,6 +19,8 @@ export interface Pessoa {
     outros_contatos: string | null;
     fez_ejc_outra_paroquia: boolean;
     qual_paroquia_ejc: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
 }
 
 export type PessoaFormData = Omit<Pessoa, 'id' | 'qr_code_token' | 'created_at'>;

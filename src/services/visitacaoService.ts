@@ -55,7 +55,7 @@ export const visitacaoService = {
                 participacoes:participacao_id (
                     id,
                     encontro_id,
-                    pessoas (nome_completo)
+                    pessoas (nome_completo, cpf)
                 ),
                 visita_grupos:grupo_id (nome)
             `)
@@ -83,5 +83,34 @@ export const visitacaoService = {
             .eq('id', id);
 
         if (error) throw error;
+    },
+
+    // Visit Execution
+    async atualizarVisita(id: string, updates: Partial<VisitaParticipacao>): Promise<void> {
+        const { error } = await supabase
+            .from(PARTICIPACAO_TABLE)
+            .update(updates)
+            .eq('id', id);
+
+        if (error) throw error;
+    },
+
+    async uploadFoto(participacaoId: string, file: File): Promise<string> {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${participacaoId}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `fotos/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('galeria')
+            .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+            .from('galeria')
+            .getPublicUrl(filePath);
+
+        return data.publicUrl;
     }
 };
+

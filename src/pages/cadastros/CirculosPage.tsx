@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Search, UsersRound, Plus, X, Check, Loader } from 'lucide-react';
+import { Search, UsersRound, Plus, X, Check, Loader } from 'lucide-react';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { CirculoRow } from '../../components/circulo/CirculoRow';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { circuloService } from '../../services/circuloService';
@@ -95,23 +96,16 @@ export function CirculosPage() {
 
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
-            <div className="page-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <button onClick={handleBack} className="icon-btn" title="Voltar"><ChevronLeft size={18} /></button>
-                    <div>
-                        <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Cadastros</p>
-                        <h1 className="page-title" style={{ fontSize: '1.5rem' }}>
-                            <UsersRound size={22} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
-                            Círculos
-                        </h1>
-                    </div>
-                </div>
-                {!isAdding && (
-                    <button onClick={() => setIsAdding(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <PageHeader 
+                title="Círculos"
+                subtitle="Gestão de Cadastros"
+                onBack={handleBack}
+                actions={!isAdding && (
+                    <button onClick={() => setIsAdding(true)} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Plus size={18} /> Novo Círculo
                     </button>
                 )}
-            </div>
+            />
 
             <div className="search-bar">
                 <Search size={18} style={{ opacity: 0.5 }} />
