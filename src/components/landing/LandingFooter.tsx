@@ -1,4 +1,4 @@
-import { ArrowUp, Facebook, Instagram, Mail, MapPin, Phone } from 'lucide-react';
+import { ArrowUp, Instagram, Mail, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 
@@ -24,14 +24,8 @@ export function LandingFooter() {
               experiência de fé, fraternidade e renovação espiritual.
             </p>
             <div className="landing-footer__socials" aria-label="Redes sociais">
-              <a href="#" aria-label="Instagram" className="landing-footer__social-link">
+              <a href="https://instagram.com/ejc_capelinha" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="landing-footer__social-link">
                 <Instagram size={18} />
-              </a>
-              <a href="#" aria-label="Facebook" className="landing-footer__social-link">
-                <Facebook size={18} />
-              </a>
-              <a href="mailto:contato@ejccapelinha.com.br" aria-label="E-mail" className="landing-footer__social-link">
-                <Mail size={18} />
               </a>
             </div>
           </section>
@@ -62,14 +56,6 @@ export function LandingFooter() {
                   <br />
                   Paróquia Nossa Senhora Aparecida (Capelinha)
                 </span>
-              </li>
-              <li>
-                <Phone size={16} />
-                <span>(33) 99999-9999</span>
-              </li>
-              <li>
-                <Mail size={16} />
-                <span>contato@ejccapelinha.com.br</span>
               </li>
             </ul>
           </section>

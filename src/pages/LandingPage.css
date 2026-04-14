@@ -808,10 +808,12 @@ html {
 .landing-form {
   display: grid;
   gap: 1rem;
+  width: 100%;
 }
 
 .landing-page .landing-form .form-group {
   margin: 0;
+  min-width: 0;
 }
 
 .landing-page .landing-form .form-label {
@@ -820,6 +822,9 @@ html {
 }
 
 .landing-page .landing-form .form-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 52px;
   border-radius: 14px;
   border-color: #bfdbfe;

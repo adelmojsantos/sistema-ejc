@@ -10,6 +10,7 @@ export interface Inscricao {
   coordenador: boolean | null;
   dados_confirmados: boolean | null;
   confirmado_em: string | null;
+  origem?: string;
 }
 
 export interface InscricaoEnriched extends Inscricao {

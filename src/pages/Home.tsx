@@ -1,4 +1,4 @@
-import { Calendar, CircleDot, FileText, UserPlus, Users, Users2Icon, Shield } from 'lucide-react';
+import { Calendar, CircleDot, FileText, UserPlus, Users, Users2Icon, Shield, ListChecks } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -49,6 +49,13 @@ export function Home() {
       path: '/secretaria',
       icon: <FileText size={36} />,
       accent: 'primary'
+    });
+    dashboardActions.push({
+      title: 'Inscrições Online',
+      description: 'Gestão de pré-inscrições recebidas pelo site.',
+      path: '/secretaria/lista-espera',
+      icon: <ListChecks size={36} />,
+      accent: 'violet'
     });
   }
 

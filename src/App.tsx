@@ -25,6 +25,7 @@ import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinha
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { Home } from './pages/Home';
 import { InscricaoPage } from './pages/InscricaoPage';
+import InscricaoPublicaPage from './pages/InscricaoPublicaPage';
 import LandingPage from './pages/LandingPage';
 import { Login } from './pages/Login';
 import { PrivacidadePage } from './pages/PrivacidadePage';
@@ -36,6 +37,7 @@ import { VisitacaoManutencaoPage } from './pages/visitacao/VisitacaoManutencaoPa
 import { VisitacaoPortalPage } from './pages/visitacao/VisitacaoPortalPage';
 import { SecretariaParticipantesPage } from './pages/secretaria/SecretariaParticipantesPage';
 import { SecretariaEncontreirosPage } from './pages/secretaria/SecretariaEncontreirosPage';
+import { GerenciarListaEsperaPage } from './pages/secretaria/GerenciarListaEsperaPage';
 
 
 export function PlaceholderPage({ title }: { title: string }) {
@@ -61,6 +63,7 @@ function AnimatedRoutes() {
         <Route path="/privacidade" element={<PageTransition><PrivacidadePage /></PageTransition>} />
 
         <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
+        <Route path="/inscricao-online" element={<PageTransition><InscricaoPublicaPage /></PageTransition>} />
 
         <Route path="/dashboard" element={
           <ProtectedRoute>
@@ -150,6 +153,11 @@ function AnimatedRoutes() {
         <Route path="/secretaria/encontreiros" element={
           <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
             <PageTransition><SecretariaEncontreirosPage /></PageTransition>
+          </ProtectedRoute>
+        } />
+        <Route path="/secretaria/lista-espera" element={
+          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+            <PageTransition><GerenciarListaEsperaPage /></PageTransition>
           </ProtectedRoute>
         } />
 

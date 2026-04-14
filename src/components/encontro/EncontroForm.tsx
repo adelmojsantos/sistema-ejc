@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Calendar, Info, Loader, Check, Tag, X } from 'lucide-react';
+import { Calendar, Info, Loader, Check, Tag, X, Users } from 'lucide-react';
 import type { Encontro, EncontroFormData } from '../../types/encontro';
 import { FormField } from '../ui/FormField';
 import { FormSection } from '../ui/FormSection';
 import { FormRow } from '../ui/FormRow';
 
 interface EncontroFormProps {
+    title: string;
     initialData?: Encontro;
     onSubmit: (data: EncontroFormData) => Promise<void>;
     onCancel: () => void;
@@ -22,7 +23,7 @@ function validate(data: EncontroFormData): FormErrors {
     return errors;
 }
 
-export function EncontroForm({ initialData, onSubmit, onCancel, isLoading = false }: EncontroFormProps) {
+export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading = false }: EncontroFormProps) {
     const [form, setForm] = useState<EncontroFormData>({
         nome: initialData?.nome ?? '',
         data_inicio: initialData?.data_inicio ?? '',
@@ -35,6 +36,7 @@ export function EncontroForm({ initialData, onSubmit, onCancel, isLoading = fals
         musica: initialData?.musica ?? '',
         link_musica: initialData?.link_musica ?? '',
         link_youtube: initialData?.link_youtube ?? '',
+        limite_vagas_online: initialData?.limite_vagas_online ?? 0,
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,6 +65,20 @@ export function EncontroForm({ initialData, onSubmit, onCancel, isLoading = fals
 
     return (
         <form onSubmit={handleSubmit} noValidate>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>{title}</h2>
+                <label className="switch">
+                    <input
+                        type="checkbox"
+                        className="switch-input"
+                        checked={form.ativo}
+                        onChange={(e) => handleChange('ativo', e.target.checked)}
+                    />
+                    <span className="switch-slider"></span>
+                    <span className="switch-label">{form.ativo ? 'Encontro Ativo' : 'Encontro Inativo'}</span>
+                </label>
+            </div>
+
             <FormSection title="Dados Básicos" icon={<Info size={18} />} columns={0}>
                 <FormRow>
                     <FormField
@@ -72,7 +88,7 @@ export function EncontroForm({ initialData, onSubmit, onCancel, isLoading = fals
                         onChange={(e) => handleChange('nome', e.target.value)}
                         error={errors.nome}
                         required
-                        colSpan={9}
+                        colSpan={8}
                         placeholder="Ex: 25º EJC Capelinha"
                     />
                     <FormField
@@ -81,8 +97,17 @@ export function EncontroForm({ initialData, onSubmit, onCancel, isLoading = fals
                         type="number"
                         value={form.edicao ?? ''}
                         onChange={(e) => handleChange('edicao', e.target.value ? parseInt(e.target.value) : null)}
-                        colSpan={3}
+                        colSpan={2}
                         placeholder="Ex: 25"
+                    />
+                    <FormField
+                        label="Limite Online"
+                        name="limite_vagas_online"
+                        type="number"
+                        value={form.limite_vagas_online}
+                        onChange={(e) => handleChange('limite_vagas_online', e.target.value ? parseInt(e.target.value) : 0)}
+                        colSpan={2}
+                        placeholder="71"
                     />
                 </FormRow>
             </FormSection>
@@ -118,18 +143,7 @@ export function EncontroForm({ initialData, onSubmit, onCancel, isLoading = fals
                         placeholder="Ex: Centro Pastoral"
                     />
                 </FormRow>
-                <FormRow>
-                    <div className="form-group col-12" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', height: '100%', paddingTop: '0.5rem', marginBottom: '1rem' }}>
-                        <input
-                            type="checkbox"
-                            id="ativo"
-                            checked={form.ativo}
-                            onChange={(e) => handleChange('ativo', e.target.checked)}
-                            style={{ width: '1.2rem', height: '1.2rem' }}
-                        />
-                        <label htmlFor="ativo" className="form-label" style={{ marginBottom: 0 }}>Encontro Ativo / Atual</label>
-                    </div>
-                </FormRow>
+
             </FormSection>
 
             <FormSection title="Tema e Inspiração" icon={<Tag size={18} />} columns={0}>
@@ -181,6 +195,8 @@ export function EncontroForm({ initialData, onSubmit, onCancel, isLoading = fals
                     />
                 </FormRow>
             </FormSection>
+
+
 
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
                 <button type="button" className="btn-cancel" onClick={onCancel} disabled={isLoading}>

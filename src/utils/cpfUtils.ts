@@ -60,3 +60,20 @@ export function isValidCpf(cpf: string | null | undefined): boolean {
 
     return true;
 }
+
+/** Formata um número de telefone ((XX) XXXXX-XXXX ou (XX) XXXX-XXXX) */
+export function formatTelefone(value: string | null | undefined): string {
+    if (!value) return '';
+    const digits = value.replace(/\D/g, '');
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+}
+
+/** Formata um número de telefone para exibição ((XX) XXXXX-XXXX ou (XX) XXXX-XXXX) */
+export function maskTelefone(value: string | null | undefined): string {
+    if (!value) return '—';
+    const formatted = formatTelefone(value);
+    return formatted || '—';
+}

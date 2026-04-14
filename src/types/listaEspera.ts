@@ -1,13 +1,17 @@
-export interface Pessoa {
-    id: string;
+export interface ListaEsperaEntry {
+    id: string; // uuid
+    encontro_id: string; // uuid
+    origem: string;
+    status: 'pendente' | 'convertido';
+    created_at: string;
+    
+    // Dados da ficha cadastral
     nome_completo: string;
     cpf: string | null;
     email: string | null;
     telefone: string;
-    comunidade: string;
     data_nascimento: string | null;
-    qr_code_token: string;
-    created_at: string;
+    comunidade: string;
     nome_pai: string | null;
     nome_mae: string | null;
     endereco: string | null;
@@ -21,20 +25,17 @@ export interface Pessoa {
     outros_contatos: string | null;
     fez_ejc_outra_paroquia: boolean | null;
     qual_paroquia_ejc: string | null;
-    latitude?: number | null;
-    longitude?: number | null;
-    origem?: string;
 }
 
-export type PessoaFormData = Omit<Pessoa, 'id' | 'qr_code_token' | 'created_at'>;
+export type ListaEsperaFormData = Omit<ListaEsperaEntry, 'id' | 'created_at' | 'encontro_id' | 'origem' | 'status'>;
 
-export const pessoaFormDataVazia = (): PessoaFormData => ({
+export const listaEsperaFormDataVazia = (): ListaEsperaFormData => ({
     nome_completo: '',
     cpf: null,
     email: null,
     telefone: '',
-    comunidade: '',
     data_nascimento: '',
+    comunidade: '',
     nome_pai: null,
     nome_mae: null,
     endereco: null,

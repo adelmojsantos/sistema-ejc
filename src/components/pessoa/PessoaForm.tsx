@@ -56,6 +56,14 @@ function validate(data: PessoaFormData, requireBirthDate: boolean = false): Form
         errors.data_nascimento = 'Data de nascimento é obrigatória.';
     }
 
+    if (data.fez_ejc_outra_paroquia === null) {
+        errors.fez_ejc_outra_paroquia = 'Selecione uma opção.';
+    }
+
+    if (data.fez_ejc_outra_paroquia && !data.qual_paroquia_ejc?.trim()) {
+        errors.qual_paroquia_ejc = 'Informe qual foi a paróquia / cidade.';
+    }
+
     return errors;
 }
 
@@ -76,14 +84,14 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
         telefone_pai: initialData?.telefone_pai ? formatTelefone(initialData.telefone_pai) : '',
         telefone_mae: initialData?.telefone_mae ? formatTelefone(initialData.telefone_mae) : '',
         outros_contatos: initialData?.outros_contatos ?? '',
-        fez_ejc_outra_paroquia: initialData?.fez_ejc_outra_paroquia ?? false,
+        fez_ejc_outra_paroquia: initialData?.fez_ejc_outra_paroquia ?? null,
         qual_paroquia_ejc: initialData?.qual_paroquia_ejc ?? '',
         // Preserve existing geolocation — never overwrite with undefined
         latitude: initialData?.latitude ?? null,
         longitude: initialData?.longitude ?? null,
+        cep: initialData?.cep ? formatCep(initialData.cep) : '',
     });
 
-    const [cep, setCep] = useState('');
     const [isSearchingCep, setIsSearchingCep] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<FormErrors>({});
@@ -92,6 +100,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
         let formatted = value;
         if (typeof value === 'string') {
             if (field === 'cpf') formatted = formatCpf(value);
+            if (field === 'cep') formatted = formatCep(value);
             if (field === 'telefone' || field === 'telefone_pai' || field === 'telefone_mae') {
                 formatted = formatTelefone(value);
             }
@@ -102,7 +111,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
     };
 
     const handleCepBlur = async () => {
-        const cleanCep = cep.replace(/\D/g, '');
+        const cleanCep = form.cep ? String(form.cep).replace(/\D/g, '') : '';
         if (cleanCep.length !== 8) return;
 
         setIsSearchingCep(true);
@@ -115,7 +124,8 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                     ...prev,
                     endereco: data.logradouro || prev.endereco,
                     bairro: data.bairro || prev.bairro,
-                    cidade: data.localidade || prev.cidade
+                    cidade: data.localidade || prev.cidade,
+                    estado: data.uf || prev.estado
                 }));
             }
         } catch (error) {
@@ -144,9 +154,11 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                 telefone_pai: form.telefone_pai ? form.telefone_pai.replace(/\D/g, '') : null,
                 telefone_mae: form.telefone_mae ? form.telefone_mae.replace(/\D/g, '') : null,
                 outros_contatos: form.outros_contatos ? form.outros_contatos.trim() : null,
+                fez_ejc_outra_paroquia: form.fez_ejc_outra_paroquia,
                 qual_paroquia_ejc: form.fez_ejc_outra_paroquia ? form.qual_paroquia_ejc : null,
                 latitude: form.latitude || null,
                 longitude: form.longitude || null,
+                cep: form.cep ? form.cep.replace(/\D/g, '') : null,
             };
 
             // Silent geocoding before submitting — tries multiple address variants
@@ -200,9 +212,10 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         value={form.email || ''}
                         onChange={(e) => handleChange('email', e.target.value)}
                         error={errors.email}
+                        required
                         colSpan={8}
                         autoComplete="email"
-                        placeholder="joao@email.com (Opcional)"
+                        placeholder="joao@email.com"
                         icon={<Mail size={18} />}
                     />
                     <FormField
@@ -305,9 +318,10 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                             value={form.fez_ejc_outra_paroquia}
                             onChange={(val) => handleChange('fez_ejc_outra_paroquia', val)}
                             options={[
-                                { label: 'Sim', value: true },
-                                { label: 'Não', value: false }
+                                { label: 'Não Fiz EJC', value: false },
+                                { label: 'Sim, fiz EJC em Outra Paróquia', value: true }
                             ]}
+                            error={errors.fez_ejc_outra_paroquia}
                         />
                     </div>
                 </FormRow>
@@ -331,8 +345,8 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                     <FormField
                         label="CEP"
                         name="cep"
-                        value={cep}
-                        onChange={(e) => setCep(formatCep(e.target.value))}
+                        value={form.cep ?? ''}
+                        onChange={(e) => handleChange('cep', e.target.value)}
                         onBlur={handleCepBlur}
                         colSpan={4}
                         inputMode="numeric"
@@ -345,8 +359,18 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         name="cidade"
                         value={form.cidade ?? ''}
                         onChange={(e) => handleChange('cidade', e.target.value)}
-                        colSpan={8}
+                        colSpan={6}
                         placeholder="Ex: Capelinha"
+                    />
+                    <FormField
+                        label="Estado (UF)"
+                        name="estado"
+                        value={form.estado ?? ''}
+                        onChange={(e) => handleChange('estado', e.target.value)}
+                        colSpan={2}
+                        placeholder="SP"
+                        maxLength={2}
+                        style={{ textTransform: 'uppercase' }}
                     />
                 </FormRow>
                 <FormRow>

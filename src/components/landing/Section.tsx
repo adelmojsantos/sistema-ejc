@@ -6,6 +6,7 @@ interface SectionProps {
   className?: string;
   background?: 'default' | 'secondary' | 'accent' | 'gradient' | 'glass';
   noPadding?: boolean;
+  style?: React.CSSProperties;
 }
 
 const backgroundClassMap: Record<NonNullable<SectionProps['background']>, string> = {
@@ -16,7 +17,7 @@ const backgroundClassMap: Record<NonNullable<SectionProps['background']>, string
   glass: 'landing-section--glass'
 };
 
-export function Section({ children, id, className = '', background = 'default', noPadding = false }: SectionProps) {
+export function Section({ children, id, className = '', background = 'default', noPadding = false, style }: SectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -43,6 +44,7 @@ export function Section({ children, id, className = '', background = 'default', 
     <section
       id={id}
       ref={sectionRef}
+      style={style}
       className={[
         'landing-section',
         backgroundClassMap[background],

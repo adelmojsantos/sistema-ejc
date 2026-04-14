@@ -109,9 +109,9 @@ export default function LandingPage() {
             <p>
               As vagas são limitadas e o próximo encontro pode mudar a sua vida. Não adie sua renovação.
             </p>
-            <a href="#cadastro" className="landing-button landing-button--light">
-              Ir para o pré-cadastro
-            </a>
+            <Link to="/inscricao" className="landing-button landing-button--light">
+              Fazer Inscrição Online
+            </Link>
           </div>
         </Section>
 

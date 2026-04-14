@@ -1,4 +1,4 @@
-import { CheckCircle, FileSpreadsheet, FileText, Users, MapPin } from 'lucide-react';
+import { CheckCircle, FileSpreadsheet, FileText, Users, MapPin, ListChecks } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
@@ -57,6 +57,15 @@ const CATEGORIES: SecretariaCategory[] = [
     description: 'Lista completa de voluntários de todas as equipes.',
     icon: <Users size={34} />,
     color: '#f59e0b',
+    available: true
+  },
+  {
+    id: 'sec-lista-espera',
+    path: '/secretaria/lista-espera',
+    label: 'Gerenciar Inscrições Online',
+    description: 'Aprovação e efetivação dos jovens inscritos via site.',
+    icon: <ListChecks size={34} />,
+    color: '#8b5cf6',
     available: true
   }
 ];

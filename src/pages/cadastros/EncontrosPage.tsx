@@ -126,11 +126,9 @@ export function EncontrosPage() {
 
             {(mode === 'create' || mode === 'edit') && (
                 <div className="card" style={{ marginTop: '1rem' }}>
-                    <h2 style={{ marginTop: 0, marginBottom: '1.5rem', fontSize: '1.2rem' }}>
-                        {mode === 'create' ? 'Novo Encontro' : `Editando: ${selected?.nome}`}
-                    </h2>
                     {formError && <div className="error-message" style={{ marginBottom: '1rem' }}>{formError}</div>}
                     <EncontroForm
+                        title={mode === 'create' ? 'Novo Encontro' : `Editando: ${selected?.nome}`}
                         initialData={selected ?? undefined}
                         onSubmit={handleSubmit}
                         onCancel={backToList}
