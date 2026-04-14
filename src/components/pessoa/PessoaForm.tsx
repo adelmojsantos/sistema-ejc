@@ -1,12 +1,12 @@
+import { Calendar, Check, CreditCard, Home, Loader, Mail, MapPin, Phone, User, UsersRound, X } from 'lucide-react';
 import React, { useState } from 'react';
 import type { PessoaFormData } from '../../types/pessoa';
-import { FormField } from '../ui/FormField';
-import { FormSection } from '../ui/FormSection';
-import { FormRow } from '../ui/FormRow';
-import { RadioGroup } from '../ui/RadioGroup';
-import { User, Phone, UsersRound, X, Check, Loader, MapPin, Mail, CreditCard, Calendar, Home } from 'lucide-react';
 import { formatCpf, isValidCpf } from '../../utils/cpfUtils';
 import { geocodeWithFallback } from '../../utils/geocoding';
+import { FormField } from '../ui/FormField';
+import { FormRow } from '../ui/FormRow';
+import { FormSection } from '../ui/FormSection';
+import { RadioGroup } from '../ui/RadioGroup';
 
 interface PessoaFormProps {
     initialData?: Partial<PessoaFormData>;
@@ -51,7 +51,7 @@ function validate(data: PessoaFormData, requireBirthDate: boolean = false): Form
 
     if (!data.telefone.trim() || data.telefone.replace(/\D/g, '').length < 10)
         errors.telefone = 'Telefone inválido.';
-    
+
     if (requireBirthDate && !data.data_nascimento) {
         errors.data_nascimento = 'Data de nascimento é obrigatória.';
     }
@@ -81,6 +81,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
         numero: initialData?.numero ?? '',
         bairro: initialData?.bairro ?? '',
         cidade: initialData?.cidade ?? '',
+        estado: initialData?.estado ?? '',
         telefone_pai: initialData?.telefone_pai ? formatTelefone(initialData.telefone_pai) : '',
         telefone_mae: initialData?.telefone_mae ? formatTelefone(initialData.telefone_mae) : '',
         outros_contatos: initialData?.outros_contatos ?? '',
@@ -315,7 +316,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                     <div className="col-12">
                         <RadioGroup
                             label="Já fez EJC em outra paróquia?"
-                            value={form.fez_ejc_outra_paroquia}
+                            value={form.fez_ejc_outra_paroquia ?? false}
                             onChange={(val) => handleChange('fez_ejc_outra_paroquia', val)}
                             options={[
                                 { label: 'Não Fiz EJC', value: false },
@@ -413,7 +414,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         <><Loader size={16} className="animate-spin" /> Salvando...</>
                     ) : (
                         <>
-                            <Check size={16} /> 
+                            <Check size={16} />
                             {isConfirmationContext ? 'Salvar e Confirmar Dados' : 'Salvar Alterações'}
                         </>
                     )}

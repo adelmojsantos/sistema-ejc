@@ -1,9 +1,9 @@
+import { Calendar, Check, Info, Loader, Tag, X } from 'lucide-react';
 import React, { useState } from 'react';
-import { Calendar, Info, Loader, Check, Tag, X, Users } from 'lucide-react';
 import type { Encontro, EncontroFormData } from '../../types/encontro';
 import { FormField } from '../ui/FormField';
-import { FormSection } from '../ui/FormSection';
 import { FormRow } from '../ui/FormRow';
+import { FormSection } from '../ui/FormSection';
 
 interface EncontroFormProps {
     title: string;
@@ -54,7 +54,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
             setErrors(erros);
             return;
         }
-        
+
         setIsSubmitting(true);
         try {
             await onSubmit(form);

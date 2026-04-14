@@ -626,7 +626,7 @@ export function CoordenadorVisitacaoPage() {
                             if (e.target.checked) setHideLinkedToSelected(false);
                           }} />
                           <span>Apenas desta Dupla</span>
-                        </label>
+                        </label>EncontroForm
 
                         <label className="filter-checkbox-modern">
                           <input type="checkbox" checked={showOnlyUnmapped} onChange={e => setShowOnlyUnmapped(e.target.checked)} />

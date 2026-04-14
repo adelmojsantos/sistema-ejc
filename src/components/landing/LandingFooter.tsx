@@ -1,4 +1,4 @@
-import { ArrowUp, Instagram, Mail, MapPin } from 'lucide-react';
+import { ArrowUp, Instagram, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 
