@@ -26,7 +26,7 @@ import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import type { InscricaoFormData } from '../../types/inscricao';
 
 interface RawRow {
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface ProcessedRow {
@@ -91,7 +91,7 @@ export function ImportarDadosPage() {
         const active = encontrosData.find(e => e.ativo);
         if (active) setSelectedEncontroId(active.id);
         else if (encontrosData.length > 0) setSelectedEncontroId(encontrosData[0].id);
-      } catch (err) {
+      } catch {
         toast.error('Erro ao carregar dados iniciais.');
       } finally {
         setIsDataLoading(false);
@@ -123,7 +123,7 @@ export function ImportarDadosPage() {
 
       for (const sheetName of workbook.SheetNames) {
         const worksheet = workbook.Sheets[sheetName];
-        const rowsArray = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+        const rowsArray = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
         let headerRowIdx = 0;
 
         for (let i = 0; i < rowsArray.length; i++) {
@@ -167,7 +167,7 @@ export function ImportarDadosPage() {
           // Normalize keys (case insensitive)
           const findValue = (keys: string[]) => {
             const rowKey = Object.keys(raw).find(rk => keys.includes(rk.toUpperCase()));
-            return rowKey ? String(raw[rowKey]).trim() : '';
+            return rowKey ? String(raw[rowKey] ?? '').trim() : '';
           };
 
           const nome = findValue(['NOME', 'NOME COMPLETO']);
@@ -232,8 +232,8 @@ export function ImportarDadosPage() {
       } else {
         toast.success(`${processedSheets.length} abas processadas!`);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      console.error('Erro ao ler planilha');
       toast.error('Erro ao ler a planilha. Verifique o formato.');
     } finally {
       setIsProcessing(false);
@@ -305,7 +305,7 @@ export function ImportarDadosPage() {
             // Also update the local state for reference
             sheet.teamId = newTeam.id;
             sheet.status = 'existing';
-          } catch (err) {
+          } catch {
             toast.error(`Erro ao criar equipe ${sheet.sheetName}`);
           }
         } else if (sheet.teamId) {
@@ -374,8 +374,7 @@ export function ImportarDadosPage() {
             await inscricaoService.criar(participationData);
             row.importResult = 'success';
             successCount++;
-          } catch (err) {
-            console.error(err);
+          } catch {
             row.importResult = 'error';
           }
         }
@@ -383,7 +382,7 @@ export function ImportarDadosPage() {
 
       toast.success(`Importação concluída: ${successCount} registros vinculados!`);
       setSheets([...sheets]); // trigger re-render to show success icons
-    } catch (err) {
+    } catch {
       toast.error('Ocorreu um erro durante a importação.');
     } finally {
       setIsImporting(false);

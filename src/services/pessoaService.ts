@@ -14,6 +14,35 @@ export const pessoaService = {
         return data as Pessoa[];
     },
 
+    async buscarComPaginacao(busca: string = '', pagina: number = 1, limite: number = 20, encontroId?: string): Promise<{ data: Pessoa[], count: number }> {
+        let query;
+        
+        if (encontroId) {
+            query = supabase
+                .from(TABLE)
+                .select('*, participacoes!inner(encontro_id)', { count: 'exact' })
+                .eq('participacoes.encontro_id', encontroId);
+        } else {
+            query = supabase
+                .from(TABLE)
+                .select('*', { count: 'exact' });
+        }
+
+        query = query.order('nome_completo', { ascending: true });
+
+        if (busca.trim() !== '') {
+            query = query.or(`nome_completo.ilike.%${busca}%,cpf.ilike.%${busca}%,email.ilike.%${busca}%,telefone.ilike.%${busca}%,comunidade.ilike.%${busca}%`);
+        }
+
+        const from = (pagina - 1) * limite;
+        const to = from + limite - 1;
+
+        const { data, error, count } = await query.range(from, to);
+
+        if (error) throw error;
+        return { data: data as Pessoa[], count: count || 0 };
+    },
+
     async buscarPorId(id: string): Promise<Pessoa> {
         const { data, error } = await supabase
             .from(TABLE)

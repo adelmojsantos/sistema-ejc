@@ -14,6 +14,7 @@ interface CirculoFormProps {
 
 export function CirculoForm({ initialData, onSubmit, onCancel, isLoading = false }: CirculoFormProps) {
     const [nome, setNome] = useState(initialData?.nome ?? '');
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -22,7 +23,13 @@ export function CirculoForm({ initialData, onSubmit, onCancel, isLoading = false
             setError('Nome do círculo é obrigatório.');
             return;
         }
-        await onSubmit({ nome });
+        
+        setIsSubmitting(true);
+        try {
+            await onSubmit({ nome });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -47,8 +54,8 @@ export function CirculoForm({ initialData, onSubmit, onCancel, isLoading = false
                     <X size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
                     Cancelar
                 </button>
-                <button type="submit" disabled={isLoading}>
-                    {isLoading ? (
+                <button type="submit" disabled={isLoading || isSubmitting}>
+                    {isLoading || isSubmitting ? (
                         <><Loader size={16} className="animate-spin" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Salvando...</>
                     ) : (
                         <><Check size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Salvar</>

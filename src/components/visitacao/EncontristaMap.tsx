@@ -1,7 +1,8 @@
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import type { InscricaoEnriched } from '../../types/inscricao';
+import type { VisitaParticipacaoEnriched } from '../../types/visitacao';
 import { Users, CheckCircle2, MapPin, Trash2 } from 'lucide-react';
 import { applyJitter } from '../../utils/geocoding';
 
@@ -39,7 +40,7 @@ const LinkedIcon = new L.Icon({
 
 interface EncontristaMapProps {
   participantes: InscricaoEnriched[];
-  vinculos: any[];
+  vinculos: VisitaParticipacaoEnriched[];
   selectedGrupoId: string;
   onVincular: (participacaoId: string) => void;
   onDesvincular?: (vinculoId: string) => void;
@@ -47,10 +48,8 @@ interface EncontristaMapProps {
 }
 
 export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVincular, onDesvincular, onShowUnmappedClick }: EncontristaMapProps) {
-  const [markers, setMarkers] = useState<any[]>([]);
-
-  useEffect(() => {
-    const mappedParticipants = participantes
+  const markers = useMemo(() => {
+    return participantes
       .filter(p => p.pessoas?.latitude && p.pessoas?.longitude)
       .map(p => {
         const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
@@ -65,8 +64,6 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
           vinculoId: vinculo?.id
         };
       });
-
-    setMarkers(mappedParticipants);
   }, [participantes, vinculos]);
 
   const center: [number, number] = [-20.5383, -47.4008]; // Franca, SP center
@@ -99,7 +96,7 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
                     </div>
                     {m.vinculoGrupoId === selectedGrupoId && onDesvincular ? (
                       <button 
-                        onClick={() => onDesvincular(m.vinculoId)}
+                        onClick={() => m.vinculoId && onDesvincular(m.vinculoId)}
                         className="btn-outline-danger-sm w-full"
                         style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                       >

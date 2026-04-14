@@ -1329,6 +1329,13 @@ input:checked+.theme-toggle-slider:before {
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
 }
 
+.pessoa-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
 @media (max-width: 640px) {
   .pessoa-grid {
     gap: 0;

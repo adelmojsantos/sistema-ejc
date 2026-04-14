@@ -161,10 +161,10 @@ export function EncontroParticipantesPage() {
 
     if (hasConfig && config) {
         if (config.imagem_esq_base64) {
-            try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch(e) {}
+            try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch { /* ignore */ }
         }
         if (config.imagem_dir_base64) {
-            try { doc.addImage(config.imagem_dir_base64, 'PNG', 253, 10, 30, 30); } catch(e) {}
+            try { doc.addImage(config.imagem_dir_base64, 'PNG', 253, 10, 30, 30); } catch { /* ignore */ }
         }
         
         doc.setFontSize(14);

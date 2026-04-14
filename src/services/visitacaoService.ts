@@ -55,7 +55,7 @@ export const visitacaoService = {
                 participacoes:participacao_id (
                     id,
                     encontro_id,
-                    pessoas (nome_completo, cpf)
+                    pessoas (*)
                 ),
                 visita_grupos:grupo_id (nome)
             `)
@@ -113,7 +113,7 @@ export const visitacaoService = {
         return data.publicUrl;
     },
 
-    async atualizarPessoa(id: string, updates: any): Promise<void> {
+    async atualizarPessoa(id: string, updates: Record<string, unknown>): Promise<void> {
         const { error } = await supabase
             .from('pessoas')
             .update(updates)

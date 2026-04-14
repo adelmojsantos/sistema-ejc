@@ -87,11 +87,12 @@ export function UsersAdminPage() {
             if (pessoasData) {
                 for (const p of pessoasData) {
                     if (p.email) {
-                        const participacoes = p.participacoes as any[] || [];
+                        const participacoes = (p.participacoes as { encontro_id: string; equipes: { nome: string }[] | { nome: string } | null }[]) || [];
                         const eqNomes: Record<string, string> = {};
                         participacoes.forEach(part => {
-                            if (part.encontro_id && part.equipes?.nome) {
-                                eqNomes[part.encontro_id] = part.equipes.nome;
+                            const equipe = Array.isArray(part.equipes) ? part.equipes[0] : part.equipes;
+                            if (part.encontro_id && equipe?.nome) {
+                                eqNomes[part.encontro_id] = equipe.nome;
                             }
                         });
 
@@ -149,13 +150,13 @@ export function UsersAdminPage() {
                 if (targetEncontroId === null) setTargetEncontroId(encontrosData[0].id);
             }
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Falha em loadUsers', err);
-            setError(`Erro ao carregar (Veja console): ${err.message || String(err)}`);
+            setError(`Erro ao carregar (Veja console): ${err instanceof Error ? err.message : String(err)}`);
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [targetEncontroId]);
 
     useEffect(() => {
         supabase.auth.getSession().then(({ data }) => {
@@ -322,9 +323,9 @@ export function UsersAdminPage() {
 
             setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, grupos: newVinculos } : user)));
             toast.success(action === 'add' ? 'Acesso concedido.' : 'Acesso revogado.');
-        } catch (updateError: any) {
+        } catch (updateError: unknown) {
             console.error('Error updating group:', updateError);
-            const message = updateError?.message || 'Erro ao atualizar grupo.';
+            const message = (updateError instanceof Error) ? updateError.message : 'Erro ao atualizar grupo.';
             toast.error(message);
         } finally {
             setUpdatingRoleById((prev) => ({ ...prev, [userId]: false }));
@@ -358,10 +359,10 @@ export function UsersAdminPage() {
 
         if (config) {
             if (config.imagem_esq_base64) {
-                try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch (e) { }
+                try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch { /* ignore */ }
             }
             if (config.imagem_dir_base64) {
-                try { doc.addImage(config.imagem_dir_base64, 'PNG', 166, 10, 30, 30); } catch (e) { }
+                try { doc.addImage(config.imagem_dir_base64, 'PNG', 166, 10, 30, 30); } catch { /* ignore */ }
             }
 
             doc.setFontSize(14);
@@ -971,7 +972,7 @@ export function UsersAdminPage() {
 
                         <div className="form-group" style={{ marginBottom: 0 }}>
                             <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Status da Conta</label>
-                            <select className="form-input" value={filterTempPassword} onChange={e => setFilterTempPassword(e.target.value as any)}>
+                            <select className="form-input" value={filterTempPassword} onChange={e => setFilterTempPassword(e.target.value as 'all' | 'sim' | 'nao')}>
                                 <option value="all">Sem distinção</option>
                                 <option value="sim">Somente com Senha Temporária</option>
                                 <option value="nao">Usuários com Senha Própria</option>
@@ -983,7 +984,7 @@ export function UsersAdminPage() {
                             <select className="form-input" value={selectedExportConfigId} onChange={e => setSelectedExportConfigId(e.target.value)}>
                                 <option value="none">Sem cabeçalho (Simples)</option>
                                 {exportConfigs.map(c => (
-                                    <option key={c.id} value={c.id}>{c.titulo} {(c as any).encontros?.nome ? `(${(c as any).encontros.nome})` : ''}</option>
+                                    <option key={c.id} value={c.id}>{c.titulo} {(c as ExportConfig & { encontros?: { nome: string } | null }).encontros?.nome ? `(${(c as ExportConfig & { encontros?: { nome: string } | null }).encontros!.nome})` : ''}</option>
                                 ))}
                             </select>
                         </div>

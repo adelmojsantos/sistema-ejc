@@ -56,7 +56,7 @@ function getInitials(name: string | null | undefined) {
 }
 
 export function CoordenadorMinhaEquipePage() {
-  const { userParticipacao } = useAuth();
+  const { user, userParticipacao } = useAuth();
   const navigate = useNavigate();
   const [members, setMembers] = useState<EquipeMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +65,7 @@ export function CoordenadorMinhaEquipePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
-  const [teamConfirmation, setTeamConfirmation] = useState<any>(null);
+  const [teamConfirmation, setTeamConfirmation] = useState<{ confirmado_por: string; confirmado_em: string; profiles?: { email?: string } | null } | null>(null);
 
   const loadMembers = useCallback(async () => {
     if (!userParticipacao) {
@@ -178,7 +178,7 @@ export function CoordenadorMinhaEquipePage() {
       await inscricaoService.confirmarDados(memberId);
       toast.success('Integrante confirmado!');
       setMembers(prev => prev.map(m => m.id === memberId ? { ...m, dados_confirmados: true } : m));
-    } catch (error) {
+    } catch {
       toast.error('Erro ao confirmar integrante.');
     }
   };
@@ -194,7 +194,8 @@ export function CoordenadorMinhaEquipePage() {
 
     setIsConfirming(true);
     try {
-      await equipeService.confirmarEquipe(userParticipacao.equipe_id, userParticipacao.encontro_id, userParticipacao.id);
+      if (!user) throw new Error('Usuário não autenticado');
+      await equipeService.confirmarEquipe(userParticipacao.equipe_id, userParticipacao.encontro_id, user.id);
       toast.success('Equipe finalizada com sucesso!');
 
       // Reload to get full confirmation data
@@ -247,10 +248,10 @@ export function CoordenadorMinhaEquipePage() {
 
     if (hasConfig && config) {
       if (config.imagem_esq_base64) {
-        try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch (e) { }
+        try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch { /* ignore */ }
       }
       if (config.imagem_dir_base64) {
-        try { doc.addImage(config.imagem_dir_base64, 'PNG', 253, 10, 30, 30); } catch (e) { }
+        try { doc.addImage(config.imagem_dir_base64, 'PNG', 253, 10, 30, 30); } catch { /* ignore */ }
       }
 
       doc.setFontSize(14);
@@ -595,7 +596,7 @@ export function CoordenadorMinhaEquipePage() {
                 </h3>
                 <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', opacity: 0.7 }}>
                   {teamConfirmation
-                    ? `Finalizado por ${members.find(m => m.pessoas.email === teamConfirmation.profiles?.email)?.pessoas.nome_completo || teamConfirmation.profiles?.email || 'Coordenador'} em ${new Date(teamConfirmation.confirmada_em).toLocaleString('pt-BR')}`
+                    ? `Finalizado por ${members.find(m => m.pessoas.email === teamConfirmation.profiles?.email)?.pessoas.nome_completo || teamConfirmation.profiles?.email || 'Coordenador'} em ${teamConfirmation.confirmado_em ? new Date(teamConfirmation.confirmado_em).toLocaleString('pt-BR') : '—'}`
                     : (members.every(m => m.dados_confirmados) && members.length > 0
                       ? 'Todos os integrantes foram confirmados. Você pode finalizar a equipe agora.'
                       : `Faltam ${members.filter(m => !m.dados_confirmados).length} integrantes para serem confirmados individualmente.`)}

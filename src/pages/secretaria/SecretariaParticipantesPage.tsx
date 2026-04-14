@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Header } from '../../components/Header';
 import { encontroService } from '../../services/encontroService';
@@ -68,7 +68,7 @@ export function SecretariaParticipantesPage() {
     loadInitialData();
   }, [searchParams]);
 
-  const loadParticipantes = async () => {
+  const loadParticipantes = useCallback(async () => {
     if (!selectedEncontroId) return;
     setIsLoading(true);
     try {
@@ -79,11 +79,11 @@ export function SecretariaParticipantesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedEncontroId]);
 
   useEffect(() => {
     loadParticipantes();
-  }, [selectedEncontroId]);
+  }, [selectedEncontroId, loadParticipantes]);
 
   const filteredParticipantes = participantes.filter(p =>
     p.pessoas?.nome_completo?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -169,6 +169,7 @@ export function SecretariaParticipantesPage() {
       }
 
       await loadParticipantes();
+      toast.success(`Geocodificação concluída: ${successCount} sucesso(s), ${errorCount} erro(s), ${skippedCount} pulado(s).`);
     } catch (error) {
       console.error('Erro no bulk geocode:', error);
     } finally {

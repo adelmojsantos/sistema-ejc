@@ -10,6 +10,24 @@ import { FormSection } from '../../components/ui/FormSection';
 import { FormRow } from '../../components/ui/FormRow';
 import { FormField } from '../../components/ui/FormField';
 
+/** Local type for the Supabase-joined participacoes field on this page's query */
+type ParticipacaoComPessoa = {
+    id: string;
+    pessoas: {
+        id: string;
+        nome_completo: string;
+        cpf: string | null;
+        telefone: string | null;
+        endereco: string | null;
+        numero: string | null;
+        bairro: string | null;
+        nome_pai: string | null;
+        telefone_pai: string | null;
+        nome_mae: string | null;
+        telefone_mae: string | null;
+    } | null;
+};
+
 export function VisitacaoManutencaoPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -60,7 +78,7 @@ export function VisitacaoManutencaoPage() {
                     setTaxaPaga(data.taxa_paga || false);
                     setFotoUrl(data.foto_url || null);
                     
-                    const p = (data.participacoes as any)?.pessoas;
+                    const p = (data.participacoes as ParticipacaoComPessoa | null)?.pessoas;
                     if (p) {
                         setNomeCompleto(p.nome_completo || '');
                         setTelefone(p.telefone || '');
@@ -115,7 +133,7 @@ export function VisitacaoManutencaoPage() {
             });
 
             // Update Person record (Correction)
-            const pessoaId = (visita.participacoes as any)?.pessoas?.id;
+            const pessoaId = (visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.id;
             if (pessoaId) {
                 await visitacaoService.atualizarPessoa(pessoaId, {
                     nome_completo: nomeCompleto,
@@ -170,7 +188,7 @@ export function VisitacaoManutencaoPage() {
                         <div>
                             <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Registro de Visita</h1>
                             <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6 }}>
-                                Encontrista: <strong>{(visita.participacoes as any)?.pessoas?.nome_completo}</strong>
+                                Encontrista: <strong>{(visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.nome_completo}</strong>
                             </p>
                         </div>
                     </div>
@@ -212,8 +230,8 @@ export function VisitacaoManutencaoPage() {
                                 <Info size={18} /> Dados do Encontrista
                             </h3>
                             <div style={{ fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <p style={{ margin: 0 }}><strong>Nome:</strong> {(visita.participacoes as any)?.pessoas?.nome_completo}</p>
-                                <p style={{ margin: 0 }}><strong>CPF:</strong> {(visita.participacoes as any)?.pessoas?.cpf || 'Não informado'}</p>
+                                <p style={{ margin: 0 }}><strong>Nome:</strong> {(visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.nome_completo}</p>
+                                <p style={{ margin: 0 }}><strong>CPF:</strong> {(visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.cpf || 'Não informado'}</p>
                             </div>
                         </div>
                     </div>

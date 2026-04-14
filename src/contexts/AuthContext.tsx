@@ -39,8 +39,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (profileError) throw profileError;
 
             // 3. Fetch User Groups and Permissions
-            let grupos: string[] = [];
-            let permissions: string[] = [];
+            const grupos: string[] = [];
+            const permissions: string[] = [];
 
             const { data: ugData, error: ugError } = await supabase
                 .from('usuario_grupos')
@@ -59,27 +59,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (!ugError && ugData) {
                 // Flatten results, only allowing global groups OR groups for the active encounter
-                ugData.forEach((ug: any) => {
+                (ugData as any[]).forEach((ug: any) => {
                     const isGlobal = !ug.encontro_id;
                     const isActiveEncounter = activeEncontroId && ug.encontro_id === activeEncontroId;
 
-                    if (ug.grupos && (isGlobal || isActiveEncounter)) {
-                        grupos.push(ug.grupos.nome);
-                        if (ug.grupos.grupo_permissoes) {
-                            ug.grupos.grupo_permissoes.forEach((gp: any) => {
-                                if (gp.permissoes && gp.permissoes.chave) {
-                                    if (!permissions.includes(gp.permissoes.chave)) {
-                                        permissions.push(gp.permissoes.chave);
+                    const grupo = Array.isArray(ug.grupos) ? ug.grupos[0] : ug.grupos;
+
+                    if (grupo && (isGlobal || isActiveEncounter)) {
+                        grupos.push(grupo.nome);
+                        const gps = Array.isArray(grupo.grupo_permissoes) ? grupo.grupo_permissoes : [grupo.grupo_permissoes];
+                        
+                        gps.forEach((gp: any) => {
+                            if (gp?.permissoes) {
+                                const perms = Array.isArray(gp.permissoes) ? gp.permissoes : [gp.permissoes];
+                                perms.forEach((p: any) => {
+                                    if (p?.chave && !permissions.includes(p.chave)) {
+                                        permissions.push(p.chave);
                                     }
-                                }
-                            });
-                        }
+                                });
+                            }
+                        });
                     }
                 });
             }
 
             const extendedProfile: UserProfile = {
-                ...(profileData as any),
+                ...(profileData as unknown as UserProfile),
                 grupos,
                 permissions
             };

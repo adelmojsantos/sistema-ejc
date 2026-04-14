@@ -12,7 +12,7 @@ function getCache(): Record<string, [number, number]> {
   try {
     const cached = localStorage.getItem(GEO_CACHE_KEY);
     return cached ? JSON.parse(cached) : {};
-  } catch (e) {
+  } catch {
     return {};
   }
 }

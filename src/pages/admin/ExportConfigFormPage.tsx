@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Header } from '../../components/Header';
 import { exportConfigService } from '../../services/exportConfigService';
 import type { ExportConfig } from '../../services/exportConfigService';
@@ -36,11 +36,7 @@ export function ExportConfigFormPage() {
         { id: 'EncontroParticipantes', nome: 'Lista de Todos os Participantes do Encontro' }
     ];
 
-    useEffect(() => {
-        carregarConfiguracoes();
-    }, [id]);
-
-    async function carregarConfiguracoes() {
+    const carregarConfiguracoes = useCallback(async () => {
         try {
             const encontrosData = await encontroService.listar();
             setEncontros(encontrosData);
@@ -61,7 +57,11 @@ export function ExportConfigFormPage() {
         } finally {
             setLoading(false);
         }
-    }
+    }, [id, navigate]);
+
+    useEffect(() => {
+        carregarConfiguracoes();
+    }, [id, carregarConfiguracoes]);
 
     const handleImageUpload = async (side: 'esq' | 'dir', file: File) => {
         if (file.size > 2 * 1024 * 1024) {

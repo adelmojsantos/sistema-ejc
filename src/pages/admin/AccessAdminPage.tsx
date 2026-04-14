@@ -34,7 +34,7 @@ export function AccessAdminPage() {
             setGrupos(g);
             setPermissoes(p);
             setRelacoes(r);
-        } catch (error) {
+        } catch {
             toast.error('Erro ao carregar dados de acesso.');
         } finally {
             setLoading(false);
@@ -74,7 +74,7 @@ export function AccessAdminPage() {
                 ...grupoPermissoesIds.map(pid => ({ grupo_id: selectedGrupo.id, permissao_id: pid }))
             ]);
             toast.success('Permissões salvas no grupo.');
-        } catch (error) {
+        } catch {
             toast.error('Erro ao salvar permissões.');
         } finally {
             setIsSavingRelation(false);
@@ -94,7 +94,7 @@ export function AccessAdminPage() {
             setIsCreating(false);
             handleSelectGrupo(newGrupo);
             toast.success('Grupo criado com sucesso.');
-        } catch (error) {
+        } catch {
             toast.error('Erro ao criar grupo.');
         } finally {
             setIsSavingRelation(false);
@@ -111,7 +111,7 @@ export function AccessAdminPage() {
                 setSelectedGrupo(null);
             }
             toast.success('Grupo excluído.');
-        } catch(error) {
+        } catch {
             toast.error('Erro ao excluir grupo.');
         } finally {
             setIsSavingRelation(false);

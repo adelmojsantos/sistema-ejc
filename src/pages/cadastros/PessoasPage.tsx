@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { UserPlus, Search, X, Users, User } from 'lucide-react';
@@ -7,8 +7,10 @@ import { PessoaCard } from '../../components/pessoa/PessoaCard';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { pessoaService } from '../../services/pessoaService';
-import { normalizeString } from '../../utils/stringUtils';
+import { useDebounce } from '../../hooks/useDebounce.ts';
+import { encontroService } from '../../services/encontroService';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
+import type { Encontro } from '../../types/encontro';
 
 type Mode = 'list' | 'create' | 'edit';
 
@@ -25,41 +27,83 @@ export function PessoasPage() {
     const [formError, setFormError] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Pessoa | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const scrollPositionRef = useRef(0);
 
-    const load = useCallback(async () => {
+    // Pagination States
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [totalCount, setTotalCount] = useState(0);
+    const debouncedSearch = useDebounce(search, 500);
+
+    // Filter States
+    const [encontros, setEncontros] = useState<Encontro[]>([]);
+    const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
+
+    const load = useCallback(async (currentSearch: string, currentPage: number, currentEncontroId: string) => {
         setIsFetching(true);
         setFetchError(null);
         try {
-            const data = await pessoaService.listar();
-            setPessoas(data);
-            setFiltered(data);
+            const result = await pessoaService.buscarComPaginacao(currentSearch, currentPage, pageSize, currentEncontroId);
+            setPessoas(result.data);
+            setFiltered(result.data);
+            setTotalCount(result.count);
         } catch {
             setFetchError('Erro ao carregar cadastros. Tente novamente.');
             toast.error('Erro ao carregar pessoas.');
         } finally {
             setIsFetching(false);
         }
-    }, []);
-
-    useEffect(() => { load(); }, [load]);
+    }, [pageSize]);
 
     useEffect(() => {
-        const q = normalizeString(search);
-        setFiltered(
-            !q ? pessoas : pessoas.filter(
-                (p) =>
-                    normalizeString(p.nome_completo).includes(q) ||
-                    normalizeString(p.email || '').includes(q) ||
-                    normalizeString(p.telefone || '').includes(q) ||
-                    normalizeString(p.comunidade || '').includes(q) ||
-                    (p.cpf && p.cpf.includes(q))
-            )
-        );
-    }, [search, pessoas]);
+        async function fetchEncontros() {
+            try {
+                const data = await encontroService.listar();
+                setEncontros(data);
+            } catch (err) {
+                console.error('Erro ao carregar encontros:', err);
+            }
+        }
+        fetchEncontros();
+    }, []);
 
-    const openCreate = () => { setSelected(null); setFormError(null); setMode('create'); };
-    const openEdit = (p: Pessoa) => { setSelected(p); setFormError(null); setMode('edit'); };
-    const backToList = () => { setMode('list'); setSelected(null); };
+    useEffect(() => {
+        load(debouncedSearch, page, selectedEncontroId);
+    }, [load, debouncedSearch, page, selectedEncontroId]);
+
+    // Local filtering removed as it's now server-side
+    // useEffect(() => { ... }, [search, pessoas]);
+
+    const openCreate = () => {
+        scrollPositionRef.current = window.scrollY;
+        setSelected(null);
+        setFormError(null);
+        setMode('create');
+        window.scrollTo(0, 0);
+    };
+    const openEdit = (p: Pessoa) => {
+        scrollPositionRef.current = window.scrollY;
+        setSelected(p);
+        setFormError(null);
+        setMode('edit');
+        window.scrollTo(0, 0);
+    };
+    const backToList = () => {
+        setMode('list');
+        setSelected(null);
+        // Scroll restoration happens in a useEffect
+    };
+
+    useEffect(() => {
+        if (mode === 'list' && scrollPositionRef.current > 0) {
+            // Give a small timeout for the DOM to render
+            const timer = setTimeout(() => {
+                window.scrollTo({ top: scrollPositionRef.current, behavior: 'instant' });
+                scrollPositionRef.current = 0;
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [mode]);
 
     const handleBack = () => {
         if (mode !== 'list') {
@@ -80,9 +124,14 @@ export function PessoasPage() {
             } else if (mode === 'edit' && selected) {
                 const atualizada = await pessoaService.atualizar(selected.id, data);
                 setPessoas((prev) => prev.map((p) => (p.id === atualizada.id ? atualizada : p)));
+                setFiltered((prev) => prev.map((p) => (p.id === atualizada.id ? atualizada : p)));
                 toast.success('Cadastro atualizado com sucesso!');
             }
             backToList();
+            if (mode === 'create') {
+                setPage(1); // Reset to first page on create
+                load(debouncedSearch, 1, selectedEncontroId);
+            }
         } catch {
             setFormError('Erro ao salvar. Verifique os dados e tente novamente.');
             toast.error('Erro ao salvar cadastro.');
@@ -113,7 +162,7 @@ export function PessoasPage() {
 
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
-            <PageHeader 
+            <PageHeader
                 title="Pessoas"
                 subtitle="Gestão de Cadastros"
                 onBack={handleBack}
@@ -162,17 +211,56 @@ export function PessoasPage() {
                             type="search"
                             placeholder="Buscar por nome, e-mail, telefone ou comunidade…"
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                            onChange={(e) => {
+                                setSearch(e.target.value);
+                                setPage(1); // Reset page on search
+                            }}
                         />
-                        {search && (
-                            <button
-                                onClick={() => setSearch('')}
-                                style={{ background: 'none', border: 'none', padding: '0.25rem', cursor: 'pointer', color: 'var(--text-color)', opacity: 0.5 }}
-                                aria-label="Limpar busca"
-                            >
-                                <X size={16} />
-                            </button>
-                        )}
+                        <button
+                            onClick={() => setSearch('')}
+                            style={{ background: 'none', border: 'none', padding: '0.25rem', cursor: 'pointer', color: 'var(--text-color)', opacity: 0.5, display: search ? 'block' : 'none' }}
+                            aria-label="Limpar busca"
+                        >
+                            <X size={16} />
+                        </button>
+
+                        <div style={{ marginLeft: '1rem', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>Encontro:</span>
+                                <select
+                                    className="form-input"
+                                    style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.85rem', width: 'auto', minWidth: '160px', marginTop: 0, height: '36px' }}
+                                    value={selectedEncontroId}
+                                    onChange={(e) => {
+                                        setSelectedEncontroId(e.target.value);
+                                        setPage(1);
+                                    }}
+                                >
+                                    <option value="">Todos</option>
+                                    {encontros.map(e => (
+                                        <option key={e.id} value={e.id}>{e.nome}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>Exibir:</span>
+                                <select
+                                    className="form-input"
+                                    style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.85rem', width: 'auto', marginTop: 0, height: '36px' }}
+                                    value={pageSize}
+                                    onChange={(e) => {
+                                        setPageSize(Number(e.target.value));
+                                        setPage(1);
+                                    }}
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={20}>20</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
 
                     {isFetching && (
@@ -185,7 +273,7 @@ export function PessoasPage() {
                     {fetchError && !isFetching && (
                         <div className="empty-state">
                             <p style={{ color: '#ef4444' }}>{fetchError}</p>
-                            <button onClick={load}>Tentar novamente</button>
+                            <button onClick={() => load(search, page, selectedEncontroId)}>Tentar novamente</button>
                         </div>
                     )}
 
@@ -205,7 +293,7 @@ export function PessoasPage() {
                     {!isFetching && !fetchError && filtered.length > 0 && (
                         <>
                             <p style={{ fontSize: '0.85rem', opacity: 0.6, margin: '0 0 0.75rem' }}>
-                                {filtered.length} {filtered.length === 1 ? 'pessoa encontrada' : 'pessoas encontradas'}
+                                Mostrando <strong>{pessoas.length}</strong> de <strong>{totalCount}</strong> {totalCount === 1 ? 'pessoa encontrada' : 'pessoas encontradas'}
                             </p>
                             <div className="pessoa-grid">
                                 {filtered.map((p) => (
@@ -217,6 +305,37 @@ export function PessoasPage() {
                                     />
                                 ))}
                             </div>
+
+                            {/* Pagination Controls */}
+                            {totalCount > pageSize && (
+                                <div style={{
+                                    marginTop: '2rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '1rem'
+                                }}>
+                                    <button
+                                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                                        disabled={page === 1}
+                                        className="btn-secondary"
+                                        style={{ minWidth: '100px' }}
+                                    >
+                                        Anterior
+                                    </button>
+                                    <span style={{ fontSize: '0.9rem', opacity: 0.7 }}>
+                                        Página <strong>{page}</strong> de {Math.ceil(totalCount / pageSize)}
+                                    </span>
+                                    <button
+                                        onClick={() => setPage(p => p + 1)}
+                                        disabled={page >= Math.ceil(totalCount / pageSize)}
+                                        className="btn-secondary"
+                                        style={{ minWidth: '100px' }}
+                                    >
+                                        Próxima
+                                    </button>
+                                </div>
+                            )}
                         </>
                     )}
                 </>

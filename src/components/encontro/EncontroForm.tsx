@@ -37,6 +37,7 @@ export function EncontroForm({ initialData, onSubmit, onCancel, isLoading = fals
         link_youtube: initialData?.link_youtube ?? '',
     });
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<FormErrors>({});
 
     const handleChange = (field: keyof EncontroFormData, value: string | number | boolean | null) => {
@@ -51,7 +52,13 @@ export function EncontroForm({ initialData, onSubmit, onCancel, isLoading = fals
             setErrors(erros);
             return;
         }
-        await onSubmit(form);
+        
+        setIsSubmitting(true);
+        try {
+            await onSubmit(form);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -180,8 +187,8 @@ export function EncontroForm({ initialData, onSubmit, onCancel, isLoading = fals
                     <X size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
                     Cancelar
                 </button>
-                <button type="submit" disabled={isLoading}>
-                    {isLoading ? (
+                <button type="submit" disabled={isLoading || isSubmitting}>
+                    {isLoading || isSubmitting ? (
                         <><Loader size={16} className="animate-spin" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Salvando...</>
                     ) : (
                         <><Check size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Salvar</>

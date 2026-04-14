@@ -73,7 +73,8 @@ export const adminUserService = {
             ugMap.get(ug.usuario_id)!.push({ grupo_id: ug.grupo_id, encontro_id: ug.encontro_id });
         }
 
-        return users.map((u: any) => ({
+        interface RawEdgeUser { id: string; email: string; temporary_password: boolean; created_at: string; }
+        return users.map((u: RawEdgeUser) => ({
             id: u.id,
             email: u.email,
             temporary_password: u.temporary_password,

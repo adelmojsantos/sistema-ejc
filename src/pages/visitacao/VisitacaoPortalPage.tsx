@@ -30,7 +30,7 @@ export function VisitacaoPortalPage() {
         }
     ];
 
-    const availableModules = modules.filter(m => hasPermission(m.permission as any) || hasPermission('modulo_admin'));
+    const availableModules = modules.filter(m => hasPermission(m.permission) || hasPermission('modulo_admin'));
 
     return (
         <div className="app-shell">

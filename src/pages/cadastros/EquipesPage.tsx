@@ -65,6 +65,7 @@ export function EquipesPage() {
     };
 
     const handleUpdate = async (id: string, data: EquipeFormData) => {
+        setIsLoading(true);
         setError(null);
         try {
             const atualizada = await equipeService.atualizar(id, data);
@@ -74,6 +75,8 @@ export function EquipesPage() {
             setError('Erro ao atualizar equipe.');
             toast.error('Erro ao atualizar equipe.');
             throw new Error('Atualização falhou');
+        } finally {
+            setIsLoading(false);
         }
     };
 

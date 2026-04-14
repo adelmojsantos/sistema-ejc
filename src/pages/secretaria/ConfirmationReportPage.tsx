@@ -51,7 +51,7 @@ export function ConfirmationReportPage() {
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [participacoes, setParticipacoes] = useState<InscricaoEnriched[]>([]);
-  const [equipeConfirmacoes, setEquipeConfirmacoes] = useState<any[]>([]);
+  const [equipeConfirmacoes, setEquipeConfirmacoes] = useState<{ equipe_id: string; confirmado_por: string; confirmado_em: string; profiles?: { email?: string } | null }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [modalData, setModalData] = useState<{ title: string; coordinators: TeamConfirmationStatus['coordenadores'] } | null>(null);
@@ -115,7 +115,7 @@ export function ConfirmationReportPage() {
         total_membros: totalMembers,
         progresso,
         confirmado_por: teamConf?.profiles?.email || 'Coordenador',
-        confirmado_em: teamConf?.confirmada_em || undefined,
+        confirmado_em: teamConf?.confirmado_em || undefined,
         coordenadores: coordinators.map(c => ({
           nome: c.pessoas?.nome_completo || 'Sem nome',
           email: c.pessoas?.email || null,
@@ -128,7 +128,7 @@ export function ConfirmationReportPage() {
     return statuses
       .filter(s => s.equipe_nome.toLowerCase().includes(searchTerm.toLowerCase()))
       .sort((a, b) => a.equipe_nome.localeCompare(b.equipe_nome));
-  }, [equipes, participacoes, searchTerm]);
+  }, [equipes, participacoes, searchTerm, equipeConfirmacoes]);
 
   const stats = useMemo(() => {
     const total = teamStatuses.length;

@@ -33,6 +33,7 @@ export function InscricaoForm({ initialData, onSubmit, onCancel, isLoading = fal
     const [encontros, setEncontros] = useState<Encontro[]>([]);
     const [equipes, setEquipes] = useState<Equipe[]>([]);
     const [isDataLoading, setIsDataLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         async function loadData() {
@@ -52,10 +53,16 @@ export function InscricaoForm({ initialData, onSubmit, onCancel, isLoading = fal
         loadData();
     }, []);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!form.pessoa_id || !form.encontro_id) return;
-        onSubmit(form);
+        
+        setIsSubmitting(true);
+        try {
+            await onSubmit(form);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     if (isDataLoading) return <div className="empty-state">Carregando opções...</div>;
@@ -142,8 +149,8 @@ export function InscricaoForm({ initialData, onSubmit, onCancel, isLoading = fal
                     <X size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
                     Cancelar
                 </button>
-                <button type="submit" disabled={isLoading}>
-                    {isLoading ? (
+                <button type="submit" disabled={isLoading || isSubmitting}>
+                    {isLoading || isSubmitting ? (
                         <><Loader size={16} className="animate-spin" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Salvando...</>
                     ) : (
                         <><Save size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Salvar Vínculo</>

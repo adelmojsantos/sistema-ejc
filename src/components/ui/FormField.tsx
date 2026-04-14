@@ -37,7 +37,7 @@ export function FormField(props: FormFieldProps) {
                     id={id}
                     placeholder={rest.placeholder || " "}
                     className={`form-input floating-input ${hasIcon ? 'form-input--with-icon' : ''} ${className || ''} ${error ? ' input-error' : ''}`}
-                    {...((rest as any))}
+                    {...(rest as InputHTMLAttributes<HTMLInputElement> & TextareaHTMLAttributes<HTMLTextAreaElement>)}
                 />
                 <label className={`form-label floating-label ${hasIcon ? 'floating-label--icon' : ''}`} htmlFor={id}>
                     {label}

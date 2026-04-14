@@ -20,7 +20,7 @@ export function ConfiguracoesExportacaoPage() {
         config_telas: {}
     });
     const [encontros, setEncontros] = useState<Encontro[]>([]);
-    const [existingConfigs, setExistingConfigs] = useState<any[]>([]);
+    const [existingConfigs, setExistingConfigs] = useState<(ExportConfig & { encontros: { nome: string, tema: string } | null })[]>([]);
     const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
     const [loading, setLoading] = useState(true);
     const [loadingConfig, setLoadingConfig] = useState(false);
@@ -338,7 +338,7 @@ export function ConfiguracoesExportacaoPage() {
                                             <td style={{ padding: '0.75rem' }}>
                                                 <button 
                                                     onClick={() => {
-                                                        setSelectedEncontroId(c.encontro_id);
+                                                        setSelectedEncontroId(c.encontro_id || '');
                                                         window.scrollTo({ top: 0, behavior: 'smooth' });
                                                     }}
                                                     className="btn-text"

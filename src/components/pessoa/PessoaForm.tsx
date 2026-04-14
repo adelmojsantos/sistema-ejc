@@ -85,6 +85,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
 
     const [cep, setCep] = useState('');
     const [isSearchingCep, setIsSearchingCep] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<FormErrors>({});
 
     const handleChange = (field: keyof PessoaFormData, value: string | boolean) => {
@@ -132,30 +133,35 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
             return;
         }
 
-        const payload: PessoaFormData = {
-            ...form,
-            cpf: form.cpf ? form.cpf.replace(/\D/g, '') : null,
-            email: form.email ? form.email.trim() : null,
-            telefone: form.telefone.replace(/\D/g, ''),
-            data_nascimento: form.data_nascimento || null,
-            telefone_pai: form.telefone_pai ? form.telefone_pai.replace(/\D/g, '') : null,
-            telefone_mae: form.telefone_mae ? form.telefone_mae.replace(/\D/g, '') : null,
-            outros_contatos: form.outros_contatos ? form.outros_contatos.trim() : null,
-            qual_paroquia_ejc: form.fez_ejc_outra_paroquia ? form.qual_paroquia_ejc : null,
-            latitude: form.latitude || null,
-            longitude: form.longitude || null,
-        };
+        setIsSubmitting(true);
+        try {
+            const payload: PessoaFormData = {
+                ...form,
+                cpf: form.cpf ? form.cpf.replace(/\D/g, '') : null,
+                email: form.email ? form.email.trim() : null,
+                telefone: form.telefone.replace(/\D/g, ''),
+                data_nascimento: form.data_nascimento || null,
+                telefone_pai: form.telefone_pai ? form.telefone_pai.replace(/\D/g, '') : null,
+                telefone_mae: form.telefone_mae ? form.telefone_mae.replace(/\D/g, '') : null,
+                outros_contatos: form.outros_contatos ? form.outros_contatos.trim() : null,
+                qual_paroquia_ejc: form.fez_ejc_outra_paroquia ? form.qual_paroquia_ejc : null,
+                latitude: form.latitude || null,
+                longitude: form.longitude || null,
+            };
 
-        // Silent geocoding before submitting — tries multiple address variants
-        if (form.endereco && (!form.latitude || !form.longitude)) {
-            const coords = await geocodeWithFallback(form);
-            if (coords) {
-                payload.latitude = coords[0];
-                payload.longitude = coords[1];
+            // Silent geocoding before submitting — tries multiple address variants
+            if (form.endereco && (!form.latitude || !form.longitude)) {
+                const coords = await geocodeWithFallback(form);
+                if (coords) {
+                    payload.latitude = coords[0];
+                    payload.longitude = coords[1];
+                }
             }
-        }
 
-        await onSubmit(payload);
+            await onSubmit(payload);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -378,8 +384,8 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                     <X size={16} />
                     Cancelar
                 </button>
-                <button type="submit" disabled={isLoading}>
-                    {isLoading ? (
+                <button type="submit" disabled={isLoading || isSubmitting}>
+                    {isLoading || isSubmitting ? (
                         <><Loader size={16} className="animate-spin" /> Salvando...</>
                     ) : (
                         <>

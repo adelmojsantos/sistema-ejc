@@ -1,3 +1,5 @@
+import type { Pessoa } from './pessoa';
+
 export type VisitaStatus = 'pendente' | 'realizada' | 'ausente' | 'cancelada';
 
 export interface VisitaGrupo {
@@ -25,10 +27,7 @@ export interface VisitaParticipacaoEnriched extends VisitaParticipacao {
     participacoes?: {
         id: string;
         encontro_id: string;
-        pessoas: {
-            nome_completo: string;
-            cpf?: string | null;
-        };
+        pessoas: Pessoa | null;
     };
     visita_grupos?: {
         nome: string;

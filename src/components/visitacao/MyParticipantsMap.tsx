@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import type { VisitaParticipacaoEnriched } from '../../types/visitacao';
 import { CheckCircle2, MapPin, Phone, Car, ChevronRight } from 'lucide-react';
 import { applyJitter } from '../../utils/geocoding';
@@ -61,13 +61,11 @@ interface MyParticipantsMapProps {
 }
 
 export function MyParticipantsMap({ participantes, onSelect }: MyParticipantsMapProps) {
-  const [markers, setMarkers] = useState<any[]>([]);
-
-  useEffect(() => {
-    const mappedParticipants = participantes
-      .filter(v => (v.participacoes as any)?.pessoas?.latitude && (v.participacoes as any)?.pessoas?.longitude)
+  const markers = useMemo(() => {
+    return participantes
+      .filter(v => v.participacoes?.pessoas?.latitude && v.participacoes?.pessoas?.longitude)
       .map(v => {
-        const pessoa = (v.participacoes as any)?.pessoas;
+        const pessoa = v.participacoes?.pessoas;
         let icon = PendingIcon;
         if (v.status === 'realizada') icon = DoneIcon;
         else if (v.status === 'ausente') icon = AbsentIcon;
@@ -84,8 +82,6 @@ export function MyParticipantsMap({ participantes, onSelect }: MyParticipantsMap
           icon
         };
       });
-
-    setMarkers(mappedParticipants);
   }, [participantes]);
 
   const center: [number, number] = markers.length > 0 

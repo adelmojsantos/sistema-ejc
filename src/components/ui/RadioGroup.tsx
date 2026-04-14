@@ -7,7 +7,7 @@ interface RadioGroupProps {
     label?: string;
     options: RadioOption[];
     value: string | boolean;
-    onChange: (value: any) => void;
+    onChange: (value: string | boolean) => void;
     name?: string;
     error?: string;
 }

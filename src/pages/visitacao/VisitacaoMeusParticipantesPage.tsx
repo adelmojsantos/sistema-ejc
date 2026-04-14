@@ -85,7 +85,7 @@ export function VisitacaoMeusParticipantesPage() {
                             : myVinculo.visita_grupos;
 
                         targetGrupoId = myVinculo.grupo_id;
-                        targetGrupoNome = (grupoData as any)?.nome || 'Minha Dupla';
+                        targetGrupoNome = (grupoData as { nome?: string } | null)?.nome || 'Minha Dupla';
 
                         // Set selectedGrupoId only if not already set (initial load)
                         if (isCoordinator && !selectedGrupoId) {
@@ -116,7 +116,7 @@ export function VisitacaoMeusParticipantesPage() {
                         .eq('visitante', false);
 
                     if (error) throw error;
-                    setParticipantes(data || []);
+                    setParticipantes((data as unknown as VisitaParticipacaoEnriched[]) || []);
                 } else {
                     setParticipantes([]);
                 }
@@ -272,7 +272,7 @@ export function VisitacaoMeusParticipantesPage() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {participantes.map((p) => {
                             const status = getStatusInfo(p.status);
-                            const pessoa = (p.participacoes as any)?.pessoas;
+                            const pessoa = p.participacoes?.pessoas;
                             return (
                                 <div key={p.id} className="card card-hover" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1.5rem', transition: 'transform 0.2s' }}>
                                     <div style={{

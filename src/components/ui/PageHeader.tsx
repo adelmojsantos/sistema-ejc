@@ -35,16 +35,14 @@ export function PageHeader({
     <div className="page-header-standard">
       <div className="page-header-top">
         <div className="page-header-left">
-          {(onBack || backPath || true) && (
-            <button 
-              onClick={handleBack} 
-              className="page-header-back-btn"
-              aria-label="Voltar"
-              title="Voltar"
-            >
-              <ChevronLeft size={24} />
-            </button>
-          )}
+          <button 
+            onClick={handleBack} 
+            className="page-header-back-btn"
+            aria-label="Voltar"
+            title="Voltar"
+          >
+            <ChevronLeft size={24} />
+          </button>
           
           <div className="page-header-titles">
             {subtitle && <span className="page-header-subtitle">{subtitle}</span>}
