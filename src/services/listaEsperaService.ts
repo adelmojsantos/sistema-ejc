@@ -153,11 +153,18 @@ export const listaEsperaService = {
                 data_nascimento: dadosPessoa.data_nascimento,
                 email: dadosPessoa.email,
                 telefone: dadosPessoa.telefone,
-                paroquia: dadosPessoa.paroquia,
                 comunidade: dadosPessoa.comunidade,
-                restricao_alimentar: dadosPessoa.restricao_alimentar,
-                medicacao: dadosPessoa.medicacao,
-                tipo_sanguineo: dadosPessoa.tipo_sanguineo
+                endereco: dadosPessoa.endereco,
+                numero: dadosPessoa.numero,
+                bairro: dadosPessoa.bairro,
+                cidade: dadosPessoa.cidade,
+                cep: dadosPessoa.cep,
+                telefone_pai: dadosPessoa.telefone_pai,
+                telefone_mae: dadosPessoa.telefone_mae,
+                nome_pai: dadosPessoa.nome_pai,
+                nome_mae: dadosPessoa.nome_mae,
+                fez_ejc_outra_paroquia: dadosPessoa.fez_ejc_outra_paroquia,
+                qual_paroquia_ejc: dadosPessoa.qual_paroquia_ejc
             });
 
             // Vincula inscrição no Encontro
