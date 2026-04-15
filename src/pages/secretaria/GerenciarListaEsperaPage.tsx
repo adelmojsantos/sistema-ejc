@@ -1,4 +1,4 @@
-import { Calendar, Check, CheckCircle, CheckCircle2, ChevronRight, Mail, MapPin, Phone, Search, Users, X } from 'lucide-react';
+import { Calendar, CheckCircle, CheckCircle2, ChevronRight, Mail, MapPin, Phone, Search, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -101,11 +101,11 @@ export function GerenciarListaEsperaPage() {
             const { id, created_at, status, ...formData } = entry;
             await listaEsperaService.efetivarListaEspera(id, formData);
             toast.success(`Inscrição de ${entry.nome_completo} efetivada com sucesso!`);
-            
+
             setShowDuplicateModal(false);
             setDuplicateEntry(null);
             setDuplicateCandidates([]);
-            
+
             await loadData();
 
             const newSet = new Set(selectedIds);
@@ -125,16 +125,16 @@ export function GerenciarListaEsperaPage() {
             const { id, created_at, status, ...formData } = duplicateEntry;
             await listaEsperaService.vincularPessoaExistente(id, pessoa.id, formData);
             toast.success(`${duplicateEntry.nome_completo} vinculado e efetivado com sucesso!`);
-            
+
             setShowDuplicateModal(false);
             setDuplicateEntry(null);
             setDuplicateCandidates([]);
 
             await loadData();
         } catch (err: any) {
-             toast.error(`Erro: ${err.message}`);
+            toast.error(`Erro: ${err.message}`);
         } finally {
-             setIsProcessing(false);
+            setIsProcessing(false);
         }
     };
 
@@ -144,16 +144,16 @@ export function GerenciarListaEsperaPage() {
         try {
             await listaEsperaService.recusarListaEspera(duplicateEntry.id);
             toast.success(`Inscrição online recusada e removida.`);
-            
+
             setShowDuplicateModal(false);
             setDuplicateEntry(null);
             setDuplicateCandidates([]);
 
             await loadData();
         } catch (err: any) {
-             toast.error(`Erro ao remover: ${err.message}`);
+            toast.error(`Erro ao remover: ${err.message}`);
         } finally {
-             setIsProcessing(false);
+            setIsProcessing(false);
         }
     };
 
@@ -327,7 +327,7 @@ export function GerenciarListaEsperaPage() {
                                                             </div>
                                                             {isPriority && (
                                                                 <span className="member-badge-pill priority" style={{ marginTop: '4px' }}>
-                                                                    <Check size={8} /> Prioridade
+                                                                    Outra Paróquia
                                                                 </span>
                                                             )}
                                                         </div>
@@ -349,7 +349,7 @@ export function GerenciarListaEsperaPage() {
                                                     <span className="member-name">{entry.nome_completo}</span>
                                                     {isPriority && (
                                                         <span className="member-badge-pill priority">
-                                                            <Check size={10} /> Outra Paróquia
+                                                            Outra Paróquia
                                                         </span>
                                                     )}
                                                 </div>
@@ -400,7 +400,7 @@ export function GerenciarListaEsperaPage() {
             <ConfirmDialog
                 isOpen={showBatchConfirm}
                 title="Efetivar Inscrições em Lote"
-                message={<>Tem certeza que deseja marcar <strong>{selectedIds.size} inscrições</strong> como efetivadas?<br /><br />Esta ação moverá os selecionados da Lista de Espera diretamente para a base de Participantes deste encontro.<br /><br /><strong style={{color: 'var(--danger-text)'}}>Atenção:</strong> Cadastros com suspeita de duplicidade serão ignorados pelo processo em lote.</>}
+                message={<>Tem certeza que deseja marcar <strong>{selectedIds.size} inscrições</strong> como efetivadas?<br /><br />Esta ação moverá os selecionados da Lista de Espera diretamente para a base de Participantes deste encontro.<br /><br /><strong style={{ color: 'var(--danger-text)' }}>Atenção:</strong> Cadastros com suspeita de duplicidade serão ignorados pelo processo em lote.</>}
                 confirmText="Sim, Efetivar Todos"
                 cancelText="Cancelar"
                 onConfirm={handleEfetivarLote}
@@ -452,13 +452,13 @@ export function GerenciarListaEsperaPage() {
                                             </div>
                                         )}
                                     </div>
-                                    <button 
-                                        className="btn-primary" 
+                                    <button
+                                        className="btn-primary"
                                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}
                                         onClick={() => handleVincularExistente(c)}
                                         disabled={isProcessing}
                                     >
-                                        <CheckCircle size={16}/> Vincular a este
+                                        <CheckCircle size={16} /> Vincular a este
                                     </button>
                                 </div>
                             ))}
@@ -471,13 +471,13 @@ export function GerenciarListaEsperaPage() {
                                 style={{ color: 'var(--danger-text)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                                 disabled={isProcessing}
                             >
-                                <X size={16}/> Recusar Inscrição Online
+                                <X size={16} /> Recusar Inscrição Online
                             </button>
 
                             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                                 <button className="btn-secondary" onClick={() => setShowDuplicateModal(false)} disabled={isProcessing}>Cancelar</button>
-                                <button 
-                                    className="btn-primary" 
+                                <button
+                                    className="btn-primary"
                                     style={{ backgroundColor: 'var(--text-color)', color: 'var(--bg-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                     onClick={() => handleEfetivarSingle(duplicateEntry, true)}
                                     disabled={isProcessing}

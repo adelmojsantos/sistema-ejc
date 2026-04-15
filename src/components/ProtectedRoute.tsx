@@ -13,7 +13,11 @@ export function ProtectedRoute({
     requiredPermissions,
     allowTemporaryPassword = false
 }: ProtectedRouteProps) {
-    const { user, profile, mustChangePassword, profileLoading, hasPermission } = useAuth();
+    const { user, profile, loading, mustChangePassword, profileLoading, hasPermission } = useAuth();
+
+    if (loading) {
+        return null;
+    }
 
     if (!user) {
         return <Navigate to="/" replace />;
