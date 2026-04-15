@@ -5,11 +5,12 @@ import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { geocodeWithFallback } from '../../utils/geocoding';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -42,6 +43,8 @@ export function SecretariaParticipantesPage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showConfirmGeoModal, setShowConfirmGeoModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
+  const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
+  const [isUnlinking, setIsUnlinking] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [pendingGeoCount, setPendingGeoCount] = useState(0);
   const [geoProgressItems, setGeoProgressItems] = useState<GeoProgressItem[]>([]);
@@ -178,6 +181,20 @@ export function SecretariaParticipantesPage() {
     }
   };
 
+  const handleUnlink = async () => {
+    if (!participantToUnlink) return;
+    setIsUnlinking(true);
+    try {
+      await inscricaoService.desvincularDoEncontro(participantToUnlink.id);
+      toast.success(`${participantToUnlink.pessoas?.nome_completo} desvinculado(a) com sucesso.`);
+      setParticipantToUnlink(null);
+      await loadParticipantes();
+    } catch {
+      toast.error('Erro ao desvincular participante.');
+    } finally {
+      setIsUnlinking(false);
+    }
+  };
 
   const getExportData = () => {
     return filteredParticipantes.map((p, idx) => ({
@@ -308,16 +325,25 @@ export function SecretariaParticipantesPage() {
 
               <div className="form-group" style={{ marginBottom: 0, flex: 2 }}>
                 <label className="form-label">Buscar por Nome</label>
-                <div style={{ position: 'relative' }}>
-                  <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Search size={18} style={{ position: 'absolute', left: '12px', opacity: 0.4 }} />
                   <input
                     type="text"
                     className="form-input"
                     placeholder="Digite o nome..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{ paddingLeft: '2.5rem' }}
+                    style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem', width: '100%' }}
                   />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      style={{ position: 'absolute', right: '12px', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5, display: 'flex', alignItems: 'center', padding: 0 }}
+                      title="Limpar busca"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -344,6 +370,9 @@ export function SecretariaParticipantesPage() {
                       <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Contato</th>
                       <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Endereço / Bairro</th>
                       <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6, textAlign: 'center' }}>Mapa</th>
+                      {selectedEncontro?.ativo && (
+                        <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6, textAlign: 'center', width: '80px' }}>Ações</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -398,6 +427,18 @@ export function SecretariaParticipantesPage() {
                               <MapPin size={18} style={{ margin: '0 auto' }} />
                             </div>
                           </td>
+                          {selectedEncontro?.ativo && (
+                            <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
+                                className="icon-btn action-btn-hover"
+                                style={{ color: 'var(--danger-text)', margin: '0 auto', display: 'flex' }}
+                                title="Desvincular do encontro"
+                              >
+                                <UserMinus size={18} />
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))
                     )}
@@ -529,6 +570,24 @@ export function SecretariaParticipantesPage() {
         </div>
       </Modal>
 
+      <ConfirmDialog
+        isOpen={!!participantToUnlink}
+        title="Desvincular Participante"
+        message={
+          <>
+            Tem certeza que deseja desvincular o(a) participante <strong style={{ color: 'var(--text-color)' }}>{participantToUnlink?.pessoas?.nome_completo}</strong> deste encontro?
+            <br /><br />
+            Esta ação <strong style={{ color: 'var(--danger-text)' }}>apenas removerá o vínculo</strong> da pessoa com este encontro específico. O cadastro da pessoa no sistema de pessoas será mantido intacto.
+          </>
+        }
+        confirmText="Sim, desvincular"
+        cancelText="Cancelar"
+        onConfirm={handleUnlink}
+        onCancel={() => setParticipantToUnlink(null)}
+        isLoading={isUnlinking}
+        isDestructive={true}
+      />
+
       <style>{`
         .dropdown-item-custom {
           width: 100%;
@@ -560,6 +619,9 @@ export function SecretariaParticipantesPage() {
         .icon-box-excel {
           background-color: rgba(16, 185, 129, 0.1);
           color: #10b981;
+        }
+        .action-btn-hover:hover {
+          background-color: rgba(239, 68, 68, 0.1);
         }
       `}</style>
     </div>

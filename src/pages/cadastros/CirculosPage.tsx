@@ -111,7 +111,7 @@ export function CirculosPage() {
                 <Search size={18} style={{ opacity: 0.5 }} />
                 <input
                     className="search-input"
-                    type="search"
+                    type="text"
                     placeholder="Buscar círculo..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}

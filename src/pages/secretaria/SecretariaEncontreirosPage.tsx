@@ -1,8 +1,9 @@
-import { ChevronLeft, Download, FileSpreadsheet, FileText, Filter, Loader, Search, Shield, User, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ChevronLeft, Download, FileSpreadsheet, FileText, Filter, Loader, Search, Shield, User, Users, UserMinus } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '../../components/Header';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
@@ -30,6 +31,8 @@ export function SecretariaEncontreirosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTeamId, setFilterTeamId] = useState<string>('all');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
+  const [isUnlinking, setIsUnlinking] = useState(false);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -50,21 +53,39 @@ export function SecretariaEncontreirosPage() {
     loadInitialData();
   }, []);
 
-  useEffect(() => {
+  const loadParticipantes = useCallback(async () => {
     if (!selectedEncontroId) return;
-    const loadParticipantes = async () => {
-      setIsLoading(true);
-      try {
-        const data = await inscricaoService.listarPorEncontro(selectedEncontroId);
-        setParticipantes(data.filter(p => !p.participante));
-      } catch {
-        toast.error('Erro ao carregar encontreiros.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadParticipantes();
+    setIsLoading(true);
+    try {
+      const data = await inscricaoService.listarPorEncontro(selectedEncontroId);
+      setParticipantes(data.filter(p => !p.participante));
+    } catch {
+      toast.error('Erro ao carregar encontreiros.');
+    } finally {
+      setIsLoading(false);
+    }
   }, [selectedEncontroId]);
+
+  useEffect(() => {
+    loadParticipantes();
+  }, [loadParticipantes]);
+
+  const handleUnlink = async () => {
+    if (!participantToUnlink) return;
+    setIsUnlinking(true);
+    try {
+      await inscricaoService.desvincularDoEncontro(participantToUnlink.id);
+      toast.success(`${participantToUnlink.pessoas?.nome_completo} desvinculado(a) com sucesso.`);
+      setParticipantToUnlink(null);
+      await loadParticipantes();
+    } catch {
+      toast.error('Erro ao desvincular encontreiro.');
+    } finally {
+      setIsUnlinking(false);
+    }
+  };
+
+  const selectedEncontro = encontros.find(e => e.id === selectedEncontroId);
 
   const filteredParticipantes = participantes.filter(p => {
     const matchesSearch = p.pessoas?.nome_completo?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -206,10 +227,13 @@ export function SecretariaEncontreirosPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ backgroundColor: 'rgba(0,0,0,0.02)', textAlign: 'left' }}>
-                      <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Trabalhador</th>
+                      <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Nome</th>
                       <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Contato</th>
                       <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Equipe</th>
                       <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Função</th>
+                      {selectedEncontro?.ativo && (
+                        <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6, textAlign: 'center', width: '80px' }}>Ações</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -271,6 +295,18 @@ export function SecretariaEncontreirosPage() {
                               <span style={{ opacity: 0.6, fontSize: '0.85rem' }}>Membro</span>
                             )}
                           </td>
+                          {selectedEncontro?.ativo && (
+                            <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
+                                className="icon-btn action-btn-hover"
+                                style={{ color: 'var(--danger-text)', margin: '0 auto', display: 'flex' }}
+                                title="Desvincular do encontro"
+                              >
+                                <UserMinus size={18} />
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))
                     )}
@@ -281,6 +317,24 @@ export function SecretariaEncontreirosPage() {
           )}
         </div>
       </main>
+
+      <ConfirmDialog
+        isOpen={!!participantToUnlink}
+        title="Desvincular Encontreiro"
+        message={
+          <>
+            Tem certeza que deseja desvincular o(a) encontreiro(a) <strong style={{ color: 'var(--text-color)' }}>{participantToUnlink?.pessoas?.nome_completo}</strong> deste encontro?
+            <br /><br />
+            Esta ação <strong style={{ color: 'var(--danger-text)' }}>apenas removerá o vínculo</strong> da pessoa com este encontro específico. O cadastro da pessoa no sistema de pessoas será mantido intacto.
+          </>
+        }
+        confirmText="Sim, desvincular"
+        cancelText="Cancelar"
+        onConfirm={handleUnlink}
+        onCancel={() => setParticipantToUnlink(null)}
+        isLoading={isUnlinking}
+        isDestructive={true}
+      />
 
       <style>{`
         .dropdown-item-custom {
@@ -313,6 +367,9 @@ export function SecretariaEncontreirosPage() {
         .icon-box-excel {
           background-color: rgba(16, 185, 129, 0.1);
           color: #10b981;
+        }
+        .action-btn-hover:hover {
+          background-color: rgba(239, 68, 68, 0.1);
         }
       `}</style>
     </div>

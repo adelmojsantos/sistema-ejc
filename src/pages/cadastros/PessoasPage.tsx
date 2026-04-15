@@ -145,9 +145,9 @@ export function PessoasPage() {
         setIsDeleting(true);
         try {
             await pessoaService.excluir(deleteTarget.id);
-            setPessoas((prev) => prev.filter((p) => p.id !== deleteTarget.id));
             setDeleteTarget(null);
             toast.success('Cadastro excluído com sucesso!');
+            await load(debouncedSearch, page, selectedEncontroId);
         } catch (err: unknown) {
             const errorObj = err as { code?: string };
             if (errorObj.code === '23503') {
@@ -208,7 +208,7 @@ export function PessoasPage() {
                         <Search size={18} style={{ color: 'var(--text-color)', opacity: 0.5, flexShrink: 0 }} />
                         <input
                             className="search-input"
-                            type="search"
+                            type="text"
                             placeholder="Buscar por nome, e-mail, telefone ou comunidade…"
                             value={search}
                             onChange={(e) => {

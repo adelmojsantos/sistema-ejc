@@ -66,6 +66,16 @@ export const inscricaoService = {
         if (error) throw error;
     },
 
+    /** Remove o vínculo de uma pessoa com um encontro (apaga a participação). */
+    async desvincularDoEncontro(participacaoId: string): Promise<void> {
+        const { error } = await supabase
+            .from(TABLE)
+            .delete()
+            .eq('id', participacaoId);
+
+        if (error) throw error;
+    },
+
     async confirmarDados(id: string): Promise<Inscricao> {
         const { data, error } = await supabase
             .from(TABLE)

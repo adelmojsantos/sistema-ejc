@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { Search, Calendar as CalIcon, Plus } from 'lucide-react';
+import { Search, Calendar as CalIcon, Plus, X } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { EncontroRow } from '../../components/encontro/EncontroRow';
 import { EncontroForm } from '../../components/encontro/EncontroForm';
@@ -143,11 +143,20 @@ export function EncontrosPage() {
                         <Search size={18} style={{ opacity: 0.5 }} />
                         <input
                             className="search-input"
-                            type="search"
+                            type="text"
                             placeholder="Buscar por nome, tema ou local..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
+                        {search && (
+                            <button
+                                onClick={() => setSearch('')}
+                                style={{ background: 'none', border: 'none', padding: '0.25rem', cursor: 'pointer', color: 'var(--text-color)', opacity: 0.5 }}
+                                aria-label="Limpar busca"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
                     </div>
 
                     {isFetching && (

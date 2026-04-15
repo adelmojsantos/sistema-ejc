@@ -1,4 +1,4 @@
-import { Calendar, CheckCircle2, Heart, Loader, MapPin, Send, ShieldCheck, User, Users } from 'lucide-react';
+import { Calendar, Check, CheckCircle2, Heart, Loader, MapPin, Send, ShieldCheck, User, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
@@ -251,9 +251,9 @@ export default function InscricaoPublicaPage() {
                                     </span>
                                     <h3>Tudo certo!</h3>
                                     <p>
-                                        Garantimos a sua vaga na nossa lista principal.
+                                        Parabéns! Sua vaga na lista principal já está garantida.
                                         <br />
-                                        Nossa equipe das secretarias e visitas entrará em contato em breve para oficializar tudo!
+                                        Nossa equipe entrará em contato em breve para oficilizar tudo. <br /> Aguarde!
                                     </p>
                                     <Link to="/" className="landing-button landing-button--secondary" style={{ marginTop: '1.5rem' }}>
                                         Voltar à Página Inicial
@@ -451,7 +451,7 @@ export default function InscricaoPublicaPage() {
                                     <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                         <label style={{ color: 'var(--text-color)', fontWeight: 600, fontSize: '0.95rem' }}>Já fez EJC em outra paróquia? *</label>
                                         <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', background: 'rgba(255,255,255,0.05)', padding: '0.75rem 1rem', borderRadius: '8px', border: form.fez_ejc_outra_paroquia === false ? '1px solid var(--primary-color)' : '1px solid transparent', transition: 'all 0.2s ease' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', background: 'rgba(255,255,255,0.05)', padding: '0.75rem 1rem', borderRadius: '8px', border: form.fez_ejc_outra_paroquia === false ? '1px solid var(--primary-color)' : '1px solid var(--landing-surface-soft)', transition: 'all 0.2s ease' }}>
                                                 <input
                                                     type="radio"
                                                     name="fez_ejc"
@@ -461,7 +461,7 @@ export default function InscricaoPublicaPage() {
                                                 />
                                                 <span>Não fiz EJC</span>
                                             </label>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', background: 'rgba(255,255,255,0.05)', padding: '0.75rem 1rem', borderRadius: '8px', border: form.fez_ejc_outra_paroquia === true ? '1px solid var(--primary-color)' : '1px solid transparent', transition: 'all 0.2s ease' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', background: 'rgba(255,255,255,0.05)', padding: '0.75rem 1rem', borderRadius: '8px', border: form.fez_ejc_outra_paroquia === true ? '1px solid var(--primary-color)' : '1px solid var(--landing-surface-soft)', transition: 'all 0.2s ease' }}>
                                                 <input
                                                     type="radio"
                                                     name="fez_ejc"
@@ -493,20 +493,20 @@ export default function InscricaoPublicaPage() {
                                     {/* Consentimento LGPD */}
                                     <div style={{
                                         display: 'flex', flexDirection: 'column', gap: '0.4rem',
-                                        padding: '0.875rem 1rem', marginTop: '1.5rem',
+                                        padding: '0.875rem 1rem', marginTop: '0.5rem',
                                         background: 'rgba(255,255,255,0.07)',
-                                        border: `1px solid ${errors.consent ? '#f87171' : 'rgba(255,255,255,0.18)'}`,
+                                        border: `1px solid ${errors.consent ? '#f87171' : 'rgba(131, 16, 16, 0.18)'}`,
                                         borderRadius: '8px',
                                     }}>
-                                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontSize: '0.85rem', lineHeight: 1.5 }}>
                                             <div style={{
-                                                marginTop: '2px', width: '20px', height: '20px', flexShrink: 0,
-                                                borderRadius: '4px', border: `2px solid ${consent ? 'var(--primary-color)' : 'rgba(255,255,255,0.3)'}`,
+                                                width: '20px', height: '20px', flexShrink: 0,
+                                                borderRadius: '4px', border: `2px solid ${consent ? 'var(--primary-color)' : 'rgba(161, 145, 145, 0.3)'}`,
                                                 background: consent ? 'var(--primary-color)' : 'transparent',
                                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                                 transition: 'all 0.2s'
                                             }}>
-                                                {consent && <CheckCircle2 size={14} color="white" strokeWidth={3} />}
+                                                {consent && <Check size={14} color="white" strokeWidth={3} />}
                                             </div>
                                             <input
                                                 type="checkbox"

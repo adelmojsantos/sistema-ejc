@@ -142,14 +142,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(session?.user ?? null);
 
             if (session?.user) {
-                // Carga subsequente: silenciosa, sem mostrar loading
-                loadProfile(session.user.id, false);
+                // Wait for profile info if it hasn't loaded yet (like during a refresh event)
+                const isFirstLoad = !profile;
+                loadProfile(session.user.id, isFirstLoad).finally(() => setLoading(false));
             } else {
                 setProfile(null);
                 setUserParticipacao(null);
+                setLoading(false);
             }
-
-            setLoading(false);
         });
 
         return () => subscription.unsubscribe();

@@ -362,7 +362,7 @@ export function GerenciarListaEsperaPage() {
                                     <span style={{ opacity: 0.6 }}>Nome:</span> <span style={{ fontWeight: 600 }}>{selectedEntry.nome_completo}</span>
                                     <span style={{ opacity: 0.6 }}>CPF:</span> <span>{maskCpf(selectedEntry.cpf)}</span>
                                     <span style={{ opacity: 0.6 }}>E-mail:</span> <span style={{ fontSize: '0.85rem' }}>{selectedEntry.email || '—'}</span>
-                                    <span style={{ opacity: 0.6 }}>Nasc:</span> <span>{selectedEntry.data_nascimento ? `${new Date(selectedEntry.data_nascimento).toLocaleDateString()} (${calculateAge(selectedEntry.data_nascimento)} anos)` : '—'}</span>
+                                    <span style={{ opacity: 0.6 }}>Nasc:</span> <span>{selectedEntry.data_nascimento ? `${new Date(selectedEntry.data_nascimento.includes('T') ? selectedEntry.data_nascimento : `${selectedEntry.data_nascimento}T00:00:00`).toLocaleDateString('pt-BR')} (${calculateAge(selectedEntry.data_nascimento)} anos)` : '—'}</span>
                                 </div>
                             </div>
 

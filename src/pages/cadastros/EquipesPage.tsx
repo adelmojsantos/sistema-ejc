@@ -123,10 +123,20 @@ export function EquipesPage() {
                 <Search size={18} style={{ opacity: 0.5 }} />
                 <input
                     className="search-input"
+                    type="text"
                     placeholder="Buscar equipe..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                 />
+                {search && (
+                    <button
+                        onClick={() => setSearch('')}
+                        style={{ background: 'none', border: 'none', padding: '0.25rem', cursor: 'pointer', color: 'var(--text-color)', opacity: 0.5 }}
+                        aria-label="Limpar busca"
+                    >
+                        <X size={16} />
+                    </button>
+                )}
             </div>
 
             {isAdding && (
