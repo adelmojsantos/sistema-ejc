@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useLoading } from '../../contexts/LoadingContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Header } from '../../components/Header';
 import { encontroService } from '../../services/encontroService';
@@ -33,6 +34,7 @@ function formatTelefone(tel: string | null | undefined) {
 }
 
 export function SecretariaParticipantesPage() {
+  const { setIsLoading: setGlobalLoading } = useLoading();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [encontros, setEncontros] = useState<Encontro[]>([]);
@@ -83,6 +85,10 @@ export function SecretariaParticipantesPage() {
       setIsLoading(false);
     }
   }, [selectedEncontroId]);
+
+  useEffect(() => {
+    setGlobalLoading(isLoading);
+  }, [isLoading, setGlobalLoading]);
 
   useEffect(() => {
     loadParticipantes();

@@ -206,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 hasPermission
             }}
         >
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 }

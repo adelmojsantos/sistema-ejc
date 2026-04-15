@@ -38,6 +38,9 @@ import { VisitacaoPortalPage } from './pages/visitacao/VisitacaoPortalPage';
 import { SecretariaParticipantesPage } from './pages/secretaria/SecretariaParticipantesPage';
 import { SecretariaEncontreirosPage } from './pages/secretaria/SecretariaEncontreirosPage';
 import { GerenciarListaEsperaPage } from './pages/secretaria/GerenciarListaEsperaPage';
+import { SplashScreen } from './components/ui/SplashScreen';
+import { useEffect } from 'react';
+import { useLoading } from './contexts/LoadingContext';
 
 
 export function PlaceholderPage({ title }: { title: string }) {
@@ -219,14 +222,47 @@ function AnimatedRoutes() {
   );
 }
 
+function MainApp() {
+  const { loading } = useAuth();
+  const { isLoading, setIsLoading } = useLoading();
+
+  // Sync initial auth loading with global loading state
+  useEffect(() => {
+    if (loading) {
+      setIsLoading(true);
+    } else {
+      // Small delay for smooth transition on first load
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, setIsLoading]);
+
+  // Safety timeout for initial mount (max 4s)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [setIsLoading]);
+
+  return (
+    <>
+      <SplashScreen isVisible={isLoading} />
+      <Toaster position="top-right" />
+      <Router>
+        <AnimatedRoutes />
+      </Router>
+    </>
+  );
+}
+
 function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Toaster position="top-right" />
-        <Router>
-          <AnimatedRoutes />
-        </Router>
+        <MainApp />
       </AuthProvider>
     </ThemeProvider>
   );

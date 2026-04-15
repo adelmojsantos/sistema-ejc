@@ -1,5 +1,6 @@
 import { Calendar, Check, CheckCircle2, Heart, Loader, MapPin, Send, ShieldCheck, User, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useLoading } from '../contexts/LoadingContext';
 import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { formatTelefone } from '../utils/cpfUtils';
@@ -18,6 +19,7 @@ import { type ListaEsperaFormData, listaEsperaFormDataVazia } from '../types/lis
 import './LandingPage.css';
 
 export default function InscricaoPublicaPage() {
+    const { setIsLoading: setGlobalLoading } = useLoading();
     const [form, setForm] = useState<ListaEsperaFormData>(listaEsperaFormDataVazia());
 
     const [isLoading, setIsLoading] = useState(true);
@@ -30,6 +32,10 @@ export default function InscricaoPublicaPage() {
 
     const [encontro, setEncontro] = useState<Encontro | null>(null);
     const [vagasStatus, setVagasStatus] = useState<'open' | 'closed' | 'full'>('open');
+
+    useEffect(() => {
+        setGlobalLoading(isLoading);
+    }, [isLoading, setGlobalLoading]);
 
     useEffect(() => {
         const loadInitialData = async () => {
@@ -163,11 +169,7 @@ export default function InscricaoPublicaPage() {
     };
 
     if (isLoading) {
-        return (
-            <div className="landing-page" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div className="landing-spinner" style={{ width: '40px', height: '40px', borderTopColor: 'var(--primary-color)' }} />
-            </div>
-        );
+        return null;
     }
 
     return (
