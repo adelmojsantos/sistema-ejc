@@ -1,10 +1,11 @@
-import { MapPin, Pencil, Trash2 } from 'lucide-react';
+import { MapPin, Pencil, Trash2, History } from 'lucide-react';
 import type { Pessoa } from '../../types/pessoa';
 
 interface PessoaCardProps {
     pessoa: Pessoa;
     onEdit: (pessoa: Pessoa) => void;
     onDelete: (pessoa: Pessoa) => void;
+    onHistory?: (pessoa: Pessoa) => void;
 }
 
 function formatTelefone(tel: string | null | undefined) {
@@ -46,7 +47,7 @@ function formatAddress(p: Pessoa) {
     }
 }
 
-export function PessoaCard({ pessoa, onEdit, onDelete }: PessoaCardProps) {
+export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardProps) {
     const { fullAddress, partAddress } = formatAddress(pessoa);
     const mapsUrl = fullAddress !== 'Endereço não informado'
         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${fullAddress}, Brazil`)}`
@@ -103,6 +104,16 @@ export function PessoaCard({ pessoa, onEdit, onDelete }: PessoaCardProps) {
 
             {/* Actions */}
             <div className="pessoa-row-actions">
+                {onHistory && (
+                    <button
+                        className="icon-btn"
+                        onClick={() => onHistory(pessoa)}
+                        title="Ver Histórico"
+                        aria-label="Ver histórico"
+                    >
+                        <History size={15} style={{ color: 'var(--primary-color)' }} />
+                    </button>
+                )}
                 <button
                     className="icon-btn"
                     onClick={() => onEdit(pessoa)}

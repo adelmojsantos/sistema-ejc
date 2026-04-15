@@ -142,12 +142,69 @@ export const listaEsperaService = {
         }
     },
 
-    async efetivarEmLote(entries: ListaEsperaEntry[]): Promise<{success: number, fails: number}> {
+    async vincularPessoaExistente(preId: string, pessoaOriginalId: string, formData: Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>): Promise<void> {
+        try {
+            const { encontro_id, criado_em, ...dadosPessoa } = formData as any;
+            
+            // O usuário autorizou atualizar os dados originais no banco
+            await pessoaService.atualizar(pessoaOriginalId, {
+                nome_completo: dadosPessoa.nome_completo,
+                cpf: dadosPessoa.cpf,
+                data_nascimento: dadosPessoa.data_nascimento,
+                email: dadosPessoa.email,
+                telefone: dadosPessoa.telefone,
+                paroquia: dadosPessoa.paroquia,
+                comunidade: dadosPessoa.comunidade,
+                restricao_alimentar: dadosPessoa.restricao_alimentar,
+                medicacao: dadosPessoa.medicacao,
+                tipo_sanguineo: dadosPessoa.tipo_sanguineo
+            });
+
+            // Vincula inscrição no Encontro
+            await inscricaoService.criar({
+                pessoa_id: pessoaOriginalId,
+                encontro_id: encontro_id,
+                participante: true,
+                equipe_id: null,
+                coordenador: false,
+                dados_confirmados: true,
+                confirmado_em: new Date().toISOString(),
+                origem: 'online'
+            });
+
+            // Atualiza a flag na lista de espera
+            await this.updateStatus(preId, 'convertido');
+        } catch (error) {
+            console.error('Erro ao vincular pessoa existente', error);
+            throw error;
+        }
+    },
+
+    async recusarListaEspera(id: string): Promise<void> {
+        const { error } = await supabase
+            .from('lista_espera')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error refusing waitlist:', error);
+            throw error;
+        }
+    },
+
+    async efetivarEmLote(entries: ListaEsperaEntry[]): Promise<{success: number, fails: number, suspicions: number}> {
         let success = 0;
         let fails = 0;
+        let suspicions = 0;
         
         for(let entry of entries) {
             try {
+                const duplicatas = await pessoaService.buscarPorSemelhanca(entry.nome_completo, entry.cpf);
+                if (duplicatas && duplicatas.length > 0) {
+                    suspicions++;
+                    continue; // Pula este para não criar duplicado em lote
+                }
+
                 // Montar o objeto para não interferir na assinatura de Pessoa (vamos desmembrar os campos)
                 const { id, created_at, status, ...formData } = entry;
                 
@@ -159,6 +216,6 @@ export const listaEsperaService = {
             }
         }
         
-        return { success, fails };
+        return { success, fails, suspicions };
     }
 };

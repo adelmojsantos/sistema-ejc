@@ -7,8 +7,10 @@ import { Modal } from '../../components/ui/Modal';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { encontroService } from '../../services/encontroService';
 import { listaEsperaService } from '../../services/listaEsperaService';
+import { pessoaService } from '../../services/pessoaService';
 import type { Encontro } from '../../types/encontro';
 import type { ListaEsperaEntry } from '../../types/listaEspera';
+import type { Pessoa } from '../../types/pessoa';
 import { formatTelefone, maskCpf, maskTelefone } from '../../utils/cpfUtils';
 import { calculateAge } from '../../utils/dateUtils';
 
@@ -27,6 +29,11 @@ export function GerenciarListaEsperaPage() {
     const [showBatchConfirm, setShowBatchConfirm] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<ListaEsperaEntry | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+
+    // Duplicate Check Modal Data
+    const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+    const [duplicateEntry, setDuplicateEntry] = useState<ListaEsperaEntry | null>(null);
+    const [duplicateCandidates, setDuplicateCandidates] = useState<Pessoa[]>([]);
 
     useEffect(() => {
         loadData();
@@ -75,14 +82,30 @@ export function GerenciarListaEsperaPage() {
         setSelectedIds(newSet);
     };
 
-    const handleEfetivarSingle = async (entry: ListaEsperaEntry) => {
+    const handleEfetivarSingle = async (entry: ListaEsperaEntry, ignoreDuplicates = false) => {
         if (isProcessing) return;
         setIsProcessing(true);
 
         try {
+            if (!ignoreDuplicates) {
+                const duplicates = await pessoaService.buscarPorSemelhanca(entry.nome_completo, entry.cpf);
+                if (duplicates && duplicates.length > 0) {
+                    setDuplicateEntry(entry);
+                    setDuplicateCandidates(duplicates);
+                    setShowDuplicateModal(true);
+                    setIsProcessing(false);
+                    return;
+                }
+            }
+
             const { id, created_at, status, ...formData } = entry;
             await listaEsperaService.efetivarListaEspera(id, formData);
             toast.success(`Inscrição de ${entry.nome_completo} efetivada com sucesso!`);
+            
+            setShowDuplicateModal(false);
+            setDuplicateEntry(null);
+            setDuplicateCandidates([]);
+            
             await loadData();
 
             const newSet = new Set(selectedIds);
@@ -92,6 +115,45 @@ export function GerenciarListaEsperaPage() {
             toast.error(`Erro: ${err.message}`);
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    const handleVincularExistente = async (pessoa: Pessoa) => {
+        if (!duplicateEntry || isProcessing) return;
+        setIsProcessing(true);
+        try {
+            const { id, created_at, status, ...formData } = duplicateEntry;
+            await listaEsperaService.vincularPessoaExistente(id, pessoa.id, formData);
+            toast.success(`${duplicateEntry.nome_completo} vinculado e efetivado com sucesso!`);
+            
+            setShowDuplicateModal(false);
+            setDuplicateEntry(null);
+            setDuplicateCandidates([]);
+
+            await loadData();
+        } catch (err: any) {
+             toast.error(`Erro: ${err.message}`);
+        } finally {
+             setIsProcessing(false);
+        }
+    };
+
+    const handleRecusarOnline = async () => {
+        if (!duplicateEntry || isProcessing) return;
+        setIsProcessing(true);
+        try {
+            await listaEsperaService.recusarListaEspera(duplicateEntry.id);
+            toast.success(`Inscrição online recusada e removida.`);
+            
+            setShowDuplicateModal(false);
+            setDuplicateEntry(null);
+            setDuplicateCandidates([]);
+
+            await loadData();
+        } catch (err: any) {
+             toast.error(`Erro ao remover: ${err.message}`);
+        } finally {
+             setIsProcessing(false);
         }
     };
 
@@ -107,8 +169,8 @@ export function GerenciarListaEsperaPage() {
             const selectedEntries = entries.filter(e => selectedIds.has(e.id));
             const result = await listaEsperaService.efetivarEmLote(selectedEntries);
 
-            if (result.fails > 0) {
-                toast.error(`${result.success} efetuados com sucesso. ${result.fails} falharam.`, { id: idLoadingToast });
+            if (result.fails > 0 || result.suspicions > 0) {
+                toast.error(`${result.success} efetuados com sucesso. ${result.fails} falharam. ${result.suspicions} suspeitas de duplicidade ignoradas.`, { id: idLoadingToast, duration: 8000 });
             } else {
                 toast.success(`Todos os ${result.success} foram efetivados com sucesso!`, { id: idLoadingToast });
             }
@@ -337,13 +399,96 @@ export function GerenciarListaEsperaPage() {
 
             <ConfirmDialog
                 isOpen={showBatchConfirm}
-                title="Aprovação em Lote"
-                message={<>Você está prestes a aprovar e inserir oficialmente <strong>{selectedIds.size} jovens</strong> ao encontro ativo. Eles se tornarão Pessoas e Participantes no sistema.<br /><br />Deseja confirmar?</>}
+                title="Efetivar Inscrições em Lote"
+                message={<>Tem certeza que deseja marcar <strong>{selectedIds.size} inscrições</strong> como efetivadas?<br /><br />Esta ação moverá os selecionados da Lista de Espera diretamente para a base de Participantes deste encontro.<br /><br /><strong style={{color: 'var(--danger-text)'}}>Atenção:</strong> Cadastros com suspeita de duplicidade serão ignorados pelo processo em lote.</>}
                 confirmText="Sim, Efetivar Todos"
                 cancelText="Cancelar"
                 onConfirm={handleEfetivarLote}
                 onCancel={() => setShowBatchConfirm(false)}
             />
+
+            {showDuplicateModal && duplicateEntry && (
+                <Modal isOpen={showDuplicateModal} onClose={() => setShowDuplicateModal(false)} title="Possível Cadastro Duplicado">
+                    <div style={{ padding: '1.5rem', width: '90vw', maxWidth: '800px', maxHeight: '80vh', overflowY: 'auto' }}>
+                        <div style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', border: '1px solid #f59e0b', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem' }}>
+                            <h4 style={{ margin: '0 0 0.5rem 0', color: '#b45309', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                Ação Interrompida
+                            </h4>
+                            <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.9 }}>
+                                Encontramos pessoas já cadastradas no sistema com dados muito semelhantes aos desta inscrição online.
+                                Avalie se trata-se da mesma pessoa retornando ao encontro, para apenas a vincularmos, ou se é um novo encontreiro.
+                            </p>
+                        </div>
+
+                        <div style={{ marginBottom: '1.5rem', backgroundColor: 'var(--bg-color)', padding: '1rem', borderRadius: '8px' }}>
+                            <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', opacity: 0.6, textTransform: 'uppercase' }}>Dados da Nova Inscrição Online</h4>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                                <div><small style={{ opacity: 0.6 }}>Nome</small><div><strong>{duplicateEntry.nome_completo}</strong></div></div>
+                                <div><small style={{ opacity: 0.6 }}>CPF</small><div>{duplicateEntry.cpf || '—'}</div></div>
+                                <div><small style={{ opacity: 0.6 }}>Telefone</small><div>{duplicateEntry.telefone || '—'}</div></div>
+                                <div><small style={{ opacity: 0.6 }}>E-mail</small><div>{duplicateEntry.email || '—'}</div></div>
+                            </div>
+                        </div>
+
+                        <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', opacity: 0.6, textTransform: 'uppercase' }}>Cadastros Similares Existentes</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+                            {duplicateCandidates.map(c => (
+                                <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px', flexWrap: 'wrap', gap: '1rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
+                                        <strong style={{ fontSize: '1rem' }}>{c.nome_completo}</strong>
+                                        <span style={{ fontSize: '0.85rem', opacity: 0.7 }}>CPF: {c.cpf || 'N/I'} • Tel: {c.telefone || 'N/I'} • E-mail: {c.email || 'N/I'}</span>
+                                        {((c as any).participacoes && (c as any).participacoes.length > 0) && (
+                                            <div style={{ marginTop: '0.35rem', fontSize: '0.8rem' }}>
+                                                <strong style={{ opacity: 0.6 }}>Histórico: </strong>
+                                                {(c as any).participacoes.map((part: any, i: number) => {
+                                                    const encontroDesc = part.encontros?.nome || 'Encontro ?';
+                                                    const papelDesc = part.participante ? 'Encontrista' : (part.equipes?.nome || 'Trabalhando');
+                                                    return (
+                                                        <span key={i} style={{ display: 'inline-block', backgroundColor: 'rgba(0,0,0,0.05)', padding: '0.15rem 0.4rem', borderRadius: '4px', marginRight: '0.4rem', marginBottom: '0.2rem' }}>
+                                                            {encontroDesc} - {papelDesc}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button 
+                                        className="btn-primary" 
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}
+                                        onClick={() => handleVincularExistente(c)}
+                                        disabled={isProcessing}
+                                    >
+                                        <CheckCircle size={16}/> Vincular a este
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                            <button
+                                onClick={handleRecusarOnline}
+                                className="btn-secondary"
+                                style={{ color: 'var(--danger-text)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                                disabled={isProcessing}
+                            >
+                                <X size={16}/> Recusar Inscrição Online
+                            </button>
+
+                            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                                <button className="btn-secondary" onClick={() => setShowDuplicateModal(false)} disabled={isProcessing}>Cancelar</button>
+                                <button 
+                                    className="btn-primary" 
+                                    style={{ backgroundColor: 'var(--text-color)', color: 'var(--bg-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                    onClick={() => handleEfetivarSingle(duplicateEntry, true)}
+                                    disabled={isProcessing}
+                                >
+                                    Ignorar e Criar Novo Cadastro
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </Modal>
+            )}
 
             {/* Modal de Detalhes Completo */}
             <Modal

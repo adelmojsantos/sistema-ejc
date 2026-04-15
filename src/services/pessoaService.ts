@@ -16,7 +16,7 @@ export const pessoaService = {
 
     async buscarComPaginacao(busca: string = '', pagina: number = 1, limite: number = 20, encontroId?: string): Promise<{ data: Pessoa[], count: number }> {
         let query;
-        
+
         if (encontroId) {
             query = supabase
                 .from(TABLE)
@@ -54,6 +54,22 @@ export const pessoaService = {
         return data as Pessoa;
     },
 
+    async buscarHistorico(pessoaId: string): Promise<any[]> {
+        const { data, error } = await supabase
+            .from('participacoes')
+            .select(`
+                id,
+                participante,
+                coordenador,
+                equipes ( nome ),
+                encontros ( nome, ativo, tema )
+            `)
+            .eq('pessoa_id', pessoaId);
+
+        if (error) throw error;
+        return data || [];
+    },
+
     async criar(formData: PessoaFormData): Promise<Pessoa> {
         const { data, error } = await supabase
             .from(TABLE)
@@ -89,7 +105,19 @@ export const pessoaService = {
     async buscarPorSemelhanca(nome: string, cpf?: string | null): Promise<Pessoa[]> {
         let query = supabase
             .from(TABLE)
-            .select('*');
+            .select(`
+                *,
+                participacoes (
+                    participante,
+                    coordenador,
+                    equipes (
+                        nome
+                    ),
+                    encontros (
+                        nome
+                    )
+                )
+            `);
 
         if (cpf) {
             query = query.or(`nome_completo.ilike.%${nome}%,cpf.eq.${cpf},email.ilike.%${nome}%,telefone.ilike.%${nome}%`);

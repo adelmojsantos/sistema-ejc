@@ -5,6 +5,7 @@ import { UserPlus, Search, X, Users, User } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { PessoaCard } from '../../components/pessoa/PessoaCard';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
+import { HistoricoModal } from '../../components/pessoa/HistoricoModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { pessoaService } from '../../services/pessoaService';
 import { useDebounce } from '../../hooks/useDebounce.ts';
@@ -26,6 +27,7 @@ export function PessoasPage() {
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [formError, setFormError] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Pessoa | null>(null);
+    const [historyTarget, setHistoryTarget] = useState<Pessoa | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const scrollPositionRef = useRef(0);
 
@@ -302,6 +304,7 @@ export function PessoasPage() {
                                         pessoa={p}
                                         onEdit={openEdit}
                                         onDelete={setDeleteTarget}
+                                        onHistory={setHistoryTarget}
                                     />
                                 ))}
                             </div>
@@ -352,6 +355,14 @@ export function PessoasPage() {
                 isLoading={isDeleting}
                 isDestructive={true}
             />
+
+            {historyTarget && (
+                <HistoricoModal 
+                    pessoa={historyTarget} 
+                    isOpen={!!historyTarget} 
+                    onClose={() => setHistoryTarget(null)} 
+                />
+            )}
         </div>
     );
 }

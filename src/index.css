@@ -214,6 +214,7 @@ h2 {
 }
 
 .btn-secondary:hover:not(:disabled) {
+  background: var(--surface-2);
   border-color: var(--primary-color);
   color: var(--primary-color);
   transform: translateY(-1px);

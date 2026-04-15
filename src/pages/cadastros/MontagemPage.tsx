@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Search, Plus, Shield, Users, Trash2, Loader, Check, X, UserPlus } from 'lucide-react';
+import { ChevronLeft, Search, Plus, Shield, Users, Trash2, Loader, Check, X, UserPlus, History } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
+import { HistoricoModal } from '../../components/pessoa/HistoricoModal';
 import { inscricaoService } from '../../services/inscricaoService';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import { encontroService } from '../../services/encontroService';
@@ -44,6 +45,7 @@ export function MontagemPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [isSavingPerson, setIsSavingPerson] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<InscricaoEnriched | null>(null);
+    const [historyTarget, setHistoryTarget] = useState<Pessoa | null>(null);
 
     const searchRef = useRef<HTMLDivElement>(null);
 
@@ -361,6 +363,14 @@ export function MontagemPage() {
                                                             <div style={{ flex: 1 }}>
                                                                 <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                                     {p.nome_completo}
+                                                                    <button 
+                                                                        className="icon-btn" 
+                                                                        style={{ padding: '0.1rem', color: 'var(--primary-color)' }}
+                                                                        title="Ver histórico"
+                                                                        onClick={(e) => { e.stopPropagation(); setHistoryTarget(p); }}
+                                                                    >
+                                                                        <History size={14} />
+                                                                    </button>
                                                                     {p.equipeAtual && (
                                                                         <span style={{ fontSize: '0.65rem', background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>
                                                                             EQUIPE: {p.equipeAtual.toUpperCase()}
@@ -475,7 +485,20 @@ export function MontagemPage() {
                                                         {m.coordenador ? <Shield size={16} /> : <Users size={16} />}
                                                     </div>
                                                     <div className="pessoa-row-info">
-                                                        <h4 className="pessoa-row-name" style={{ margin: 0 }}>{m.pessoas?.nome_completo}</h4>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                            <h4 className="pessoa-row-name" style={{ margin: 0 }}>{m.pessoas?.nome_completo}</h4>
+                                                            <button 
+                                                                className="icon-btn" 
+                                                                style={{ padding: '0.1rem', color: 'var(--primary-color)' }}
+                                                                title="Ver histórico"
+                                                                onClick={(e) => { 
+                                                                    e.stopPropagation(); 
+                                                                    setHistoryTarget({ ...m.pessoas, id: m.pessoa_id } as Pessoa); 
+                                                                }}
+                                                            >
+                                                                <History size={14} />
+                                                            </button>
+                                                        </div>
                                                         <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>CPF: {m.pessoas?.cpf}</span>
                                                     </div>
                                                 </div>
@@ -558,6 +581,14 @@ export function MontagemPage() {
                         />
                     </div>
                 </div>
+            )}
+
+            {historyTarget && (
+                <HistoricoModal 
+                    pessoa={historyTarget} 
+                    isOpen={!!historyTarget} 
+                    onClose={() => setHistoryTarget(null)} 
+                />
             )}
         </div>
     );

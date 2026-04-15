@@ -45,7 +45,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = '500px' }: 
                     background: 'var(--surface-2)'
                 }}>
                     <h3 className="modal-title" style={{ margin: 0, fontSize: '1.25rem' }}>{title}</h3>
-                    <button onClick={onClose} className="icon-btn" style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5, padding: '0.25rem' }}>
+                    <button onClick={onClose} className="icon-btn" style={{ cursor: 'pointer', opacity: 0.7 }} aria-label="Fechar">
                         <X size={20} />
                     </button>
                 </div>
