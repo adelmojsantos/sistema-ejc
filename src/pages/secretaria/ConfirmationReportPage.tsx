@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { encontroService } from '../../services/encontroService';
-import { Header } from '../../components/Header';
 import { inscricaoService } from '../../services/inscricaoService';
 import { equipeService } from '../../services/equipeService';
 import type { InscricaoEnriched } from '../../types/inscricao';
@@ -142,9 +141,7 @@ export function ConfirmationReportPage() {
   }, [teamStatuses]);
 
   return (
-    <div className="app-shell">
-      <Header />
-      <main className="main-content container">
+    <>
         <div className="fade-in">
           <div className="page-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -417,7 +414,6 @@ export function ConfirmationReportPage() {
             </div>
           </Modal>
         </div>
-      </main>
-    </div>
+    </>
   );
 }

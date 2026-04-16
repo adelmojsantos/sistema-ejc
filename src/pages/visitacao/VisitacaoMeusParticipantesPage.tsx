@@ -19,7 +19,6 @@ import { supabase } from '../../lib/supabase';
 import { visitacaoService } from '../../services/visitacaoService';
 import type { VisitaParticipacaoEnriched, VisitaStatus, VisitaGrupo } from '../../types/visitacao';
 import { toast } from 'react-hot-toast';
-import { Header } from '../../components/Header';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { MyParticipantsMap } from '../../components/visitacao/MyParticipantsMap';
 
@@ -159,19 +158,14 @@ export function VisitacaoMeusParticipantesPage() {
 
     if (loading) {
         return (
-            <div className="app-shell">
-                <Header />
-                <div className="container" style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-                    <Loader className="animate-spin" size={32} />
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                <Loader className="animate-spin" size={32} />
             </div>
         );
     }
 
     return (
-        <div className="app-shell">
-            <Header />
-            <main className="container main-content" style={{ paddingBottom: '4rem' }}>
+        <>
                 <PageHeader
                     title={grupoNome || 'Participantes da Visita'}
                     subtitle="Início / Visitação"
@@ -378,8 +372,7 @@ export function VisitacaoMeusParticipantesPage() {
                 )}
             </>
         )}
-    </main>
-        </div>
+        </>
     );
 }
 

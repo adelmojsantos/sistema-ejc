@@ -3,7 +3,6 @@ import { exportConfigService, type ExportConfig } from '../../services/exportCon
 import { encontroService } from '../../services/encontroService';
 import type { Encontro } from '../../types/encontro';
 import { Save, Image as ImageIcon } from 'lucide-react';
-import { Header } from '../../components/Header';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import toast from 'react-hot-toast';
 
@@ -150,7 +149,6 @@ export function ConfiguracoesExportacaoPage() {
 
     return (
         <div className="app-shell">
-            <Header />
             <main className="main-content container">
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
                     <h1 style={{ fontSize: '1.8rem', color: 'var(--primary-color)' }}>Configurações de Exportação (PDF/Excel)</h1>

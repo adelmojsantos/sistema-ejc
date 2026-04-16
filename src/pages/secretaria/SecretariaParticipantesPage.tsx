@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLoading } from '../../contexts/LoadingContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Header } from '../../components/Header';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
@@ -228,9 +227,7 @@ export function SecretariaParticipantesPage() {
   };
 
   return (
-    <div className="app-shell">
-      <Header />
-      <main className="main-content container">
+    <>
         <div className="fade-in">
           <div className="page-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -454,7 +451,6 @@ export function SecretariaParticipantesPage() {
             </div>
           )}
         </div>
-      </main>
 
       {/* ── Confirm geo modal ── */}
       <Modal
@@ -630,6 +626,6 @@ export function SecretariaParticipantesPage() {
           background-color: rgba(239, 68, 68, 0.1);
         }
       `}</style>
-    </div>
+    </>
   );
 }

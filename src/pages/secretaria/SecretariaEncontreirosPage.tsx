@@ -2,7 +2,6 @@ import { ChevronLeft, Download, FileSpreadsheet, FileText, Filter, Loader, Searc
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '../../components/Header';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
@@ -94,9 +93,7 @@ export function SecretariaEncontreirosPage() {
   }).sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
 
   return (
-    <div className="app-shell">
-      <Header />
-      <main className="main-content container">
+    <>
         <div className="fade-in">
           <div className="page-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -316,7 +313,6 @@ export function SecretariaEncontreirosPage() {
             </div>
           )}
         </div>
-      </main>
 
       <ConfirmDialog
         isOpen={!!participantToUnlink}
@@ -372,6 +368,6 @@ export function SecretariaEncontreirosPage() {
           background-color: rgba(239, 68, 68, 0.1);
         }
       `}</style>
-    </div>
+    </>
   );
 }

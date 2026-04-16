@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Header } from '../../components/Header';
 import { exportConfigService } from '../../services/exportConfigService';
 import type { ExportConfig } from '../../services/exportConfigService';
 import { encontroService } from '../../services/encontroService';
@@ -112,7 +111,6 @@ export function ExportConfigFormPage() {
     if (loading) {
         return (
             <div className="app-shell">
-                <Header />
                 <main className="main-content container text-center" style={{ padding: '4rem' }}>
                     <Loader className="animate-spin" size={32} color="var(--primary-color)" />
                 </main>
@@ -122,7 +120,6 @@ export function ExportConfigFormPage() {
 
     return (
         <div className="app-shell">
-            <Header />
             <main className="main-content container">
                 <div className="page-header" style={{ marginBottom: '2rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

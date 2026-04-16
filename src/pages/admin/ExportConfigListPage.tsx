@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Header } from '../../components/Header';
 import { exportConfigService } from '../../services/exportConfigService';
 import type { ExportConfig } from '../../services/exportConfigService';
 import { Plus, Pencil, Trash2, FileText, ChevronLeft, Loader } from 'lucide-react';
@@ -42,7 +41,6 @@ export function ExportConfigListPage() {
 
     return (
         <div className="app-shell">
-            <Header />
             <main className="main-content container">
                 <div className="page-header" style={{ marginBottom: '2rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>

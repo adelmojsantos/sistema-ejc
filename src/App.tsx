@@ -1,6 +1,6 @@
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
-import { Navigate, Route, BrowserRouter as Router, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, BrowserRouter as Router, Routes, useLocation, Outlet } from 'react-router-dom';
 import { Header } from './components/Header';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PageTransition } from './components/ui/PageTransition';
@@ -41,6 +41,7 @@ import { GerenciarListaEsperaPage } from './pages/secretaria/GerenciarListaEsper
 import { SplashScreen } from './components/ui/SplashScreen';
 import { useEffect } from 'react';
 import { useLoading } from './contexts/LoadingContext';
+import { AppLayout } from './components/layout/AppLayout';
 
 
 export function PlaceholderPage({ title }: { title: string }) {
@@ -61,159 +62,150 @@ function AnimatedRoutes() {
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
+        {/* Public Routes */}
         <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
         <Route path="/esqueci-senha" element={<PageTransition><ForgotPasswordPage /></PageTransition>} />
         <Route path="/privacidade" element={<PageTransition><PrivacidadePage /></PageTransition>} />
-
         <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
         <Route path="/inscricao-online" element={<PageTransition><InscricaoPublicaPage /></PageTransition>} />
 
-        <Route path="/dashboard" element={
-          <ProtectedRoute>
-            {(() => {
+        {/* Private Routes Wrapper */}
+        <Route element={<ProtectedRoute><AppLayout><Outlet /></AppLayout></ProtectedRoute>}>
+          <Route path="/dashboard" element={
+            (() => {
               if ((hasPermission('modulo_visitacao_coordenar') || hasPermission('modulo_visitacao_duplas')) && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length === 1) {
                 return <Navigate to="/visitacao" replace />;
               } else if (hasPermission('modulo_coordenador') && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length === 1) {
                 return <Navigate to="/coordenador/minha-equipe" replace />;
               } else {
-                return <PageTransition><Home /></PageTransition>;
+                return <Home />;
               }
-            })()}
-          </ProtectedRoute>
-        } />
+            })()
+          } />
 
-        <Route path="/alterar-senha" element={
-          <ProtectedRoute allowTemporaryPassword>
-            <PageTransition><ChangePasswordPage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/alterar-senha" element={<ChangePasswordPage />} />
+          <Route path="/inscricao" element={<InscricaoPage />} />
+          
+          <Route path="/inscricao/participantes" element={
+            <ProtectedRoute requiredPermissions={['modulo_inscricao', 'modulo_secretaria', 'modulo_admin']}>
+              <SecretariaParticipantesPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/inscricao" element={
-          <ProtectedRoute>
-            <PageTransition><InscricaoPage /></PageTransition>
-          </ProtectedRoute>
-        } />
-        <Route path="/inscricao/participantes" element={
-          <ProtectedRoute requiredPermissions={['modulo_inscricao', 'modulo_secretaria', 'modulo_admin']}>
-            <PageTransition><SecretariaParticipantesPage /></PageTransition>
-          </ProtectedRoute>
-        } />
-        <Route path="/secretaria/participantes" element={
-          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
-            <PageTransition><SecretariaParticipantesPage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/admin/usuarios" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <UsersAdminPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/admin/usuarios" element={
-          <ProtectedRoute requiredPermissions={['modulo_admin']}>
-            <PageTransition><UsersAdminPage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/admin/acessos" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <AccessAdminPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/admin/acessos" element={
-          <ProtectedRoute requiredPermissions={['modulo_admin']}>
-            <PageTransition><AccessAdminPage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/admin/importar" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <ImportarDadosPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/admin/importar" element={
-          <ProtectedRoute requiredPermissions={['modulo_admin']}>
-            <PageTransition><ImportarDadosPage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/admin/configuracoes-exportacao" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <ExportConfigListPage />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/configuracoes-exportacao/novo" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <ExportConfigFormPage />
+            </ProtectedRoute>
+          } />
+          
+          <Route path="/admin/configuracoes-exportacao/:id" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <ExportConfigFormPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/admin/configuracoes-exportacao" element={
-          <ProtectedRoute requiredPermissions={['modulo_admin']}>
-            <PageTransition><ExportConfigListPage /></PageTransition>
-          </ProtectedRoute>
-        } />
-        <Route path="/admin/configuracoes-exportacao/novo" element={
-          <ProtectedRoute requiredPermissions={['modulo_admin']}>
-            <PageTransition><ExportConfigFormPage /></PageTransition>
-          </ProtectedRoute>
-        } />
-        <Route path="/admin/configuracoes-exportacao/:id" element={
-          <ProtectedRoute requiredPermissions={['modulo_admin']}>
-            <PageTransition><ExportConfigFormPage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/secretaria" element={
+            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+              <Secretaria />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/secretaria" element={
-          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
-            <PageTransition><Secretaria /></PageTransition>
-          </ProtectedRoute>
-        } />
-        <Route path="/secretaria/confirmacoes" element={
-          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
-            <PageTransition><ConfirmationReportPage /></PageTransition>
-          </ProtectedRoute>
-        } />
-        <Route path="/secretaria/participantes" element={
-          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
-            <PageTransition><SecretariaParticipantesPage /></PageTransition>
-          </ProtectedRoute>
-        } />
-        <Route path="/secretaria/encontreiros" element={
-          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
-            <PageTransition><SecretariaEncontreirosPage /></PageTransition>
-          </ProtectedRoute>
-        } />
-        <Route path="/secretaria/lista-espera" element={
-          <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
-            <PageTransition><GerenciarListaEsperaPage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/secretaria/confirmacoes" element={
+            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+              <ConfirmationReportPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/visitacao" element={
-          <ProtectedRoute requiredPermissions={['modulo_visitacao_coordenar', 'modulo_visitacao_duplas', 'modulo_admin']}>
-            <PageTransition><VisitacaoPortalPage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/secretaria/participantes" element={
+            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+              <SecretariaParticipantesPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/visitacao/coordenador" element={
-          <ProtectedRoute requiredPermissions={['modulo_visitacao_coordenar', 'modulo_admin']}>
-            <PageTransition><CoordenadorVisitacaoPage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/secretaria/encontreiros" element={
+            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+              <SecretariaEncontreirosPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/visitacao/meus-participantes" element={
-          <ProtectedRoute requiredPermissions={['modulo_visitacao_duplas']}>
-            <PageTransition><VisitacaoMeusParticipantesPage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/secretaria/lista-espera" element={
+            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+              <GerenciarListaEsperaPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/visitacao/manutencao/:id" element={
-          <ProtectedRoute requiredPermissions={['modulo_visitacao_duplas']}>
-            <PageTransition><VisitacaoManutencaoPage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/visitacao" element={
+            <ProtectedRoute requiredPermissions={['modulo_visitacao_coordenar', 'modulo_visitacao_duplas', 'modulo_admin']}>
+              <VisitacaoPortalPage />
+            </ProtectedRoute>
+          } />
 
+          <Route path="/visitacao/coordenador" element={
+            <ProtectedRoute requiredPermissions={['modulo_visitacao_coordenar', 'modulo_admin']}>
+              <CoordenadorVisitacaoPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/montagem-circulos" element={
-          <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
-            <PageTransition><MontagemCirculos /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/visitacao/meus-participantes" element={
+            <ProtectedRoute requiredPermissions={['modulo_visitacao_duplas']}>
+              <VisitacaoMeusParticipantesPage />
+            </ProtectedRoute>
+          } />
 
-        <Route path="/coordenador/minha-equipe" element={
-          <ProtectedRoute requiredPermissions={['modulo_coordenador', 'modulo_admin']}>
-            <PageTransition><CoordenadorMinhaEquipePage /></PageTransition>
-          </ProtectedRoute>
-        } />
+          <Route path="/visitacao/manutencao/:id" element={
+            <ProtectedRoute requiredPermissions={['modulo_visitacao_duplas']}>
+              <VisitacaoManutencaoPage />
+            </ProtectedRoute>
+          } />
 
-        {/* Note: In nested routes we shouldn't wrap with PageTransition if we don't want the surrounding UI to animate in/out. 
-            Here we wrap Cadastros because it's the root layout for this section. */}
-        <Route path="/cadastros" element={
-          <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
-            <PageTransition><Cadastros /></PageTransition>
-          </ProtectedRoute>
-        }>
-          <Route path="pessoas" element={<PessoasPage />} />
-          <Route path="encontros" element={<EncontrosPage />} />
-          <Route path="encontros/participantes" element={<EncontroParticipantesPage />} />
-          <Route path="equipes" element={<EquipesPage />} />
-          <Route path="circulos" element={<CirculosPage />} />
-          <Route path="montagem" element={<MontagemPage />} />
+          <Route path="/montagem-circulos" element={
+            <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
+              <MontagemCirculos />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/coordenador/minha-equipe" element={
+            <ProtectedRoute requiredPermissions={['modulo_coordenador', 'modulo_admin']}>
+              <CoordenadorMinhaEquipePage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/cadastros" element={
+            <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
+              <Cadastros />
+            </ProtectedRoute>
+          }>
+            <Route path="pessoas" element={<PessoasPage />} />
+            <Route path="encontros" element={<EncontrosPage />} />
+            <Route path="encontros/participantes" element={<EncontroParticipantesPage />} />
+            <Route path="equipes" element={<EquipesPage />} />
+            <Route path="circulos" element={<CirculosPage />} />
+            <Route path="montagem" element={<MontagemPage />} />
+          </Route>
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

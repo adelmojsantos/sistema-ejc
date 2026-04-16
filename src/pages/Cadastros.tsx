@@ -1,7 +1,6 @@
-import { Calendar as CalIcon, Shield, UserPlus, Users, UsersRound } from 'lucide-react';
+import { Users, Calendar, Shield, UsersRound, UserPlus } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Header } from '../components/Header';
 
 interface CadastroCategory {
   id: string;
@@ -28,7 +27,7 @@ const CATEGORIES: CadastroCategory[] = [
     path: '/cadastros/encontros',
     label: 'Encontros',
     description: 'Gerenciamento dos finais de semana do EJC.',
-    icon: <CalIcon size={34} />,
+    icon: <Calendar size={34} />,
     color: '#10b981',
     available: true
   },
@@ -84,52 +83,44 @@ export function Cadastros() {
   const location = useLocation();
   const isHub = location.pathname === '/cadastros' || location.pathname === '/cadastros/';
 
-  return (
-    <div className="app-shell">
-      <Header />
+  return isHub ? (
+    <section className="cadastros-hub fade-in">
+      <header className="page-header">
+        <h2 className="page-title">Módulo de Cadastros</h2>
+      </header>
 
-      <main className="main-content container">
-        {isHub ? (
-          <section className="cadastros-hub fade-in">
-            <header className="page-header">
-              <h1 className="page-title">Módulo de Cadastros</h1>
-            </header>
-
-            <div className="cadastros-hub__grid">
-              {CATEGORIES.map((category) => (
-                <article
-                  key={category.id}
-                  className={`cadastros-hub__card card ${!category.available ? 'is-disabled' : ''}`}
-                  onClick={() => category.available && navigate(category.path)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (!category.available) return;
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      navigate(category.path);
-                    }
-                  }}
-                >
-                  <span className="cadastros-hub__bar" style={{ backgroundColor: category.color }} />
-                  <div className="cadastros-hub__content">
-                    <span className="cadastros-hub__icon" style={{ backgroundColor: `${category.color}20`, color: category.color }}>
-                      {category.icon}
-                    </span>
-                    <div>
-                      <h3>{category.label}</h3>
-                      <p>{category.description}</p>
-                    </div>
-                  </div>
-                  {!category.available && <span className="cadastros-hub__tag">Em Breve</span>}
-                </article>
-              ))}
+      <div className="cadastros-hub__grid">
+        {CATEGORIES.map((category) => (
+          <article
+            key={category.id}
+            className={`cadastros-hub__card card ${!category.available ? 'is-disabled' : ''}`}
+            onClick={() => category.available && navigate(category.path)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (!category.available) return;
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                navigate(category.path);
+              }
+            }}
+          >
+            <span className="cadastros-hub__bar" style={{ backgroundColor: category.color }} />
+            <div className="cadastros-hub__content">
+              <span className="cadastros-hub__icon" style={{ backgroundColor: `${category.color}20`, color: category.color }}>
+                {category.icon}
+              </span>
+              <div>
+                <h3>{category.label}</h3>
+                <p>{category.description}</p>
+              </div>
             </div>
-          </section>
-        ) : (
-          <Outlet />
-        )}
-      </main>
-    </div>
+            {!category.available && <span className="cadastros-hub__tag">Em Breve</span>}
+          </article>
+        ))}
+      </div>
+    </section>
+  ) : (
+    <Outlet />
   );
 }

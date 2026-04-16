@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Header } from '../../components/Header';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -314,12 +313,10 @@ export function CoordenadorVisitacaoPage() {
     return <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem', background: s.color + '20', color: s.color, fontWeight: 600 }}>{s.label}</span>;
   };
 
-  if (isFetching && encontros.length === 0) return <div className="empty-state">Carregando...</div>;
+  if (isFetching && encontros.length === 0) return <div>Carregando...</div>;
 
   return (
-    <div className="app-shell">
-      <Header />
-      <main className="main-content container flex-1" style={{ paddingBottom: '4rem' }}>
+    <>
         <PageHeader
           title="Gestão de Visitação"
           subtitle="Início / Visitação"
@@ -963,40 +960,6 @@ export function CoordenadorVisitacaoPage() {
             </div>
           </div>
         )}
-      </main>
-      <style>{`
-        .filter-checkbox-modern {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          cursor: pointer;
-          font-size: 0.85rem;
-          font-weight: 500;
-          padding: 0.4rem 0.8rem;
-          background: var(--card-bg);
-          border: 1px solid var(--border-color);
-          border-radius: 8px;
-          transition: all 0.2s;
-        }
-        .filter-checkbox-modern:hover {
-          border-color: var(--primary-color);
-          background: var(--primary-light);
-        }
-        .filter-checkbox-modern input {
-          width: 16px;
-          height: 16px;
-          accent-color: var(--primary-color);
-          cursor: pointer;
-        }
-        .filter-checkbox-modern:has(input:checked) {
-          background: var(--primary-color);
-          color: white;
-          border-color: var(--primary-color);
-        }
-        .filter-checkbox-modern:has(input:checked) input {
-          accent-color: white;
-        }
-      `}</style>
-    </div>
+    </>
   );
 }

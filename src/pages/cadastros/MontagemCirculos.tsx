@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '../../components/Header';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
 import { circuloService } from '../../services/circuloService';
@@ -228,7 +227,6 @@ export function MontagemCirculos() {
 
   return (
     <div className="app-shell">
-      <Header />
       <main className="main-content container flex-1" style={{ paddingBottom: '4rem' }}>
         {isFetching && encontros.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', opacity: 0.6 }}>

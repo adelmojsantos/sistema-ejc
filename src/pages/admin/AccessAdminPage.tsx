@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Shield, Plus, Save, Trash2 } from 'lucide-react';
-import { Header } from '../../components/Header';
 import { adminAccessService } from '../../services/adminAccessService';
 import type { Grupo, Permissao, GrupoPermissao } from '../../services/adminAccessService';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -121,7 +120,6 @@ export function AccessAdminPage() {
 
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
-            <Header />
             <div className="page-header">
                 <div>
                     <h1 className="page-title" style={{ fontSize: '1.5rem' }}>

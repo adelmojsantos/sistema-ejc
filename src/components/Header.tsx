@@ -131,7 +131,7 @@ export function Header() {
               className={`user-menu-trigger ${isUserMenuOpen ? 'active' : ''}`}
             >
               <div className="user-avatar-sm">
-                {profile?.email?.charAt(0).toUpperCase()}
+                {(profile?.nome_completo?.charAt(0) || profile?.email?.charAt(0))?.toUpperCase()}
               </div>
               <ChevronDown
                 size={16}
@@ -143,7 +143,7 @@ export function Header() {
               <div className="user-dropdown-menu fade-in">
                 <div className="user-dropdown-info">
                   <span className="user-email-label">Logado como:</span>
-                  <span className="user-email-value">{profile?.email}</span>
+                  <span className="user-email-value">{profile?.nome_completo || profile?.email}</span>
                 </div>
                 <div className="dropdown-item-header">
                   <div className="dropdown-item-label">
@@ -197,10 +197,10 @@ export function Header() {
         <nav className="mobile-nav">
           <div className="mobile-user-profile">
             <div className="user-avatar">
-              {profile?.email?.charAt(0).toUpperCase()}
+              {(profile?.nome_completo?.charAt(0) || profile?.email?.charAt(0))?.toUpperCase()}
             </div>
             <div className="user-info">
-              <span className="user-email">{profile?.email}</span>
+              <span className="user-email">{profile?.nome_completo || profile?.email}</span>
               <span className="user-role">{profile?.grupos?.join(', ')}</span>
             </div>
           </div>

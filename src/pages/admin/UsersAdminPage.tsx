@@ -7,7 +7,6 @@ import { supabase } from '../../lib/supabase';
 import { adminUserService } from '../../services/adminUserService';
 import { pessoaService } from '../../services/pessoaService';
 import type { Pessoa } from '../../types/pessoa';
-import { Header } from '../../components/Header';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
@@ -513,7 +512,6 @@ export function UsersAdminPage() {
 
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
-            <Header />
             <div className="page-header">
                 <div>
                     <h1 className="page-title" style={{ fontSize: '1.5rem' }}>

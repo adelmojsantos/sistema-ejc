@@ -26,7 +26,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (profileError) throw profileError;
 
-            // 2. Fetch Active Encounter
+            // 2. Fetch Personal Data (get full name from 'pessoas' table)
+            let pessoaData = null;
+            if (profileData) {
+                const { data } = await supabase
+                    .from('pessoas')
+                    .select('nome_completo')
+                    .ilike('email', profileData.email)
+                    .maybeSingle();
+                pessoaData = data;
+            }
+
+            // 3. Fetch Active Encounter
             const { data: encounterData, error: encounterError } = await supabase
                 .from('encontros')
                 .select('id')
@@ -38,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (profileError) throw profileError;
 
-            // 3. Fetch User Groups and Permissions
+            // 4. Fetch User Groups and Permissions
             const grupos: string[] = [];
             const permissions: string[] = [];
 
@@ -85,6 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const extendedProfile: UserProfile = {
                 ...(profileData as unknown as UserProfile),
+                nome_completo: pessoaData?.nome_completo,
                 grupos,
                 permissions
             };

@@ -5,7 +5,6 @@ import { visitacaoService } from '../../services/visitacaoService';
 import { supabase } from '../../lib/supabase';
 import type { VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
 import { toast } from 'react-hot-toast';
-import { Header } from '../../components/Header';
 import { FormSection } from '../../components/ui/FormSection';
 import { FormRow } from '../../components/ui/FormRow';
 import { FormField } from '../../components/ui/FormField';
@@ -160,28 +159,20 @@ export function VisitacaoManutencaoPage() {
 
     if (loading) {
         return (
-            <div className="app-shell">
-                <Header />
-                <div className="container" style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-                    <Loader className="animate-spin" size={32} />
-                </div>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                <Loader className="animate-spin" size={32} />
             </div>
         );
     }
 
     if (!visita) {
         return (
-            <div className="app-shell">
-                <Header />
-                <div className="container">Visita não encontrada.</div>
-            </div>
+            <div>Visita não encontrada.</div>
         );
     }
 
     return (
-        <div className="app-shell">
-            <Header />
-            <main className="container main-content" style={{ paddingBottom: '4rem' }}>
+        <>
                 <div className="page-header" style={{ marginBottom: '2rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <button onClick={() => navigate('/visitacao/meus-participantes')} className="icon-btn"><ChevronLeft size={20} /></button>
@@ -405,7 +396,6 @@ export function VisitacaoManutencaoPage() {
                         </div>
                     </div>
                 </div>
-            </main>
-        </div>
+        </>
     );
 }

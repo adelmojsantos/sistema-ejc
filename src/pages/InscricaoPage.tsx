@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { AlertTriangle, CheckCircle2, Users, Search, History } from 'lucide-react';
-import { Header } from '../components/Header';
 import { PageHeader } from '../components/ui/PageHeader';
 import { LiveSearchSelect } from '../components/ui/LiveSearchSelect';
 import { PessoaForm } from '../components/pessoa/PessoaForm';
@@ -164,15 +163,12 @@ export function InscricaoPage() {
   };
 
   return (
-    <div className="app-shell">
-      <Header />
-
-      <main className="main-content container">
-        <PageHeader 
-          title="Nova Inscrição Encontrista"
-          subtitle="Portal / Inscrição"
-          backPath="/dashboard"
-        />
+    <>
+      <PageHeader 
+        title="Nova Inscrição Encontrista"
+        subtitle="Portal / Inscrição"
+        backPath="/dashboard"
+      />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', margin: '0 auto' }}>
           {/* Step 1: Event Selection */}
@@ -352,7 +348,6 @@ export function InscricaoPage() {
             />
           </div>
         </div>
-      </main>
 
       <ConfirmDialog
         isOpen={showMatchDialog}
@@ -444,6 +439,6 @@ export function InscricaoPage() {
           </div>
         }
       />
-    </div>
+    </>
   );
 }

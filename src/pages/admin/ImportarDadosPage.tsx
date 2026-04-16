@@ -13,7 +13,6 @@ import {
   Loader
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { Header } from '../../components/Header';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { pessoaService } from '../../services/pessoaService';
 import { equipeService } from '../../services/equipeService';
@@ -397,7 +396,6 @@ export function ImportarDadosPage() {
 
   return (
     <div className="app-shell">
-      <Header />
 
       <main className="main-content container page-fade-in">
         <div className="page-header">

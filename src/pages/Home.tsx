@@ -1,9 +1,8 @@
-import { Calendar, CircleDot, FileText, UserPlus, Users, Users2Icon, Shield, ListChecks } from 'lucide-react';
+import { Calendar, CircleDot, FileText, UserPlus, Users, Users2Icon, Shield, ListChecks, MapPin } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import type { Variants } from 'framer-motion';
-import { Header } from '../components/Header';
 import { useAuth } from '../hooks/useAuth';
 
 interface DashboardAction {
@@ -64,7 +63,7 @@ export function Home() {
       title: 'Visitação',
       description: 'Controle de visitas às famílias e acompanhamento.',
       path: '/visitacao',
-      icon: <Users size={36} />,
+      icon: <MapPin size={36} />,
       accent: 'success'
     });
   }
@@ -124,45 +123,41 @@ export function Home() {
   }
 
   return (
-    <div className="app-shell">
-      <Header />
+    <div className="dashboard animate-fade-in">
+      <header className="dashboard__header">
+        <h1 className="page-title text-gradient">Dashboard</h1>
+        <p className="text-muted">Acesso rápido aos módulos principais do sistema EJC.</p>
+      </header>
 
-      <main className="main-content container">
-        <section className="dashboard">
-          <header className="dashboard__header">
-            <h1 className="page-title">Dashboard</h1>
-            <p className="text-muted">Acesso rápido aos módulos principais do sistema EJC.</p>
-          </header>
-
-          <motion.div
-            className="dashboard__grid"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
+      <motion.div
+        className="dashboard__grid"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {dashboardActions.map((action) => (
+          <motion.article
+            key={action.title}
+            variants={itemVariants}
+            className={`dashboard-card ${action.featured ? 'dashboard-card--featured' : ''}`}
+            onClick={() => navigate(action.path)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(event: React.KeyboardEvent) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                navigate(action.path);
+              }
+            }}
           >
-            {dashboardActions.map((action) => (
-              <motion.article
-                key={action.title}
-                variants={itemVariants}
-                className={`dashboard-card card gradient-border-reveal ${action.featured ? 'dashboard-card--featured' : ''}`}
-                onClick={() => navigate(action.path)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event: React.KeyboardEvent) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    navigate(action.path);
-                  }
-                }}
-              >
-                <span className={`dashboard-card__icon dashboard-card__icon--${action.accent}`}>{action.icon}</span>
-                <h2>{action.title}</h2>
-                <p>{action.description}</p>
-              </motion.article>
-            ))}
-          </motion.div>
-        </section>
-      </main>
+            <div className={`dashboard-card__icon dashboard-card__icon--${action.accent}`}>
+              {action.icon}
+            </div>
+            <h2>{action.title}</h2>
+            <p>{action.description}</p>
+          </motion.article>
+        ))}
+      </motion.div>
     </div>
   );
 }
