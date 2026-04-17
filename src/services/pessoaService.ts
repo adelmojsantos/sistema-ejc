@@ -54,7 +54,7 @@ export const pessoaService = {
         return data as Pessoa;
     },
 
-    async buscarHistorico(pessoaId: string): Promise<any[]> {
+    async buscarHistorico(pessoaId: string): Promise<Record<string, unknown>[]> {
         const { data, error } = await supabase
             .from('participacoes')
             .select(`

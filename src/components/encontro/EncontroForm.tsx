@@ -2,6 +2,7 @@ import { Calendar, Check, Info, Loader, Tag, X } from 'lucide-react';
 import React, { useState } from 'react';
 import type { Encontro, EncontroFormData } from '../../types/encontro';
 import { FormField } from '../ui/FormField';
+import { CurrencyFormField } from '../ui/CurrencyFormField';
 import { FormRow } from '../ui/FormRow';
 import { FormSection } from '../ui/FormSection';
 
@@ -37,6 +38,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
         link_musica: initialData?.link_musica ?? '',
         link_youtube: initialData?.link_youtube ?? '',
         limite_vagas_online: initialData?.limite_vagas_online ?? 0,
+        valor_taxa: initialData?.valor_taxa ?? 0,
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -88,7 +90,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                         onChange={(e) => handleChange('nome', e.target.value)}
                         error={errors.nome}
                         required
-                        colSpan={8}
+                        colSpan={6}
                         placeholder="Ex: 25º EJC Capelinha"
                     />
                     <FormField
@@ -100,6 +102,14 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                         colSpan={2}
                         placeholder="Ex: 25"
                     />
+                    <CurrencyFormField
+                        label="Valor da Taxa"
+                        name="valor_taxa"
+                        value={form.valor_taxa}
+                        onChange={(val) => handleChange('valor_taxa', val)}
+                        colSpan={2}
+                        placeholder="0,00"
+                    />
                     <FormField
                         label="Limite Online"
                         name="limite_vagas_online"
@@ -109,6 +119,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                         colSpan={2}
                         placeholder="71"
                     />
+
                 </FormRow>
             </FormSection>
 

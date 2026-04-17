@@ -91,6 +91,18 @@ export const inscricaoService = {
         return data as Inscricao;
     },
 
+    async alterarStatusPagamento(id: string, pago: boolean): Promise<Inscricao> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .update({ pago_taxa: pago })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as Inscricao;
+    },
+
     async verificarSeJaFoiParticipante(pessoaId: string): Promise<boolean> {
         const { data, error } = await supabase
             .from(TABLE)

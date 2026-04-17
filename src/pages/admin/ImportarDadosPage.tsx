@@ -369,7 +369,8 @@ export function ImportarDadosPage() {
               coordenador: row.isCoordenador,
               participante: false,
               dados_confirmados: false,
-              confirmado_em: null
+              confirmado_em: null,
+              pago_taxa: false
             };
 
             await inscricaoService.criar(participationData);

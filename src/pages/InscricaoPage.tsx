@@ -65,7 +65,8 @@ export function InscricaoPage() {
         equipe_id: null,
         coordenador: false,
         dados_confirmados: false,
-        confirmado_em: null
+        confirmado_em: null,
+        pago_taxa: false
       });
 
       // Se veio de um pré-cadastro, marca como convertido

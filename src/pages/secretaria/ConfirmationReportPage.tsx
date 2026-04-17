@@ -125,7 +125,12 @@ export function ConfirmationReportPage() {
     });
 
     return statuses
-      .filter(s => s.equipe_nome.toLowerCase().includes(searchTerm.toLowerCase()))
+      .filter(s => {
+        const term = searchTerm.toLowerCase();
+        const matchEquipe = s.equipe_nome.toLowerCase().includes(term);
+        const matchCoord = s.coordenadores.some(c => c.nome.toLowerCase().includes(term));
+        return matchEquipe || matchCoord;
+      })
       .sort((a, b) => a.equipe_nome.localeCompare(b.equipe_nome));
   }, [equipes, participacoes, searchTerm, equipeConfirmacoes]);
 

@@ -87,7 +87,18 @@ export function SecretariaEncontreirosPage() {
   const selectedEncontro = encontros.find(e => e.id === selectedEncontroId);
 
   const filteredParticipantes = participantes.filter(p => {
-    const matchesSearch = p.pessoas?.nome_completo?.toLowerCase().includes(searchTerm.toLowerCase());
+    const term = searchTerm.toLowerCase();
+    const normalize = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
+    const termDigits = normalize(searchTerm);
+
+    const matchNome = p.pessoas?.nome_completo?.toLowerCase().includes(term);
+    const matchCpf = p.pessoas?.cpf && (p.pessoas.cpf.includes(term) || (termDigits && normalize(p.pessoas.cpf).includes(termDigits)));
+    const matchEmail = p.pessoas?.email?.toLowerCase().includes(term);
+    const matchTelefone = p.pessoas?.telefone && normalize(p.pessoas.telefone).includes(termDigits);
+    const matchComunidade = p.pessoas?.comunidade?.toLowerCase().includes(term);
+    const matchBairro = p.pessoas?.bairro?.toLowerCase().includes(term);
+    const matchesSearch = matchNome || matchCpf || matchEmail || matchTelefone || matchComunidade || matchBairro;
+
     const matchesTeam = filterTeamId === 'all' || p.equipe_id === filterTeamId;
     return matchesSearch && matchesTeam;
   }).sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));

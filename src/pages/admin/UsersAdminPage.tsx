@@ -501,10 +501,11 @@ export function UsersAdminPage() {
                 if (user.temporary_password !== wantsTemp) return false;
             }
             if (searchTerm) {
-                const Term = searchTerm.toLowerCase();
-                const matchEmail = user.email.toLowerCase().includes(Term);
-                const matchName = user.nome?.toLowerCase().includes(Term);
-                if (!matchEmail && !matchName) return false;
+                const term = searchTerm.toLowerCase();
+                const matchEmail = user.email.toLowerCase().includes(term);
+                const matchName = user.nome?.toLowerCase().includes(term);
+                const matchEquipe = Object.values(user.equipesNomes || {}).some(name => name.toLowerCase().includes(term));
+                if (!matchEmail && !matchName && !matchEquipe) return false;
             }
             return true;
         });

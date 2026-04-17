@@ -58,7 +58,8 @@ export function GerenciarListaEsperaPage() {
                 setEfetivados([...efetivados]);
                 setReprovados([...reprovadosData]);
             }
-        } catch (_err) {
+        } catch (error) {
+            console.error('Erro ao carregar lista de espera:', error);
             toast.error('Erro ao carregar dados');
         } finally {
             setIsLoading(false);
@@ -67,10 +68,19 @@ export function GerenciarListaEsperaPage() {
 
     const currentList = viewMode === 'pendente' ? entries : reprovados;
 
-    const filteredEntries = currentList.filter(e =>
-        e.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.telefone.includes(searchTerm)
-    );
+    const filteredEntries = currentList.filter(e => {
+        const term = searchTerm.toLowerCase();
+        const normalize = (s: string | null) => (s || '').replace(/\D/g, '');
+        const termDigits = normalize(searchTerm);
+
+        const matchNome = e.nome_completo.toLowerCase().includes(term);
+        const matchCpf = e.cpf && (e.cpf.includes(term) || (termDigits && normalize(e.cpf).includes(termDigits)));
+        const matchEmail = e.email?.toLowerCase().includes(term);
+        const matchTelefone = normalize(e.telefone).includes(termDigits);
+        const matchBairro = e.bairro?.toLowerCase().includes(term);
+
+        return matchNome || matchCpf || matchEmail || matchTelefone || matchBairro;
+    });
 
     const handleSelectAll = () => {
         if (selectedIds.size === currentList.length) {
@@ -162,8 +172,13 @@ export function GerenciarListaEsperaPage() {
                 }
             }
 
-            const { id: _id, created_at: _ca, status: _st, ...formData } = entry;
-            await listaEsperaService.efetivarListaEspera(_id, formData);
+            const formData = { ...entry } as unknown as Record<string, unknown>;
+            delete formData.id;
+            delete formData.created_at;
+            delete formData.criado_em;
+            delete formData.status;
+
+            await listaEsperaService.efetivarListaEspera(entry.id, formData as any);
             toast.success(`Inscrição de ${entry.nome_completo} efetivada com sucesso!`);
 
             setShowDuplicateModal(false);
@@ -173,7 +188,7 @@ export function GerenciarListaEsperaPage() {
             await loadData();
 
             const newSet = new Set(selectedIds);
-            newSet.delete(_id);
+            newSet.delete(entry.id);
             setSelectedIds(newSet);
         } catch (err: unknown) {
             const error = err as Error;
@@ -187,8 +202,13 @@ export function GerenciarListaEsperaPage() {
         if (!duplicateEntry || isProcessing) return;
         setIsProcessing(true);
         try {
-            const { id: dId, created_at: _ca, status: _st, ...formData } = duplicateEntry;
-            await listaEsperaService.vincularPessoaExistente(dId, pessoa.id, formData);
+            const formData = { ...duplicateEntry } as unknown as Record<string, unknown>;
+            delete formData.id;
+            delete formData.created_at;
+            delete formData.criado_em;
+            delete formData.status;
+
+            await listaEsperaService.vincularPessoaExistente(duplicateEntry.id, pessoa.id, formData as any);
             toast.success(`${duplicateEntry.nome_completo} vinculado e efetivado com sucesso!`);
 
             setShowDuplicateModal(false);
@@ -196,8 +216,9 @@ export function GerenciarListaEsperaPage() {
             setDuplicateCandidates([]);
 
             await loadData();
-        } catch (err: any) {
-            toast.error(`Erro: ${err.message}`);
+        } catch (err: unknown) {
+            const error = err as Error;
+            toast.error(`Erro: ${error.message}`);
         } finally {
             setIsProcessing(false);
         }
@@ -243,7 +264,8 @@ export function GerenciarListaEsperaPage() {
 
             setSelectedIds(new Set());
             await loadData();
-        } catch (_err) {
+        } catch (error) {
+            console.error('Erro ao aprovar em lote:', error);
             toast.error('Erro inesperado na aprovação em lote', { id: idLoadingToast });
         } finally {
             setIsProcessing(false);

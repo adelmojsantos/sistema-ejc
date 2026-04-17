@@ -264,7 +264,7 @@ export function VisitacaoMeusParticipantesPage() {
                             />
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {participantes.map((p) => {
+                        {participantes.map((p: any) => {
                             const status = getStatusInfo(p.status);
                             const pessoa = p.participacoes?.pessoas;
                             return (

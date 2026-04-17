@@ -3,6 +3,7 @@ import {
   Edit2,
   ExternalLink,
   Link2,
+  Link2OffIcon,
   List,
   Loader,
   Lock,
@@ -317,298 +318,444 @@ export function CoordenadorVisitacaoPage() {
 
   return (
     <>
-        <PageHeader
-          title="Gestão de Visitação"
-          subtitle="Início / Visitação"
-          backPath="/visitacao"
-          actions={
-            <div style={{ width: '300px' }}>
-              <LiveSearchSelect<Encontro>
-                value={selectedEncontroId}
-                onChange={(val) => setSelectedEncontroId(val)}
-                fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-                getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
-                getOptionValue={(e) => String(e.id)}
-                placeholder="Selecione um Encontro..."
-                initialOptions={encontros}
-                className="montagem-header-select"
-              />
-            </div>
-          }
-          tabs={
-            <div className="tabs-modern-container">
-              <button
-                onClick={() => setActiveTab('duplas')}
-                className={`tab-btn-modern ${activeTab === 'duplas' ? 'active' : ''}`}
-              >
-                <Users size={18} /> 1. Montagem de Duplas
-              </button>
-              <button
-                onClick={() => setActiveTab('vincular')}
-                className={`tab-btn-modern ${activeTab === 'vincular' ? 'active' : ''}`}
-              >
-                <UserPlus size={18} /> 2. Vínculo de Encontristas
-              </button>
-              <button
-                onClick={() => setActiveTab('monitoramento')}
-                className={`tab-btn-modern ${activeTab === 'monitoramento' ? 'active' : ''}`}
-              >
-                <Monitor size={18} /> 3. Monitoramento
-              </button>
-            </div>
-          }
-        />
+      <PageHeader
+        title="Gestão de Visitação"
+        subtitle="Início / Visitação"
+        backPath="/visitacao"
+        actions={
+          <div style={{ width: '300px' }}>
+            <LiveSearchSelect<Encontro>
+              value={selectedEncontroId}
+              onChange={(val) => setSelectedEncontroId(val)}
+              fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
+              getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
+              getOptionValue={(e) => String(e.id)}
+              placeholder="Selecione um Encontro..."
+              initialOptions={encontros}
+              className="montagem-header-select"
+            />
+          </div>
+        }
+        tabs={
+          <div className="tabs-modern-container">
+            <button
+              onClick={() => setActiveTab('duplas')}
+              className={`tab-btn-modern ${activeTab === 'duplas' ? 'active' : ''}`}
+            >
+              <Users size={18} /> 1. Montagem de Duplas
+            </button>
+            <button
+              onClick={() => setActiveTab('vincular')}
+              className={`tab-btn-modern ${activeTab === 'vincular' ? 'active' : ''}`}
+            >
+              <UserPlus size={18} /> 2. Vínculo de Encontristas
+            </button>
+            <button
+              onClick={() => setActiveTab('monitoramento')}
+              className={`tab-btn-modern ${activeTab === 'monitoramento' ? 'active' : ''}`}
+            >
+              <Monitor size={18} /> 3. Monitoramento
+            </button>
+          </div>
+        }
+      />
 
-        {activeTab === 'duplas' && (
-          <div className="flex-col gap-6">
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-visita">
-                <Plus size={20} /> Montar Nova Dupla
-              </button>
-            </div>
+      {activeTab === 'duplas' && (
+        <div className="flex-col gap-6">
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-visita">
+              <Plus size={20} /> Montar Nova Dupla
+            </button>
+          </div>
 
-            <div className="visita-grid">
-              {grupos.map(g => {
-                const visitantes = vinculos.filter(v => v.grupo_id === g.id && v.visitante);
-                const count = vinculos.filter(v => v.grupo_id === g.id && !v.visitante).length;
-                return (
-                  <div key={g.id} className="visita-grupo-card">
-                    <div className="visita-card-header">
-                      {editingName === g.id ? (
-                        <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
-                          <input
-                            className="form-input"
-                            style={{ height: '32px', fontSize: '0.9rem', padding: '0 8px' }}
-                            value={tempName}
-                            onChange={e => setTempName(e.target.value)}
-                            autoFocus
-                            onKeyDown={e => e.key === 'Enter' && handleRenameGroup()}
-                          />
-                          <button onClick={handleRenameGroup} className="icon-btn text-primary" title="Salvar">
-                            <Check size={16} />
+          <div className="visita-grid">
+            {grupos.map(g => {
+              const visitantes = vinculos.filter(v => v.grupo_id === g.id && v.visitante);
+              const count = vinculos.filter(v => v.grupo_id === g.id && !v.visitante).length;
+              return (
+                <div key={g.id} className="visita-grupo-card">
+                  <div className="visita-card-header">
+                    {editingName === g.id ? (
+                      <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                        <input
+                          className="form-input"
+                          style={{ height: '32px', fontSize: '0.9rem', padding: '0 8px' }}
+                          value={tempName}
+                          onChange={e => setTempName(e.target.value)}
+                          autoFocus
+                          onKeyDown={e => e.key === 'Enter' && handleRenameGroup()}
+                        />
+                        <button onClick={handleRenameGroup} className="icon-btn text-primary" title="Salvar">
+                          <Check size={16} />
+                        </button>
+                        <button onClick={() => setEditingName(null)} className="icon-btn" title="Cancelar">
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <h4 className="visita-card-title">{g.nome}</h4>
+                        <div className="visita-card-actions">
+                          <button
+                            onClick={() => { setEditingName(g.id); setTempName(g.nome || ''); }}
+                            className="icon-btn"
+                            title="Editar Nome"
+                          >
+                            <Edit2 size={14} />
                           </button>
-                          <button onClick={() => setEditingName(null)} className="icon-btn" title="Cancelar">
-                            <X size={16} />
+                          <button
+                            onClick={() => handleDeleteGroup(g.id)}
+                            className="icon-btn text-danger"
+                            title="Excluir Dupla"
+                          >
+                            <Trash2 size={14} />
                           </button>
                         </div>
-                      ) : (
-                        <>
-                          <h4 className="visita-card-title">{g.nome}</h4>
-                          <div className="visita-card-actions">
-                            <button
-                              onClick={() => { setEditingName(g.id); setTempName(g.nome || ''); }}
-                              className="icon-btn"
-                              title="Editar Nome"
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteGroup(g.id)}
-                              className="icon-btn text-danger"
-                              title="Excluir Dupla"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </>
-                      )}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="visita-card-info-row">
+                    <div className="visita-card-visitors-inline">
+                      {visitantes.map(v => (
+                        <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <Shield size={14} />
+                          <span>{v.participacoes?.pessoas?.nome_completo}</span>
+                        </div>
+                      ))}
                     </div>
 
-                    <div className="visita-card-info-row">
-                      <div className="visita-card-visitors-inline">
-                        {visitantes.map(v => (
-                          <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                            <Shield size={14} />
-                            <span>{v.participacoes?.pessoas?.nome_completo}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="visita-card-stats-inline">
-                        <Users size={14} />
-                        <span>{count}</span>
-                      </div>
+                    <div className="visita-card-stats-inline">
+                      <Users size={14} />
+                      <span>{count}</span>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
+          </div>
+
+          <Modal
+            isOpen={isCreateModalOpen}
+            onClose={() => setIsCreateModalOpen(false)}
+            title="Nova Dupla de Visitação"
+          >
+            <div className="flex-col gap-6">
+              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.7 }}>
+                Escolha dois membros da equipe de visitação para formar uma nova dupla.
+              </p>
+
+              <div className="form-group">
+                <label className="form-label">Primeiro Visitante</label>
+                <LiveSearchSelect<InscricaoEnriched>
+                  value={selectedPessoa1}
+                  onChange={(val) => setSelectedPessoa1(val)}
+                  fetchData={async (search) => {
+                    const q = normalizeString(search);
+                    return visitantesDisponiveis
+                      .filter(v => v.id !== selectedPessoa2)
+                      .filter(v => normalizeString(v.pessoas?.nome_completo || '').includes(q));
+                  }}
+                  getOptionLabel={(p) => p.pessoas?.nome_completo || ''}
+                  getOptionValue={(p) => p.id}
+                  placeholder="Selecione o primeiro visitante..."
+                  initialOptions={visitantesDisponiveis.filter(v => v.id !== selectedPessoa2)}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Segundo Visitante</label>
+                <LiveSearchSelect<InscricaoEnriched>
+                  value={selectedPessoa2}
+                  onChange={(val) => setSelectedPessoa2(val)}
+                  fetchData={async (search) => {
+                    const q = normalizeString(search);
+                    return visitantesDisponiveis
+                      .filter(v => v.id !== selectedPessoa1)
+                      .filter(v => normalizeString(v.pessoas?.nome_completo || '').includes(q));
+                  }}
+                  getOptionLabel={(p) => p.pessoas?.nome_completo || ''}
+                  getOptionValue={(p) => p.id}
+                  placeholder="Selecione o segundo visitante..."
+                  initialOptions={visitantesDisponiveis.filter(v => v.id !== selectedPessoa1)}
+                />
+              </div>
+
+              <div className="form-actions" style={{ marginTop: '1rem', borderTop: 'none', paddingTop: 0 }}>
+                <button
+                  onClick={() => setIsCreateModalOpen(false)}
+                  className="btn-secondary"
+                  disabled={isLoading}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleCreateGroup}
+                  disabled={isLoading || !selectedPessoa1 || !selectedPessoa2}
+                  className="btn-primary"
+                  style={{ minWidth: '140px' }}
+                >
+                  {isLoading ? <Loader className="animate-spin" /> : 'Criar Dupla'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        </div>
+      )}
+
+      {activeTab === 'vincular' && (
+        <div className="vincular-container">
+          {/* Sidebar / Duo Selector */}
+          <aside className={`vincular-sidebar ${isSidebarOpen ? 'open' : ''}`}>
+            <div className="card" style={{ padding: '0.5rem', height: '100%' }}>
+              <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Users size={16} /> Duplas
+                </h3>
+                <button className="mobile-only icon-btn" onClick={() => setIsSidebarOpen(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              <div style={{ padding: '0.5rem', maxHeight: '100%', overflowY: 'auto' }}>
+                {grupos.map(g => (
+                  <div
+                    key={g.id}
+                    onClick={() => { setSelectedGrupoId(g.id); setSearchParticipant(''); setIsSidebarOpen(false); }}
+                    className={`vincular-sidebar-item ${selectedGrupoId === g.id ? 'active' : ''}`}
+                  >
+                    <span className="sidebar-item-name">{g.nome}</span>
+                    <span className="sidebar-item-count">
+                      {vinculos.filter(v => v.grupo_id === g.id && !v.visitante).length}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          {/* Main Content Area */}
+          <div className="vincular-main">
+            {/* Mobile Duo Selector Trigger */}
+            <div className="mobile-only duo-selector-card card">
+              <div>
+                <span className="duo-selector-label">Dupla Selecionada</span>
+                <p className="duo-selector-name">{currentGrupo?.nome || 'Nenhuma'}</p>
+              </div>
+              <button className="btn-secondary-sm" onClick={() => setIsSidebarOpen(true)}>
+                Trocar Dupla
+              </button>
             </div>
 
-            <Modal
-              isOpen={isCreateModalOpen}
-              onClose={() => setIsCreateModalOpen(false)}
-              title="Nova Dupla de Visitação"
-            >
-              <div className="flex-col gap-6">
-                <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.7 }}>
-                  Escolha dois membros da equipe de visitação para formar uma nova dupla.
-                </p>
-
-                <div className="form-group">
-                  <label className="form-label">Primeiro Visitante</label>
-                  <LiveSearchSelect<InscricaoEnriched>
-                    value={selectedPessoa1}
-                    onChange={(val) => setSelectedPessoa1(val)}
-                    fetchData={async (search) => {
-                      const q = normalizeString(search);
-                      return visitantesDisponiveis
-                        .filter(v => v.id !== selectedPessoa2)
-                        .filter(v => normalizeString(v.pessoas?.nome_completo || '').includes(q));
-                    }}
-                    getOptionLabel={(p) => p.pessoas?.nome_completo || ''}
-                    getOptionValue={(p) => p.id}
-                    placeholder="Selecione o primeiro visitante..."
-                    initialOptions={visitantesDisponiveis.filter(v => v.id !== selectedPessoa2)}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Segundo Visitante</label>
-                  <LiveSearchSelect<InscricaoEnriched>
-                    value={selectedPessoa2}
-                    onChange={(val) => setSelectedPessoa2(val)}
-                    fetchData={async (search) => {
-                      const q = normalizeString(search);
-                      return visitantesDisponiveis
-                        .filter(v => v.id !== selectedPessoa1)
-                        .filter(v => normalizeString(v.pessoas?.nome_completo || '').includes(q));
-                    }}
-                    getOptionLabel={(p) => p.pessoas?.nome_completo || ''}
-                    getOptionValue={(p) => p.id}
-                    placeholder="Selecione o segundo visitante..."
-                    initialOptions={visitantesDisponiveis.filter(v => v.id !== selectedPessoa1)}
-                  />
-                </div>
-
-                <div className="form-actions" style={{ marginTop: '1rem', borderTop: 'none', paddingTop: 0 }}>
-                  <button
-                    onClick={() => setIsCreateModalOpen(false)}
-                    className="btn-secondary"
-                    disabled={isLoading}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleCreateGroup}
-                    disabled={isLoading || !selectedPessoa1 || !selectedPessoa2}
-                    className="btn-primary"
-                    style={{ minWidth: '140px' }}
-                  >
-                    {isLoading ? <Loader className="animate-spin" /> : 'Criar Dupla'}
-                  </button>
-                </div>
-              </div>
-            </Modal>
-          </div>
-        )}
-
-        {activeTab === 'vincular' && (
-          <div className="vincular-container">
-            {/* Sidebar / Duo Selector */}
-            <aside className={`vincular-sidebar ${isSidebarOpen ? 'open' : ''}`}>
-              <div className="card" style={{ padding: '0.5rem', height: '100%' }}>
-                <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Users size={16} /> Duplas
-                  </h3>
-                  <button className="mobile-only icon-btn" onClick={() => setIsSidebarOpen(false)}>
-                    <X size={18} />
-                  </button>
-                </div>
-                <div style={{ padding: '0.5rem', maxHeight: '100%', overflowY: 'auto' }}>
-                  {grupos.map(g => (
-                    <div
-                      key={g.id}
-                      onClick={() => { setSelectedGrupoId(g.id); setSearchParticipant(''); setIsSidebarOpen(false); }}
-                      className={`vincular-sidebar-item ${selectedGrupoId === g.id ? 'active' : ''}`}
-                    >
-                      <span className="sidebar-item-name">{g.nome}</span>
-                      <span className="sidebar-item-count">
-                        {vinculos.filter(v => v.grupo_id === g.id && !v.visitante).length}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </aside>
-
-            {/* Main Content Area */}
-            <div className="vincular-main">
-              {/* Mobile Duo Selector Trigger */}
-              <div className="mobile-only duo-selector-card card">
-                <div>
-                  <span className="duo-selector-label">Dupla Selecionada</span>
-                  <p className="duo-selector-name">{currentGrupo?.nome || 'Nenhuma'}</p>
-                </div>
-                <button className="btn-secondary-sm" onClick={() => setIsSidebarOpen(true)}>
-                  Trocar Dupla
+            <div className="card overflow-hidden">
+              {/* Internal Sub-Tabs */}
+              <div className="sub-tabs-container">
+                <button
+                  onClick={() => setVincularSubTab('lista')}
+                  className={`sub-tab-btn ${vincularSubTab === 'lista' ? 'active' : ''}`}
+                >
+                  <List size={16} /> Lista
+                </button>
+                <button
+                  onClick={() => setVincularSubTab('buscar')}
+                  className={`sub-tab-btn ${vincularSubTab === 'buscar' ? 'active' : ''}`}
+                >
+                  <SearchIcon size={16} /> Buscar
+                </button>
+                <button
+                  onClick={() => setVincularSubTab('mapa')}
+                  className={`sub-tab-btn ${vincularSubTab === 'mapa' ? 'active' : ''}`}
+                >
+                  <MapPin size={16} /> Mapa
                 </button>
               </div>
 
-              <div className="card overflow-hidden">
-                {/* Internal Sub-Tabs */}
-                <div className="sub-tabs-container">
-                  <button
-                    onClick={() => setVincularSubTab('lista')}
-                    className={`sub-tab-btn ${vincularSubTab === 'lista' ? 'active' : ''}`}
-                  >
-                    <List size={16} /> Lista
-                  </button>
-                  <button
-                    onClick={() => setVincularSubTab('buscar')}
-                    className={`sub-tab-btn ${vincularSubTab === 'buscar' ? 'active' : ''}`}
-                  >
-                    <SearchIcon size={16} /> Buscar
-                  </button>
-                  <button
-                    onClick={() => setVincularSubTab('mapa')}
-                    className={`sub-tab-btn ${vincularSubTab === 'mapa' ? 'active' : ''}`}
-                  >
-                    <MapPin size={16} /> Mapa
-                  </button>
-                </div>
+              <div className="vincular-scroll-content">
+                {vincularSubTab === 'lista' && (
+                  <div className="flex-col gap-6">
+                    <div className="flex gap-4 items-center flex-wrap">
+                      <div className="search-bar-container">
+                        <div className="search-bar" style={{ flex: 1, marginBottom: 0, width: '100%' }}>
+                          <SearchIcon size={18} style={{ opacity: 0.5 }} />
+                          <input className="search-input" placeholder="Filtrar por nome..." value={searchParticipant} onChange={e => setSearchParticipant(e.target.value)} />
+                        </div>
+                        {searchParticipant && (
+                          <button className="btn-clear-input" onClick={() => setSearchParticipant('')}>
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="search-bar-container">
+                        <div className="search-bar" style={{ flex: 1, marginBottom: 0, width: '100%' }}>
+                          <MapPin size={18} style={{ opacity: 0.5 }} />
+                          <input className="search-input" placeholder="Filtrar por bairro..." value={neighborhoodFilter} onChange={e => setNeighborhoodFilter(e.target.value)} />
+                        </div>
+                        {neighborhoodFilter && (
+                          <button className="btn-clear-input" onClick={() => setNeighborhoodFilter('')}>
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
-                <div className="vincular-scroll-content">
-                  {vincularSubTab === 'lista' && (
-                    <div className="flex-col gap-6">
-                      <div className="flex gap-4 items-center flex-wrap">
-                        <div className="search-bar-container">
-                          <div className="search-bar" style={{ flex: 1, marginBottom: 0, width: '100%' }}>
-                            <SearchIcon size={18} style={{ opacity: 0.5 }} />
-                            <input className="search-input" placeholder="Filtrar por nome..." value={searchParticipant} onChange={e => setSearchParticipant(e.target.value)} />
-                          </div>
-                          {searchParticipant && (
-                            <button className="btn-clear-input" onClick={() => setSearchParticipant('')}>
-                              <X size={14} />
-                            </button>
-                          )}
+                    {/* Enhanced Filter Bar */}
+                    <div style={{
+                      display: 'flex',
+                      gap: '1rem',
+                      alignItems: 'center',
+                      marginBottom: '1.5rem',
+                      padding: '1rem',
+                      backgroundColor: 'var(--secondary-bg)',
+                      borderRadius: '12px',
+                      flexWrap: 'wrap',
+                      border: '1px solid var(--border-color)'
+                    }}>
+
+                      <label className="filter-checkbox-modern">
+                        <input type="checkbox" checked={hideLinkedToSelected} onChange={e => {
+                          setHideLinkedToSelected(e.target.checked);
+                          if (e.target.checked) setShowOnlyLinkedToSelected(false);
+                        }} />
+                        <span>Ocultar Vinculados</span>
+                      </label>
+
+                      <label className="filter-checkbox-modern">
+                        <input type="checkbox" checked={showOnlyLinkedToSelected} onChange={e => {
+                          setShowOnlyLinkedToSelected(e.target.checked);
+                          if (e.target.checked) setHideLinkedToSelected(false);
+                        }} />
+                        <span>Apenas desta Dupla</span>
+                      </label>EncontroForm
+
+                      <label className="filter-checkbox-modern">
+                        <input type="checkbox" checked={showOnlyUnmapped} onChange={e => setShowOnlyUnmapped(e.target.checked)} />
+                        <span>Sem Coordenadas</span>
+                      </label>
+
+                      <div style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--primary-color)', fontWeight: 600 }}>
+                        {participantes.filter(p => {
+                          const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
+                          const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
+                          const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
+                          if (hideLinkedToSelected && isLinkedToSelected) return false;
+                          if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
+                          if (showOnlyUnmapped && !isUnmapped) return false;
+                          return true;
+                        }).length} Encontristas
+                      </div>
+                    </div>
+
+                    <div className="link-cards-grid">
+                      {participantes
+                        .filter(p => {
+                          const q = normalizeString(searchParticipant);
+                          const n = normalizeString(neighborhoodFilter);
+                          const nameMatch = normalizeString(p.pessoas?.nome_completo || '').includes(q);
+                          const neighborhoodMatch = normalizeString(p.pessoas?.bairro || '').includes(n);
+
+                          const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
+                          const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
+                          const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
+
+                          if (hideLinkedToSelected && isLinkedToSelected) return false;
+                          if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
+                          if (showOnlyUnmapped && !isUnmapped) return false;
+
+                          return nameMatch && neighborhoodMatch;
+                        })
+                        .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''))
+                        .map(p => {
+                          const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
+                          return (
+                            <div key={p.id} className={`item-link-card compact ${vinculo ? 'linked' : ''} ${vinculo?.grupo_id === selectedGrupoId ? 'selected' : ''} ${vinculo && vinculo.grupo_id !== selectedGrupoId ? 'busy' : ''}`}>
+                              <div className="item-link-card-info" style={{ flex: 1 }}>
+                                <h4 className="item-link-card-name">{p.pessoas?.nome_completo}</h4>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <span className="item-link-card-address">
+                                    {p.pessoas?.endereco}{p.pessoas?.numero ? `, ${p.pessoas.numero}` : ''} - {p.pessoas?.bairro || 'Sem Bairro'}
+                                  </span>
+                                  <a
+                                    href={
+                                      p.pessoas?.latitude && p.pessoas?.longitude
+                                        ? `https://www.google.com/maps/search/?api=1&query=${p.pessoas.latitude},${p.pessoas.longitude}`
+                                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.pessoas?.endereco || ''}, ${p.pessoas?.numero || ''}, ${p.pessoas?.bairro || ''}, Franca, SP`)}`
+                                    }
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-primary hover-opacity"
+                                    title="Abrir no Google Maps"
+                                    style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none' }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <ExternalLink size={12} /> Ver no Mapa
+                                  </a>
+                                </div>
+                              </div>
+
+                              <div className="item-link-card-actions">
+                                {!vinculo ? (
+                                  <button
+                                    onClick={() => handleVincular(p.id)}
+                                    disabled={isLoading || !selectedGrupoId}
+                                    className="btn-primary-sm btn-icon"
+                                    title={selectedGrupoId ? 'Vincular' : 'Selecione uma Dupla'}
+                                  >
+                                    <Link2 size={18} />
+                                  </button>
+                                ) : (
+                                  vinculo.grupo_id === selectedGrupoId ? (
+                                    <button
+                                      onClick={() => handleDesvincular(vinculo.id)}
+                                      className="btn-outline-danger-sm btn-icon"
+                                      title="Desvincular"
+                                    >
+                                      <Link2OffIcon size={18} />
+                                    </button>
+                                  ) : (
+                                    <div className="busy-badge" title={`Vinculado em ${vinculo.visita_grupos?.nome}`}>
+                                      <Lock size={16} />
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      }
+                    </div>
+                  </div>
+                )}
+
+                {vincularSubTab === 'buscar' && (
+                  <div className="flex-col gap-6">
+                    <div className="card-glass" style={{ padding: '2rem', textAlign: 'center' }}>
+                      <h3 style={{ margin: '0 0 0.5rem' }}>Busca Rápida</h3>
+                      <p style={{ opacity: 0.6, fontSize: '0.9rem', marginBottom: '1.5rem' }}>Busque por nome, e-mail ou telefone para vincular à dupla <strong>{currentGrupo?.nome}</strong></p>
+                      <div className="search-bar-container" style={{ width: '100%' }}>
+                        <div className="search-bar-large">
+                          <SearchIcon size={24} />
+                          <input
+                            autoFocus
+                            placeholder="Ex: joao@email.com ou 16 99999..."
+                            value={searchParticipant}
+                            onChange={e => setSearchParticipant(e.target.value)}
+                          />
                         </div>
-                        <div className="search-bar-container">
-                          <div className="search-bar" style={{ flex: 1, marginBottom: 0, width: '100%' }}>
-                            <MapPin size={18} style={{ opacity: 0.5 }} />
-                            <input className="search-input" placeholder="Filtrar por bairro..." value={neighborhoodFilter} onChange={e => setNeighborhoodFilter(e.target.value)} />
-                          </div>
-                          {neighborhoodFilter && (
-                            <button className="btn-clear-input" onClick={() => setNeighborhoodFilter('')}>
-                              <X size={14} />
-                            </button>
-                          )}
-                        </div>
+                        {searchParticipant && (
+                          <button className="btn-clear-input" onClick={() => setSearchParticipant('')}>
+                            <X size={20} />
+                          </button>
+                        )}
                       </div>
 
-                      {/* Enhanced Filter Bar */}
+                      {/* Filter Bar for Search Tab */}
                       <div style={{
                         display: 'flex',
                         gap: '1rem',
                         alignItems: 'center',
-                        marginBottom: '1.5rem',
-                        padding: '1rem',
-                        backgroundColor: 'var(--secondary-bg)',
-                        borderRadius: '12px',
-                        flexWrap: 'wrap',
-                        border: '1px solid var(--border-color)'
+                        justifyContent: 'center',
+                        marginTop: '1.5rem',
+                        flexWrap: 'wrap'
                       }}>
-
                         <label className="filter-checkbox-modern">
                           <input type="checkbox" checked={hideLinkedToSelected} onChange={e => {
                             setHideLinkedToSelected(e.target.checked);
@@ -623,55 +770,34 @@ export function CoordenadorVisitacaoPage() {
                             if (e.target.checked) setHideLinkedToSelected(false);
                           }} />
                           <span>Apenas desta Dupla</span>
-                        </label>EncontroForm
+                        </label>
 
                         <label className="filter-checkbox-modern">
                           <input type="checkbox" checked={showOnlyUnmapped} onChange={e => setShowOnlyUnmapped(e.target.checked)} />
                           <span>Sem Coordenadas</span>
                         </label>
-
-                        <div style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--primary-color)', fontWeight: 600 }}>
-                          {participantes.filter(p => {
-                            const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
-                            const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
-                            const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
-                            if (hideLinkedToSelected && isLinkedToSelected) return false;
-                            if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
-                            if (showOnlyUnmapped && !isUnmapped) return false;
-                            return true;
-                          }).length} Encontristas
-                        </div>
                       </div>
+                    </div>
 
-                      <div className="link-cards-grid">
-                        {participantes
-                          .filter(p => {
-                            const q = normalizeString(searchParticipant);
-                            const n = normalizeString(neighborhoodFilter);
-                            const nameMatch = normalizeString(p.pessoas?.nome_completo || '').includes(q);
-                            const neighborhoodMatch = normalizeString(p.pessoas?.bairro || '').includes(n);
-
-                            const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
-                            const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
-                            const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
-
-                            if (hideLinkedToSelected && isLinkedToSelected) return false;
-                            if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
-                            if (showOnlyUnmapped && !isUnmapped) return false;
-
-                            return nameMatch && neighborhoodMatch;
-                          })
-                          .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''))
-                          .map(p => {
-                            const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
-                            return (
-                              <div key={p.id} className={`item-link-card compact ${vinculo ? 'linked' : ''} ${vinculo?.grupo_id === selectedGrupoId ? 'selected' : ''} ${vinculo && vinculo.grupo_id !== selectedGrupoId ? 'busy' : ''}`}>
-                                <div className="item-link-card-info" style={{ flex: 1 }}>
-                                  <h4 className="item-link-card-name">{p.pessoas?.nome_completo}</h4>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                    <span className="item-link-card-address">
-                                      {p.pessoas?.endereco}{p.pessoas?.numero ? `, ${p.pessoas.numero}` : ''} - {p.pessoas?.bairro || 'Sem Bairro'}
-                                    </span>
+                    <div className="link-cards-grid">
+                      {searchResults
+                        .filter(item => item.status !== 'visitor_here')
+                        .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
+                        .map(item => (
+                          <div key={item.id} className={`item-link-card compact ${item.status === 'in_this_group' ? 'selected' : ''} ${item.status === 'in_other_group' ? 'busy' : ''}`}>
+                            <div className="item-link-card-info" style={{ flex: 1 }}>
+                              <span className="item-link-card-name">{item.nome}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <span className="item-link-card-address" style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+                                  {(() => {
+                                    const p = participantes.find(p => p.id === item.id);
+                                    return p ? `${p.pessoas?.endereco || ''}${p.pessoas?.numero ? `, ${p.pessoas.numero}` : ''}${p.pessoas?.bairro ? ` - ${p.pessoas.bairro}` : ''}` : '';
+                                  })()}
+                                </span>
+                                {(() => {
+                                  const p = participantes.find(p => p.id === item.id);
+                                  if (!p?.pessoas?.endereco) return null;
+                                  return (
                                     <a
                                       href={
                                         p.pessoas?.latitude && p.pessoas?.longitude
@@ -682,284 +808,159 @@ export function CoordenadorVisitacaoPage() {
                                       rel="noopener noreferrer"
                                       className="text-primary hover-opacity"
                                       title="Abrir no Google Maps"
-                                      style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none' }}
+                                      style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: 600, textDecoration: 'none' }}
                                       onClick={(e) => e.stopPropagation()}
                                     >
-                                      <ExternalLink size={12} /> Ver no Mapa
+                                      <ExternalLink size={12} /> Maps
                                     </a>
-                                  </div>
-                                </div>
-
-                                <div className="item-link-card-actions">
-                                  {!vinculo ? (
-                                    <button
-                                      onClick={() => handleVincular(p.id)}
-                                      disabled={isLoading || !selectedGrupoId}
-                                      className="btn-primary-sm btn-icon"
-                                      title={selectedGrupoId ? 'Vincular' : 'Selecione uma Dupla'}
-                                    >
-                                      <Link2 size={18} />
-                                    </button>
-                                  ) : (
-                                    vinculo.grupo_id === selectedGrupoId ? (
-                                      <button
-                                        onClick={() => handleDesvincular(vinculo.id)}
-                                        className="btn-outline-danger-sm btn-icon"
-                                        title="Desvincular"
-                                      >
-                                        <Trash2 size={18} />
-                                      </button>
-                                    ) : (
-                                      <div className="busy-badge" title={`Vinculado em ${vinculo.visita_grupos?.nome}`}>
-                                        <Lock size={16} />
-                                      </div>
-                                    )
-                                  )}
-                                </div>
+                                  );
+                                })()}
                               </div>
-                            );
-                          })
-                        }
-                      </div>
-                    </div>
-                  )}
-
-                  {vincularSubTab === 'buscar' && (
-                    <div className="flex-col gap-6">
-                      <div className="card-glass" style={{ padding: '2rem', textAlign: 'center' }}>
-                        <h3 style={{ margin: '0 0 0.5rem' }}>Busca Rápida</h3>
-                        <p style={{ opacity: 0.6, fontSize: '0.9rem', marginBottom: '1.5rem' }}>Busque por nome, e-mail ou telefone para vincular à dupla <strong>{currentGrupo?.nome}</strong></p>
-                        <div className="search-bar-container" style={{ width: '100%' }}>
-                          <div className="search-bar-large">
-                            <SearchIcon size={24} />
-                            <input
-                              autoFocus
-                              placeholder="Ex: joao@email.com ou 16 99999..."
-                              value={searchParticipant}
-                              onChange={e => setSearchParticipant(e.target.value)}
-                            />
+                              <div className="item-link-card-status-compact">
+                                {item.status === 'in_other_group' && <span className="busy-text">Ocupado: {item.grupoNome}</span>}
+                                {item.status === 'in_this_group' && <span className="selected-text">Vinculado aqui</span>}
+                              </div>
+                            </div>
+                            <div className="item-link-card-actions">
+                              {item.status === 'available' && (
+                                <button onClick={() => handleVincular(item.id)} disabled={isLoading || !selectedGrupoId} className="btn-primary-sm btn-icon">
+                                  <Link2 size={18} />
+                                </button>
+                              )}
+                              {item.status === 'in_this_group' && item.vinculoId && (
+                                <button onClick={() => handleDesvincular(item.vinculoId!)} disabled={isLoading} className="btn-outline-danger-sm btn-icon">
+                                  <Link2OffIcon size={18} />
+                                </button>
+                              )}
+                              {item.status === 'in_other_group' && (
+                                <div className="busy-badge">
+                                  <Lock size={16} />
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          {searchParticipant && (
-                            <button className="btn-clear-input" onClick={() => setSearchParticipant('')}>
-                              <X size={20} />
-                            </button>
-                          )}
+                        ))}
+                    </div>
+                  </div>
+                )}
+
+                {vincularSubTab === 'mapa' && (
+                  <EncontristaMap
+                    participantes={participantes}
+                    vinculos={vinculos}
+                    selectedGrupoId={selectedGrupoId}
+                    onVincular={handleVincular}
+                    onDesvincular={handleDesvincular}
+                    onShowUnmappedClick={() => {
+                      setShowOnlyUnmapped(true);
+                      setVincularSubTab('lista');
+                    }}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'monitoramento' && (
+        <div className="flex-col gap-6">
+          <div className="monitoramento-grid">
+            <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid var(--primary-color)' }}>
+              <div style={{ background: 'var(--primary-color)15', color: 'var(--primary-color)', padding: '0.75rem', borderRadius: '10px' }}><Users size={20} /></div>
+              <div>
+                <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>Total Participantes</p>
+                <h3 style={{ margin: 0 }}>{stats.totalP}</h3>
+              </div>
+            </div>
+            <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #10b981' }}>
+              <div style={{ background: '#10b98115', color: '#10b981', padding: '0.75rem', borderRadius: '10px' }}><Check size={20} /></div>
+              <div>
+                <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>Visitas Realizadas</p>
+                <h3 style={{ margin: 0 }}>{stats.realizada}</h3>
+              </div>
+            </div>
+            <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #f59e0b' }}>
+              <div style={{ background: '#f59e0b15', color: '#f59e0b', padding: '0.75rem', borderRadius: '10px' }}><Loader size={20} /></div>
+              <div>
+                <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>Visitas Pendentes</p>
+                <h3 style={{ margin: 0 }}>{stats.pendente}</h3>
+              </div>
+            </div>
+            <div className="card" style={{ padding: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Progresso Geral</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 700 }}>{Math.round(stats.percent)}%</span>
+              </div>
+              <div style={{ height: '6px', background: 'var(--secondary-bg)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ width: `${stats.percent}%`, height: '100%', background: 'var(--primary-color)' }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Dupla</th>
+                    <th>Visitantes</th>
+                    <th>Participantes</th>
+                    <th>Progresso</th>
+                    <th>Status Relatado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monitoramentoGrupos.map(g => (
+                    <tr key={g.id}>
+                      <td><span style={{ fontWeight: 600 }}>{g.nome}</span></td>
+                      <td>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {g.visitantes.map(v => (
+                            <span key={v.id} style={{
+                              fontSize: '0.75rem',
+                              background: 'color-mix(in srgb, var(--primary-color) 15%, transparent)',
+                              color: 'var(--primary-color)',
+                              fontWeight: 600,
+                              padding: '4px 10px',
+                              borderRadius: '12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}>
+                              <Shield size={12} />
+                              {v.participacoes?.pessoas?.nome_completo?.split(' ')[0]}
+                            </span>
+                          ))}
                         </div>
-
-                        {/* Filter Bar for Search Tab */}
-                        <div style={{
-                          display: 'flex',
-                          gap: '1rem',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginTop: '1.5rem',
-                          flexWrap: 'wrap'
-                        }}>
-                          <label className="filter-checkbox-modern">
-                            <input type="checkbox" checked={hideLinkedToSelected} onChange={e => {
-                              setHideLinkedToSelected(e.target.checked);
-                              if (e.target.checked) setShowOnlyLinkedToSelected(false);
-                            }} />
-                            <span>Ocultar Vinculados</span>
-                          </label>
-
-                          <label className="filter-checkbox-modern">
-                            <input type="checkbox" checked={showOnlyLinkedToSelected} onChange={e => {
-                              setShowOnlyLinkedToSelected(e.target.checked);
-                              if (e.target.checked) setHideLinkedToSelected(false);
-                            }} />
-                            <span>Apenas desta Dupla</span>
-                          </label>
-
-                          <label className="filter-checkbox-modern">
-                            <input type="checkbox" checked={showOnlyUnmapped} onChange={e => setShowOnlyUnmapped(e.target.checked)} />
-                            <span>Sem Coordenadas</span>
-                          </label>
+                      </td>
+                      <td><span style={{ fontSize: '0.9rem' }}>{g.membrosVisita.length} pessoas</span></td>
+                      <td style={{ width: '160px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ flex: 1, height: '8px', background: 'var(--secondary-bg)', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ width: `${g.progresso}%`, height: '100%', background: '#10b981', transition: 'width 0.5s ease-in-out' }} />
+                          </div>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, width: '30px' }}>{Math.round(g.progresso)}%</span>
                         </div>
-                      </div>
-
-                      <div className="link-cards-grid">
-                        {searchResults
-                          .filter(item => item.status !== 'visitor_here')
-                          .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
-                          .map(item => (
-                            <div key={item.id} className={`item-link-card compact ${item.status === 'in_this_group' ? 'selected' : ''} ${item.status === 'in_other_group' ? 'busy' : ''}`}>
-                              <div className="item-link-card-info" style={{ flex: 1 }}>
-                                <span className="item-link-card-name">{item.nome}</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                  <span className="item-link-card-address" style={{ fontSize: '0.75rem', opacity: 0.6 }}>
-                                    {(() => {
-                                      const p = participantes.find(p => p.id === item.id);
-                                      return p ? `${p.pessoas?.endereco || ''}${p.pessoas?.numero ? `, ${p.pessoas.numero}` : ''}${p.pessoas?.bairro ? ` - ${p.pessoas.bairro}` : ''}` : '';
-                                    })()}
-                                  </span>
-                                  {(() => {
-                                    const p = participantes.find(p => p.id === item.id);
-                                    if (!p?.pessoas?.endereco) return null;
-                                    return (
-                                      <a
-                                        href={
-                                          p.pessoas?.latitude && p.pessoas?.longitude
-                                            ? `https://www.google.com/maps/search/?api=1&query=${p.pessoas.latitude},${p.pessoas.longitude}`
-                                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.pessoas?.endereco || ''}, ${p.pessoas?.numero || ''}, ${p.pessoas?.bairro || ''}, Franca, SP`)}`
-                                        }
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-primary hover-opacity"
-                                        title="Abrir no Google Maps"
-                                        style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: 600, textDecoration: 'none' }}
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        <ExternalLink size={12} /> Maps
-                                      </a>
-                                    );
-                                  })()}
-                                </div>
-                                <div className="item-link-card-status-compact">
-                                  {item.status === 'in_other_group' && <span className="busy-text">Ocupado: {item.grupoNome}</span>}
-                                  {item.status === 'in_this_group' && <span className="selected-text">Vinculado aqui</span>}
-                                </div>
-                              </div>
-                              <div className="item-link-card-actions">
-                                {item.status === 'available' && (
-                                  <button onClick={() => handleVincular(item.id)} disabled={isLoading || !selectedGrupoId} className="btn-primary-sm btn-icon">
-                                    <Link2 size={18} />
-                                  </button>
-                                )}
-                                {item.status === 'in_this_group' && item.vinculoId && (
-                                  <button onClick={() => handleDesvincular(item.vinculoId!)} disabled={isLoading} className="btn-outline-danger-sm btn-icon">
-                                    <Trash2 size={18} />
-                                  </button>
-                                )}
-                                {item.status === 'in_other_group' && (
-                                  <div className="busy-badge">
-                                    <Lock size={16} />
-                                  </div>
-                                )}
-                              </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                          {g.membrosVisita.map(m => (
+                            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{m.participacoes?.pessoas?.nome_completo?.split(' ')[0]}:</span>
+                              {getStatusBadge(m.status)}
                             </div>
                           ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {vincularSubTab === 'mapa' && (
-                    <EncontristaMap
-                      participantes={participantes}
-                      vinculos={vinculos}
-                      selectedGrupoId={selectedGrupoId}
-                      onVincular={handleVincular}
-                      onDesvincular={handleDesvincular}
-                      onShowUnmappedClick={() => {
-                        setShowOnlyUnmapped(true);
-                        setVincularSubTab('lista');
-                      }}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'monitoramento' && (
-          <div className="flex-col gap-6">
-            <div className="monitoramento-grid">
-              <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid var(--primary-color)' }}>
-                <div style={{ background: 'var(--primary-color)15', color: 'var(--primary-color)', padding: '0.75rem', borderRadius: '10px' }}><Users size={20} /></div>
-                <div>
-                  <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>Total Participantes</p>
-                  <h3 style={{ margin: 0 }}>{stats.totalP}</h3>
-                </div>
-              </div>
-              <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #10b981' }}>
-                <div style={{ background: '#10b98115', color: '#10b981', padding: '0.75rem', borderRadius: '10px' }}><Check size={20} /></div>
-                <div>
-                  <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>Visitas Realizadas</p>
-                  <h3 style={{ margin: 0 }}>{stats.realizada}</h3>
-                </div>
-              </div>
-              <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #f59e0b' }}>
-                <div style={{ background: '#f59e0b15', color: '#f59e0b', padding: '0.75rem', borderRadius: '10px' }}><Loader size={20} /></div>
-                <div>
-                  <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>Visitas Pendentes</p>
-                  <h3 style={{ margin: 0 }}>{stats.pendente}</h3>
-                </div>
-              </div>
-              <div className="card" style={{ padding: '1.25rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Progresso Geral</span>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 700 }}>{Math.round(stats.percent)}%</span>
-                </div>
-                <div style={{ height: '6px', background: 'var(--secondary-bg)', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{ width: `${stats.percent}%`, height: '100%', background: 'var(--primary-color)' }} />
-                </div>
-              </div>
-            </div>
-
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div className="table-container">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Dupla</th>
-                      <th>Visitantes</th>
-                      <th>Participantes</th>
-                      <th>Progresso</th>
-                      <th>Status Relatado</th>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {monitoramentoGrupos.map(g => (
-                      <tr key={g.id}>
-                        <td><span style={{ fontWeight: 600 }}>{g.nome}</span></td>
-                        <td>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                            {g.visitantes.map(v => (
-                              <span key={v.id} style={{
-                                fontSize: '0.75rem',
-                                background: 'color-mix(in srgb, var(--primary-color) 15%, transparent)',
-                                color: 'var(--primary-color)',
-                                fontWeight: 600,
-                                padding: '4px 10px',
-                                borderRadius: '12px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                              }}>
-                                <Shield size={12} />
-                                {v.participacoes?.pessoas?.nome_completo?.split(' ')[0]}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td><span style={{ fontSize: '0.9rem' }}>{g.membrosVisita.length} pessoas</span></td>
-                        <td style={{ width: '160px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{ flex: 1, height: '8px', background: 'var(--secondary-bg)', borderRadius: '4px', overflow: 'hidden' }}>
-                              <div style={{ width: `${g.progresso}%`, height: '100%', background: '#10b981', transition: 'width 0.5s ease-in-out' }} />
-                            </div>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, width: '30px' }}>{Math.round(g.progresso)}%</span>
-                          </div>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                            {g.membrosVisita.map(m => (
-                              <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{m.participacoes?.pessoas?.nome_completo?.split(' ')[0]}:</span>
-                                {getStatusBadge(m.status)}
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </>
   );
 }

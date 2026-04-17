@@ -13,6 +13,7 @@ export interface Encontro {
     link_musica: string | null;
     link_youtube: string | null;
     limite_vagas_online: number;
+    valor_taxa: number;
 }
 
 export type EncontroFormData = Omit<Encontro, 'id' | 'created_at'>;
@@ -30,4 +31,5 @@ export const encontroFormDataVazio = (): EncontroFormData => ({
     link_musica: '',
     link_youtube: '',
     limite_vagas_online: 0,
+    valor_taxa: 0,
 });

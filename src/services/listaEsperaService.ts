@@ -133,10 +133,10 @@ export const listaEsperaService = {
                 ...formData,
                 origem: 'online'
             };
-            // Retira do data coisas que nao vao ter na pessoa (ex: encontro_id)
-            const { encontro_id, ...pessoaDataOnly } = novapessoaData as any;
+            // Retira do data coisas que nao vao ter na pessoa (ex: encontro_id, campos de auditoria da lista de espera)
+            const { encontro_id, created_at, criado_em, ...pessoaDataOnly } = novapessoaData as Record<string, any>;
             
-            const novaPessoa = await pessoaService.criar(pessoaDataOnly);
+            const novaPessoa = await pessoaService.criar(pessoaDataOnly as any);
 
             // Vincula inscrição no Encontro
             await inscricaoService.criar({
@@ -147,6 +147,7 @@ export const listaEsperaService = {
                 coordenador: false,
                 dados_confirmados: true,
                 confirmado_em: new Date().toISOString(),
+                pago_taxa: false,
                 origem: 'online'
             });
 
@@ -160,7 +161,7 @@ export const listaEsperaService = {
 
     async vincularPessoaExistente(preId: string, pessoaOriginalId: string, formData: Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>): Promise<void> {
         try {
-            const { encontro_id, ...dadosPessoa } = formData as any;
+            const { encontro_id, ...dadosPessoa } = formData as Record<string, any>;
             
             // O usuário autorizou atualizar os dados originais no banco
             await pessoaService.atualizar(pessoaOriginalId, {
@@ -192,6 +193,7 @@ export const listaEsperaService = {
                 coordenador: false,
                 dados_confirmados: true,
                 confirmado_em: new Date().toISOString(),
+                pago_taxa: false,
                 origem: 'online'
             });
 
@@ -240,7 +242,7 @@ export const listaEsperaService = {
                 // Montar o objeto para não interferir na assinatura de Pessoa
                 const { id: entryId, ...formData } = entry;
                 
-                await this.efetivarListaEspera(entryId, formData as any);
+                await this.efetivarListaEspera(entryId, formData as unknown as Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>);
                 success++;
             } catch (err) {
                 console.error(`Erro ao aprovar a entry ${entry.id}`, err);

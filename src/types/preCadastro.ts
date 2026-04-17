@@ -4,8 +4,8 @@ export interface PreCadastroEntry {
     email: string | null;
     telefone: string;
     data_nascimento: string | null;
-    criado_em?: string;
+    created_at?: string;
     status: 'pendente' | 'convertido';
 }
 
-export type PreCadastroFormData = Omit<PreCadastroEntry, 'id' | 'criado_em' | 'status'>;
+export type PreCadastroFormData = Omit<PreCadastroEntry, 'id' | 'created_at' | 'status'>;

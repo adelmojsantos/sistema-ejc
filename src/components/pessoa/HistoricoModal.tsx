@@ -21,9 +21,11 @@ export function HistoricoModal({ pessoa, isOpen, onClose }: HistoricoModalProps)
             try {
                 const data = await pessoaService.buscarHistorico(pessoa.id);
                 // Mover os encontros ativos / mais recentes para o topo
-                data.sort((a, b) => {
-                    if (a.encontros?.ativo && !b.encontros?.ativo) return -1;
-                    if (!a.encontros?.ativo && b.encontros?.ativo) return 1;
+                data.sort((a: any, b: any) => {
+                    const aAtivo = a.encontros?.ativo || false;
+                    const bAtivo = b.encontros?.ativo || false;
+                    if (aAtivo && !bAtivo) return -1;
+                    if (!aAtivo && bAtivo) return 1;
                     return 0;
                 });
                 setHistorico(data);

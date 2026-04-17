@@ -184,7 +184,8 @@ export function MontagemPage() {
                 coordenador: s.coordenador,
                 participante: false,
                 dados_confirmados: false,
-                confirmado_em: null
+                confirmado_em: null,
+                pago_taxa: false
             }));
             await inscricaoService.criarMuitos(payload);
             await loadInscricoes();

@@ -27,6 +27,7 @@ export function InscricaoForm({ initialData, onSubmit, onCancel, isLoading = fal
         coordenador: initialData?.coordenador ?? false,
         dados_confirmados: initialData?.dados_confirmados ?? false,
         confirmado_em: initialData?.confirmado_em ?? null,
+        pago_taxa: initialData?.pago_taxa ?? false,
     });
 
     const [pessoas, setPessoas] = useState<Pessoa[]>([]);

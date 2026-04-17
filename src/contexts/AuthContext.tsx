@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             if (!ugError && ugData) {
                 // Flatten results, only allowing global groups OR groups for the active encounter
-                (ugData as any[]).forEach((ug: any) => {
+                (ugData as Record<string, unknown>[]).forEach((ug: Record<string, unknown>) => {
                     const isGlobal = !ug.encontro_id;
                     const isActiveEncounter = activeEncontroId && ug.encontro_id === activeEncontroId;
 
@@ -80,11 +80,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         grupos.push(grupo.nome);
                         const gps = Array.isArray(grupo.grupo_permissoes) ? grupo.grupo_permissoes : [grupo.grupo_permissoes];
                         
-                        gps.forEach((gp: any) => {
+                        gps.forEach((gp: Record<string, unknown>) => {
                             if (gp?.permissoes) {
                                 const perms = Array.isArray(gp.permissoes) ? gp.permissoes : [gp.permissoes];
                                 perms.forEach((p: any) => {
-                                    if (p?.chave && !permissions.includes(p.chave)) {
+                                    if (p?.chave && typeof p.chave === 'string' && !permissions.includes(p.chave)) {
                                         permissions.push(p.chave);
                                     }
                                 });

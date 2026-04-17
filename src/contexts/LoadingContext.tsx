@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
 interface LoadingContextType {
@@ -7,7 +8,7 @@ interface LoadingContextType {
 
 const LoadingContext = createContext<LoadingContextType | undefined>(undefined);
 
-export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function LoadingProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoadingState] = useState(false);
 
   const setIsLoading = useCallback((loading: boolean) => {
@@ -19,7 +20,7 @@ export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ child
       {children}
     </LoadingContext.Provider>
   );
-};
+}
 
 export const useLoading = () => {
   const context = useContext(LoadingContext);
