@@ -269,6 +269,27 @@ h2 {
   transform: translateY(-1px);
 }
 
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--danger-border);
+  color: var(--danger-border);
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  padding: 0.5rem 1.25rem;
+  transition: all 0.2s var(--ease-smooth);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-text);
+  transform: translateY(-1px);
+}
+
 /* Glassmorphism Utilities */
 .glass {
   background: rgba(255, 255, 255, 0.7);
@@ -1200,18 +1221,6 @@ input:checked+.theme-toggle-slider:before {
   background-color: var(--secondary-bg);
 }
 
-.btn-danger {
-  background-color: #ef4444;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background-color: #dc2626;
-}
-
-.btn-danger:focus,
-.btn-danger:focus-visible {
-  outline-color: #ef4444;
-}
 
 .animate-spin {
   animation: spin 1s linear infinite;
@@ -4871,6 +4880,39 @@ tbody tr:hover {
   .info-item span {
     white-space: normal;
     word-break: break-all;
+  }
+
+  /* Ajustes para os botões da lista de espera no mobile */
+  .lista-espera-card__actions {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem !important;
+  }
+
+  .lista-espera-card__actions button {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: 120px;
+    font-size: 0.75rem !important;
+    padding: 0.5rem 0.75rem !important;
+    white-space: nowrap;
+    justify-content: center;
+  }
+}
+
+.maps-link {
+  color: var(--primary-color);
+  text-decoration: underline;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  .maps-link {
+    white-space: normal;
+    word-break: break-word;
+    font-size: 0.8rem;
   }
 }
 

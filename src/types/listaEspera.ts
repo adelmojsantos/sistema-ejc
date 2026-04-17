@@ -2,7 +2,7 @@ export interface ListaEsperaEntry {
     id: string; // uuid
     encontro_id: string; // uuid
     origem: string;
-    status: 'pendente' | 'convertido';
+    status: 'pendente' | 'convertido' | 'reprovado';
     created_at: string;
     
     // Dados da ficha cadastral

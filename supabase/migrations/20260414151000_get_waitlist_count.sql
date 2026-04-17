@@ -9,6 +9,7 @@ BEGIN
         SELECT count(*)::integer
         FROM lista_espera
         WHERE encontro_id = p_encontro_id
+        AND status != 'reprovado'
     );
 END;
 $$;

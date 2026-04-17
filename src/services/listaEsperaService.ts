@@ -98,7 +98,23 @@ export const listaEsperaService = {
         return (data || []) as ListaEsperaEntry[];
     },
 
-    async updateStatus(id: string, status: 'pendente' | 'convertido'): Promise<void> {
+    async listReprovadosNoEncontro(encontroId: string): Promise<ListaEsperaEntry[]> {
+        const { data, error } = await supabase
+            .from('lista_espera')
+            .select('*')
+            .eq('encontro_id', encontroId)
+            .eq('status', 'reprovado')
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error('Error listing registrations:', error);
+            return [];
+        }
+
+        return (data || []) as ListaEsperaEntry[];
+    },
+
+    async updateStatus(id: string, status: 'pendente' | 'convertido' | 'reprovado'): Promise<void> {
         const { error } = await supabase
             .from('lista_espera')
             .update({ status })
@@ -118,7 +134,7 @@ export const listaEsperaService = {
                 origem: 'online'
             };
             // Retira do data coisas que nao vao ter na pessoa (ex: encontro_id)
-            const { encontro_id, criado_em, ...pessoaDataOnly } = novapessoaData as any;
+            const { encontro_id, ...pessoaDataOnly } = novapessoaData as any;
             
             const novaPessoa = await pessoaService.criar(pessoaDataOnly);
 
@@ -144,7 +160,7 @@ export const listaEsperaService = {
 
     async vincularPessoaExistente(preId: string, pessoaOriginalId: string, formData: Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>): Promise<void> {
         try {
-            const { encontro_id, criado_em, ...dadosPessoa } = formData as any;
+            const { encontro_id, ...dadosPessoa } = formData as any;
             
             // O usuário autorizou atualizar os dados originais no banco
             await pessoaService.atualizar(pessoaOriginalId, {
@@ -188,13 +204,21 @@ export const listaEsperaService = {
     },
 
     async recusarListaEspera(id: string): Promise<void> {
+        await this.updateStatus(id, 'reprovado');
+    },
+
+    async restaurarListaEspera(id: string): Promise<void> {
+        await this.updateStatus(id, 'pendente');
+    },
+
+    async atualizar(id: string, data: Partial<ListaEsperaFormData>): Promise<void> {
         const { error } = await supabase
             .from('lista_espera')
-            .delete()
+            .update(data)
             .eq('id', id);
 
         if (error) {
-            console.error('Error refusing waitlist:', error);
+            console.error('Error updating registration:', error);
             throw error;
         }
     },
@@ -204,7 +228,7 @@ export const listaEsperaService = {
         let fails = 0;
         let suspicions = 0;
         
-        for(let entry of entries) {
+        for(const entry of entries) {
             try {
                 const duplicatas = await pessoaService.buscarPorSemelhanca(entry.nome_completo, entry.cpf);
                 if (duplicatas && duplicatas.length > 0) {
@@ -213,9 +237,10 @@ export const listaEsperaService = {
                 }
 
                 // Montar o objeto para não interferir na assinatura de Pessoa (vamos desmembrar os campos)
-                const { id, created_at, status, ...formData } = entry;
+                // Montar o objeto para não interferir na assinatura de Pessoa
+                const { id: entryId, ...formData } = entry;
                 
-                await this.efetivarListaEspera(id, formData);
+                await this.efetivarListaEspera(entryId, formData as any);
                 success++;
             } catch (err) {
                 console.error(`Erro ao aprovar a entry ${entry.id}`, err);

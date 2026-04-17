@@ -1,4 +1,4 @@
-import { Calendar, CheckCircle, CheckCircle2, CheckSquare, ChevronRight, Clock, Mail, MapPin, Phone, Search, Square, Users, X } from 'lucide-react';
+import { Calendar, CheckCircle, CheckCircle2, CheckSquare, ChevronRight, Clock, Mail, MapPin, Phone, Search, Square, Users, X, RotateCcw, Edit, Check } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -8,7 +8,7 @@ import { encontroService } from '../../services/encontroService';
 import { listaEsperaService } from '../../services/listaEsperaService';
 import { pessoaService } from '../../services/pessoaService';
 import type { Encontro } from '../../types/encontro';
-import type { ListaEsperaEntry } from '../../types/listaEspera';
+import type { ListaEsperaEntry, ListaEsperaFormData } from '../../types/listaEspera';
 import type { Pessoa } from '../../types/pessoa';
 import { formatTelefone, maskCpf } from '../../utils/cpfUtils';
 import { calculateAge } from '../../utils/dateUtils';
@@ -17,7 +17,9 @@ export function GerenciarListaEsperaPage() {
     const [encontroAtivo, setEncontroAtivo] = useState<Encontro | null>(null);
     const [entries, setEntries] = useState<ListaEsperaEntry[]>([]);
     const [efetivados, setEfetivados] = useState<ListaEsperaEntry[]>([]);
+    const [reprovados, setReprovados] = useState<ListaEsperaEntry[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [viewMode, setViewMode] = useState<'pendente' | 'reprovado'>('pendente');
 
     // Batch Selection Data
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -27,6 +29,10 @@ export function GerenciarListaEsperaPage() {
     const [showBatchConfirm, setShowBatchConfirm] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<ListaEsperaEntry | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+
+    // Edit Mode Data
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState<Partial<ListaEsperaFormData>>({});
 
     // Duplicate Check Modal Data
     const [showDuplicateModal, setShowDuplicateModal] = useState(false);
@@ -47,26 +53,30 @@ export function GerenciarListaEsperaPage() {
                 setEncontroAtivo(active);
                 const pendentes = await listaEsperaService.listPendentesNoEncontro(active.id);
                 const efetivados = await listaEsperaService.listEfetivadosNoEncontro(active.id);
+                const reprovadosData = await listaEsperaService.listReprovadosNoEncontro(active.id);
                 setEntries([...pendentes]);
                 setEfetivados([...efetivados]);
+                setReprovados([...reprovadosData]);
             }
-        } catch (error) {
-            toast.error('Erro ao carregar fila de espera');
+        } catch (_err) {
+            toast.error('Erro ao carregar dados');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const filteredEntries = entries.filter(e =>
+    const currentList = viewMode === 'pendente' ? entries : reprovados;
+
+    const filteredEntries = currentList.filter(e =>
         e.nome_completo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         e.telefone.includes(searchTerm)
     );
 
     const handleSelectAll = () => {
-        if (selectedIds.size === entries.length) {
+        if (selectedIds.size === currentList.length) {
             setSelectedIds(new Set());
         } else {
-            setSelectedIds(new Set(entries.map(e => e.id)));
+            setSelectedIds(new Set(currentList.map(e => e.id)));
         }
     };
 
@@ -78,6 +88,62 @@ export function GerenciarListaEsperaPage() {
             newSet.add(id);
         }
         setSelectedIds(newSet);
+    };
+
+    // --- Ações de Inscrição ---
+
+    const handleReprovar = async (id: string) => {
+        if (isProcessing) return;
+        setIsProcessing(true);
+        try {
+            await listaEsperaService.recusarListaEspera(id);
+            toast.success('Inscrição reprovada com sucesso.');
+            await loadData();
+            setSelectedIds(prev => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
+        } catch (err: unknown) {
+            const error = err as Error;
+            toast.error('Erro ao reprovar: ' + error.message);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleRestaurar = async (id: string) => {
+        if (isProcessing) return;
+        setIsProcessing(true);
+        try {
+            await listaEsperaService.restaurarListaEspera(id);
+            toast.success('Inscrição restaurada para pendente.');
+            await loadData();
+        } catch (err: unknown) {
+            const error = err as Error;
+            toast.error('Erro ao restaurar: ' + error.message);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleUpdateEntry = async () => {
+        if (!selectedEntry || isProcessing) return;
+        setIsProcessing(true);
+        try {
+            await listaEsperaService.atualizar(selectedEntry.id, editForm);
+            toast.success('Dados atualizados com sucesso!');
+            setIsEditing(false);
+            await loadData();
+            // Atualiza o card selecionado com os novos dados
+            const updated = { ...selectedEntry, ...editForm };
+            setSelectedEntry(updated as ListaEsperaEntry);
+        } catch (err: unknown) {
+            const error = err as Error;
+            toast.error('Erro ao atualizar: ' + error.message);
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     const handleEfetivarSingle = async (entry: ListaEsperaEntry, ignoreDuplicates = false) => {
@@ -96,8 +162,8 @@ export function GerenciarListaEsperaPage() {
                 }
             }
 
-            const { id, created_at, status, ...formData } = entry;
-            await listaEsperaService.efetivarListaEspera(id, formData);
+            const { id: _id, created_at: _ca, status: _st, ...formData } = entry;
+            await listaEsperaService.efetivarListaEspera(_id, formData);
             toast.success(`Inscrição de ${entry.nome_completo} efetivada com sucesso!`);
 
             setShowDuplicateModal(false);
@@ -107,10 +173,11 @@ export function GerenciarListaEsperaPage() {
             await loadData();
 
             const newSet = new Set(selectedIds);
-            newSet.delete(id);
+            newSet.delete(_id);
             setSelectedIds(newSet);
-        } catch (err: any) {
-            toast.error(`Erro: ${err.message}`);
+        } catch (err: unknown) {
+            const error = err as Error;
+            toast.error(`Erro: ${error.message}`);
         } finally {
             setIsProcessing(false);
         }
@@ -120,8 +187,8 @@ export function GerenciarListaEsperaPage() {
         if (!duplicateEntry || isProcessing) return;
         setIsProcessing(true);
         try {
-            const { id, created_at, status, ...formData } = duplicateEntry;
-            await listaEsperaService.vincularPessoaExistente(id, pessoa.id, formData);
+            const { id: dId, created_at: _ca, status: _st, ...formData } = duplicateEntry;
+            await listaEsperaService.vincularPessoaExistente(dId, pessoa.id, formData);
             toast.success(`${duplicateEntry.nome_completo} vinculado e efetivado com sucesso!`);
 
             setShowDuplicateModal(false);
@@ -148,8 +215,9 @@ export function GerenciarListaEsperaPage() {
             setDuplicateCandidates([]);
 
             await loadData();
-        } catch (err: any) {
-            toast.error(`Erro ao remover: ${err.message}`);
+        } catch (err: unknown) {
+            const error = err as Error;
+            toast.error(`Erro ao remover: ${error.message}`);
         } finally {
             setIsProcessing(false);
         }
@@ -175,7 +243,7 @@ export function GerenciarListaEsperaPage() {
 
             setSelectedIds(new Set());
             await loadData();
-        } catch (err) {
+        } catch (_err) {
             toast.error('Erro inesperado na aprovação em lote', { id: idLoadingToast });
         } finally {
             setIsProcessing(false);
@@ -198,19 +266,89 @@ export function GerenciarListaEsperaPage() {
             ) : (
                 <div className="premium-container">
                     {/* Stats Row */}
-                    <div className="stats-row">
+                    {/* Stats Row */}
+                    <div className="stats-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
+                        {/* 1. Limite Total */}
                         <div className="premium-stat-card">
-                            <div className="stat-icon-wrapper">
+                            <div className="stat-icon-wrapper" style={{ color: 'var(--primary-color)', background: 'rgba(var(--primary-rgb), 0.1)' }}>
+                                <CheckSquare size={24} />
+                            </div>
+                            <div className="stat-content">
+                                <div className="stat-value">{encontroAtivo.limite_vagas_online}</div>
+                                <div className="stat-label">Vagas (Limite)</div>
+                            </div>
+                        </div>
+
+                        {/* 2. Total Inscritos */}
+                        <div className="premium-stat-card">
+                            <div className="stat-icon-wrapper" style={{ color: '#6366f1', background: 'rgba(99, 102, 241, 0.1)' }}>
                                 <Users size={24} />
                             </div>
                             <div className="stat-content">
-                                <div className="stat-value">{entries.length}</div>
-                                <div className="stat-label">Inscritos Online</div>
+                                <div className="stat-value">{entries.length + efetivados.length + reprovados.length}</div>
+                                <div className="stat-label">Total Inscritos</div>
                             </div>
                         </div>
+
+                        {/* 3. Pendentes */}
+                        <div
+                            className={`premium-stat-card clickable ${viewMode === 'pendente' ? 'active-stat' : ''}`}
+                            onClick={() => { setViewMode('pendente'); setSelectedIds(new Set()); }}
+                            style={{
+                                cursor: 'pointer',
+                                border: viewMode === 'pendente' ? '2px solid var(--primary-color)' : '2px solid transparent',
+                                position: 'relative'
+                            }}
+                        >
+                            <div className="stat-icon-wrapper">
+                                <Clock size={24} />
+                            </div>
+                            <div className="stat-content">
+                                <div className="stat-value">{entries.length}</div>
+                                <div className="stat-label">Pendentes</div>
+                            </div>
+                            <div style={{ position: 'absolute', bottom: '8px', right: '12px', fontSize: '0.7rem', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                <span>Ver Lista</span> <ChevronRight size={12} />
+                            </div>
+                        </div>
+
+                        {/* 4. Efetivados */}
+                        <div className="premium-stat-card">
+                            <div className="stat-icon-wrapper" style={{ color: '#10b981', background: 'rgba(16, 185, 129, 0.1)' }}>
+                                <CheckCircle2 size={24} />
+                            </div>
+                            <div className="stat-content">
+                                <div className="stat-value">{efetivados.length}</div>
+                                <div className="stat-label">Efetivados</div>
+                            </div>
+                        </div>
+
+                        {/* 5. Reprovados */}
+                        <div
+                            className={`premium-stat-card clickable ${viewMode === 'reprovado' ? 'active-stat' : ''}`}
+                            onClick={() => { setViewMode('reprovado'); setSelectedIds(new Set()); }}
+                            style={{
+                                cursor: 'pointer',
+                                border: viewMode === 'reprovado' ? '2px solid var(--danger-text)' : '2px solid transparent',
+                                position: 'relative'
+                            }}
+                        >
+                            <div className="stat-icon-wrapper" style={{ color: 'var(--danger-text)', background: 'rgba(239, 68, 68, 0.1)' }}>
+                                <X size={24} />
+                            </div>
+                            <div className="stat-content">
+                                <div className="stat-value">{reprovados.length}</div>
+                                <div className="stat-label">Reprovados</div>
+                            </div>
+                            <div style={{ position: 'absolute', bottom: '8px', right: '12px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--danger-text)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                <span>Ver Histórico</span> <ChevronRight size={12} />
+                            </div>
+                        </div>
+
+                        {/* 6. Restantes */}
                         <div className="premium-stat-card">
                             <div className="stat-icon-wrapper" style={{ color: 'var(--accent-color)', background: 'rgba(245, 158, 11, 0.1)' }}>
-                                <CheckCircle size={24} />
+                                <Calendar size={24} />
                             </div>
                             <div className="stat-content">
                                 <div className="stat-value">
@@ -218,7 +356,7 @@ export function GerenciarListaEsperaPage() {
                                         ? encontroAtivo.limite_vagas_online - (entries.length + efetivados.length)
                                         : 0}
                                 </div>
-                                <div className="stat-label">Vagas Restantes</div>
+                                <div className="stat-label">Restantes</div>
                             </div>
                         </div>
                     </div>
@@ -230,7 +368,7 @@ export function GerenciarListaEsperaPage() {
                             <input
                                 type="text"
                                 className="form-input"
-                                placeholder="Buscar por nome ou telefone..."
+                                placeholder={viewMode === 'pendente' ? "Buscar pendentes..." : "Buscar reprovados..."}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 style={{ paddingLeft: '3rem', fontSize: '0.9rem' }}
@@ -246,7 +384,7 @@ export function GerenciarListaEsperaPage() {
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                            {selectedIds.size > 0 && (
+                            {selectedIds.size > 0 && viewMode === 'pendente' && (
                                 <button
                                     className="btn-success"
                                     onClick={() => setShowBatchConfirm(true)}
@@ -261,7 +399,7 @@ export function GerenciarListaEsperaPage() {
                                 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', userSelect: 'none', padding: '0.5rem', borderRadius: '8px', transition: 'background 0.2s' }}
                                 className="hover-highlight"
                             >
-                                {selectedIds.size === entries.length && entries.length > 0 ? (
+                                {selectedIds.size === currentList.length && currentList.length > 0 ? (
                                     <CheckSquare size={22} style={{ color: 'var(--primary-color)' }} />
                                 ) : (
                                     <Square size={22} style={{ opacity: 0.4 }} />
@@ -368,19 +506,46 @@ export function GerenciarListaEsperaPage() {
 
                                             {/* Item 6: Ações */}
                                             <div className="lista-espera-card__actions">
-                                                <button
-                                                    className="btn-success"
-                                                    onClick={(e) => { e.stopPropagation(); handleEfetivarSingle(entry); }}
-                                                    disabled={isProcessing}
-                                                >
-                                                    <CheckCircle size={16} /> Efetivar
-                                                </button>
+                                                {viewMode === 'pendente' ? (
+                                                    <>
+                                                        <button
+                                                            className="btn-success"
+                                                            onClick={(e) => { e.stopPropagation(); handleEfetivarSingle(entry); }}
+                                                            disabled={isProcessing}
+                                                        >
+                                                            <CheckCircle size={16} /> Efetivar
+                                                        </button>
+                                                        <button
+                                                            className="btn-danger"
+                                                            onClick={(e) => { e.stopPropagation(); handleReprovar(entry.id); }}
+                                                            disabled={isProcessing}
+                                                            title="Reprovar Inscrição"
+                                                        >
+                                                            <X size={16} /> Reprovar
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <button
+                                                        className="btn-primary"
+                                                        onClick={(e) => { e.stopPropagation(); handleRestaurar(entry.id); }}
+                                                        disabled={isProcessing}
+                                                        style={{ gap: '0.5rem' }}
+                                                    >
+                                                        <RotateCcw size={16} /> Restaurar para Pendente
+                                                    </button>
+                                                )}
+
                                                 <button
                                                     className="btn-text"
-                                                    onClick={(e) => { e.stopPropagation(); setSelectedEntry(entry); }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedEntry(entry);
+                                                        setIsEditing(false);
+                                                        setEditForm(entry);
+                                                    }}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-color)' }}
                                                 >
-                                                    <span>Ver Ficha Completa</span>
+                                                    <span>{viewMode === 'pendente' ? 'Ver Ficha / Editar' : 'Ver Ficha'}</span>
                                                     <ChevronRight size={20} />
                                                 </button>
                                             </div>
@@ -433,9 +598,11 @@ export function GerenciarListaEsperaPage() {
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1 }}>
                                         <strong style={{ fontSize: '1rem' }}>{c.nome_completo}</strong>
                                         <span style={{ fontSize: '0.85rem', opacity: 0.7 }}>CPF: {c.cpf || 'N/I'} • Tel: {c.telefone || 'N/I'} • E-mail: {c.email || 'N/I'}</span>
+                                        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                         {((c as any).participacoes && (c as any).participacoes.length > 0) && (
                                             <div style={{ marginTop: '0.35rem', fontSize: '0.8rem' }}>
                                                 <strong style={{ opacity: 0.6 }}>Histórico: </strong>
+                                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                                 {(c as any).participacoes.map((part: any, i: number) => {
                                                     const encontroDesc = part.encontros?.nome || 'Encontro ?';
                                                     const papelDesc = part.participante ? 'Encontrista' : (part.equipes?.nome || 'Trabalhando');
@@ -489,8 +656,8 @@ export function GerenciarListaEsperaPage() {
             {/* Modal de Detalhes Completo */}
             <Modal
                 isOpen={!!selectedEntry}
-                onClose={() => setSelectedEntry(null)}
-                title="Ficha do Jovem"
+                onClose={() => { setSelectedEntry(null); setIsEditing(false); }}
+                title={isEditing ? "Editando Ficha do Jovem" : "Ficha do Jovem"}
                 maxWidth="800px"
             >
                 {selectedEntry && (
@@ -498,68 +665,323 @@ export function GerenciarListaEsperaPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
                             {/* Dados Pessoais */}
                             <div className="card-inner" style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
-                                <h4 style={{ margin: '0 0 1rem 0', color: 'var(--primary-color)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Dados Pessoais</h4>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(80px, auto) 1fr', gap: '0.5rem 1rem', fontSize: '0.9rem' }}>
-                                    <span style={{ opacity: 0.6 }}>Nome:</span> <span style={{ fontWeight: 600 }}>{selectedEntry.nome_completo}</span>
-                                    <span style={{ opacity: 0.6 }}>CPF:</span> <span>{maskCpf(selectedEntry.cpf || '')}</span>
-                                    <span style={{ opacity: 0.6 }}>E-mail:</span> <span style={{ fontSize: '0.85rem' }}>{selectedEntry.email || '—'}</span>
-                                    <span style={{ opacity: 0.6 }}>Nasc:</span> <span>{selectedEntry.data_nascimento ? `${new Date(selectedEntry.data_nascimento.includes('T') ? selectedEntry.data_nascimento : `${selectedEntry.data_nascimento}T00:00:00`).toLocaleDateString('pt-BR')} (${calculateAge(selectedEntry.data_nascimento)})` : '—'}</span>
+                                <h4 style={{ margin: '0 0 1rem 0', color: 'var(--primary-color)', fontSize: '0.9rem', textTransform: 'uppercase', display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>Dados Pessoais</span>
+                                </h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem' }}>
+                                    <div className="form-group-sm">
+                                        <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Nome Completo</label>
+                                        {isEditing ? (
+                                            <input
+                                                className="form-input"
+                                                value={editForm.nome_completo || ''}
+                                                onChange={e => setEditForm({ ...editForm, nome_completo: e.target.value })}
+                                            />
+                                        ) : (
+                                            <div style={{ fontWeight: 600 }}>{selectedEntry.nome_completo}</div>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        <div className="form-group-sm">
+                                            <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>CPF</label>
+                                            {isEditing ? (
+                                                <input
+                                                    className="form-input"
+                                                    value={editForm.cpf || ''}
+                                                    onChange={e => setEditForm({ ...editForm, cpf: maskCpf(e.target.value) })}
+                                                />
+                                            ) : (
+                                                <div>{maskCpf(selectedEntry.cpf || '')}</div>
+                                            )}
+                                        </div>
+                                        <div className="form-group-sm">
+                                            <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Nascimento</label>
+                                            {isEditing ? (
+                                                <input
+                                                    type="date"
+                                                    className="form-input"
+                                                    style={{ colorScheme: 'dark' }}
+                                                    value={editForm.data_nascimento || ''}
+                                                    onChange={e => setEditForm({ ...editForm, data_nascimento: e.target.value })}
+                                                />
+                                            ) : (
+                                                <div>{selectedEntry.data_nascimento ? `${new Date(selectedEntry.data_nascimento.includes('T') ? selectedEntry.data_nascimento : `${selectedEntry.data_nascimento}T12:00:00`).toLocaleDateString('pt-BR')} (${calculateAge(selectedEntry.data_nascimento)})` : '—'}</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="form-group-sm">
+                                        <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>E-mail</label>
+                                        {isEditing ? (
+                                            <input
+                                                type="email"
+                                                className="form-input"
+                                                value={editForm.email || ''}
+                                                onChange={e => setEditForm({ ...editForm, email: e.target.value })}
+                                            />
+                                        ) : (
+                                            <div style={{ fontSize: '0.85rem' }}>{selectedEntry.email || '—'}</div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Contato e Endereço */}
                             <div className="card-inner" style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
                                 <h4 style={{ margin: '0 0 1rem 0', color: 'var(--primary-color)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Contato e Localização</h4>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(80px, auto) 1fr', gap: '0.5rem 1rem', fontSize: '0.9rem' }}>
-                                    <span style={{ opacity: 0.6 }}>Telefone:</span> <span>{formatTelefone(selectedEntry.telefone || '')}</span>
-                                    <span style={{ opacity: 0.6 }}>CEP:</span> <span>{selectedEntry.cep || '—'}</span>
-                                    <span style={{ opacity: 0.6 }}>Endereço:</span> <span>{selectedEntry.endereco || '—'}{selectedEntry.numero ? `, ${selectedEntry.numero}` : ''}</span>
-                                    <span style={{ opacity: 0.6 }}>Bairro:</span> <span>{selectedEntry.bairro} - {selectedEntry.cidade}/{selectedEntry.estado}</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        <div className="form-group-sm">
+                                            <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Telefone</label>
+                                            {isEditing ? (
+                                                <input
+                                                    className="form-input"
+                                                    value={editForm.telefone || ''}
+                                                    onChange={e => setEditForm({ ...editForm, telefone: formatTelefone(e.target.value) })}
+                                                />
+                                            ) : (
+                                                <div>{formatTelefone(selectedEntry.telefone || '')}</div>
+                                            )}
+                                        </div>
+                                        <div className="form-group-sm">
+                                            <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>CEP</label>
+                                            {isEditing ? (
+                                                <input
+                                                    className="form-input"
+                                                    value={editForm.cep || ''}
+                                                    onChange={e => setEditForm({ ...editForm, cep: e.target.value })}
+                                                />
+                                            ) : (
+                                                <div>{selectedEntry.cep || '—'}</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="form-group-sm">
+                                        <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Endereço e Número</label>
+                                        {isEditing ? (
+                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                <input
+                                                    className="form-input"
+                                                    style={{ flex: 3 }}
+                                                    value={editForm.endereco || ''}
+                                                    onChange={e => setEditForm({ ...editForm, endereco: e.target.value })}
+                                                />
+                                                <input
+                                                    className="form-input"
+                                                    style={{ flex: 1 }}
+                                                    placeholder="Nº"
+                                                    value={editForm.numero || ''}
+                                                    onChange={e => setEditForm({ ...editForm, numero: e.target.value })}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div>{selectedEntry.endereco || '—'}{selectedEntry.numero ? `, ${selectedEntry.numero}` : ''}</div>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                        <div className="form-group-sm">
+                                            <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Bairro</label>
+                                            {isEditing ? (
+                                                <input
+                                                    className="form-input"
+                                                    value={editForm.bairro || ''}
+                                                    onChange={e => setEditForm({ ...editForm, bairro: e.target.value })}
+                                                />
+                                            ) : (
+                                                <div>{selectedEntry.bairro}</div>
+                                            )}
+                                        </div>
+                                        <div className="form-group-sm">
+                                            <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Cidade/UF</label>
+                                            {isEditing ? (
+                                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                    <input
+                                                        className="form-input"
+                                                        style={{ flex: 2 }}
+                                                        value={editForm.cidade || ''}
+                                                        onChange={e => setEditForm({ ...editForm, cidade: e.target.value })}
+                                                    />
+                                                    <input
+                                                        className="form-input"
+                                                        style={{ flex: 1 }}
+                                                        maxLength={2}
+                                                        value={editForm.estado || ''}
+                                                        onChange={e => setEditForm({ ...editForm, estado: e.target.value.toUpperCase() })}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div>{selectedEntry.cidade}/{selectedEntry.estado}</div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Família */}
                             <div className="card-inner" style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
                                 <h4 style={{ margin: '0 0 1rem 0', color: 'var(--primary-color)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Pais / Responsáveis</h4>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(80px, auto) 1fr', gap: '0.5rem 1rem', fontSize: '0.9rem' }}>
-                                    <span style={{ opacity: 0.6 }}>Pai:</span> <span>{selectedEntry.nome_pai || '—'}</span>
-                                    <span style={{ opacity: 0.6 }}>Tel Pai:</span> <span>{formatTelefone(selectedEntry.telefone_pai || '') || '—'}</span>
-                                    <span style={{ opacity: 0.6 }}>Mãe:</span> <span>{selectedEntry.nome_mae || '—'}</span>
-                                    <span style={{ opacity: 0.6 }}>Tel Mãe:</span> <span>{formatTelefone(selectedEntry.telefone_mae || '') || '—'}</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem' }}>
+                                    <div className="form-group-sm">
+                                        <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Nome do Pai</label>
+                                        {isEditing ? (
+                                            <input
+                                                className="form-input"
+                                                value={editForm.nome_pai || ''}
+                                                onChange={e => setEditForm({ ...editForm, nome_pai: e.target.value })}
+                                            />
+                                        ) : (
+                                            <div>{selectedEntry.nome_pai || '—'}</div>
+                                        )}
+                                    </div>
+                                    <div className="form-group-sm">
+                                        <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Telefone do Pai</label>
+                                        {isEditing ? (
+                                            <input
+                                                className="form-input"
+                                                value={editForm.telefone_pai || ''}
+                                                onChange={e => setEditForm({ ...editForm, telefone_pai: formatTelefone(e.target.value) })}
+                                            />
+                                        ) : (
+                                            <div>{formatTelefone(selectedEntry.telefone_pai || '') || '—'}</div>
+                                        )}
+                                    </div>
+                                    <div className="form-group-sm">
+                                        <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Nome da Mãe</label>
+                                        {isEditing ? (
+                                            <input
+                                                className="form-input"
+                                                value={editForm.nome_mae || ''}
+                                                onChange={e => setEditForm({ ...editForm, nome_mae: e.target.value })}
+                                            />
+                                        ) : (
+                                            <div>{selectedEntry.nome_mae || '—'}</div>
+                                        )}
+                                    </div>
+                                    <div className="form-group-sm">
+                                        <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Telefone da Mãe</label>
+                                        {isEditing ? (
+                                            <input
+                                                className="form-input"
+                                                value={editForm.telefone_mae || ''}
+                                                onChange={e => setEditForm({ ...editForm, telefone_mae: formatTelefone(e.target.value) })}
+                                            />
+                                        ) : (
+                                            <div>{formatTelefone(selectedEntry.telefone_mae || '') || '—'}</div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
                             {/* EJC e Comunidade */}
                             <div className="card-inner" style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
-                                <h4 style={{ margin: '0 0 1rem 0', color: 'var(--primary-color)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Religioso / EJC</h4>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(80px, auto) 1fr', gap: '0.5rem 1rem', fontSize: '0.9rem' }}>
-                                    <span style={{ opacity: 0.6 }}>Comunidade:</span> <span>{selectedEntry.comunidade || '—'}</span>
-                                    <span style={{ opacity: 0.6 }}>Fez outro:</span> <span>{selectedEntry.fez_ejc_outra_paroquia ? 'Sim' : 'Não'}</span>
-                                    {selectedEntry.fez_ejc_outra_paroquia && (
-                                        <>
-                                            <span style={{ opacity: 0.6 }}>Onde:</span> <span>{selectedEntry.qual_paroquia_ejc}</span>
-                                        </>
+                                <h4 style={{ margin: '0 0 1rem 0', color: 'var(--primary-color)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Religioso / Outras Infos</h4>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', fontSize: '0.9rem' }}>
+                                    <div className="form-group-sm">
+                                        <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Comunidade/Paróquia</label>
+                                        {isEditing ? (
+                                            <input
+                                                className="form-input"
+                                                value={editForm.comunidade || ''}
+                                                onChange={e => setEditForm({ ...editForm, comunidade: e.target.value })}
+                                            />
+                                        ) : (
+                                            <div>{selectedEntry.comunidade || '—'}</div>
+                                        )}
+                                    </div>
+                                    <div className="form-group-sm">
+                                        <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Fez EJC em outra paróquia?</label>
+                                        {isEditing ? (
+                                            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                                    <input type="radio" checked={editForm.fez_ejc_outra_paroquia === true} onChange={() => setEditForm({ ...editForm, fez_ejc_outra_paroquia: true })} /> Sim
+                                                </label>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                                    <input type="radio" checked={editForm.fez_ejc_outra_paroquia === false} onChange={() => setEditForm({ ...editForm, fez_ejc_outra_paroquia: false })} /> Não
+                                                </label>
+                                            </div>
+                                        ) : (
+                                            <div>{selectedEntry.fez_ejc_outra_paroquia ? 'Sim' : 'Não'}</div>
+                                        )}
+                                    </div>
+                                    {(isEditing ? editForm.fez_ejc_outra_paroquia : selectedEntry.fez_ejc_outra_paroquia) && (
+                                        <div className="form-group-sm">
+                                            <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Qual paróquia?</label>
+                                            {isEditing ? (
+                                                <input
+                                                    className="form-input"
+                                                    value={editForm.qual_paroquia_ejc || ''}
+                                                    onChange={e => setEditForm({ ...editForm, qual_paroquia_ejc: e.target.value })}
+                                                />
+                                            ) : (
+                                                <div>{selectedEntry.qual_paroquia_ejc}</div>
+                                            )}
+                                        </div>
                                     )}
-                                    <span style={{ opacity: 0.6 }}>Outros:</span> <span style={{ fontSize: '0.85rem' }}>{selectedEntry.outros_contatos || '—'}</span>
+                                    <div className="form-group-sm">
+                                        <label style={{ opacity: 0.6, fontSize: '0.75rem' }}>Outras informações</label>
+                                        {isEditing ? (
+                                            <textarea
+                                                className="form-input"
+                                                rows={2}
+                                                value={editForm.outros_contatos || ''}
+                                                onChange={e => setEditForm({ ...editForm, outros_contatos: e.target.value })}
+                                            />
+                                        ) : (
+                                            <div style={{ fontSize: '0.85rem' }}>{selectedEntry.outros_contatos || '—'}</div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-                            <button className="btn-secondary" onClick={() => setSelectedEntry(null)}>Fechar</button>
-                            <button
-                                className="btn-success"
-                                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                                onClick={async () => {
-                                    if (selectedEntry) {
-                                        await handleEfetivarSingle(selectedEntry);
-                                        setSelectedEntry(null);
-                                    }
-                                }}
-                                disabled={isProcessing}
-                            >
-                                <CheckCircle2 size={18} /> Aprovar e Efetivar
-                            </button>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                            <div>
+                                {viewMode === 'pendente' && (
+                                    <button
+                                        className={isEditing ? "btn-secondary" : "btn-primary"}
+                                        onClick={() => {
+                                            if (isEditing) {
+                                                setIsEditing(false);
+                                                setEditForm(selectedEntry);
+                                            } else {
+                                                setIsEditing(true);
+                                            }
+                                        }}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                    >
+                                        {isEditing ? <><X size={18} /> Cancelar Edição</> : <><Edit size={18} /> Editar Cadastro</>}
+                                    </button>
+                                )}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '1rem' }}>
+                                <button className="btn-secondary" onClick={() => { setSelectedEntry(null); setIsEditing(false); }}>Fechar</button>
+                                {isEditing ? (
+                                    <button
+                                        className="btn-success"
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                        onClick={handleUpdateEntry}
+                                        disabled={isProcessing}
+                                    >
+                                        <Check size={18} /> Salvar Alterações
+                                    </button>
+                                ) : (
+                                    viewMode === 'pendente' && (
+                                        <button
+                                            className="btn-success"
+                                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                            onClick={async () => {
+                                                if (selectedEntry) {
+                                                    await handleEfetivarSingle(selectedEntry);
+                                                    setSelectedEntry(null);
+                                                }
+                                            }}
+                                            disabled={isProcessing}
+                                        >
+                                            <CheckCircle2 size={18} /> Aprovar e Efetivar
+                                        </button>
+                                    )
+                                )}
+                            </div>
                         </div>
                     </div>
                 )}
