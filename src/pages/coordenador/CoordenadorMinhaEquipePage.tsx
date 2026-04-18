@@ -13,16 +13,17 @@ import {
   Mail, MapPin,
   Pencil,
   Phone,
-  Plus,
   Shield,
-  User,
   Users,
-  X
+  X,
+  Car,
+  ShirtIcon
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
+import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
@@ -31,8 +32,9 @@ import { equipeService } from '../../services/equipeService';
 import { exportConfigService } from '../../services/exportConfigService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
-import type { CamisetaPedido } from '../../types/camiseta';
+import type { CamisetaModelo, CamisetaPedido } from '../../types/camiseta';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
+import type { RecepcaoDados } from '../../types/recepcao';
 import { formatBRL } from '../../utils/currencyUtils';
 
 interface EquipeMember {
@@ -43,6 +45,7 @@ interface EquipeMember {
   dados_confirmados: boolean;
   pago_taxa: boolean;
   pessoas: Pessoa;
+  recepcao_dados: RecepcaoDados | null;
 }
 
 function formatTelefone(tel: string | null | undefined) {
@@ -51,26 +54,6 @@ function formatTelefone(tel: string | null | undefined) {
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return tel;
-}
-
-function formatDate(date: string | null | undefined) {
-  if (!date) return '—';
-  try {
-    const d = new Date(date + 'T00:00:00');
-    return d.toLocaleDateString('pt-BR');
-  } catch {
-    return date;
-  }
-}
-
-function getInitials(name: string | null | undefined) {
-  if (!name) return '?';
-  return name
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((n) => n[0].toUpperCase())
-    .join('');
 }
 
 export function CoordenadorMinhaEquipePage() {
@@ -84,13 +67,14 @@ export function CoordenadorMinhaEquipePage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [teamConfirmation, setTeamConfirmation] = useState<{ confirmado_por: string; confirmado_em: string; profiles?: { email?: string } | null } | null>(null);
-  const [activeTab, setActiveTab] = useState<'members' | 'finance'>('members');
   const [valorTaxa, setValorTaxa] = useState(0);
   const [pedidosCamisetas, setPedidosCamisetas] = useState<CamisetaPedido[]>([]);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [addingShirtToMemberId, setAddingShirtToMemberId] = useState<string | null>(null);
-  const [modelosCamiseta, setModelosCamiseta] = useState<any[]>([]);
+  const [modelosCamiseta, setModelosCamiseta] = useState<CamisetaModelo[]>([]);
   const [newShirtData, setNewShirtData] = useState({ modelo_id: '', tamanho: 'G', quantidade: 1 });
+  const [recepcaoParticipacaoId, setRecepcaoParticipacaoId] = useState<string | null>(null);
+  const [recepcaoParticipanteNome, setRecepcaoParticipanteNome] = useState<string>('');
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -167,7 +151,8 @@ export function CoordenadorMinhaEquipePage() {
             qr_code_token,
             created_at
           ),
-          pago_taxa
+          pago_taxa,
+          recepcao_dados(*)
         `)
         .eq('encontro_id', userParticipacao.encontro_id)
         .eq('equipe_id', userParticipacao.equipe_id!);
@@ -235,7 +220,7 @@ export function CoordenadorMinhaEquipePage() {
 
       await inscricaoService.alterarStatusPagamento(member.id, newStatus);
       toast.success(newStatus ? 'Pagamento confirmado!' : 'Pagamento removido!');
-    } catch (error) {
+    } catch {
       // Rollback
       setMembers(prev => prev.map(m => m.id === member.id ? { ...m, pago_taxa: !newStatus } : m));
       toast.error('Erro ao atualizar status de pagamento.');
@@ -677,591 +662,364 @@ export function CoordenadorMinhaEquipePage() {
           <p>Nenhum membro encontrado na sua equipe.</p>
         </div>
       ) : (
-        <>
-          <div style={{
-            display: 'flex',
-            gap: '2rem',
-            borderBottom: '1px solid var(--border-color)',
-            marginBottom: '1.5rem',
-            paddingBottom: '0.1rem'
-          }}>
-            <button
-              onClick={() => setActiveTab('members')}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '0.75rem 0.25rem',
-                fontSize: '0.95rem',
-                fontWeight: activeTab === 'members' ? 600 : 400,
-                color: activeTab === 'members' ? 'var(--primary-color)' : 'var(--text-color)',
-                opacity: activeTab === 'members' ? 1 : 0.6,
-                cursor: 'pointer',
-                position: 'relative',
-                transition: 'all 0.2s'
-              }}
-            >
-              Integrantes
-              {activeTab === 'members' && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: -1,
-                  left: 0,
-                  right: 0,
-                  height: '2px',
-                  backgroundColor: 'var(--primary-color)',
-                  borderRadius: '2px 2px 0 0'
-                }} />
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab('finance')}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '0.75rem 0.25rem',
-                fontSize: '0.95rem',
-                fontWeight: activeTab === 'finance' ? 600 : 400,
-                color: activeTab === 'finance' ? 'var(--primary-color)' : 'var(--text-color)',
-                opacity: activeTab === 'finance' ? 1 : 0.6,
-                cursor: 'pointer',
-                position: 'relative',
-                transition: 'all 0.2s'
-              }}
-            >
-              Taxas & Camisetas
-              {activeTab === 'finance' && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: -1,
-                  left: 0,
-                  right: 0,
-                  height: '2px',
-                  backgroundColor: 'var(--primary-color)',
-                  borderRadius: '2px 2px 0 0'
-                }} />
-              )}
-            </button>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {members.map((m) => {
+            const p = m.pessoas;
+            const address = [p.endereco, p.numero, p.bairro, p.cidade, p.estado]
+              .map(v => v?.trim())
+              .filter(Boolean)
+              .join(', ');
+            const memberOrders = pedidosCamisetas.filter(pc => pc.participacao_id === m.id);
 
-          {activeTab === 'members' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {members.map((m) => {
-                const p = m.pessoas;
-                const address = [p.endereco, p.numero ? `nº ${p.numero}` : '', p.bairro, p.cidade].filter(Boolean).join(', ');
-                return (
-                  <div
-                    key={m.id}
-                    className="card"
-                    style={{
-                      padding: '1.25rem 1.5rem',
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '1rem',
-                      transition: 'border-color 0.2s, box-shadow 0.2s',
-                      borderLeft: m.coordenador ? '3px solid #f59e0b' : '3px solid transparent',
-                    }}
-                  >
-                    <div style={{
-                      width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
-                      background: m.coordenador ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'var(--primary-color)',
-                      color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontWeight: 700, fontSize: '1rem',
-                    }}>
-                      {getInitials(p.nome_completo)}
-                    </div>
+            return (
+              <div
+                key={m.id}
+                className="card animate-fade-in"
+                style={{
+                  padding: '1.5rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1.5rem',
+                  position: 'relative',
+                  borderLeft: m.coordenador ? '4px solid #f59e0b' : '1px solid var(--border-color)',
+                }}
+              >
+                {/* Header: Basic Info and Right-side Actions */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flex: 1, minWidth: 0 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.35rem' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>{p.nome_completo}</h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>{p.nome_completo}</h3>
                         {m.coordenador && (
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-                            padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700,
-                            backgroundColor: 'rgba(245, 158, 11, 0.12)', color: '#f59e0b',
-                          }}>
-                            <Shield size={10} /> Coordenador
+                          <span className="badge badge-primary" style={{ fontSize: '0.65rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: 'none' }}>
+                            COORDENADOR
                           </span>
                         )}
                       </div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 1.5rem', fontSize: '0.85rem', opacity: 0.7 }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Phone size={13} /> {formatTelefone(p.telefone)}
-                        </span>
-                        {p.email && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <Mail size={13} /> {p.email}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', opacity: 0.8, fontSize: '0.85rem', width: '100%' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', rowGap: '0.3rem' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Phone size={16} style={{ color: 'var(--primary-color)', opacity: 0.8 }} />
+                            {formatTelefone(p.telefone)}
                           </span>
-                        )}
-                        {p.data_nascimento && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <User size={13} /> {formatDate(p.data_nascimento)}
-                          </span>
-                        )}
-                        {address && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <MapPin size={13} /> {address}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                      {!m.dados_confirmados && (
-                        <button
-                          onClick={() => handleConfirmOneMember(m.id)}
-                          className="icon-btn"
-                          title="Confirmar integrante"
-                          style={{ color: 'var(--success-color, #10b981)' }}
-                        >
-                          <Check size={18} />
-                          Confirmar
-                        </button>
-                      )}
-                      {m.dados_confirmados && (
-                        <div
-                          className="status-badge status-badge--success"
-                          title="Dados confirmados"
-                          style={{
-                            padding: '0.25rem 0.6rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.3rem',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                            color: '#10b981',
-                            borderRadius: '20px',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            border: '1px solid rgba(16, 185, 129, 0.2)'
-                          }}
-                        >
-                          <CheckCircle size={14} />
-                          Confirmado
+                          {p.email && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', letterSpacing: '0.05rem' }}>
+                              <Mail size={16} style={{ color: 'var(--primary-color)', opacity: 0.8 }} />
+                              {p.email}
+                            </span>
+                          )}
                         </div>
-                      )}
-                      <button
-                        onClick={() => setEditingPessoa(p)}
-                        className="icon-btn"
-                        title="Editar dados"
-                        aria-label={`Editar ${p.nome_completo}`}
-                      >
-                        <Pencil size={15} />
-                      </button>
+                      </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div style={{ padding: 0, overflow: 'visible', background: 'transparent', border: 'none', boxShadow: 'none' }}>
-              {!isMobile ? (
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    {m.dados_confirmados ? (
+                      <span className="badge badge-success" style={{
+                        fontSize: '0.65rem',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        color: '#10b981',
+                        border: 'none',
+                        padding: '0.5rem 0.75rem',
+                        height: '32px',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}>
+                        <CheckCircle size={14} style={{ marginRight: '4px' }} /> CONFIRMADO
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleConfirmOneMember(m.id)}
+                        className="btn-icon"
+                        title="Confirmar integrante"
+                        style={{
+                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                          color: '#10b981',
+                          padding: '0.5rem',
+                          borderRadius: '10px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '32px',
+                          height: '32px'
+                        }}
+                      >
+                        <Check size={18} />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setEditingPessoa(p)}
+                      className="btn-icon"
+                      style={{
+                        backgroundColor: 'rgba(0,0,0,0.05)',
+                        padding: '0.5rem',
+                        borderRadius: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '32px',
+                        height: '32px'
+                      }}
+                      title="Editar Dados"
+                    >
+                      <Pencil size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Full-width Address */}
+                {address && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.5rem',
+                    width: '100%',
+                    opacity: 0.8,
+                    fontSize: '0.85rem',
+                    marginTop: '-0.85rem'
+                  }}>
+                    <MapPin size={16} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--primary-color)', opacity: 0.8 }} />
+                    <span style={{ flex: 1, lineHeight: '1.5', letterSpacing: '0.05rem' }}>{address}</span>
+                  </div>
+                )}
+
+                {/* Body: 3-column Grid (Taxa, Camisetas, Recepção) */}
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+                  gridTemplateColumns: isMobile ? '1fr' : '0.6fr 1.4fr 1.4fr',
                   gap: '1.25rem',
-                  padding: '0.25rem'
+                  paddingTop: '1.25rem',
+                  borderTop: '1px solid var(--border-color)'
                 }}>
-                  {members.map((m) => {
-                    const p = m.pessoas;
-                    const memberOrders = pedidosCamisetas.filter(pc => pc.participacao_id === m.id);
-                    return (
-                      <div key={m.id} className="card animate-fade-in" style={{
-                        padding: '1.25rem',
+                  {/* Taxa Section */}
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: isMobile ? 'row' : 'column',
+                    alignItems: isMobile ? 'center' : 'flex-start',
+                    justifyContent: isMobile ? 'space-between' : 'flex-start',
+                    gap: isMobile ? '1rem' : '0.75rem',
+                    padding: '1rem',
+                    backgroundColor: 'rgba(var(--primary-rgb, 37, 99, 235), 0.03)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-color)',
+                    minHeight: isMobile ? 'auto' : '150px'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                        Taxa
+                      </div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: m.pago_taxa ? '#10b981' : 'var(--text-color)' }}>
+                        {formatBRL(valorTaxa)}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleTogglePayment(m)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: isMobile ? '0.4rem 0.8rem' : '0.6rem 1rem',
+                        width: isMobile ? 'auto' : '100%',
+                        justifyContent: 'center',
+                        borderRadius: '10px',
+                        border: m.pago_taxa ? 'none' : '2px dashed var(--border-color)',
+                        backgroundColor: m.pago_taxa ? '#10b981' : 'transparent',
+                        color: m.pago_taxa ? '#fff' : 'var(--text-color)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        textTransform: 'uppercase'
+                      }}
+                    >
+                      <DollarSign size={14} />
+                      {m.pago_taxa ? 'Pago' : 'Marcar'}
+                    </button>
+                  </div>
+
+                  {/* Camisetas Section */}
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: 'var(--secondary-bg)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    minHeight: '150px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
+                        Camisetas
+                      </div>
+                      {!addingShirtToMemberId && (
+                        <button
+                          onClick={() => setAddingShirtToMemberId(m.id)}
+                          className="btn-text"
+                          style={{
+                            padding: '0 0.5rem',
+                            fontSize: '0.6rem',
+                            fontWeight: 600,
+                            color: 'var(--primary-color)',
+                            letterSpacing: '0.05em',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <ShirtIcon size={14} />
+                            SOLICITAR
+                          </div>
+                        </button>
+                      )}
+                    </div>
+
+                    {addingShirtToMemberId === m.id ? (
+                      <div className="animate-fade-in" style={{
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '1rem',
-                        transition: 'transform 0.2s, box-shadow 0.2s',
-                        cursor: 'default'
-                      }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.transform = 'translateY(-4px)';
-                          e.currentTarget.style.boxShadow = 'var(--shadow-xl)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.transform = 'translateY(0)';
-                          e.currentTarget.style.boxShadow = 'var(--shadow-lg)';
-                        }}>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '1rem',
-                          borderBottom: '1px solid var(--border-color)',
-                          paddingBottom: '1rem',
-                          minHeight: '70px'
-                        }}>
-                          <div style={{
-                            width: '48px', height: '48px', borderRadius: '12px',
-                            backgroundColor: m.coordenador ? '#f59e0b' : 'var(--primary-color)',
-                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '1.1rem', fontWeight: 700,
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                          }}>
-                            {getInitials(p.nome_completo)}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{
-                              fontWeight: 700,
-                              fontSize: '1rem',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
-                            }}>
-                              {p.nome_completo}
-                            </div>
-                            {m.coordenador && (
-                              <div style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '0.25rem',
-                                fontSize: '0.7rem',
-                                color: '#f59e0b',
-                                fontWeight: 700,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em'
-                              }}>
-                                <Shield size={10} /> Coordenador
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '0.5rem 0',
-                          minHeight: '60px'
-                        }}>
-                          <div>
-                            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
-                              Taxa do Encontro
-                            </div>
-                            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: m.pago_taxa ? '#10b981' : 'var(--text-color)' }}>
-                              {formatBRL(valorTaxa)}
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => handleTogglePayment(m)}
-                            className="animate-fade-in"
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.6rem',
-                              padding: '0.5rem 1rem',
-                              borderRadius: '12px',
-                              border: m.pago_taxa ? 'none' : '2px dashed var(--border-color)',
-                              backgroundColor: m.pago_taxa ? '#10b981' : 'rgba(0,0,0,0.03)',
-                              color: m.pago_taxa ? '#fff' : 'var(--text-color)',
-                              cursor: 'pointer',
-                              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                              boxShadow: m.pago_taxa ? '0 4px 12px rgba(16, 185, 129, 0.3)' : 'none',
-                              outline: 'none',
-                            }}
+                        gap: '0.6rem',
+                        padding: '0.75rem',
+                        backgroundColor: 'rgba(0,0,0,0.03)',
+                        borderRadius: '10px'
+                      }}>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <select
+                            value={newShirtData.modelo_id}
+                            onChange={e => setNewShirtData({ ...newShirtData, modelo_id: e.target.value })}
+                            className="form-input"
+                            style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem' }}
                           >
-                            <div style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              width: '24px',
-                              height: '24px',
-                              borderRadius: '50%',
-                              backgroundColor: m.pago_taxa ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)',
-                              color: m.pago_taxa ? '#fff' : '#64748b'
-                            }}>
-                              <DollarSign size={14} />
-                            </div>
-                            <span style={{
-                              fontSize: '0.8rem',
-                              fontWeight: 800,
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.02em'
-                            }}>
-                              {m.pago_taxa ? 'PAGO' : 'MARCAR COMO PAGO'}
-                            </span>
-                          </button>
+                            {modelosCamiseta.map(mod => (
+                              <option key={mod.id} value={mod.id}>{mod.nome}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={newShirtData.tamanho}
+                            onChange={e => setNewShirtData({ ...newShirtData, tamanho: e.target.value })}
+                            className="form-input"
+                            style={{ width: '60px', padding: '0.4rem', fontSize: '0.8rem' }}
+                          >
+                            {['P', 'M', 'G', 'GG', 'XG'].map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                          </select>
                         </div>
-
-                        <div style={{
-                          padding: '1rem',
-                          backgroundColor: 'var(--secondary-bg)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '12px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.75rem',
-                          minHeight: '155px',
-                          flex: 1
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.5 }}>
-                              Camisetas
-                            </div>
-                            {!addingShirtToMemberId && (
-                              <button
-                                onClick={() => setAddingShirtToMemberId(m.id)}
-                                className="btn-text"
-                                style={{
-                                  padding: '0.25rem 0.5rem',
-                                  fontSize: '0.7rem',
-                                  fontWeight: 800,
-                                  color: 'var(--primary-color)',
-                                  letterSpacing: '0.05em'
-                                }}
-                              >
-                                SOLICITAR CAMISETA
-                              </button>
-                            )}
-                          </div>
-
-                          {addingShirtToMemberId === m.id ? (
-                            <div className="animate-fade-in" style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              gap: '0.6rem',
-                              padding: '0.75rem',
-                              backgroundColor: 'rgba(0,0,0,0.03)',
-                              borderRadius: '8px',
-                              border: '1px solid var(--border-color)',
-                            }}>
-                              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <select
-                                  value={newShirtData.modelo_id}
-                                  onChange={e => setNewShirtData({ ...newShirtData, modelo_id: e.target.value })}
-                                  className="form-input"
-                                  style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem', backgroundColor: 'var(--card-bg)', color: 'var(--text-color)' }}
-                                >
-                                  {modelosCamiseta.map(mod => (
-                                    <option key={mod.id} value={mod.id}>{mod.nome}</option>
-                                  ))}
-                                </select>
-                                <select
-                                  value={newShirtData.tamanho}
-                                  onChange={e => setNewShirtData({ ...newShirtData, tamanho: e.target.value })}
-                                  className="form-input"
-                                  style={{ width: '60px', padding: '0.4rem', fontSize: '0.8rem', backgroundColor: 'var(--card-bg)', color: 'var(--text-color)' }}
-                                >
-                                  {['P', 'M', 'G', 'GG', 'XG'].map(t => (
-                                    <option key={t} value={t}>{t}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={newShirtData.quantidade}
-                                  onChange={e => setNewShirtData({ ...newShirtData, quantidade: parseInt(e.target.value) || 1 })}
-                                  className="form-input"
-                                  style={{ width: '60px', padding: '0.4rem', fontSize: '0.8rem', backgroundColor: 'var(--card-bg)', color: 'var(--text-color)' }}
-                                />
-                                <div style={{ flex: 1, display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
-                                  <button
-                                    onClick={() => setAddingShirtToMemberId(null)}
-                                    className="btn-text"
-                                    style={{ fontSize: '0.75rem', color: 'var(--text-color)', opacity: 0.6 }}
-                                  >
-                                    Cancelar
-                                  </button>
-                                  <button
-                                    onClick={() => handleAddShirt(m.id)}
-                                    disabled={isSaving}
-                                    className="btn-primary"
-                                    style={{ padding: '0.4rem 0.85rem', fontSize: '0.75rem' }}
-                                  >
-                                    {isSaving ? '...' : 'Salvar'}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ) : memberOrders.length === 0 ? (
-                            <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
-                              Nenhum pedido registrado
-                            </div>
-                          ) : (
-                            <div style={{ overflowX: 'auto' }}>
-                              <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                                <thead>
-                                  <tr style={{ textAlign: 'left', opacity: 0.5 }}>
-                                    <th style={{ padding: '0.35rem 0.25rem', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }}>Modelo</th>
-                                    <th style={{ padding: '0.35rem 0.25rem', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }}>Tam</th>
-                                    <th style={{ padding: '0.35rem 0.25rem', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.65rem' }}>Qtd</th>
-                                    <th style={{ width: '24px' }}></th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {memberOrders.map((order: any) => (
-                                    <tr key={order.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                                      <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600, color: 'var(--text-color)' }}>
-                                        {order.camiseta_modelos?.nome}
-                                      </td>
-                                      <td style={{ padding: '0.4rem 0.25rem', color: 'var(--text-color)' }}>{order.tamanho}</td>
-                                      <td style={{ padding: '0.4rem 0.25rem', color: 'var(--text-color)' }}>{order.quantidade}</td>
-                                      <td style={{ padding: '0.25rem', textAlign: 'right' }}>
-                                        <button
-                                          onClick={() => handleDeleteShirt(order.id)}
-                                          style={{
-                                            background: 'none',
-                                            border: 'none',
-                                            padding: '4px',
-                                            cursor: 'pointer',
-                                            color: '#ef4444',
-                                            opacity: 0.4,
-                                            display: 'flex',
-                                            transition: 'opacity 0.2s'
-                                          }}
-                                          onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-                                          onMouseLeave={e => e.currentTarget.style.opacity = '0.4'}
-                                          title="Remover"
-                                        >
-                                          <X size={12} />
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
+                        <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                          <button onClick={() => setAddingShirtToMemberId(null)} className="btn-text" style={{ fontSize: '0.75rem' }}>Canc.</button>
+                          <button onClick={() => handleAddShirt(m.id)} disabled={isSaving} className="btn-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.75rem' }}>Salvar</button>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {members.map((m) => {
-                    const p = m.pessoas;
-                    const memberOrders = pedidosCamisetas.filter(pc => pc.participacao_id === m.id);
-                    return (
-                      <div key={m.id} className="card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          <div style={{
-                            width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0,
-                            backgroundColor: m.coordenador ? '#f59e0b' : 'var(--primary-color)',
-                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '0.9rem', fontWeight: 700
-                          }}>
-                            {getInitials(p.nome_completo)}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 600, fontSize: '1rem' }}>{p.nome_completo}</div>
-                            {m.coordenador && <div style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 700 }}>Coordenador</div>}
-                          </div>
-                        </div>
+                    ) : memberOrders.length === 0 ? (
+                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
+                        Nenhum pedido
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Mod</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>T</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Q</th>
+                              <th style={{ width: '20px' }}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {memberOrders.map((order) => (
+                              <tr key={order.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                                <td style={{ padding: '0.4rem 0.25rem' }}>{order.camiseta_modelos?.nome}</td>
+                                <td style={{ padding: '0.4rem 0.25rem' }}>{order.tamanho}</td>
+                                <td style={{ padding: '0.4rem 0.25rem' }}>{order.quantidade}</td>
+                                <td style={{ padding: '0.25rem', textAlign: 'right' }}>
+                                  <button onClick={() => handleDeleteShirt(order.id)} style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.4, cursor: 'pointer' }}><X size={12} /></button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0 0.25rem' }}>
-                          <div style={{
-                            width: '8px', height: '8px', borderRadius: '50%',
-                            backgroundColor: m.pago_taxa ? '#10b981' : '#f59e0b'
-                          }} />
-                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: m.pago_taxa ? '#10b981' : '#f59e0b' }}>
-                            STATUS TAXA: {m.pago_taxa ? 'PAGO' : 'PENDENTE'}
-                          </span>
-                        </div>
-
-                        <div style={{ padding: '0.75rem', backgroundColor: 'var(--secondary-bg)', borderRadius: '8px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.5px' }}>
-                              Camisetas
-                            </div>
-                            {!addingShirtToMemberId && (
-                              <button
-                                onClick={() => setAddingShirtToMemberId(m.id)}
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  color: 'var(--primary-color)',
-                                  fontSize: '0.7rem',
-                                  fontWeight: 800
-                                }}
-                              >
-                                <Plus size={12} /> ADD
-                              </button>
-                            )}
-                          </div>
-
-                          {addingShirtToMemberId === m.id ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(0,0,0,0.03)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                                <select
-                                  value={newShirtData.modelo_id}
-                                  onChange={e => setNewShirtData({ ...newShirtData, modelo_id: e.target.value })}
-                                  className="form-input"
-                                  style={{ flex: 1, padding: '0.25rem', fontSize: '0.75rem', backgroundColor: 'var(--card-bg)', color: 'var(--text-color)' }}
-                                >
-                                  {modelosCamiseta.map(mod => (
-                                    <option key={mod.id} value={mod.id}>{mod.nome}</option>
-                                  ))}
-                                </select>
-                                <select
-                                  value={newShirtData.tamanho}
-                                  onChange={e => setNewShirtData({ ...newShirtData, tamanho: e.target.value })}
-                                  className="form-input"
-                                  style={{ width: '50px', padding: '0.25rem', fontSize: '0.75rem', backgroundColor: 'var(--card-bg)', color: 'var(--text-color)' }}
-                                >
-                                  {['P', 'M', 'G', 'GG', 'XG'].map(t => (
-                                    <option key={t} value={t}>{t}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={newShirtData.quantidade}
-                                  onChange={e => setNewShirtData({ ...newShirtData, quantidade: parseInt(e.target.value) || 1 })}
-                                  className="form-input"
-                                  style={{ width: '50px', padding: '0.25rem', fontSize: '0.75rem', backgroundColor: 'var(--card-bg)', color: 'var(--text-color)' }}
-                                />
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                  <button onClick={() => setAddingShirtToMemberId(null)} style={{ fontSize: '0.7rem', color: 'var(--text-color)', opacity: 0.6, background: 'none', border: 'none' }}>Cancelar</button>
-                                  <button onClick={() => handleAddShirt(m.id)} style={{ padding: '4px 12px', fontSize: '0.7rem', background: 'var(--primary-color)', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 700 }}>Salvar</button>
-                                </div>
-                              </div>
-                            </div>
-                          ) : memberOrders.length === 0 ? (
-                            <span style={{ opacity: 0.4, fontSize: '0.8rem', fontStyle: 'italic' }}>Nenhum pedido registrado</span>
+                  {/* Recepção Section */}
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: 'var(--surface-2)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    minHeight: '150px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
+                        Recepção
+                      </div>
+                      <button
+                        onClick={() => {
+                          setRecepcaoParticipacaoId(m.id);
+                          setRecepcaoParticipanteNome(p.nome_completo || '');
+                        }}
+                        className="btn-text"
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          fontSize: '0.6rem',
+                          fontWeight: 600,
+                          color: 'var(--primary-color)',
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Car size={16} />
+                          {m.recepcao_dados ? (
+                            'EDITAR'
                           ) : (
-                            <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                              <thead>
-                                <tr style={{ textAlign: 'left', opacity: 0.5 }}>
-                                  <th style={{ padding: '0.25rem', fontWeight: 600 }}>Modelo</th>
-                                  <th style={{ padding: '0.25rem', fontWeight: 600 }}>T</th>
-                                  <th style={{ padding: '0.25rem', fontWeight: 600 }}>Q</th>
-                                  <th style={{ width: '20px' }}></th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {memberOrders.map(order => (
-                                  <tr key={order.id} style={{ borderTop: '1px solid rgba(0,0,0,0.03)' }}>
-                                    <td style={{ padding: '0.35rem 0.25rem', fontWeight: 600 }}>{order.camiseta_modelos?.nome}</td>
-                                    <td style={{ padding: '0.35rem 0.25rem' }}>{order.tamanho}</td>
-                                    <td style={{ padding: '0.35rem 0.25rem' }}>{order.quantidade}</td>
-                                    <td style={{ padding: '0.25rem', textAlign: 'right' }}>
-                                      <button onClick={() => handleDeleteShirt(order.id)} style={{ border: 'none', background: 'none', color: '#ef4444', opacity: 0.5, display: 'flex', padding: 2 }}>
-                                        <X size={12} />
-                                      </button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                            'CADASTRAR'
                           )}
                         </div>
+                      </button>
+                    </div>
+
+                    {!m.recepcao_dados ? (
+                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
+                        Não cadastrado
                       </div>
-                    );
-                  })}
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Veículo</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Cor</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Placa</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                              <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{m.recepcao_dados.veiculo_modelo}</td>
+                              <td style={{ padding: '0.4rem 0.25rem' }}>{m.recepcao_dados.veiculo_cor}</td>
+                              <td style={{ padding: '0.4rem 0.25rem' }}>{m.recepcao_dados.veiculo_placa}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
-        </>
+              </div>
+            );
+          })}
+        </div>
       )}
 
-      {showExportMenu && (
-        <div
-          onClick={() => setShowExportMenu(false)}
-          style={{ position: 'fixed', inset: 0, zIndex: 98 }}
-        />
-      )}
+      <RecepcaoDadosModal
+        isOpen={!!recepcaoParticipacaoId}
+        onClose={() => setRecepcaoParticipacaoId(null)}
+        participacaoId={recepcaoParticipacaoId || ''}
+        participanteNome={recepcaoParticipanteNome}
+        equipeNome={equipeNome}
+      />
     </>
   );
 }

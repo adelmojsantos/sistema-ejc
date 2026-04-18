@@ -2715,35 +2715,50 @@ tbody tr:hover {
 }
 
 .radio-group-options {
-  display: inline-flex;
-  background: var(--surface-2);
-  padding: 0.2rem;
-  border-radius: 10px;
-  border: 1px solid var(--border-color);
-  width: fit-content;
+    display: inline-flex;
+    background: var(--surface-2);
+    padding: 0.3rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    width: fit-content;
+    gap: 0.2rem;
 }
 
 .radio-option {
-  cursor: pointer;
-  padding: 0.45rem 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--muted-text);
-  border-radius: 7px;
-  transition: all 0.2s var(--ease-smooth);
-  user-select: none;
-  text-align: center;
-  min-width: 70px;
+    cursor: pointer;
+    padding: 0.5rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: var(--muted-text);
+    border-radius: 9px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    text-align: center;
+    min-width: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
-.radio-option:hover {
-  color: var(--text-color);
+.radio-option:hover:not(.is-selected) {
+    color: var(--text-color);
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.dark .radio-option:hover:not(.is-selected) {
+    background: rgba(255, 255, 255, 0.05);
 }
 
 .radio-option.is-selected {
-  background: var(--card-bg);
-  color: var(--primary-color);
-  box-shadow: var(--shadow-sm);
+    background: var(--card-bg);
+    color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dark .radio-option.is-selected {
+    background: var(--primary-color);
+    color: white;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 /* Scrollbar Styling */
