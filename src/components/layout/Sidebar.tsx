@@ -1,13 +1,15 @@
 import React from 'react';
-import { 
-  Home, 
-  UserPlus, 
-  FileText, 
-  Calendar, 
+import {
+  Home,
+  UserPlus,
+  FileText,
+  Calendar,
   Users,
   Shield,
-  Users2, 
+  Users2,
   MapPin,
+  Car,
+  Baby,
   ChevronLeft,
   ChevronRight,
   X
@@ -23,11 +25,11 @@ interface SidebarProps {
   setMobileOpen: (open: boolean) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ 
-  collapsed, 
-  setCollapsed, 
-  mobileOpen, 
-  setMobileOpen 
+export const Sidebar: React.FC<SidebarProps> = ({
+  collapsed,
+  setCollapsed,
+  mobileOpen,
+  setMobileOpen
 }) => {
   const { profile, userParticipacao, hasPermission } = useAuth();
 
@@ -57,6 +59,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const hasVisitacaoAccess = hasPermission('modulo_visitacao_coordenar') || hasPermission('modulo_visitacao_duplas') || hasPermission('modulo_admin');
   if (hasVisitacaoAccess) {
     navLinks.push({ to: '/visitacao', label: 'Visitação', icon: MapPin });
+  }
+
+  if (hasPermission('modulo_recepcao') || hasPermission('modulo_admin')) {
+    navLinks.push({ to: '/atividades/recepcao', label: 'Recepção', icon: Car });
+  }
+
+  if (hasPermission('modulo_recreacao') || hasPermission('modulo_admin')) {
+    navLinks.push({ to: '/atividades/recreacao', label: 'Recreação Infantil', icon: Baby });
   }
 
   const handleLinkClick = () => {
@@ -110,14 +120,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             )}
           </div>
-          
-          <button 
-            className="nav-item collapse-btn" 
+
+          <button
+            className="nav-item collapse-btn"
             onClick={() => setCollapsed(!collapsed)}
-            style={{ 
-              border: 'none', 
-              background: 'none', 
-              width: '100%', 
+            style={{
+              border: 'none',
+              background: 'none',
+              width: '100%',
               cursor: 'pointer',
               display: mobileOpen ? 'none' : 'flex'
             }}

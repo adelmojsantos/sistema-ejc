@@ -6,6 +6,7 @@ export interface Encontro {
     local: string | null;
     descricao: string | null;
     ativo: boolean;
+    formulario_publico_ativo: boolean;
     created_at: string; // timestamptz
     edicao: number | null; // bigint
     tema: string | null;
@@ -25,6 +26,7 @@ export const encontroFormDataVazio = (): EncontroFormData => ({
     local: '',
     descricao: '',
     ativo: false,
+    formulario_publico_ativo: false,
     edicao: null,
     tema: '',
     musica: '',

@@ -47,5 +47,24 @@ export const recepcaoService = {
       .eq('id', id);
 
     if (error) throw error;
+  },
+
+  async listarTodosPorEncontro(encontroId: string): Promise<RecepcaoDados[]> {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select(`
+        *,
+        participacoes!inner (
+          encontro_id,
+          equipe_id,
+          pessoas (nome_completo, telefone),
+          equipes (nome)
+        )
+      `)
+      .eq('participacoes.encontro_id', encontroId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data as unknown as RecepcaoDados[]) || [];
   }
 };

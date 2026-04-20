@@ -32,6 +32,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
         local: initialData?.local ?? '',
         descricao: initialData?.descricao ?? '',
         ativo: initialData?.ativo ?? false,
+        formulario_publico_ativo: initialData?.formulario_publico_ativo ?? false,
         edicao: initialData?.edicao ?? null,
         tema: initialData?.tema ?? '',
         musica: initialData?.musica ?? '',
@@ -67,18 +68,82 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
 
     return (
         <form onSubmit={handleSubmit} noValidate>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '2.5rem' }}>
                 <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>{title}</h2>
-                <label className="switch">
-                    <input
-                        type="checkbox"
-                        className="switch-input"
-                        checked={form.ativo}
-                        onChange={(e) => handleChange('ativo', e.target.checked)}
-                    />
-                    <span className="switch-slider"></span>
-                    <span className="switch-label">{form.ativo ? 'Encontro Ativo' : 'Encontro Inativo'}</span>
-                </label>
+
+                <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '1.25rem',
+                    width: '100%',
+                    backgroundColor: 'var(--surface-2)',
+                    padding: '1.25rem',
+                    borderRadius: '16px',
+                    border: '1px solid var(--border-color)',
+                }}>
+                    {/* Toggle: Ativo */}
+                    <div style={{
+                        flex: '1 1 280px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '1rem'
+                    }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Encontro Ativo</span>
+                            <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Status principal do sistema</span>
+                        </div>
+                        <div className="toggle-sim-nao">
+                            <button
+                                type="button"
+                                className={`toggle-sim-nao-item ${form.ativo ? 'active-sim' : ''}`}
+                                onClick={() => handleChange('ativo', true)}
+                            >
+                                Sim
+                            </button>
+                            <button
+                                type="button"
+                                className={`toggle-sim-nao-item ${!form.ativo ? 'active-nao' : ''}`}
+                                onClick={() => handleChange('ativo', false)}
+                            >
+                                Não
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Divider Desktop Only */}
+                    <div style={{ width: '1px', height: '40px', backgroundColor: 'var(--border-color)', opacity: 0.5 }} className="desktop-only" />
+
+                    {/* Toggle: Form Público */}
+                    <div style={{
+                        flex: '1 1 280px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '1rem'
+                    }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Liberar Formulários</span>
+                            <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Recepção e Recreação</span>
+                        </div>
+                        <div className="toggle-sim-nao">
+                            <button
+                                type="button"
+                                className={`toggle-sim-nao-item ${form.formulario_publico_ativo ? 'active-sim' : ''}`}
+                                onClick={() => handleChange('formulario_publico_ativo', true)}
+                            >
+                                Sim
+                            </button>
+                            <button
+                                type="button"
+                                className={`toggle-sim-nao-item ${!form.formulario_publico_ativo ? 'active-nao' : ''}`}
+                                onClick={() => handleChange('formulario_publico_ativo', false)}
+                            >
+                                Não
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <FormSection title="Dados Básicos" icon={<Info size={18} />} columns={0}>

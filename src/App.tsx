@@ -22,6 +22,8 @@ import { MontagemPage } from './pages/cadastros/MontagemPage';
 import { PessoasPage } from './pages/cadastros/PessoasPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
+import { RecepcaoAdminPage } from './pages/atividades/RecepcaoAdminPage';
+import { RecreacaoAdminPage } from './pages/atividades/RecreacaoAdminPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { Home } from './pages/Home';
 import { InscricaoPage } from './pages/InscricaoPage';
@@ -42,6 +44,10 @@ import { SplashScreen } from './components/ui/SplashScreen';
 import { useEffect } from 'react';
 import { useLoading } from './contexts/LoadingContext';
 import { AppLayout } from './components/layout/AppLayout';
+import { ExternalSessionProvider } from './contexts/ExternalSessionContext';
+import FormAccess from './pages/Public/FormAccess';
+import FormPage from './pages/Public/FormPage';
+import FormRecreacaoPage from './pages/Public/FormRecreacaoPage';
 
 
 export function PlaceholderPage({ title }: { title: string }) {
@@ -68,6 +74,9 @@ function AnimatedRoutes() {
         <Route path="/privacidade" element={<PageTransition><PrivacidadePage /></PageTransition>} />
         <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
         <Route path="/inscricao-online" element={<PageTransition><InscricaoPublicaPage /></PageTransition>} />
+        <Route path="/formulario" element={<PageTransition><FormAccess /></PageTransition>} />
+        <Route path="/formulario/recepcao" element={<PageTransition><FormPage /></PageTransition>} />
+        <Route path="/formulario/recreacao" element={<PageTransition><FormRecreacaoPage /></PageTransition>} />
 
         {/* Private Routes Wrapper */}
         <Route element={<ProtectedRoute><AppLayout><Outlet /></AppLayout></ProtectedRoute>}>
@@ -194,6 +203,18 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           } />
 
+          <Route path="/atividades/recepcao" element={
+            <ProtectedRoute requiredPermissions={['modulo_recepcao', 'modulo_admin']}>
+              <RecepcaoAdminPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/atividades/recreacao" element={
+            <ProtectedRoute requiredPermissions={['modulo_recreacao', 'modulo_admin']}>
+              <RecreacaoAdminPage />
+            </ProtectedRoute>
+          } />
+
           <Route path="/cadastros" element={
             <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
               <Cadastros />
@@ -254,7 +275,9 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <MainApp />
+        <ExternalSessionProvider>
+          <MainApp />
+        </ExternalSessionProvider>
       </AuthProvider>
     </ThemeProvider>
   );
