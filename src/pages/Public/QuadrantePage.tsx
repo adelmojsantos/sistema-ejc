@@ -8,7 +8,10 @@ import {
     ScrollText,
     Sun,
     User,
-    Users
+    Users,
+    Mic2,
+    Music,
+    ExternalLink
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -17,6 +20,8 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { quadranteService, type QuadranteData } from '../../services/quadranteService';
 import { quadrantePdfService } from '../../services/quadrantePdfService';
+import { palestraService } from '../../services/palestraService';
+import type { Palestra } from '../../types/palestra';
 
 // Import Google Fonts
 const fontLink = document.createElement('link');
@@ -30,6 +35,12 @@ interface EncontroInfo {
     tema: string | null;
     quadrante_pin: string | null;
     quadrante_ativo: boolean;
+    logo_url: string | null;
+    simbologia_texto: string | null;
+    tematica_texto: string | null;
+    musica_letra: string | null;
+    link_youtube: string | null;
+    link_musica: string | null;
 }
 
 // --- Sub-componente para Cartões de Participantes ---
@@ -69,9 +80,11 @@ export function QuadrantePage() {
     const [data, setData] = useState<QuadranteData[]>([]);
     const [search] = useState('');
     const [encontro, setEncontro] = useState<EncontroInfo | null>(null);
+    const [palestras, setPalestras] = useState<Palestra[]>([]);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const [activeSection, setActiveSection] = useState<string>('');
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -107,30 +120,44 @@ export function QuadrantePage() {
             const pin = sessionStorage.getItem(`q_auth_${token}`);
 
             try {
+                // Verificar se o usuário está logado como admin
+                const { data: { session } } = await supabase.auth.getSession();
+                const isAdmin = !!session;
+
                 const { data: eData } = await supabase
                     .from('encontros')
-                    .select('id, nome, tema, quadrante_pin, quadrante_ativo')
+                    .select('id, nome, tema, quadrante_pin, quadrante_ativo, logo_url, simbologia_texto, tematica_texto, musica_letra, link_youtube, link_musica')
                     .eq('quadrante_token', token)
                     .single();
 
                 if (!eData) throw new Error('Encontro não encontrado');
 
-                if (!eData.quadrante_ativo) {
-                    toast.error('Este Quadrante ainda não foi publicado pelo administrador.', { duration: 5000 });
-                    setEncontro(eData);
-                    setLoading(false);
-                    return;
+                // Bypass Admin: Se estiver logado, ignora as restrições de PIN e Ativo
+                if (!isAdmin) {
+                    if (!eData.quadrante_ativo) {
+                        toast.error('Este Quadrante ainda não foi publicado pelo administrador.', { duration: 5000 });
+                        setEncontro(eData);
+                        setLoading(false);
+                        return;
+                    }
+
+                    if (eData.quadrante_pin && !pin) {
+                        navigate(`/q/${token}`);
+                        return;
+                    }
+                } else if (!eData.quadrante_ativo) {
+                    toast('Modo Visualização (Administrador)', { icon: '🛡️' });
                 }
 
                 setEncontro(eData);
 
-                if (eData.quadrante_pin && !pin) {
-                    navigate(`/q/${token}`);
-                    return;
-                }
-
-                const quadranteData = await quadranteService.obterDados(token);
+                const [quadranteData, palestrasData] = await Promise.all([
+                    quadranteService.obterDados(token),
+                    palestraService.listarPorEncontro(eData.id)
+                ]);
+                
                 setData(quadranteData);
+                setPalestras(palestrasData);
             } catch (error) {
                 console.error('Erro ao carregar quadrante:', error);
                 toast.error('Não foi possível carregar os dados.');
@@ -141,6 +168,20 @@ export function QuadrantePage() {
 
         loadQuadrante();
     }, [token, navigate]);
+
+    const handleExportPDF = async () => {
+        if (!encontro) return;
+        setExporting(true);
+        try {
+            await quadrantePdfService.generateYearbook(encontro as any, data, palestras);
+            toast.success('PDF gerado com sucesso!');
+        } catch (error) {
+            console.error('Erro ao gerar PDF:', error);
+            toast.error('Erro ao gerar o PDF do Quadrante.');
+        } finally {
+            setExporting(false);
+        }
+    };
 
     // Organizar dados por seções
     const { encontristasPorCirculo, encontreirosPorEquipe } = useMemo(() => {
@@ -199,26 +240,7 @@ export function QuadrantePage() {
         }
     };
 
-    const [exporting, setExporting] = useState(false);
 
-    const handleExportPDF = async () => {
-        if (!encontro) return;
-        setExporting(true);
-        const loadingToast = toast.loading('Gerando Quadrante PDF...');
-
-        try {
-            await quadrantePdfService.generateYearbook(
-                { id: encontro.id, nome: encontro.nome, tema: encontro.tema },
-                data
-            );
-            toast.success('Quadrante PDF gerado com sucesso!', { id: loadingToast });
-        } catch (error) {
-            console.error('Erro ao gerar PDF:', error);
-            toast.error('Erro ao gerar o PDF. Tente novamente.', { id: loadingToast });
-        } finally {
-            setExporting(false);
-        }
-    };
 
     if (loading) {
         return (
@@ -264,26 +286,28 @@ export function QuadrantePage() {
                         <ArrowLeft size={18} /> Fechar
                     </button>
                 </div>
-
                 <nav className="sidebar-nav">
                     <button onClick={() => scrollToSection('inicio')} className="nav-item">
                         <Home size={18} /> Início
                     </button>
+                    
+                    <div className="nav-group">
+                        <div className="nav-item-label" style={{ fontSize: '0.7rem', opacity: 0.5, letterSpacing: '0.1em', fontWeight: 800, padding: '0.5rem 1rem' }}>CONTEÚDO</div>
+                        <button onClick={() => scrollToSection('simbologia')} className="nav-item sub-item">
+                            Simbologia
+                        </button>
+                        <button onClick={() => scrollToSection('tematica')} className="nav-item sub-item">
+                            Temática
+                        </button>
+                        <button onClick={() => scrollToSection('musica')} className="nav-item sub-item">
+                            Música Tema
+                        </button>
+                    </div>
+
                     <div className="nav-group">
                         <button onClick={() => scrollToSection('encontristas')} className="nav-item">
                             <Users size={18} /> Encontristas
                         </button>
-                        <div className="sub-menu">
-                            {encontristasPorCirculo.map(([circle]) => (
-                                <button
-                                    key={circle}
-                                    onClick={() => scrollToSection(`circulo-${slugify(circle)}`)}
-                                    className="nav-item sub-item"
-                                >
-                                    {circle}
-                                </button>
-                            ))}
-                        </div>
                     </div>
 
                     <div className="nav-group">
@@ -293,17 +317,15 @@ export function QuadrantePage() {
                         >
                             <ScrollText size={20} style={{ minWidth: '20px' }} /> Encontreiros
                         </button>
-                        <div className="sub-menu">
-                            {encontreirosPorEquipe.map(([team]) => (
-                                <button
-                                    key={team}
-                                    onClick={() => scrollToSection(`equipe-${slugify(team)}`)}
-                                    className="nav-item sub-item"
-                                >
-                                    {team}
-                                </button>
-                            ))}
-                        </div>
+                    </div>
+
+                    <div className="nav-group">
+                        <button
+                            className="nav-item"
+                            onClick={() => scrollToSection('palestras')}
+                        >
+                            <Mic2 size={20} style={{ minWidth: '20px' }} /> Palestras
+                        </button>
                     </div>
                 </nav>
 
@@ -352,25 +374,101 @@ export function QuadrantePage() {
                         animate={{ opacity: 1, y: 0 }}
                         className="hero-card"
                     >
-                        <span className="tag">QUADRANTE</span>
-                        <h1>{encontro?.nome}</h1>
+                        {encontro?.logo_url && (
+                            <div className="hero-logo" style={{ marginBottom: '2rem' }}>
+                                <img src={encontro.logo_url} alt="Logo do Encontro" style={{ maxWidth: '180px', maxHeight: '180px', objectFit: 'contain', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.3))' }} />
+                            </div>
+                        )}
+                        <span className="tag">QUADRANTE OFICIAL</span>
+                        <h1 style={{ lineHeight: 1.1 }}>{encontro?.nome}</h1>
                         <p>{encontro?.tema || 'Bem-vindo ao registro visual de nossa jornada.'}</p>
-
-                        {/* <div className="hero-search">
-                            <Search size={20} />
-                            <input
-                                type="text"
-                                placeholder="Quem você está procurando?"
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                            />
-                        </div> */}
 
                         <div className="stats-pills">
                             <div className="pill"><strong>{data.filter(i => i.participante).length}</strong> Encontristas</div>
                             <div className="pill"><strong>{data.length - data.filter(i => i.participante).length}</strong> Encontreiros</div>
                         </div>
                     </motion.div>
+                </section>
+
+                {/* Simbologia */}
+                <section id="simbologia" className="content-editorial-section" data-section-name="Simbologia">
+                    <div className="editorial-container">
+                        <div className="editorial-visual">
+                            <div className="simbol-logo">
+                                <img src="/logo-ejc-simbolo.png" alt="Símbolo EJC" onError={(e) => e.currentTarget.src = 'https://portaldafamilia.com.br/wp-content/uploads/2018/11/logo_ejc.png'} />
+                            </div>
+                        </div>
+                        <div className="editorial-content">
+                            <div className="section-header">
+                                <h2>Simbologia</h2>
+                                <div className="divider"></div>
+                            </div>
+                            <div className="editorial-text">
+                                {encontro?.simbologia_texto?.split('\n').map((para, i) => (
+                                    <p key={i}>{para}</p>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Temática do Encontro */}
+                <section id="tematica" className="content-editorial-section reverse" data-section-name="Temática">
+                    <div className="editorial-container">
+                        <div className="editorial-visual">
+                            {encontro?.logo_url ? (
+                                <img src={encontro.logo_url} alt="Logo Tema" className="theme-logo" />
+                            ) : (
+                                <div className="logo-stub">EJC</div>
+                            )}
+                        </div>
+                        <div className="editorial-content">
+                            <div className="section-header">
+                                <h2>{encontro?.tema || 'Temática'}</h2>
+                                <div className="divider"></div>
+                            </div>
+                            <div className="editorial-text">
+                                {encontro?.tematica_texto ? (
+                                    encontro.tematica_texto.split('\n').map((para, i) => <p key={i}>{para}</p>)
+                                ) : (
+                                    <p>As referências e inspirações que deram vida ao tema deste encontro.</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Música Tema */}
+                <section id="musica" className="content-music-section" data-section-name="Música">
+                    <div className="music-container">
+                        <div className="music-header">
+                            <Music size={40} className="music-icon" />
+                            <h2>Música Tema</h2>
+                            <div className="music-links">
+                                {encontro?.link_musica && (
+                                    <a href={encontro.link_musica} target="_blank" rel="noopener noreferrer" className="music-link-btn">
+                                        <Music size={16} /> Ouvir Música
+                                    </a>
+                                )}
+                                {encontro?.link_youtube && (
+                                    <a href={encontro.link_youtube} target="_blank" rel="noopener noreferrer" className="music-link-btn yt">
+                                        <ExternalLink size={16} /> Vídeo no YouTube
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                        <div className="lyrics-wrapper">
+                            <div className="lyrics-content">
+                                {encontro?.musica_letra ? (
+                                    encontro.musica_letra.split('\n').map((line, i) => (
+                                        <p key={i}>{line || <br />}</p>
+                                    ))
+                                ) : (
+                                    <p className="opacity-50 italic">Letra da música não cadastrada.</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </section>
 
                 {/* Encontristas Sections grouped by Circle */}
@@ -439,6 +537,47 @@ export function QuadrantePage() {
                     <p>© {new Date().getFullYear()} EJC • Capelinha</p>
                 </footer>
             </main>
+
+            <section id="palestras" className="content-palestras-section" data-section-name="Palestras">
+                <div className="section-header center">
+                    <Mic2 size={32} />
+                    <h2>Palestras do Encontro</h2>
+                    <div className="divider mx-auto"></div>
+                </div>
+
+                <div className="palestras-grid">
+                    {palestras.map((p, pIdx) => (
+                        <motion.div 
+                            key={p.id} 
+                            className="palestra-card"
+                            initial={{ opacity: 0, y: 30 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ delay: pIdx * 0.1 }}
+                        >
+                            <div className="palestra-speaker">
+                                <div className="speaker-avatar">
+                                    {p.palestrante_foto_url ? (
+                                        <img src={p.palestrante_foto_url} alt={p.palestrante_nome || ''} />
+                                    ) : (
+                                        <User size={40} />
+                                    )}
+                                </div>
+                                <div className="speaker-info">
+                                    <h3>{p.titulo}</h3>
+                                    <span className="p-nome">{p.palestrante_nome}</span>
+                                </div>
+                            </div>
+                            <div className="palestra-body">
+                                <p>{p.resumo || 'Resumo não disponível para esta palestra.'}</p>
+                            </div>
+                        </motion.div>
+                    ))}
+                </div>
+                {palestras.length === 0 && (
+                    <div className="opacity-40 text-center py-10">Nenhuma palestra registrada para este encontro.</div>
+                )}
+            </section>
 
             {/* Sidebar Overlay for Mobile */}
             <AnimatePresence>
@@ -726,6 +865,233 @@ export function QuadrantePage() {
                     letter-spacing: 0.1em;
                     margin-bottom: 1.5rem;
                     display: inline-block;
+                }
+
+                .hero-card h1 {
+                    font-size: clamp(2.2rem, 6vw, 4rem);
+                    margin: 0 0 1rem;
+                    color: white;
+                    font-weight: 800;
+                    letter-spacing: -0.02em;
+                }
+
+                .hero-logo img {
+                    animation: float-logo 4s ease-in-out infinite;
+                }
+
+                @keyframes float-logo {
+                    0%, 100% { transform: translateY(0); }
+                    50% { transform: translateY(-10px); }
+                }
+
+                /* Editorial Sections */
+                .content-editorial-section {
+                    padding: 6rem 8%;
+                    display: flex;
+                    justify-content: center;
+                }
+
+                .editorial-container {
+                    max-width: 1200px;
+                    display: grid;
+                    grid-template-columns: 1fr 1.5fr;
+                    gap: 4rem;
+                    align-items: center;
+                }
+
+                .content-editorial-section.reverse .editorial-container {
+                    grid-template-columns: 1.5fr 1fr;
+                }
+
+                .content-editorial-section.reverse .editorial-visual {
+                    order: 2;
+                }
+
+                .editorial-visual {
+                    display: flex;
+                    justify-content: center;
+                }
+
+                .simbol-logo img, .theme-logo {
+                    max-width: 100%;
+                    max-height: 400px;
+                    object-fit: contain;
+                    filter: drop-shadow(0 20px 30px rgba(0,0,0,0.1));
+                }
+
+                .editorial-text {
+                    font-size: 1.15rem;
+                    line-height: 1.8;
+                    opacity: 0.85;
+                    color: var(--text-color);
+                }
+
+                .editorial-text p {
+                    margin-bottom: 1.5rem;
+                }
+
+                /* Music Section */
+                .content-music-section {
+                    background: var(--hero-gradient);
+                    color: white;
+                    padding: 6rem 8%;
+                    text-align: center;
+                }
+
+                .music-container {
+                    max-width: 800px;
+                    margin: 0 auto;
+                }
+
+                .music-header h2 {
+                    font-size: 2.5rem;
+                    margin: 1rem 0 2rem;
+                }
+
+                .music-icon {
+                    opacity: 0.3;
+                    margin-bottom: 0.5rem;
+                }
+
+                .music-links {
+                    display: flex;
+                    gap: 1rem;
+                    justify-content: center;
+                    margin-bottom: 3rem;
+                }
+
+                .music-link-btn {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.6rem;
+                    padding: 0.8rem 1.5rem;
+                    background: rgba(255,255,255,0.1);
+                    border: 1px solid rgba(255,255,255,0.2);
+                    border-radius: 100px;
+                    color: white;
+                    text-decoration: none;
+                    font-size: 0.9rem;
+                    font-weight: 600;
+                    transition: 0.3s;
+                }
+
+                .music-link-btn:hover {
+                    background: white;
+                    color: #0f172a;
+                }
+
+                .lyrics-wrapper {
+                    background: rgba(0,0,0,0.2);
+                    padding: 4rem 2rem;
+                    border-radius: 40px;
+                    border: 1px solid rgba(255,255,255,0.05);
+                }
+
+                .lyrics-content {
+                    font-size: 1.25rem;
+                    line-height: 1.6;
+                    font-style: italic;
+                    opacity: 0.9;
+                }
+
+                .lyrics-content p {
+                    margin-bottom: 0.5rem;
+                }
+
+                /* Palestras Section */
+                .content-palestras-section {
+                    padding: 6rem 8%;
+                    max-width: 1200px;
+                    margin: 0 auto;
+                }
+
+                .palestras-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+                    gap: 2rem;
+                    margin-top: 4rem;
+                }
+
+                .palestra-card {
+                    background: var(--card-bg);
+                    border: 1px solid var(--border-color);
+                    border-radius: 24px;
+                    padding: 2rem;
+                    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+                    transition: 0.3s;
+                }
+
+                .palestra-card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+                    border-color: var(--primary-color)40;
+                }
+
+                .palestra-speaker {
+                    display: flex;
+                    align-items: center;
+                    gap: 1.25rem;
+                    margin-bottom: 1.5rem;
+                }
+
+                .speaker-avatar {
+                    width: 70px;
+                    height: 70px;
+                    border-radius: 20px;
+                    overflow: hidden;
+                    background: var(--primary-color)10;
+                    color: var(--primary-color);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border: 1px solid var(--border-color);
+                }
+
+                .speaker-avatar img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+
+                .speaker-info h3 {
+                    font-size: 1.2rem;
+                    margin: 0;
+                }
+
+                .speaker-info .p-nome {
+                    font-size: 0.9rem;
+                    opacity: 0.6;
+                    font-weight: 500;
+                }
+
+                .palestra-body p {
+                    line-height: 1.6;
+                    opacity: 0.8;
+                    font-size: 1rem;
+                }
+
+                @media (max-width: 1024px) {
+                    .editorial-container {
+                        grid-template-columns: 1fr;
+                        gap: 2rem;
+                        text-align: center;
+                    }
+                    .content-editorial-section.reverse .editorial-container {
+                        grid-template-columns: 1fr;
+                    }
+                    .content-editorial-section.reverse .editorial-visual {
+                        order: -1;
+                    }
+                    .palestras-grid {
+                        grid-template-columns: 1fr;
+                    }
+                }
+
+                .section-header.center {
+                    text-align: center;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
                 }
 
                 .hero-card h1 {

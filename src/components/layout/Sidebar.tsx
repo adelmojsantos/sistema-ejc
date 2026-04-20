@@ -12,6 +12,7 @@ import {
   Baby,
   ChevronLeft,
   ChevronRight,
+  Mic2,
   X
 } from 'lucide-react';
 
@@ -42,6 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { to: '/inscricao', label: 'Inscrições', icon: UserPlus },
       { to: '/secretaria', label: 'Secretaria', icon: FileText },
       { to: '/cadastros', label: 'Cadastros', icon: Calendar },
+      { to: '/atividades/palestras', label: 'Palestras', icon: Mic2 },
     );
   }
 

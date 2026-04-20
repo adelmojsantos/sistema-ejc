@@ -79,6 +79,20 @@ export const encontroService = {
         if (error) throw error;
     },
 
+    async salvarDadosEditoriais(id: string, data: {
+        logo_url?: string | null;
+        simbologia_texto?: string | null;
+        tematica_texto?: string | null;
+        musica_letra?: string | null;
+    }): Promise<void> {
+        const { error } = await supabase
+            .from(TABLE)
+            .update(data)
+            .eq('id', id);
+
+        if (error) throw error;
+    },
+
     async rotacionarTokenQuadrante(id: string): Promise<string> {
         const novoToken = crypto.randomUUID();
         const { error } = await supabase

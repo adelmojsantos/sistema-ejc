@@ -6,12 +6,20 @@ import {
     Eye,
     EyeOff,
     FileText,
+    Image as ImageIcon,
+    Mic2,
+    MoreHorizontal,
+    Plus,
     QrCode,
     RefreshCw,
-    Shield
+    Settings,
+    Shield,
+    Trash2,
+    Type,
+    User
 } from 'lucide-react';
-import { useEffect, useState, useRef } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -29,11 +37,19 @@ export function EncontroQuadranteConfigPage() {
     const [saving, setSaving] = useState(false);
     const [copied, setCopied] = useState(false);
     const [showPin, setShowPin] = useState(false);
+    const [activeTab, setActiveTab] = useState<'acesso' | 'conteudo'>('acesso');
     const qrRef = useRef<HTMLDivElement>(null);
 
-    // Form states
+    // Form states - Acesso
     const [ativo, setAtivo] = useState(false);
     const [pin, setPin] = useState('');
+
+    // Form states - Editorial
+    const [logoUrl, setLogoUrl] = useState('');
+    const [simbologiaTexto, setSimbologiaTexto] = useState('');
+    const [tematicaTexto, setTematicaTexto] = useState('');
+    const [musicaLetra, setMusicaLetra] = useState('');
+
 
     useEffect(() => {
         async function loadEncontro() {
@@ -50,6 +66,10 @@ export function EncontroQuadranteConfigPage() {
                     setEncontro(data);
                     setAtivo(data.quadrante_ativo || false);
                     setPin(data.quadrante_pin || '');
+                    setLogoUrl(data.logo_url || '');
+                    setSimbologiaTexto(data.simbologia_texto || '');
+                    setTematicaTexto(data.tematica_texto || '');
+                    setMusicaLetra(data.musica_letra || '');
                 }
             } catch (error) {
                 console.error('Erro ao buscar encontro:', error);
@@ -62,7 +82,7 @@ export function EncontroQuadranteConfigPage() {
         loadEncontro();
     }, [id]);
 
-    const handleSave = async () => {
+    const handleSaveAcesso = async () => {
         if (!id) return;
         setSaving(true);
         try {
@@ -70,14 +90,34 @@ export function EncontroQuadranteConfigPage() {
                 ativo,
                 pin: pin || null
             });
-            toast.success('Configurações salvas com sucesso!');
+            toast.success('Configurações de acesso salvas!');
         } catch (error) {
-            console.error('Erro ao salvar:', error);
-            toast.error('Erro ao salvar configurações.');
+            console.error('Erro ao salvar acesso:', error);
+            toast.error('Erro ao salvar configurações de acesso.');
         } finally {
             setSaving(false);
         }
     };
+
+    const handleSaveEditorial = async () => {
+        if (!id) return;
+        setSaving(true);
+        try {
+            await encontroService.salvarDadosEditoriais(id, {
+                logo_url: logoUrl || null,
+                simbologia_texto: simbologiaTexto || null,
+                tematica_texto: tematicaTexto || null,
+                musica_letra: musicaLetra || null
+            });
+            toast.success('Conteúdo do Quadrante atualizado!');
+        } catch (error) {
+            console.error('Erro ao salvar editorial:', error);
+            toast.error('Erro ao salvar conteúdo editorial.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
 
     const handleRotateToken = async () => {
         if (!id || !window.confirm('Tem certeza que deseja rotacionar o token? O QR Code anterior deixará de funcionar imediatamente.')) return;
@@ -105,6 +145,7 @@ export function EncontroQuadranteConfigPage() {
             // Obter os dados completos do quadrante via service
             const data = await quadranteService.obterDados(encontro.quadrante_token);
 
+            // @ts-ignore
             await quadrantePdfService.generateYearbook(
                 { id: id!, nome: encontro.nome, tema: encontro.tema },
                 data
@@ -131,7 +172,7 @@ export function EncontroQuadranteConfigPage() {
         if (!qrRef.current) return;
         const canvas = qrRef.current.querySelector('canvas');
         if (!canvas) return;
-        
+
         // Criar um canvas temporário maior para adicionar margens brancas
         const margin = 40; // Tamanho da margem em pixels
         const tempCanvas = document.createElement('canvas');
@@ -145,9 +186,9 @@ export function EncontroQuadranteConfigPage() {
         tempCtx.fillStyle = '#FFFFFF';
         tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 
-        // Desenhar o QR code no centro
+        // Desenhar the QR code no centro
         tempCtx.drawImage(canvas, margin, margin);
-        
+
         const url = tempCanvas.toDataURL('image/png');
         const link = document.createElement('a');
         link.download = `qrcode-quadrante-${encontro?.nome}.png`;
@@ -169,98 +210,181 @@ export function EncontroQuadranteConfigPage() {
                 onBack={() => navigate('/cadastros/encontros')}
             />
 
+            {/* Abas de Navegação */}
+            <div className="tabs-container">
+                <button
+                    className={`tab-link ${activeTab === 'acesso' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('acesso')}
+                >
+                    <Shield size={18} /> 1. Acesso & Segurança
+                </button>
+                <button
+                    className={`tab-link ${activeTab === 'conteudo' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('conteudo')}
+                >
+                    <Type size={18} /> 2. Conteúdo Visual
+                </button>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-                {/* Left: General Config */}
+                {/* Coluna Principal: Conteúdo das Abas */}
                 <div className="lg:col-span-2 flex flex-col gap-6">
-                    <div className="card" style={{ padding: '2rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-                            <div style={{
-                                width: '48px', height: '48px', borderRadius: '12px',
-                                background: 'var(--primary-color)20', color: 'var(--primary-color)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}>
-                                <Shield size={24} />
-                            </div>
-                            <div>
-                                <h3 style={{ margin: 0 }}>Controle de Segurança</h3>
-                                <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6 }}>Proteja o acesso ao anuário e gerencie a visibilidade pública.</p>
-                            </div>
-                        </div>
 
-                        <div className="access-config-grid">
-                            {/* Toggle Ativo */}
-                            <div className="config-item">
-                                <div className="config-label-area">
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-                                        <h4 style={{ margin: 0 }}>Quadrante Ativo</h4>
-                                        <div className="sim-nao-toggle">
-                                            <button
-                                                className={`toggle-btn ${!ativo ? 'active-nao' : ''}`}
-                                                onClick={() => setAtivo(false)}
-                                            >
-                                                Não
-                                            </button>
-                                            <button
-                                                className={`toggle-btn ${ativo ? 'active-sim' : ''}`}
-                                                onClick={() => setAtivo(true)}
-                                            >
-                                                Sim
-                                            </button>
+                    {/* ABA 1: ACESSO & SEGURANÇA */}
+                    {activeTab === 'acesso' && (
+                        <div className="card" style={{ padding: '2rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+                                <div className="icon-badge">
+                                    <Shield size={24} />
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0 }}>Controle de Segurança</h3>
+                                    <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6 }}>Gerencie quem pode visualizar os dados do Quadrante.</p>
+                                </div>
+                            </div>
+
+                            <div className="config-inner-card">
+                                <div className="config-item">
+                                    <div className="config-label-area">
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                                            <h4 style={{ margin: 0 }}>Status do Quadrante</h4>
+                                            <div className="sim-nao-toggle">
+                                                <button
+                                                    className={`toggle-btn ${!ativo ? 'active-nao' : ''}`}
+                                                    onClick={() => setAtivo(false)}
+                                                >
+                                                    Não
+                                                </button>
+                                                <button
+                                                    className={`toggle-btn ${ativo ? 'active-sim' : ''}`}
+                                                    onClick={() => setAtivo(true)}
+                                                >
+                                                    Sim
+                                                </button>
+                                            </div>
                                         </div>
+                                        <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6 }}>
+                                            Exibir dados publicamente para os participantes?
+                                        </p>
                                     </div>
-                                    <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>
-                                        Exibir dados publicamente para os participantes?
-                                    </p>
                                 </div>
-                            </div>
 
-                            {/* PIN Section */}
-                            <div className="config-item">
-                                <div className="config-label-area">
+                                <div className="config-item" style={{ marginTop: '1.5rem' }}>
                                     <h4 style={{ margin: 0, marginBottom: '0.5rem' }}>Código PIN de Acesso</h4>
-                                    <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.75rem' }}>
-                                        Deixe em branco para permitir acesso livre via link.
+                                    <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6, marginBottom: '0.75rem' }}>
+                                        Deixe em branco para acesso livre. Se preenchido, será solicitado no primeiro acesso.
                                     </p>
-                                </div>
-                                <div className="pin-input-wrapper">
-                                    <input
-                                        type={showPin ? "text" : "password"}
-                                        className="form-input"
-                                        placeholder="Digite um PIN de 4 dígitos (opcional)"
-                                        value={pin}
-                                        onChange={e => setPin(e.target.value)}
-                                        style={{
-                                            letterSpacing: (showPin || !pin) ? 'normal' : '0.4em',
-                                            paddingRight: '2.5rem',
-                                            margin: 0,
-                                            height: '42px',
-                                            fontWeight: (showPin || !pin) ? 'normal' : 'bold',
-                                        }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPin(!showPin)}
-                                        style={{
-                                            position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
-                                            background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5,
-                                            display: 'flex', alignItems: 'center'
-                                        }}
-                                    >
-                                        {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
+                                    <div className="pin-input-wrapper">
+                                        <input
+                                            type={showPin ? "text" : "password"}
+                                            className="form-input"
+                                            placeholder="Ex: 1234"
+                                            value={pin}
+                                            onChange={e => setPin(e.target.value)}
+                                            maxLength={6}
+                                            style={{
+                                                letterSpacing: (showPin || !pin) ? 'normal' : '0.4em',
+                                                height: '46px',
+                                                fontWeight: 600,
+                                                fontSize: '1.2rem',
+                                                textAlign: 'center'
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPin(!showPin)}
+                                            className="pin-toggle-btn"
+                                        >
+                                            {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.5rem', marginTop: '1.5rem' }}>
-                            <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0 2.5rem' }}>
-                                {saving ? 'Salvando...' : <><SaveIcon size={18} /> Salvar Configurações</>}
-                            </button>
+                            <div className="card-footer-actions">
+                                <button className="btn-primary" onClick={handleSaveAcesso} disabled={saving}>
+                                    {saving ? 'Salvando...' : <><RefreshCw size={18} /> Atualizar Acesso</>}
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    )}
+
+                    {/* ABA 2: CONTEÚDO VISUAL */}
+                    {activeTab === 'conteudo' && (
+                        <div className="card" style={{ padding: '2rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
+                                <div className="icon-badge pink">
+                                    <ImageIcon size={24} />
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0 }}>Identidade & Textos</h3>
+                                    <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6 }}>Configure as logos e os textos que aparecerão no Quadrante.</p>
+                                </div>
+                            </div>
+
+                            <div className="form-grid">
+                                <div className="form-group">
+                                    <label>Logo do Encontro (URL)</label>
+                                    <div className="url-input-combined">
+                                        <input
+                                            type="text"
+                                            placeholder="https://..."
+                                            value={logoUrl}
+                                            onChange={e => setLogoUrl(e.target.value)}
+                                        />
+                                        {logoUrl && (
+                                            <div className="logo-preview-mini">
+                                                <img src={logoUrl} alt="Preview" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="field-hint">Aparece na Capa e na seção da Temática.</p>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Simbologia (Texto)</label>
+                                    <textarea
+                                        rows={4}
+                                        value={simbologiaTexto}
+                                        onChange={e => setSimbologiaTexto(e.target.value)}
+                                        placeholder="O texto que explica a simbologia do EJC..."
+                                    />
+                                    <p className="field-hint">Explicação sobre a logo e os símbolos do movimento.</p>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Temática do Encontro (Referências)</label>
+                                    <textarea
+                                        rows={4}
+                                        value={tematicaTexto}
+                                        onChange={e => setTematicaTexto(e.target.value)}
+                                        placeholder="Explicação sobre o tema escolhido para este encontro..."
+                                    />
+                                    <p className="field-hint">Aparece na página do Nome do Encontro.</p>
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Música Tema (Letra)</label>
+                                    <textarea
+                                        rows={6}
+                                        value={musicaLetra}
+                                        onChange={e => setMusicaLetra(e.target.value)}
+                                        placeholder="Cole aqui a letra completa da música..."
+                                    />
+                                    <p className="field-hint">Links de vídeo/áudio são pegos do cadastro geral do encontro.</p>
+                                </div>
+                            </div>
+
+                            <div className="card-footer-actions">
+                                <button className="btn-primary" onClick={handleSaveEditorial} disabled={saving}>
+                                    {saving ? 'Salvando...' : <><Check size={18} /> Salvar Conteúdo</>}
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* Right: Sharing / QR Code */}
+                {/* Coluna Lateral: Compartilhamento (Visível em todas as abas) */}
                 <div className="lg:col-span-1 flex flex-col gap-6">
                     <div className="card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                         <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -269,22 +393,22 @@ export function EncontroQuadranteConfigPage() {
 
                         <div style={{ textAlign: 'center', padding: '1.5rem', background: '#fff', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
                             <div ref={qrRef} style={{ background: '#fff', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-color)10' }}>
-                                <QRCodeCanvas 
+                                <QRCodeCanvas
                                     value={publicUrl}
                                     size={200}
                                     level="H"
                                     includeMargin={true}
                                 />
                             </div>
-                            <button 
-                                className="action-btn" 
+                            <button
+                                className="action-btn"
                                 onClick={handleDownloadQRCode}
                                 style={{
-                                    fontSize: '0.75rem', 
-                                    color: '#fff', 
+                                    fontSize: '0.75rem',
+                                    color: '#fff',
                                     background: 'var(--primary-color)',
-                                    display: 'flex', 
-                                    alignItems: 'center', 
+                                    display: 'flex',
+                                    alignItems: 'center',
                                     gap: '0.4rem',
                                     border: 'none',
                                     padding: '0.5rem 1rem',
@@ -340,35 +464,77 @@ export function EncontroQuadranteConfigPage() {
                         </div>
                     </div>
                 </div>
+
             </div>
 
             <style>{`
-                .access-config-grid {
-                    display: grid;
-                    grid-template-columns: 1fr;
-                    gap: 1.5rem;
-                    background: var(--secondary-bg);
-                    padding: 1.5rem;
-                    border-radius: 16px;
-                    border: 1px solid var(--border-color);
+                /* Tabs Style - Pill Pattern (Image 1) */
+                .tabs-container {
+                    display: inline-flex;
+                    gap: 6px;
+                    padding: 6px;
+                    background: rgba(15, 23, 42, 0.4);
+                    backdrop-filter: blur(12px);
+                    border: 1px solid rgba(255, 255, 255, 0.05);
+                    border-radius: 14px;
+                    margin-bottom: 2.5rem;
                 }
 
-                .config-item {
+                .tab-link {
                     display: flex;
-                    flex-direction: column;
-                    gap: 0.5rem;
+                    align-items: center;
+                    gap: 0.8rem;
+                    padding: 10px 24px;
+                    background: transparent;
+                    border: none;
+                    color: white;
+                    font-size: 0.9rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    border-radius: 10px;
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    opacity: 0.5;
+                    white-space: nowrap;
                 }
 
-                .pin-input-wrapper {
-                    position: relative;
-                    width: 50%;
+                .tab-link:hover {
+                    opacity: 0.8;
+                    background: rgba(255, 255, 255, 0.05);
                 }
 
-                @media (max-width: 900px) {
-                    .pin-input-wrapper {
-                        width: 100%;
-                    }
+                .tab-link.active {
+                    background: #3b82f6;
+                    color: white;
+                    opacity: 1;
+                    box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
                 }
+
+                .tab-link svg {
+                    opacity: 0.7;
+                }
+
+                .tab-link.active svg {
+                    opacity: 1;
+                }
+
+                .icon-badge {
+                    width: 48px;
+                    height: 48px;
+                    border-radius: 12px;
+                    background: var(--primary-color)20;
+                    color: var(--primary-color);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .icon-badge.secondary {
+                    background: #8b5cf620;
+                    color: #8b5cf6;
+                }
+
+                .arrow-icon { opacity: 0.3; transition: all 0.3s; }
+                .option-entry-card:hover .arrow-icon { opacity: 1; color: var(--primary-color); }
 
                 .sim-nao-toggle {
                     display: flex;
@@ -447,8 +613,3 @@ export function EncontroQuadranteConfigPage() {
     );
 }
 
-function SaveIcon({ size }: { size: number }) {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-    );
-}
