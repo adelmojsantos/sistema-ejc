@@ -63,6 +63,7 @@ export function VisitacaoManutencaoPage() {
                         *,
                         participacoes:participacao_id (
                             id,
+                            foto_url,
                             pessoas (*)
                         )
                     `)
@@ -75,7 +76,10 @@ export function VisitacaoManutencaoPage() {
                     setStatus(data.status || 'pendente');
                     setObservacoes(data.observacoes || '');
                     setTaxaPaga(data.taxa_paga || false);
-                    setFotoUrl(data.foto_url || null);
+                    
+                    // Photo is now in participacoes
+                    const part = data.participacoes as any;
+                    setFotoUrl(part?.foto_url || null);
                     
                     const p = (data.participacoes as ParticipacaoComPessoa | null)?.pessoas;
                     if (p) {
@@ -127,8 +131,12 @@ export function VisitacaoManutencaoPage() {
                 status,
                 observacoes,
                 taxa_paga: taxaPaga,
-                foto_url: fotoUrl,
                 data_visita: status === 'realizada' ? new Date().toISOString() : visita?.data_visita
+            });
+
+            // Update Participation record (Photo is here now)
+            await visitacaoService.atualizarParticipacao(visita.participacao_id, {
+                foto_url: fotoUrl
             });
 
             // Update Person record (Correction)

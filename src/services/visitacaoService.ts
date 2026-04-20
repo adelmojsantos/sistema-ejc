@@ -120,6 +120,15 @@ export const visitacaoService = {
             .eq('id', id);
 
         if (error) throw error;
+    },
+
+    async atualizarParticipacao(id: string, updates: Record<string, unknown>): Promise<void> {
+        const { error } = await supabase
+            .from('participacoes')
+            .update(updates)
+            .eq('id', id);
+
+        if (error) throw error;
     }
 };
 

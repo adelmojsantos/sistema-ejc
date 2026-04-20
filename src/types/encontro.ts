@@ -15,9 +15,12 @@ export interface Encontro {
     link_youtube: string | null;
     limite_vagas_online: number;
     valor_taxa: number;
+    quadrante_token?: string;
+    quadrante_pin?: string | null;
+    quadrante_ativo?: boolean;
 }
 
-export type EncontroFormData = Omit<Encontro, 'id' | 'created_at'>;
+export type EncontroFormData = Omit<Encontro, 'id' | 'created_at' | 'quadrante_token'>;
 
 export const encontroFormDataVazio = (): EncontroFormData => ({
     nome: '',
@@ -34,4 +37,6 @@ export const encontroFormDataVazio = (): EncontroFormData => ({
     link_youtube: '',
     limite_vagas_online: 0,
     valor_taxa: 0,
+    quadrante_pin: '',
+    quadrante_ativo: false,
 });

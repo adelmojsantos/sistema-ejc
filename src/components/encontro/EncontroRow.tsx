@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Calendar, Check, Copy, LinkIcon, MapPin, Music, Pencil, Quote, Trash2, Youtube } from 'lucide-react';
+import { Calendar, Check, Copy, LinkIcon, MapPin, Music, Pencil, Quote, Trash2, Youtube, LayoutGrid } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { Encontro } from '../../types/encontro';
 
 interface EncontroRowProps {
@@ -64,6 +65,7 @@ function formatDateRange(start: string, end: string) {
 }
 
 export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
+    const navigate = useNavigate();
     const [copied, setCopied] = useState(false);
 
     const handleCopy = (e: React.MouseEvent) => {
@@ -162,6 +164,14 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
 
             {/* Ações */}
             <div className="pessoa-row-actions">
+                <button 
+                    className="icon-btn" 
+                    onClick={() => navigate(`/cadastros/encontros/${encontro.id}/quadrante`)} 
+                    title="Configurar Quadrante"
+                    style={{ color: 'var(--primary-color)' }}
+                >
+                    <LayoutGrid size={16} />
+                </button>
                 <button className="icon-btn" onClick={() => onEdit(encontro)} title="Editar">
                     <Pencil size={16} />
                 </button>

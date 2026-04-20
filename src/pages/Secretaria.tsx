@@ -66,6 +66,15 @@ const CATEGORIES: SecretariaCategory[] = [
     icon: <ListChecks size={34} />,
     color: '#8b5cf6',
     available: true
+  },
+  {
+    id: 'sec-fotos-equipes',
+    path: '/secretaria/fotos-equipes',
+    label: 'Fotos das Equipes (Quadrante)',
+    description: 'Gestão das fotos de grupo dos encontreiros por equipe.',
+    icon: <Users size={34} />,
+    color: '#06b6d4',
+    available: true
   }
 ];
 

@@ -66,4 +66,27 @@ export const encontroService = {
 
         if (error) throw error;
     },
+
+    async configurarQuadrante(id: string, data: { pin: string | null; ativo: boolean }): Promise<void> {
+        const { error } = await supabase
+            .from(TABLE)
+            .update({
+                quadrante_pin: data.pin,
+                quadrante_ativo: data.ativo
+            })
+            .eq('id', id);
+
+        if (error) throw error;
+    },
+
+    async rotacionarTokenQuadrante(id: string): Promise<string> {
+        const novoToken = crypto.randomUUID();
+        const { error } = await supabase
+            .from(TABLE)
+            .update({ quadrante_token: novoToken })
+            .eq('id', id);
+
+        if (error) throw error;
+        return novoToken;
+    }
 };

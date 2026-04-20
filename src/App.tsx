@@ -40,6 +40,7 @@ import { VisitacaoPortalPage } from './pages/visitacao/VisitacaoPortalPage';
 import { SecretariaParticipantesPage } from './pages/secretaria/SecretariaParticipantesPage';
 import { SecretariaEncontreirosPage } from './pages/secretaria/SecretariaEncontreirosPage';
 import { GerenciarListaEsperaPage } from './pages/secretaria/GerenciarListaEsperaPage';
+import { SecretariaFotosPage } from './pages/secretaria/SecretariaFotosPage';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { useEffect } from 'react';
 import { useLoading } from './contexts/LoadingContext';
@@ -48,6 +49,9 @@ import { ExternalSessionProvider } from './contexts/ExternalSessionContext';
 import FormAccess from './pages/Public/FormAccess';
 import FormPage from './pages/Public/FormPage';
 import FormRecreacaoPage from './pages/Public/FormRecreacaoPage';
+import { EncontroQuadranteConfigPage } from './pages/cadastros/EncontroQuadranteConfigPage';
+import { QuadranteAuthPage } from './pages/Public/QuadranteAuthPage';
+import { QuadrantePage } from './pages/Public/QuadrantePage';
 
 
 export function PlaceholderPage({ title }: { title: string }) {
@@ -77,6 +81,16 @@ function AnimatedRoutes() {
         <Route path="/formulario" element={<PageTransition><FormAccess /></PageTransition>} />
         <Route path="/formulario/recepcao" element={<PageTransition><FormPage /></PageTransition>} />
         <Route path="/formulario/recreacao" element={<PageTransition><FormRecreacaoPage /></PageTransition>} />
+        <Route path="/q/:token" element={<QuadranteAuthPage />} />
+        <Route path="/quadrante/:token" element={<QuadrantePage />} />
+
+        <Route path="/alterar-senha" element={
+          <ProtectedRoute allowTemporaryPassword={true}>
+            <PageTransition>
+              <ChangePasswordPage />
+            </PageTransition>
+          </ProtectedRoute>
+        } />
 
         {/* Private Routes Wrapper */}
         <Route element={<ProtectedRoute><AppLayout><Outlet /></AppLayout></ProtectedRoute>}>
@@ -92,7 +106,6 @@ function AnimatedRoutes() {
             })()
           } />
 
-          <Route path="/alterar-senha" element={<ChangePasswordPage />} />
           <Route path="/inscricao" element={<InscricaoPage />} />
           
           <Route path="/inscricao/participantes" element={
@@ -141,31 +154,13 @@ function AnimatedRoutes() {
             <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
               <Secretaria />
             </ProtectedRoute>
-          } />
-
-          <Route path="/secretaria/confirmacoes" element={
-            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
-              <ConfirmationReportPage />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/secretaria/participantes" element={
-            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
-              <SecretariaParticipantesPage />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/secretaria/encontreiros" element={
-            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
-              <SecretariaEncontreirosPage />
-            </ProtectedRoute>
-          } />
-
-          <Route path="/secretaria/lista-espera" element={
-            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
-              <GerenciarListaEsperaPage />
-            </ProtectedRoute>
-          } />
+          }>
+            <Route path="confirmacoes" element={<ConfirmationReportPage />} />
+            <Route path="participantes" element={<SecretariaParticipantesPage />} />
+            <Route path="encontreiros" element={<SecretariaEncontreirosPage />} />
+            <Route path="lista-espera" element={<GerenciarListaEsperaPage />} />
+            <Route path="fotos-equipes" element={<SecretariaFotosPage />} />
+          </Route>
 
           <Route path="/visitacao" element={
             <ProtectedRoute requiredPermissions={['modulo_visitacao_coordenar', 'modulo_visitacao_duplas', 'modulo_admin']}>
@@ -222,6 +217,7 @@ function AnimatedRoutes() {
           }>
             <Route path="pessoas" element={<PessoasPage />} />
             <Route path="encontros" element={<EncontrosPage />} />
+            <Route path="encontros/:id/quadrante" element={<EncontroQuadranteConfigPage />} />
             <Route path="encontros/participantes" element={<EncontroParticipantesPage />} />
             <Route path="equipes" element={<EquipesPage />} />
             <Route path="circulos" element={<CirculosPage />} />

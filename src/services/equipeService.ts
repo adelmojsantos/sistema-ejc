@@ -104,5 +104,39 @@ export const equipeService = {
 
         if (error) throw error;
         return data;
+    },
+
+    async uploadFoto(equipeId: string, file: File): Promise<string> {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `equipe_${equipeId}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `fotos/equipes/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('galeria')
+            .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+            .from('galeria')
+            .getPublicUrl(filePath);
+
+        return data.publicUrl;
+    },
+    async atualizarFotoConfirmacao(confirmacaoId: string, fotoUrl: string): Promise<void> {
+        const { error } = await supabase
+            .from('equipe_confirmacoes')
+            .update({ foto_url: fotoUrl, foto_posicao_y: 50 })
+            .eq('id', confirmacaoId);
+
+        if (error) throw error;
+    },
+    async atualizarPosicaoFoto(confirmacaoId: string, posicionY: number): Promise<void> {
+        const { error } = await supabase
+            .from('equipe_confirmacoes')
+            .update({ foto_posicao_y: posicionY })
+            .eq('id', confirmacaoId);
+
+        if (error) throw error;
     }
 };
