@@ -85,6 +85,7 @@ export function CoordenadorMinhaEquipePage() {
   const [recepcaoParticipanteNome, setRecepcaoParticipanteNome] = useState<string>('');
   const [recreacaoParticipacaoId, setRecreacaoParticipacaoId] = useState<string | null>(null);
   const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState<string>('');
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -322,8 +323,14 @@ export function CoordenadorMinhaEquipePage() {
       const row: Record<string, string | number> = {
         '#': idx + 1,
         'Nome Completo': p.nome_completo || '—',
-        'Função': m.coordenador ? 'Coordenador' : 'Membro',
-        'Taxa': m.pago_taxa ? 'Paga' : 'Pendente',
+        'Função': m.coordenador ? 'Coordenador' : 'Encontreiro(a)',
+        'Nascimento': p.data_nascimento ? new Date(p.data_nascimento).toLocaleDateString('pt-BR') : '—',
+        'Email': p.email || '—',
+        'Telefone': formatTelefone(p.telefone),
+        'Endereço': p.endereco || '—',
+        'Número': p.numero || '—',
+        'Bairro': p.bairro || '—',
+        'Cidade': p.cidade || '—',
       };
 
       // Adicionar colunas dinâmicas de camisetas
@@ -332,106 +339,109 @@ export function CoordenadorMinhaEquipePage() {
         row[comb] = order ? order.quantidade : 0;
       });
 
-      row['Telefone'] = formatTelefone(p.telefone);
-      row['Comunidade'] = p.comunidade || '—';
-
       return row;
     });
 
-    // Linha de totais
-    const totals: Record<string, string | number> = {
-      '#': 'TOTAL',
-      'Nome Completo': '',
-      'Função': '',
-      'Taxa': members.filter(m => m.pago_taxa).length,
-    };
-    shirtCombinations.forEach(comb => {
-      totals[comb] = pedidosCamisetas
-        .filter(p => `${p.camiseta_modelos?.nome} ${p.tamanho}` === comb && members.some(m => m.id === p.participacao_id))
-        .reduce((acc, p) => acc + p.quantidade, 0);
-    });
-
-    return { rows, shirtCombinations, totals };
+    return { rows, shirtCombinations };
   };
 
   const handleExportPDF = async () => {
-    const { rows, shirtCombinations, totals } = getExportData();
+    const { rows, shirtCombinations } = getExportData();
     if (rows.length === 0) return;
 
-    let config = null;
+    setIsExporting(true);
     try {
-      config = await exportConfigService.obter(userParticipacao!.encontro_id);
-    } catch (e) {
-      console.warn('Config de exportação não encontrada', e);
-    }
-    const hasConfig = config && config.config_telas && config.config_telas['CoordenadorMinhaEquipe'];
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    let startY = 30;
-
-    if (hasConfig && config) {
-      if (config.imagem_esq_base64) { try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch { console.warn('Erro imagem esq'); } }
-      if (config.imagem_dir_base64) { try { doc.addImage(config.imagem_dir_base64, 'PNG', 253, 10, 30, 30); } catch { console.warn('Erro imagem dir'); } }
-      doc.setFontSize(14).setFont('helvetica', 'bold').text(config.titulo || '', 148.5, 18, { align: 'center' });
-      doc.setFontSize(10).setFont('helvetica', 'normal').text(config.subtitulo || '', 148.5, 24, { align: 'center' });
-      doc.text(config.tema || '', 148.5, 30, { align: 'center' });
-      startY = config.observacoes ? 58 : 52;
-      doc.setFontSize(11).setFont('helvetica', 'bold').text(`Equipe: ${equipeNome || 'Minha Equipe'}`, 14, startY - 6);
-    } else {
-      doc.setFontSize(16).setFont('helvetica', 'bold').text(`Equipe: ${equipeNome || 'Minha Equipe'}`, 14, 18);
-      startY = 28;
-    }
-
-    const columns = ['#', 'Nome Completo', 'Função', 'Taxa', ...shirtCombinations];
-    const dataRows = [...rows, totals].map(r => columns.map(c => r[c]));
-
-    autoTable(doc, {
-      head: [columns],
-      body: dataRows,
-      startY: startY,
-      styles: { fontSize: 7, cellPadding: 2 },
-      headStyles: { fillColor: [37, 99, 235], textColor: 255 },
-      didParseCell: (data) => {
-        if (data.row.index === rows.length) {
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [240, 244, 255];
-        }
+      let config = null;
+      try {
+        config = await exportConfigService.obter(userParticipacao!.encontro_id);
+      } catch (e) {
+        console.warn('Config de exportação não encontrada', e);
       }
-    });
+      const hasConfig = config && config.config_telas && config.config_telas['CoordenadorMinhaEquipe'];
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      let startY = 30;
 
-    doc.save(`equipe_${equipeNome?.replace(/\s+/g, '_') || 'minha_equipe'}.pdf`);
-    toast.success('PDF exportado com sucesso!');
-    setShowExportMenu(false);
+      if (hasConfig && config) {
+        if (config.imagem_esq_base64) { try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch { console.warn('Erro imagem esq'); } }
+        if (config.imagem_dir_base64) { try { doc.addImage(config.imagem_dir_base64, 'PNG', 253, 10, 30, 30); } catch { console.warn('Erro imagem dir'); } }
+        doc.setFontSize(14).setFont('helvetica', 'bold').text(config.titulo || '', 148.5, 18, { align: 'center' });
+        doc.setFontSize(10).setFont('helvetica', 'normal').text(config.subtitulo || '', 148.5, 24, { align: 'center' });
+        doc.text(config.tema || '', 148.5, 30, { align: 'center' });
+        startY = config.observacoes ? 58 : 52;
+        doc.setFontSize(11).setFont('helvetica', 'bold').text(`Equipe: ${equipeNome || 'Minha Equipe'}`, 14, startY - 6);
+      } else {
+        doc.setFontSize(16).setFont('helvetica', 'bold').text(`Equipe: ${equipeNome || 'Minha Equipe'}`, 14, 18);
+        startY = 28;
+      }
+
+      const columns = [
+        '#', 'Nome Completo', 'Função', 'Nascimento', 'Email', 'Telefone',
+        'Endereço', 'Número', 'Bairro', 'Cidade',
+        ...shirtCombinations
+      ];
+      const dataRows = rows.map(r => columns.map(c => r[c]));
+
+      autoTable(doc, {
+        head: [columns],
+        body: dataRows,
+        startY: startY,
+        styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
+        columnStyles: {
+          0: { cellWidth: 10 }, // #
+          1: { cellWidth: 60 }, // Nome
+          2: { cellWidth: 25 }, // Função
+        },
+        headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+      });
+
+      doc.save(`equipe_${equipeNome?.replace(/\s+/g, '_') || 'minha_equipe'}.pdf`);
+      toast.success('PDF exportado com sucesso!');
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error);
+      toast.error('Erro ao gerar PDF.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleExportExcel = async () => {
-    const { rows, totals } = getExportData();
+    const { rows } = getExportData();
     if (rows.length === 0) return;
-    const exportRows = [...rows, totals];
+    const exportRows = rows;
 
-    let config = null;
+    setIsExporting(true);
     try {
-      config = await exportConfigService.obter(userParticipacao!.encontro_id);
-    } catch (e) {
-      console.warn('Config de exportação não encontrada', e);
-    }
-    const hasConfig = config && config.config_telas && config.config_telas['CoordenadorMinhaEquipe'];
-    const ws = XLSX.utils.json_to_sheet([]);
+      let config = null;
+      try {
+        config = await exportConfigService.obter(userParticipacao!.encontro_id);
+      } catch (e) {
+        console.warn('Config de exportação não encontrada', e);
+      }
+      const hasConfig = config && config.config_telas && config.config_telas['CoordenadorMinhaEquipe'];
+      const ws = XLSX.utils.json_to_sheet([]);
 
-    if (hasConfig && config) {
-      XLSX.utils.sheet_add_aoa(ws, [
-        [config.titulo], [config.subtitulo], [config.tema], [config.observacoes || ''],
-        [`Equipe: ${equipeNome || 'Minha Equipe'} - Gerado em: ${new Date().toLocaleDateString('pt-BR')}`]
-      ], { origin: 'A1' });
-      XLSX.utils.sheet_add_json(ws, exportRows, { origin: 'A6', skipHeader: false });
-    } else {
-      XLSX.utils.sheet_add_json(ws, exportRows, { origin: 'A1', skipHeader: false });
-    }
+      if (hasConfig && config) {
+        XLSX.utils.sheet_add_aoa(ws, [
+          [config.titulo], [config.subtitulo], [config.tema], [config.observacoes || ''],
+          [`${equipeNome || 'Minha Equipe'}`]
+        ], { origin: 'A1' });
+        XLSX.utils.sheet_add_json(ws, exportRows, { origin: 'A6', skipHeader: false });
+      } else {
+        XLSX.utils.sheet_add_json(ws, exportRows, { origin: 'A1', skipHeader: false });
+      }
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Equipe');
-    XLSX.writeFile(wb, `equipe_${equipeNome?.replace(/\s+/g, '_') || 'minha_equipe'}.xlsx`);
-    toast.success('Excel exportado com sucesso!');
-    setShowExportMenu(false);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Equipe');
+      XLSX.writeFile(wb, `equipe_${equipeNome?.replace(/\s+/g, '_') || 'minha_equipe'}.xlsx`);
+      toast.success('Excel exportado com sucesso!');
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro ao exportar Excel:', error);
+      toast.error('Erro ao gerar Excel.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (loading) {
@@ -546,44 +556,48 @@ export function CoordenadorMinhaEquipePage() {
                     </div>
                     <button
                       onClick={handleExportPDF}
+                      disabled={isExporting}
                       style={{
                         width: '100%', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
-                        border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-color)', fontSize: '0.9rem',
+                        border: 'none', background: 'none', cursor: isExporting ? 'not-allowed' : 'pointer', color: 'var(--text-color)', fontSize: '0.9rem',
                         transition: 'background-color 0.15s', borderBottom: '1px solid var(--border-color)',
+                        opacity: isExporting ? 0.6 : 1
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 0, 254), 0.06)')}
+                      onMouseEnter={e => !isExporting && (e.currentTarget.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 0, 254), 0.06)')}
                       onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                     >
                       <div style={{
                         width: '36px', height: '36px', borderRadius: '8px',
                         backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444',
                       }}>
-                        <FileText size={18} />
+                        {isExporting ? <Loader className="animate-spin" size={18} /> : <FileText size={18} />}
                       </div>
                       <div style={{ textAlign: 'left' }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>PDF</div>
-                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Documento formatado</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{isExporting ? 'Gerando...' : 'PDF'}</div>
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{isExporting ? 'Aguarde um momento' : 'Documento formatado'}</div>
                       </div>
                     </button>
                     <button
                       onClick={handleExportExcel}
+                      disabled={isExporting}
                       style={{
                         width: '100%', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
-                        border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-color)', fontSize: '0.9rem',
+                        border: 'none', background: 'none', cursor: isExporting ? 'not-allowed' : 'pointer', color: 'var(--text-color)', fontSize: '0.9rem',
                         transition: 'background-color 0.15s',
+                        opacity: isExporting ? 0.6 : 1
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 0, 254), 0.06)')}
+                      onMouseEnter={e => !isExporting && (e.currentTarget.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 0, 254), 0.06)')}
                       onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                     >
                       <div style={{
                         width: '36px', height: '36px', borderRadius: '8px',
                         backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981',
                       }}>
-                        <FileSpreadsheet size={18} />
+                        {isExporting ? <Loader className="animate-spin" size={18} /> : <FileSpreadsheet size={18} />}
                       </div>
                       <div style={{ textAlign: 'left' }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>Excel</div>
-                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Planilha editável</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{isExporting ? 'Gerando...' : 'Excel'}</div>
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{isExporting ? 'Aguarde um momento' : 'Planilha editável'}</div>
                       </div>
                     </button>
                   </div>

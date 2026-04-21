@@ -13,13 +13,13 @@ export default function FormAccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const encontro_id = searchParams.get('encontro');
-  
+
   const { validateAndAccess, isValidating, isAuthenticated } = useExternalAccess();
-  
+
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [encontro, setEncontro] = useState<Encontro | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
-  
+
   const [formData, setFormData] = useState({
     equipe_id: '',
     nome: '',
@@ -37,8 +37,8 @@ export default function FormAccess() {
   useEffect(() => {
     async function loadData() {
       if (!encontro_id) {
-          setIsLoadingData(false);
-          return;
+        setIsLoadingData(false);
+        return;
       }
       try {
         const [equipesList, encontrosList] = await Promise.all([
@@ -90,19 +90,19 @@ export default function FormAccess() {
   }
 
   return (
-    <div className="fade-in" style={{ 
-      minHeight: '100vh', 
-      background: 'var(--bg-color)', 
-      display: 'flex', 
-      alignItems: 'center', 
+    <div className="fade-in" style={{
+      minHeight: '100vh',
+      background: 'var(--bg-color)',
+      display: 'flex',
+      alignItems: 'center',
       justifyContent: 'center',
       padding: '1.5rem'
     }}>
-      <div className="card" style={{ maxWidth: '450px', width: '100%', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
+      <div className="card" style={{ maxWidth: '500px', width: '100%', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{ 
-            width: '64px', height: '64px', borderRadius: '50%', 
-            backgroundColor: 'rgba(var(--primary-rgb, 0, 0, 254), 0.1)', 
+          <div style={{
+            width: '64px', height: '64px', borderRadius: '50%',
+            backgroundColor: 'rgba(var(--primary-rgb, 0, 0, 254), 0.1)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: 'var(--primary-color)', margin: '0 auto 1rem auto'
           }}>
@@ -110,16 +110,16 @@ export default function FormAccess() {
           </div>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Identificação</h1>
           <p style={{ opacity: 0.6, fontSize: '0.875rem' }}>
-            {encontro.nome}<br/>
+            {encontro.nome}<br />
             Por favor, valide seus dados para acessar o formulário.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div style={{ 
-            backgroundColor: 'rgba(var(--primary-rgb), 0.05)', 
-            padding: '1rem', 
-            borderRadius: '8px', 
+          <div style={{
+            backgroundColor: 'rgba(var(--primary-rgb), 0.05)',
+            padding: '1rem',
+            borderRadius: '8px',
             border: '1px solid var(--border-color)',
             marginBottom: '0.5rem'
           }}>
@@ -136,11 +136,11 @@ export default function FormAccess() {
 
           <div className="form-group">
             <label className="form-label">Equipe</label>
-            <select 
-              className="form-input" 
+            <select
+              className="form-input"
               required
               value={formData.equipe_id}
-              onChange={e => setFormData({...formData, equipe_id: e.target.value})}
+              onChange={e => setFormData({ ...formData, equipe_id: e.target.value })}
             >
               <option value="">Selecione sua equipe...</option>
               {equipes.map(eq => (
@@ -149,34 +149,34 @@ export default function FormAccess() {
             </select>
           </div>
 
-          <FormField 
-            label="Nome Completo"
+          <FormField
+            label="Nome"
             required
             placeholder="Como está no cadastro"
             value={formData.nome}
-            onChange={e => setFormData({...formData, nome: e.target.value})}
+            onChange={e => setFormData({ ...formData, nome: e.target.value })}
           />
 
-          <FormField 
+          <FormField
             label="Data de Nascimento"
             type="date"
             required
             value={formData.data_nascimento}
-            onChange={e => setFormData({...formData, data_nascimento: e.target.value})}
+            onChange={e => setFormData({ ...formData, data_nascimento: e.target.value })}
           />
 
-          <FormField 
+          <FormField
             label="Últimos 4 dígitos do Telefone"
             required
             maxLength={4}
             placeholder="Ex: 1234"
             value={formData.telefone_fim}
-            onChange={e => setFormData({...formData, telefone_fim: e.target.value.replace(/\D/g, '')})}
+            onChange={e => setFormData({ ...formData, telefone_fim: e.target.value.replace(/\D/g, '') })}
           />
 
-          <button 
-            type="submit" 
-            className="btn-primary" 
+          <button
+            type="submit"
+            className="btn-primary"
             style={{ marginTop: '0.5rem', height: '48px', fontSize: '1rem' }}
             disabled={isValidating}
           >
