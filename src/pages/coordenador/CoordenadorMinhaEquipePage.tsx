@@ -18,8 +18,10 @@ import {
   X,
   Car,
   ShirtIcon,
-  Baby
+  Baby,
+  UserX
 } from 'lucide-react';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -70,6 +72,8 @@ export function CoordenadorMinhaEquipePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<EquipeMember | null>(null);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [teamConfirmation, setTeamConfirmation] = useState<{ confirmado_por: string; confirmado_em: string; profiles?: { email?: string } | null } | null>(null);
   const [valorTaxa, setValorTaxa] = useState(0);
   const [pedidosCamisetas, setPedidosCamisetas] = useState<CamisetaPedido[]>([]);
@@ -187,6 +191,22 @@ export function CoordenadorMinhaEquipePage() {
   useEffect(() => {
     loadMembers();
   }, [loadMembers]);
+
+  const handleDeleteMember = async () => {
+    if (!deleteTarget) return;
+    setIsConfirmingDelete(true);
+    try {
+      await inscricaoService.excluir(deleteTarget.id);
+      setMembers(prev => prev.filter(m => m.id !== deleteTarget.id));
+      toast.success('Integrante desvinculado com sucesso!');
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error('Erro ao desvincular:', error);
+      toast.error('Erro ao desvincular integrante.');
+    } finally {
+      setIsConfirmingDelete(false);
+    }
+  };
 
   const handleEditSubmit = async (data: PessoaFormData) => {
     if (!editingPessoa) return;
@@ -771,6 +791,24 @@ export function CoordenadorMinhaEquipePage() {
                     >
                       <Pencil size={18} />
                     </button>
+                    <button
+                      onClick={() => setDeleteTarget(m)}
+                      className="btn-icon"
+                      style={{
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        color: '#ef4444',
+                        padding: '0.5rem',
+                        borderRadius: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '32px',
+                        height: '32px'
+                      }}
+                      title="Desvincular Integrante"
+                    >
+                      <UserX size={18} />
+                    </button>
                   </div>
                 </div>
 
@@ -1106,6 +1144,17 @@ export function CoordenadorMinhaEquipePage() {
         participacaoId={recreacaoParticipacaoId || ''}
         participanteNome={recreacaoParticipanteNome}
         encontroId={userParticipacao?.encontro_id || ''}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Desvincular Integrante"
+        message={`Deseja realmente remover ${deleteTarget?.pessoas?.nome_completo} desta equipe e do encontro?`}
+        onConfirm={handleDeleteMember}
+        onCancel={() => setDeleteTarget(null)}
+        confirmText="Desvincular"
+        isDestructive={true}
+        isLoading={isConfirmingDelete}
       />
     </>
   );
