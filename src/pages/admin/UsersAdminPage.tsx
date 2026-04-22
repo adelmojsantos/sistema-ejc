@@ -11,6 +11,7 @@ import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
 import { inscricaoService } from '../../services/inscricaoService';
+import { useDebounce } from '../../hooks/useDebounce';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
@@ -67,6 +68,7 @@ export function UsersAdminPage() {
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 400);
     const [filterGrupoId, setFilterGrupoId] = useState<string>('all');
     const [filterEncontroId, setFilterEncontroId] = useState<string>('all');
     const [filterTempPassword, setFilterTempPassword] = useState<'all' | 'sim' | 'nao'>('all');
@@ -500,8 +502,8 @@ export function UsersAdminPage() {
                 const wantsTemp = filterTempPassword === 'sim';
                 if (user.temporary_password !== wantsTemp) return false;
             }
-            if (searchTerm) {
-                const term = searchTerm.toLowerCase();
+            if (debouncedSearchTerm) {
+                const term = debouncedSearchTerm.toLowerCase().trim();
                 const matchEmail = user.email.toLowerCase().includes(term);
                 const matchName = user.nome?.toLowerCase().includes(term);
                 const matchEquipe = Object.values(user.equipesNomes || {}).some(name => name.toLowerCase().includes(term));
@@ -509,7 +511,7 @@ export function UsersAdminPage() {
             }
             return true;
         });
-    }, [sortedUsers, filterGrupoId, filterEncontroId, filterTempPassword, searchTerm]);
+    }, [sortedUsers, filterGrupoId, filterEncontroId, filterTempPassword, debouncedSearchTerm]);
 
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
@@ -946,6 +948,28 @@ export function UsersAdminPage() {
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
                                 />
+                                {searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchTerm('')}
+                                        style={{
+                                            position: 'absolute',
+                                            right: '0.6rem',
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            color: 'var(--muted-text)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            padding: '0.2rem',
+                                        }}
+                                        title="Limpar busca"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
                             </div>
                         </div>
 

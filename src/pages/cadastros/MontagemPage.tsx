@@ -85,8 +85,24 @@ export function MontagemPage() {
     // Derived Data
     const membrosSalvos = useMemo(() => {
         if (!selectedEquipeId) return [];
-        return inscricoes.filter(i => i.equipe_id === selectedEquipeId);
+        return inscricoes
+            .filter(i => i.equipe_id === selectedEquipeId)
+            .sort((a, b) => {
+                if (a.coordenador && !b.coordenador) return -1;
+                if (!a.coordenador && b.coordenador) return 1;
+                const nomeA = a.pessoas?.nome_completo || '';
+                const nomeB = b.pessoas?.nome_completo || '';
+                return nomeA.localeCompare(nomeB);
+            });
     }, [inscricoes, selectedEquipeId]);
+
+    const stagingSorted = useMemo(() => {
+        return [...staging].sort((a, b) => {
+            if (a.coordenador && !b.coordenador) return -1;
+            if (!a.coordenador && b.coordenador) return 1;
+            return a.nome_completo.localeCompare(b.nome_completo);
+        });
+    }, [staging]);
 
     const equipeCounts = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -528,7 +544,7 @@ export function MontagemPage() {
                                 ) : (
                                     <div className="pessoa-list">
                                         {/* Membros em Staging (Não salvos) */}
-                                        {staging.map(s => (
+                                        {stagingSorted.map(s => (
                                             <div key={s.pessoa_id} className="pessoa-row" style={{ borderBottom: '1px solid var(--border-color)', borderRadius: 0, background: 'rgba(245, 158, 11, 0.05)', borderLeft: '4px solid #f59e0b' }}>
                                                 <div className="pessoa-row-main" style={{ flex: 1 }}>
                                                     <div className="pessoa-avatar small" style={{ backgroundColor: s.coordenador ? '#367910ff' : '#f59e0b', color: 'white' }}>

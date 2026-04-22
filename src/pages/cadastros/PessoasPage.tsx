@@ -147,7 +147,6 @@ export function PessoasPage() {
         setIsDeleting(true);
         try {
             await pessoaService.excluir(deleteTarget.id);
-            setDeleteTarget(null);
             toast.success('Cadastro excluído com sucesso!');
             await load(debouncedSearch, page, selectedEncontroId);
         } catch (err: unknown) {
@@ -159,6 +158,7 @@ export function PessoasPage() {
             }
         } finally {
             setIsDeleting(false);
+            setDeleteTarget(null);
         }
     };
 
@@ -206,61 +206,84 @@ export function PessoasPage() {
             {/* List mode */}
             {mode === 'list' && (
                 <>
-                    <div className="search-bar">
-                        <Search size={18} style={{ color: 'var(--text-color)', opacity: 0.5, flexShrink: 0 }} />
-                        <input
-                            className="search-input"
-                            type="text"
-                            placeholder="Buscar por nome, e-mail, telefone ou comunidade…"
-                            value={search}
-                            onChange={(e) => {
-                                setSearch(e.target.value);
-                                setPage(1); // Reset page on search
-                            }}
-                        />
-                        <button
-                            onClick={() => setSearch('')}
-                            style={{ background: 'none', border: 'none', padding: '0.25rem', cursor: 'pointer', color: 'var(--text-color)', opacity: 0.5, display: search ? 'block' : 'none' }}
-                            aria-label="Limpar busca"
-                        >
-                            <X size={16} />
-                        </button>
-
-                        <div style={{ marginLeft: '1rem', borderLeft: '1px solid var(--border-color)', paddingLeft: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>Encontro:</span>
-                                <select
-                                    className="form-input"
-                                    style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.85rem', width: 'auto', minWidth: '160px', marginTop: 0, height: '36px' }}
-                                    value={selectedEncontroId}
-                                    onChange={(e) => {
-                                        setSelectedEncontroId(e.target.value);
-                                        setPage(1);
-                                    }}
-                                >
-                                    <option value="">Todos</option>
-                                    {encontros.map(e => (
-                                        <option key={e.id} value={e.id}>{e.nome}</option>
-                                    ))}
-                                </select>
+                    <div className="card" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem' }}>
+                            <div style={{ flex: 1, minWidth: '300px' }}>
+                                <div className="form-input-wrapper">
+                                    <div className="form-input-icon">
+                                        <Search size={16} />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        className="form-input form-input--with-icon"
+                                        placeholder="Buscar por nome, e-mail, telefone ou comunidade…"
+                                        value={search}
+                                        onChange={(e) => {
+                                            setSearch(e.target.value);
+                                            setPage(1);
+                                        }}
+                                    />
+                                    {search && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearch('')}
+                                            style={{
+                                                position: 'absolute',
+                                                right: '0.6rem',
+                                                top: '50%',
+                                                transform: 'translateY(-50%)',
+                                                background: 'none',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                color: 'var(--muted-text)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                padding: '0.2rem',
+                                            }}
+                                            title="Limpar busca"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>Exibir:</span>
-                                <select
-                                    className="form-input"
-                                    style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.85rem', width: 'auto', marginTop: 0, height: '36px' }}
-                                    value={pageSize}
-                                    onChange={(e) => {
-                                        setPageSize(Number(e.target.value));
-                                        setPage(1);
-                                    }}
-                                >
-                                    <option value={10}>10</option>
-                                    <option value={20}>20</option>
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                </select>
+                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>Encontro:</span>
+                                    <select
+                                        className="form-input"
+                                        style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.85rem', width: 'auto', minWidth: '160px', marginTop: 0, height: '38px' }}
+                                        value={selectedEncontroId}
+                                        onChange={(e) => {
+                                            setSelectedEncontroId(e.target.value);
+                                            setPage(1);
+                                        }}
+                                    >
+                                        <option value="">Todos os Encontros</option>
+                                        {encontros.map(e => (
+                                            <option key={e.id} value={e.id}>{e.nome}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>Exibir:</span>
+                                    <select
+                                        className="form-input"
+                                        style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.85rem', width: 'auto', marginTop: 0, height: '38px' }}
+                                        value={pageSize}
+                                        onChange={(e) => {
+                                            setPageSize(Number(e.target.value));
+                                            setPage(1);
+                                        }}
+                                    >
+                                        <option value={10}>10 por página</option>
+                                        <option value={20}>20 por página</option>
+                                        <option value={50}>50 por página</option>
+                                        <option value={100}>100 por página</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>

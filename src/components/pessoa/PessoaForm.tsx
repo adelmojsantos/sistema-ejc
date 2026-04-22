@@ -406,18 +406,18 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
             </FormSection>
 
             <div className="form-actions">
-                <button type="button" className="btn-cancel" onClick={onCancel} disabled={isLoading}>
-                    <X size={16} />
+                <button type="button" className="btn-cancel" onClick={onCancel} disabled={isLoading} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                    <X size={18} />
                     Cancelar
                 </button>
-                <button type="submit" disabled={isLoading || isSubmitting}>
+                <button type="submit" disabled={isLoading || isSubmitting} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                     {isLoading || isSubmitting ? (
-                        <><Loader size={16} className="animate-spin" /> Salvando...</>
+                        <><Loader size={18} className="animate-spin" /> Salvando...</>
                     ) : (
-                        <>
-                            <Check size={16} />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', gap: '0.5rem' }}>
+                            <Check size={18} />
                             {isConfirmationContext ? 'Salvar e Confirmar Dados' : 'Salvar Alterações'}
-                        </>
+                        </div>
                     )}
                 </button>
             </div>

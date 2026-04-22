@@ -7,7 +7,7 @@ export const inscricaoService = {
     async listar(): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('*, pessoas(nome_completo, cpf, latitude, longitude), encontros(nome), equipes(nome)')
+            .select('*, pessoas(id, nome_completo, cpf, latitude, longitude), encontros(nome), equipes(nome)')
             .order('data_inscricao', { ascending: false });
 
         if (error) throw error;
@@ -17,7 +17,7 @@ export const inscricaoService = {
     async listarPorEncontro(encontroId: string): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('*, pessoas(nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, latitude, longitude), equipes(nome)')
+            .select('*, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome)')
             .eq('encontro_id', encontroId);
 
         if (error) throw error;

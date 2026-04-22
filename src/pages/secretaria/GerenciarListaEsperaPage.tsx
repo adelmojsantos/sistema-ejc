@@ -69,14 +69,16 @@ export function GerenciarListaEsperaPage() {
     const currentList = viewMode === 'pendente' ? entries : reprovados;
 
     const filteredEntries = currentList.filter(e => {
-        const term = searchTerm.toLowerCase();
+        const term = searchTerm.toLowerCase().trim();
         const normalize = (s: string | null) => (s || '').replace(/\D/g, '');
-        const termDigits = normalize(searchTerm);
+        const termDigits = normalize(term);
+
+        if (!term) return true;
 
         const matchNome = e.nome_completo.toLowerCase().includes(term);
         const matchCpf = e.cpf && (e.cpf.includes(term) || (termDigits && normalize(e.cpf).includes(termDigits)));
         const matchEmail = e.email?.toLowerCase().includes(term);
-        const matchTelefone = normalize(e.telefone).includes(termDigits);
+        const matchTelefone = e.telefone && (termDigits && normalize(e.telefone).includes(termDigits));
         const matchBairro = e.bairro?.toLowerCase().includes(term);
 
         return matchNome || matchCpf || matchEmail || matchTelefone || matchBairro;
@@ -219,6 +221,10 @@ export function GerenciarListaEsperaPage() {
         } catch (err: unknown) {
             const error = err as Error;
             toast.error(`Erro: ${error.message}`);
+            // Force close modal on error as requested
+            setShowDuplicateModal(false);
+            setDuplicateEntry(null);
+            setDuplicateCandidates([]);
         } finally {
             setIsProcessing(false);
         }
@@ -239,6 +245,10 @@ export function GerenciarListaEsperaPage() {
         } catch (err: unknown) {
             const error = err as Error;
             toast.error(`Erro ao remover: ${error.message}`);
+            // Force close modal on error as requested
+            setShowDuplicateModal(false);
+            setDuplicateEntry(null);
+            setDuplicateCandidates([]);
         } finally {
             setIsProcessing(false);
         }
@@ -385,24 +395,41 @@ export function GerenciarListaEsperaPage() {
 
                     {/* Search and Batch Actions Card */}
                     <div className="card" style={{ padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem' }}>
-                        <div style={{ position: 'relative', flex: 1, minWidth: '300px' }}>
-                            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
-                            <input
-                                type="text"
-                                className="form-input"
-                                placeholder={viewMode === 'pendente' ? "Buscar pendentes..." : "Buscar reprovados..."}
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                style={{ paddingLeft: '3rem', fontSize: '0.9rem' }}
-                            />
-                            {searchTerm && (
-                                <button
-                                    onClick={() => setSearchTerm('')}
-                                    style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5 }}
-                                >
-                                    <X size={16} />
-                                </button>
-                            )}
+                        <div style={{ flex: 1, minWidth: '300px' }}>
+                            <div className="form-input-wrapper">
+                                <div className="form-input-icon">
+                                    <Search size={16} />
+                                </div>
+                                <input
+                                    type="text"
+                                    className="form-input form-input--with-icon"
+                                    placeholder={viewMode === 'pendente' ? "Buscar pendentes..." : "Buscar reprovados..."}
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                                {searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchTerm('')}
+                                        style={{
+                                            position: 'absolute',
+                                            right: '0.6rem',
+                                            top: '50%',
+                                            transform: 'translateY(-50%)',
+                                            background: 'none',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            color: 'var(--muted-text)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            padding: '0.2rem',
+                                        }}
+                                        title="Limpar busca"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -465,8 +492,8 @@ export function GerenciarListaEsperaPage() {
                                             <div className="lista-espera-card__header">
                                                 <h3 className="lista-espera-card__name">{entry.nome_completo}</h3>
                                                 {entry.fez_ejc_outra_paroquia && (
-                                                    <span className="waiting-list-tag waiting-list-tag--amber">
-                                                        Outra Paróquia
+                                                    <span className="waiting-list-tag waiting-list-tag--amber" title={entry.qual_paroquia_ejc || ''}>
+                                                        Outra Paróquia{entry.qual_paroquia_ejc ? `: ${entry.qual_paroquia_ejc}` : ''}
                                                     </span>
                                                 )}
                                             </div>

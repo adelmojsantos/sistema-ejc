@@ -5,12 +5,14 @@ import {
   Check,
   CheckCircle,
   ChevronLeft,
+  ChevronRight,
   DollarSign,
   Download,
   FileSpreadsheet,
   FileText,
   Loader,
-  Mail, MapPin,
+  Mail,
+  MapPin,
   Pencil,
   Phone,
   Shield,
@@ -22,7 +24,7 @@ import {
   UserX
 } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -86,6 +88,7 @@ export function CoordenadorMinhaEquipePage() {
   const [recreacaoParticipacaoId, setRecreacaoParticipacaoId] = useState<string | null>(null);
   const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -344,6 +347,14 @@ export function CoordenadorMinhaEquipePage() {
 
     return { rows, shirtCombinations };
   };
+
+  const displayedMembers = useMemo(() => {
+    return members.filter(m => {
+      if (activeFilter === 'confirmed') return m.dados_confirmados;
+      if (activeFilter === 'pending') return !m.dados_confirmados;
+      return true;
+    });
+  }, [members, activeFilter]);
 
   const handleExportPDF = async () => {
     const { rows, shirtCombinations } = getExportData();
@@ -665,29 +676,82 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-        <div className="card" style={{ flex: '1 1 140px', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div 
+          onClick={() => setActiveFilter('all')}
+          className="card" 
+          style={{ 
+            padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
+            border: activeFilter === 'all' ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
+            transform: activeFilter === 'all' ? 'translateY(-2px)' : 'none',
+            transition: 'all 0.2s'
+          }}
+        >
           <div style={{
             width: '40px', height: '40px', borderRadius: '10px',
             backgroundColor: 'rgba(37, 99, 235, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)',
           }}>
             <Users size={20} />
           </div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.length}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Membros</div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--primary-color)', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+            <span>FILTRAR</span>
+            <ChevronRight size={10} />
           </div>
         </div>
-        <div className="card" style={{ flex: '1 1 140px', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+
+        <div 
+          onClick={() => setActiveFilter('confirmed')}
+          className="card" 
+          style={{ 
+            padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
+            border: activeFilter === 'confirmed' ? '2px solid #10b981' : '1px solid var(--border-color)',
+            transform: activeFilter === 'confirmed' ? 'translateY(-2px)' : 'none',
+            transition: 'all 0.2s'
+          }}
+        >
+          <div style={{
+            width: '40px', height: '40px', borderRadius: '10px',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981',
+          }}>
+            <CheckCircle size={20} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.filter(m => m.dados_confirmados).length}</div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Confirmados</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#10b981', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+            <span>FILTRAR</span>
+            <ChevronRight size={10} />
+          </div>
+        </div>
+
+        <div 
+          onClick={() => setActiveFilter('pending')}
+          className="card" 
+          style={{ 
+            padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
+            border: activeFilter === 'pending' ? '2px solid #f59e0b' : '1px solid var(--border-color)',
+            transform: activeFilter === 'pending' ? 'translateY(-2px)' : 'none',
+            transition: 'all 0.2s'
+          }}
+        >
           <div style={{
             width: '40px', height: '40px', borderRadius: '10px',
             backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b',
           }}>
-            <Shield size={20} />
+            <AlertCircle size={20} />
           </div>
-          <div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.filter(m => m.coordenador).length}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Coordenadores</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.filter(m => !m.dados_confirmados).length}</div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Pendentes</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#f59e0b', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+            <span>FILTRAR</span>
+            <ChevronRight size={10} />
           </div>
         </div>
       </div>
@@ -704,7 +768,7 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {members.map((m) => {
+          {displayedMembers.map((m: EquipeMember) => {
             const p = m.pessoas;
             const address = [p.endereco, p.numero, p.bairro, p.cidade, p.estado]
               .map(v => v?.trim())
@@ -1120,7 +1184,7 @@ export function CoordenadorMinhaEquipePage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {m.recreacao_dados.map(c => (
+                            {m.recreacao_dados.map((c: RecreacaoDados) => (
                               <tr key={c.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                                 <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{c.nome_crianca}</td>
                                 <td style={{ padding: '0.4rem 0.25rem' }}>{c.idade}a</td>

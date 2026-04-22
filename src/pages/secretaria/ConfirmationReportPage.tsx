@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useDebounce } from '../../hooks/useDebounce';
 import { useNavigate } from 'react-router-dom';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
@@ -9,6 +10,7 @@ import type { Equipe } from '../../types/equipe';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import {
   ChevronLeft,
+  ChevronRight,
   CheckCircle,
   AlertCircle,
   Users,
@@ -21,7 +23,8 @@ import {
   Phone,
   MapPin,
   Loader,
-  Eye
+  Eye,
+  X
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
@@ -72,6 +75,7 @@ interface TeamConfirmationStatus {
   total_membros: number;
   progresso: number;
   confirmado_por?: string;
+  confirmado_email?: string | null;
   confirmado_em?: string;
   coordenadores: {
     nome: string;
@@ -88,13 +92,50 @@ export function ConfirmationReportPage() {
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [participacoes, setParticipacoes] = useState<InscricaoEnriched[]>([]);
-  const [equipeConfirmacoes, setEquipeConfirmacoes] = useState<{ equipe_id: string; confirmado_por: string; confirmado_em: string; profiles?: { email?: string } | null }[]>([]);
+  const [equipeConfirmacoes, setEquipeConfirmacoes] = useState<{
+    equipe_id: string;
+    confirmado_por: string;
+    confirmado_em: string;
+    profiles?: { email?: string } | null;
+    confirmador_nome?: string;
+  }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 400);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [editingPessoa, setEditingPessoa] = useState<any>(null);
   const [modalData, setModalData] = useState<{ title: string; coordinators: TeamConfirmationStatus['coordenadores'] } | null>(null);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
+  const [activeTeamFilter, setActiveTeamFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
+
+  const teamParticipacoes = useMemo(() => {
+    if (!selectedTeamId) return [];
+    return participacoes
+      .filter(p => p.equipe_id === selectedTeamId)
+      .filter((p): p is InscricaoEnriched & { pessoas: Pessoa } => !!p.pessoas)
+      .filter(p => {
+        if (activeTeamFilter === 'confirmed') return p.dados_confirmados;
+        if (activeTeamFilter === 'pending') return !p.dados_confirmados;
+        return true;
+      })
+      .sort((a, b) => {
+        if (a.coordenador && !b.coordenador) return -1;
+        if (!a.coordenador && b.coordenador) return 1;
+        return a.pessoas.nome_completo.localeCompare(b.pessoas.nome_completo);
+      });
+  }, [participacoes, selectedTeamId, activeTeamFilter]);
+
+  const teamStats = useMemo(() => {
+    if (!selectedTeamId) return { total: 0, confirmed: 0, pending: 0 };
+    const all = participacoes.filter(p => p.equipe_id === selectedTeamId && !!p.pessoas);
+    const confirmed = all.filter(p => p.dados_confirmados).length;
+    return {
+      total: all.length,
+      confirmed,
+      pending: all.length - confirmed
+    };
+  }, [participacoes, selectedTeamId]);
 
   useEffect(() => {
     const loadInitialData = async () => {
@@ -120,10 +161,36 @@ export function ConfirmationReportPage() {
     if (!selectedEncontroId) return;
     setIsLoading(true);
     try {
-      const [data, confs] = await Promise.all([
+      const [data, confsRaw] = await Promise.all([
         inscricaoService.listarPorEncontro(selectedEncontroId),
         equipeService.listarConfirmacoes(selectedEncontroId)
       ]);
+
+      const confs = confsRaw as any[];
+
+      // Buscar nomes dos confirmadores (case-insensitive e robusto)
+      const emails = [...new Set(confs.map(c => {
+        const p = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
+        return p?.email;
+      }).filter(Boolean))];
+
+      if (emails.length > 0) {
+        const nomesData = await pessoaService.buscarNomesPorEmails(emails as string[]);
+        const nomesMap = new Map<string, string>();
+
+        nomesData.forEach(n => {
+          if (n.email) nomesMap.set(n.email.toLowerCase(), n.nome_completo);
+        });
+
+        confs.forEach(c => {
+          const p = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
+          c.profiles = p;
+          if (p?.email) {
+            c.confirmador_nome = nomesMap.get(p.email.toLowerCase());
+          }
+        });
+      }
+
       setParticipacoes(data);
       setEquipeConfirmacoes(confs);
     } catch {
@@ -150,7 +217,10 @@ export function ConfirmationReportPage() {
   };
 
   const handleEditSubmit = async (data: PessoaFormData) => {
-    if (!editingPessoa) return;
+    if (!editingPessoa?.id) {
+      toast.error('Erro: ID do integrante não encontrado.');
+      return;
+    }
     setIsActionLoading(true);
     try {
       // Find the participation for this person in the current context
@@ -195,7 +265,7 @@ export function ConfirmationReportPage() {
     }
   };
 
-  const teamStatuses = useMemo(() => {
+  const allTeamStatuses = useMemo(() => {
     const statuses: TeamConfirmationStatus[] = equipes.map(eq => {
       const teamParticipacoes = participacoes.filter(p => p.equipe_id === eq.id);
       const membersConfirmed = teamParticipacoes.filter(p => p.dados_confirmados).length;
@@ -212,7 +282,8 @@ export function ConfirmationReportPage() {
         membros_confirmados: membersConfirmed,
         total_membros: totalMembers,
         progresso,
-        confirmado_por: teamConf?.profiles?.email || 'Coordenador',
+        confirmado_por: teamConf?.confirmador_nome || teamConf?.profiles?.email || 'Coordenador',
+        confirmado_email: teamConf?.confirmador_nome ? teamConf?.profiles?.email : null,
         confirmado_em: teamConf?.confirmado_em || undefined,
         coordenadores: coordinators.map(c => ({
           nome: c.pessoas?.nome_completo || 'Sem nome',
@@ -223,26 +294,41 @@ export function ConfirmationReportPage() {
       };
     });
 
-    return statuses
-      .filter(s => {
-        const term = searchTerm.toLowerCase();
-        const matchEquipe = s.equipe_nome.toLowerCase().includes(term);
-        const matchCoord = s.coordenadores.some(c => c.nome.toLowerCase().includes(term));
-        return matchEquipe || matchCoord;
-      })
-      .sort((a, b) => a.equipe_nome.localeCompare(b.equipe_nome));
-  }, [equipes, participacoes, searchTerm, equipeConfirmacoes]);
+    return statuses;
+  }, [equipes, participacoes, equipeConfirmacoes]);
 
   const stats = useMemo(() => {
-    const total = teamStatuses.length;
-    const confirmed = teamStatuses.filter(s => s.confirmado).length;
+    const total = allTeamStatuses.length;
+    const confirmed = allTeamStatuses.filter(s => s.confirmado).length;
     return {
       total,
       confirmed,
       pending: total - confirmed,
       percent: total > 0 ? Math.round((confirmed / total) * 100) : 0
     };
-  }, [teamStatuses]);
+  }, [allTeamStatuses]);
+
+  const displayedTeams = useMemo(() => {
+    const term = debouncedSearch.toLowerCase().trim();
+
+    return allTeamStatuses
+      .filter(s => {
+        if (activeFilter === 'confirmed') return s.confirmado;
+        if (activeFilter === 'pending') return !s.confirmado;
+        return true;
+      })
+      .filter(s => {
+        if (!term) return true;
+        const matchEquipe = s.equipe_nome.toLowerCase().includes(term);
+        const matchCoord = s.coordenadores.some(c => {
+          const matchName = c.nome.toLowerCase().includes(term);
+          const matchEmail = c.email?.toLowerCase().includes(term);
+          return matchName || matchEmail;
+        });
+        return matchEquipe || matchCoord;
+      })
+      .sort((a, b) => a.equipe_nome.localeCompare(b.equipe_nome));
+  }, [allTeamStatuses, activeFilter, debouncedSearch]);
 
   if (editingPessoa) {
     return (
@@ -272,16 +358,13 @@ export function ConfirmationReportPage() {
   }
 
   if (selectedTeamId) {
-    const status = teamStatuses.find(s => s.equipe_id === selectedTeamId);
-    const teamParticipacoes = participacoes
-      .filter(p => p.equipe_id === selectedTeamId)
-      .filter((p): p is InscricaoEnriched & { pessoas: Pessoa } => !!p.pessoas);
+    const status = allTeamStatuses.find(s => s.equipe_id === selectedTeamId);
 
     return (
       <div className="fade-in">
         <div className="page-header" style={{ marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button onClick={() => setSelectedTeamId(null)} className="icon-btn" aria-label="Voltar">
+            <button onClick={() => { setSelectedTeamId(null); setActiveTeamFilter('all'); }} className="icon-btn" aria-label="Voltar">
               <ChevronLeft size={20} />
             </button>
             <div>
@@ -311,6 +394,89 @@ export function ConfirmationReportPage() {
           </div>
         </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div
+            onClick={() => setActiveTeamFilter('all')}
+            className="card"
+            style={{
+              padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
+              border: activeTeamFilter === 'all' ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
+              transform: activeTeamFilter === 'all' ? 'translateY(-2px)' : 'none',
+              transition: 'all 0.2s',
+              position: 'relative'
+            }}
+          >
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              backgroundColor: 'rgba(37, 99, 235, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)',
+            }}>
+              <Users size={20} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{teamStats.total}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--primary-color)', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+              <span>FILTRAR</span>
+              <ChevronRight size={10} />
+            </div>
+          </div>
+
+          <div
+            onClick={() => setActiveTeamFilter('confirmed')}
+            className="card"
+            style={{
+              padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
+              border: activeTeamFilter === 'confirmed' ? '2px solid #10b981' : '1px solid var(--border-color)',
+              transform: activeTeamFilter === 'confirmed' ? 'translateY(-2px)' : 'none',
+              transition: 'all 0.2s',
+              position: 'relative'
+            }}
+          >
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981',
+            }}>
+              <CheckCircle size={20} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{teamStats.confirmed}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Confirmados</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#10b981', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+              <span>FILTRAR</span>
+              <ChevronRight size={10} />
+            </div>
+          </div>
+
+          <div
+            onClick={() => setActiveTeamFilter('pending')}
+            className="card"
+            style={{
+              padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
+              border: activeTeamFilter === 'pending' ? '2px solid #f59e0b' : '1px solid var(--border-color)',
+              transform: activeTeamFilter === 'pending' ? 'translateY(-2px)' : 'none',
+              transition: 'all 0.2s',
+              position: 'relative'
+            }}
+          >
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b',
+            }}>
+              <AlertCircle size={20} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{teamStats.pending}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Pendentes</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#f59e0b', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+              <span>FILTRAR</span>
+              <ChevronRight size={10} />
+            </div>
+          </div>
+        </div>
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {teamParticipacoes.length === 0 ? (
             <div className="card empty-state">
@@ -336,12 +502,12 @@ export function ConfirmationReportPage() {
                           <span className="badge" style={{ fontSize: '0.6rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', fontWeight: 800 }}>COORDENADOR</span>
                         )}
                       </div>
-                      <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem', fontSize: '0.85rem', opacity: 0.7, flexWrap: 'wrap' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}><Phone size={14} /> {formatTelefone(p.pessoas.telefone)}</span>
-                        {p.pessoas.email && <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}><Mail size={14} /> {p.pessoas.email}</span>}
+                      <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem', fontSize: '0.85rem', opacity: 0.7, flexWrap: 'wrap', minWidth: 0 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><Phone size={14} style={{ flexShrink: 0 }} /> {formatTelefone(p.pessoas.telefone)}</span>
+                        {p.pessoas.email && <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.pessoas.email}><Mail size={14} style={{ flexShrink: 0 }} /> {p.pessoas.email}</span>}
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem', fontSize: '0.85rem', opacity: 0.6 }}>
-                        <MapPin size={14} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem', fontSize: '0.85rem', opacity: 0.6, minWidth: 0 }}>
+                        <MapPin size={14} style={{ flexShrink: 0 }} />
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {[p.pessoas.endereco, p.pessoas.numero, p.pessoas.bairro, p.pessoas.cidade].filter(Boolean).join(', ')}
                         </span>
@@ -447,16 +613,39 @@ export function ConfirmationReportPage() {
 
             <div className="form-group" style={{ marginBottom: 0, flex: 2 }}>
               <label className="form-label">Buscar Equipe</label>
-              <div style={{ position: 'relative' }}>
-                <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+              <div className="form-input-wrapper">
+                <div className="form-input-icon">
+                  <Search size={16} />
+                </div>
                 <input
                   type="text"
-                  className="form-input"
-                  placeholder="Nome da equipe..."
+                  className="form-input form-input--with-icon"
+                  placeholder="Nome da equipe ou coordenador..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{ paddingLeft: '2.5rem' }}
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    style={{
+                      position: 'absolute',
+                      right: '0.6rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--muted-text)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '0.2rem',
+                    }}
+                    title="Limpar busca"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -464,7 +653,90 @@ export function ConfirmationReportPage() {
 
         {/* Summary Stats */}
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-          <div className="card" style={{ flex: '1 1 200px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div
+            className={`card ${activeFilter === 'all' ? 'active-filter' : ''}`}
+            onClick={() => setActiveFilter('all')}
+            style={{
+              flex: '1 1 180px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem',
+              cursor: 'pointer', border: activeFilter === 'all' ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
+              position: 'relative',
+              transition: 'all 0.2s ease',
+              transform: activeFilter === 'all' ? 'translateY(-2px)' : 'none',
+              boxShadow: activeFilter === 'all' ? '0 4px 12px rgba(37, 99, 235, 0.15)' : 'none'
+            }}
+          >
+            <div style={{
+              width: '48px', height: '48px', borderRadius: '12px',
+              backgroundColor: 'rgba(71, 124, 239, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)',
+            }}>
+              <Users size={24} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{stats.total}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase', marginTop: '0.25rem' }}>Total Equipes</div>
+            </div>
+            <div style={{
+              color: 'var(--primary-color)', position: 'absolute', bottom: '8px', right: '12px', fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '2px'
+            }}>
+              <span>Filtrar</span> <ChevronRight size={10} />
+            </div>
+          </div>
+
+          <div
+            className={`card ${activeFilter === 'confirmed' ? 'active-filter' : ''}`}
+            onClick={() => setActiveFilter('confirmed')}
+            style={{
+              flex: '1 1 180px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem',
+              cursor: 'pointer', border: activeFilter === 'confirmed' ? '2px solid #10b981' : '1px solid var(--border-color)',
+              position: 'relative',
+              transition: 'all 0.2s ease',
+              transform: activeFilter === 'confirmed' ? 'translateY(-2px)' : 'none',
+              boxShadow: activeFilter === 'confirmed' ? '0 4px 12px rgba(16, 185, 129, 0.15)' : 'none'
+            }}
+          >
+            <div style={{
+              width: '48px', height: '48px', borderRadius: '12px',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981',
+            }}>
+              <CheckCircle size={24} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{stats.confirmed}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase', marginTop: '0.25rem' }}>Confirmadas</div>
+            </div>
+            <div style={{ position: 'absolute', bottom: '8px', right: '12px', fontSize: '0.6rem', fontWeight: 800, color: '#10b981', opacity: 0.6, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <span>Filtrar</span> <ChevronRight size={10} />
+            </div>
+          </div>
+
+          <div
+            className={`card ${activeFilter === 'pending' ? 'active-filter' : ''}`}
+            onClick={() => setActiveFilter('pending')}
+            style={{
+              flex: '1 1 180px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem',
+              cursor: 'pointer', border: activeFilter === 'pending' ? '2px solid #f59e0b' : '1px solid var(--border-color)',
+              position: 'relative',
+              transition: 'all 0.2s ease',
+              transform: activeFilter === 'pending' ? 'translateY(-2px)' : 'none',
+              boxShadow: activeFilter === 'pending' ? '0 4px 12px rgba(245, 158, 11, 0.15)' : 'none'
+            }}
+          >
+            <div style={{
+              width: '48px', height: '48px', borderRadius: '12px',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b',
+            }}>
+              <AlertCircle size={24} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{stats.pending}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase', marginTop: '0.25rem' }}>Pendentes</div>
+            </div>
+            <div style={{ position: 'absolute', bottom: '8px', right: '12px', fontSize: '0.6rem', fontWeight: 800, color: '#f59e0b', opacity: 0.6, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <span>Filtrar</span> <ChevronRight size={10} />
+            </div>
+          </div>
+
+          <div className="card" style={{ flex: '1 1 180px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', opacity: 0.85 }}>
             <div style={{
               width: '48px', height: '48px', borderRadius: '12px',
               backgroundColor: stats.percent === 100 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(37, 99, 235, 0.1)',
@@ -478,32 +750,6 @@ export function ConfirmationReportPage() {
               <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase', marginTop: '0.25rem' }}>Progresso Total</div>
             </div>
           </div>
-
-          <div className="card" style={{ flex: '1 1 200px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{
-              width: '48px', height: '48px', borderRadius: '12px',
-              backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981',
-            }}>
-              <CheckCircle size={24} />
-            </div>
-            <div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{stats.confirmed}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase', marginTop: '0.25rem' }}>Confirmadas</div>
-            </div>
-          </div>
-
-          <div className="card" style={{ flex: '1 1 200px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{
-              width: '48px', height: '48px', borderRadius: '12px',
-              backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b',
-            }}>
-              <AlertCircle size={24} />
-            </div>
-            <div>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{stats.pending}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase', marginTop: '0.25rem' }}>Pendentes</div>
-            </div>
-          </div>
         </div>
 
         {isLoading ? (
@@ -511,8 +757,12 @@ export function ConfirmationReportPage() {
             <p>Carregando dados de confirmação...</p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1rem' }}>
-            {teamStatuses.map(status => (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))',
+            gap: '1rem'
+          }}>
+            {displayedTeams.map(status => (
               <div
                 key={status.equipe_id}
                 className="card animate-fade-in"
@@ -534,15 +784,15 @@ export function ConfirmationReportPage() {
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
                     <div style={{
                       width: '40px', height: '40px', borderRadius: '8px',
-                      backgroundColor: 'rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.6
+                      backgroundColor: 'rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.6, flexShrink: 0
                     }}>
                       <Users size={20} />
                     </div>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>{status.equipe_nome}</h3>
+                    <div style={{ minWidth: 0 }}>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{status.equipe_nome}</h3>
                       <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{status.membros_confirmados} de {status.total_membros} confirmados</div>
                     </div>
                   </div>
@@ -612,9 +862,16 @@ export function ConfirmationReportPage() {
                     border: '1px solid rgba(16, 185, 129, 0.1)'
                   }}>
                     <div style={{ fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Equipe Finalizada:</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.8 }}>
-                      <span>{status.confirmado_por}</span>
-                      <span>{formatDate(status.confirmado_em)}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.8, flexWrap: 'wrap', gap: '0.25rem' }}>
+                      <div style={{ flex: 1, minWidth: '150px' }}>
+                        <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={status.confirmado_por}>
+                          {status.confirmado_por}
+                        </div>
+                        {status.confirmado_email && (
+                          <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{status.confirmado_email}</div>
+                        )}
+                      </div>
+                      <span style={{ whiteSpace: 'nowrap', fontSize: '0.8rem' }}>{formatDate(status.confirmado_em)}</span>
                     </div>
                   </div>
                 )}
@@ -642,7 +899,7 @@ export function ConfirmationReportPage() {
                             color: coord.email ? 'var(--success-text)' : 'var(--accent-color)',
                             fontWeight: 600
                           }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflow: 'hidden', minWidth: 0 }}>
                               {coord.email ? <Mail size={14} style={{ opacity: 0.8, flexShrink: 0 }} /> : <MailWarning size={14} style={{ opacity: 0.8, flexShrink: 0 }} />}
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>{coord.nome}</span>
                             </div>

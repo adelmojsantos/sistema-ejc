@@ -4,6 +4,7 @@ import { useLoading } from '../contexts/LoadingContext';
 import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { formatTelefone } from '../utils/cpfUtils';
+import { calculateAge } from '../utils/dateUtils';
 
 import { LandingFooter } from '../components/landing/LandingFooter';
 import { LandingHeader } from '../components/landing/LandingHeader';
@@ -30,6 +31,7 @@ export default function InscricaoPublicaPage() {
     const [errors, setErrors] = useState<Partial<Record<keyof ListaEsperaFormData | 'consent', string>>>({});
     const [consent, setConsent] = useState(false);
     const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+    const [ageError, setAgeError] = useState<string | null>(null);
 
     const [encontro, setEncontro] = useState<Encontro | null>(null);
     const [vagasStatus, setVagasStatus] = useState<'open' | 'closed' | 'full'>('open');
@@ -85,6 +87,16 @@ export default function InscricaoPublicaPage() {
             }
         }
         setForm((prev) => ({ ...prev, [field]: val }));
+        
+        if (field === 'data_nascimento' && typeof val === 'string') {
+            const age = calculateAge(val, encontro?.data_inicio);
+            if (age !== null && age < 15) {
+                setAgeError('Olá! Percebemos que você terá menos de 15 anos na data do encontro. O EJC é destinado a jovens a partir de 15 anos. Por favor, aguarde as próximas edições para realizar sua inscrição. Ficaremos muito felizes em te receber em breve!');
+            } else {
+                setAgeError(null);
+            }
+        }
+
         if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
     };
 
@@ -128,6 +140,14 @@ export default function InscricaoPublicaPage() {
         if (form.fez_ejc_outra_paroquia === null) newErrors.fez_ejc_outra_paroquia = 'Selecione uma opção';
         if (form.fez_ejc_outra_paroquia && !form.qual_paroquia_ejc?.trim()) {
             newErrors.qual_paroquia_ejc = 'Informe qual foi a paróquia / cidade';
+        }
+
+        if (form.data_nascimento) {
+            const age = calculateAge(form.data_nascimento, encontro?.data_inicio);
+            if (age !== null && age < 15) {
+                newErrors.data_nascimento = 'Idade mínima de 15 anos na data do encontro.';
+                setAgeError('Olá! Percebemos que você terá menos de 15 anos na data do encontro. O EJC é destinado a jovens a partir de 15 anos. Por favor, aguarde as próximas edições para realizar sua inscrição. Ficaremos muito felizes em te receber em breve!');
+            }
         }
 
         if (!consent) newErrors.consent = 'Você precisa aceitar a Política de Privacidade para prosseguir.';
@@ -261,6 +281,27 @@ export default function InscricaoPublicaPage() {
                                     <Link to="/" className="landing-button landing-button--secondary" style={{ marginTop: '1.5rem' }}>
                                         Voltar à Página Inicial
                                     </Link>
+                                </div>
+                            ) : ageError ? (
+                                <div className="landing-success" style={{ padding: '3rem 2rem', background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                                    <span className="landing-success__icon" style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: '#f59e0b' }}>
+                                        <Heart size={36} />
+                                    </span>
+                                    <h3 style={{ color: '#f59e0b' }}>Aguarde só mais um pouquinho...</h3>
+                                    <p style={{ color: 'rgba(255,255,255,0.9)' }}>
+                                        {ageError}
+                                    </p>
+                                    <button 
+                                        type="button" 
+                                        className="landing-button landing-button--secondary" 
+                                        style={{ marginTop: '1.5rem' }}
+                                        onClick={() => {
+                                            setAgeError(null);
+                                            setForm(prev => ({ ...prev, data_nascimento: '' }));
+                                        }}
+                                    >
+                                        Corrigir Data de Nascimento
+                                    </button>
                                 </div>
                             ) : (
                                 <form onSubmit={handleSubmit} className="landing-form">

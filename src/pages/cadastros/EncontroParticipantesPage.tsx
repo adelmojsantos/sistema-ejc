@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useDebounce } from '../../hooks/useDebounce';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import { equipeService } from '../../services/equipeService';
-import { ChevronLeft, Search, Filter, Users, UserCheck, Shield, User, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { ChevronLeft, Search, Filter, Users, UserCheck, Shield, User, Download, FileText, FileSpreadsheet, X } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
 import { toast } from 'react-hot-toast';
@@ -51,6 +52,7 @@ export function EncontroParticipantesPage() {
 
   // Filters — read initial values from URL query params
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 400);
   const [filterTeamId, setFilterTeamId] = useState<string>(searchParams.get('filter') || 'all');
 
   useEffect(() => {
@@ -96,28 +98,34 @@ export function EncontroParticipantesPage() {
     loadParticipantes();
   }, [selectedEncontroId]);
 
-  const filteredParticipantes = participantes.filter(p => {
-    const term = searchTerm.toLowerCase();
+  const filteredParticipantes = useMemo(() => {
+    const term = debouncedSearch.toLowerCase().trim();
     const normalize = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
-    const termDigits = normalize(searchTerm);
+    const termDigits = normalize(term);
 
-    const matchNome = p.pessoas?.nome_completo?.toLowerCase().includes(term);
-    const matchCpf = p.pessoas?.cpf && (p.pessoas.cpf.includes(term) || (termDigits && normalize(p.pessoas.cpf).includes(termDigits)));
-    const matchEmail = p.pessoas?.email?.toLowerCase().includes(term);
-    const matchTelefone = p.pessoas?.telefone && normalize(p.pessoas.telefone).includes(termDigits);
-    const matchComunidade = p.pessoas?.comunidade?.toLowerCase().includes(term);
-    const matchBairro = p.pessoas?.bairro?.toLowerCase().includes(term);
-    const matchesSearch = matchNome || matchCpf || matchEmail || matchTelefone || matchComunidade || matchBairro;
+    return participantes
+      .filter(p => {
+        let matchesFilter = true;
+        if (filterTeamId === 'encontristas') {
+          matchesFilter = p.participante === true;
+        } else if (filterTeamId !== 'all') {
+          matchesFilter = p.equipe_id === filterTeamId;
+        }
+        if (!matchesFilter) return false;
 
-    let matchesFilter = true;
-    if (filterTeamId === 'encontristas') {
-      matchesFilter = p.participante === true;
-    } else if (filterTeamId !== 'all') {
-      matchesFilter = p.equipe_id === filterTeamId;
-    }
+        if (!term) return true;
 
-    return matchesSearch && matchesFilter;
-  }).sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
+        const matchNome = p.pessoas?.nome_completo?.toLowerCase().includes(term);
+        const matchCpf = p.pessoas?.cpf && (p.pessoas.cpf.includes(term) || (termDigits && normalize(p.pessoas.cpf).includes(termDigits)));
+        const matchEmail = p.pessoas?.email?.toLowerCase().includes(term);
+        const matchTelefone = p.pessoas?.telefone && ((termDigits && normalize(p.pessoas.telefone).includes(termDigits)) || p.pessoas.telefone.includes(term));
+        const matchComunidade = p.pessoas?.comunidade?.toLowerCase().includes(term);
+        const matchBairro = p.pessoas?.bairro?.toLowerCase().includes(term);
+
+        return !!(matchNome || matchCpf || matchEmail || matchTelefone || matchComunidade || matchBairro);
+      })
+      .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
+  }, [participantes, debouncedSearch, filterTeamId]);
 
   const selectedEncontro = encontros.find(e => e.id === selectedEncontroId);
 
@@ -483,17 +491,40 @@ export function EncontroParticipantesPage() {
           </div>
 
           <div className="form-group" style={{ marginBottom: 0, flex: 2 }}>
-            <label className="form-label">Buscar por Nome</label>
-            <div style={{ position: 'relative' }}>
-              <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+            <label className="form-label">Buscar Participante</label>
+            <div className="form-input-wrapper">
+              <div className="form-input-icon">
+                <Search size={16} />
+              </div>
               <input
                 type="text"
-                className="form-input"
-                placeholder="Digite o nome..."
+                className="form-input form-input--with-icon"
+                placeholder="Nome, CPF, e-mail ou bairro..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ paddingLeft: '2.5rem' }}
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  style={{
+                    position: 'absolute',
+                    right: '0.6rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--muted-text)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0.2rem',
+                  }}
+                  title="Limpar busca"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
           </div>
         </div>
