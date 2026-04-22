@@ -6,7 +6,7 @@ interface RadioOption {
 interface RadioGroupProps {
     label?: string;
     options: RadioOption[];
-    value: string | boolean;
+    value: string | boolean | null;
     onChange: (value: string | boolean) => void;
     name?: string;
     error?: string;
@@ -35,7 +35,10 @@ export function RadioGroup({ label, options, value, onChange, error }: RadioGrou
                                 }
                             }}
                         >
-                            {option.label}
+                            <div className="radio-indicator">
+                                <div className="radio-indicator-dot" />
+                            </div>
+                            <span className="radio-option-label">{option.label}</span>
                         </div>
                     );
                 })}

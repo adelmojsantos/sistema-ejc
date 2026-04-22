@@ -10,6 +10,7 @@ import { LandingHeader } from '../components/landing/LandingHeader';
 import { SEO } from '../components/landing/SEO';
 import { Section } from '../components/landing/Section';
 import { FormField } from '../components/ui/FormField';
+import { RadioGroup } from '../components/ui/RadioGroup';
 
 import { encontroService } from '../services/encontroService';
 import { listaEsperaService } from '../services/listaEsperaService';
@@ -74,7 +75,7 @@ export default function InscricaoPublicaPage() {
         loadInitialData();
     }, []);
 
-    const handleChange = (field: keyof ListaEsperaFormData, value: string | boolean) => {
+    const handleChange = (field: keyof ListaEsperaFormData, value: string | boolean | null) => {
         let val = value;
         if (typeof value === 'string') {
             if (field === 'cep') {
@@ -450,31 +451,16 @@ export default function InscricaoPublicaPage() {
                                     />
 
                                     {/* Pergunta de EJC */}
-                                    <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                        <label style={{ color: 'var(--text-color)', fontWeight: 600, fontSize: '0.95rem' }}>Já fez EJC em outra paróquia? *</label>
-                                        <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', background: 'rgba(255,255,255,0.05)', padding: '0.75rem 1rem', borderRadius: '8px', border: form.fez_ejc_outra_paroquia === false ? '1px solid var(--primary-color)' : '1px solid var(--landing-surface-soft)', transition: 'all 0.2s ease' }}>
-                                                <input
-                                                    type="radio"
-                                                    name="fez_ejc"
-                                                    onChange={() => handleChange('fez_ejc_outra_paroquia', false)}
-                                                    checked={form.fez_ejc_outra_paroquia === false}
-                                                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary-color)' }}
-                                                />
-                                                <span>Não fiz EJC</span>
-                                            </label>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', background: 'rgba(255,255,255,0.05)', padding: '0.75rem 1rem', borderRadius: '8px', border: form.fez_ejc_outra_paroquia === true ? '1px solid var(--primary-color)' : '1px solid var(--landing-surface-soft)', transition: 'all 0.2s ease' }}>
-                                                <input
-                                                    type="radio"
-                                                    name="fez_ejc"
-                                                    onChange={() => handleChange('fez_ejc_outra_paroquia', true)}
-                                                    checked={form.fez_ejc_outra_paroquia === true}
-                                                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary-color)' }}
-                                                />
-                                                <span>Sim, já fiz EJC</span>
-                                            </label>
-                                        </div>
-                                        {errors.fez_ejc_outra_paroquia && <span style={{ color: '#f87171', fontSize: '0.8rem' }}>{errors.fez_ejc_outra_paroquia}</span>}
+                                    <RadioGroup
+                                        label="Já fez EJC em outra paróquia? *"
+                                        value={form.fez_ejc_outra_paroquia}
+                                        onChange={(val) => handleChange('fez_ejc_outra_paroquia', val as boolean)}
+                                        options={[
+                                            { label: 'Não fiz EJC', value: false },
+                                            { label: 'Sim, já fiz EJC', value: true }
+                                        ]}
+                                        error={errors.fez_ejc_outra_paroquia}
+                                    />
 
                                         {form.fez_ejc_outra_paroquia === true && (
                                             <div style={{ marginTop: '0.5rem' }}>
@@ -490,7 +476,7 @@ export default function InscricaoPublicaPage() {
                                                 />
                                             </div>
                                         )}
-                                    </div>
+
 
                                     {/* Consentimento LGPD */}
                                     <div style={{

@@ -301,14 +301,14 @@ export function GerenciarListaEsperaPage() {
                             </div>
                         </div>
 
-                        {/* 2. Total Inscritos */}
+                        {/* 2. Total Inscritos (Ativos) */}
                         <div className="premium-stat-card">
                             <div className="stat-icon-wrapper" style={{ color: '#6366f1', background: 'rgba(99, 102, 241, 0.1)' }}>
                                 <Users size={24} />
                             </div>
                             <div className="stat-content">
-                                <div className="stat-value">{entries.length + efetivados.length + reprovados.length}</div>
-                                <div className="stat-label">Total Inscritos</div>
+                                <div className="stat-value">{entries.length + efetivados.length}</div>
+                                <div className="stat-label">Inscritos (Ativos)</div>
                             </div>
                         </div>
 

@@ -346,6 +346,7 @@ export function InscricaoPage() {
               isLoading={isSaving}
               initialData={initialFormData}
               requireBirthDate={true}
+              requireFezEjc={true}
             />
           </div>
         </div>
