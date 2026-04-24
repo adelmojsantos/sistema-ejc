@@ -12,7 +12,8 @@ import {
   X
 } from 'lucide-react';
 import { WhatsappLogo } from 'phosphor-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useDebounce } from '../../hooks/useDebounce';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 
@@ -39,6 +40,7 @@ export function RecepcaoAdminPage() {
   const [registros, setRegistros] = useState<RecepcaoDados[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 400);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -118,15 +120,19 @@ export function RecepcaoAdminPage() {
     setIsModalOpen(true);
   };
 
-  const filteredRegistros = registros.filter(r => {
-    const term = searchTerm.toLowerCase();
-    const nome = r.participacoes?.pessoas?.nome_completo?.toLowerCase() || '';
-    const equipe = r.participacoes?.equipes?.nome?.toLowerCase() || '';
-    const placa = r.veiculo_placa?.toLowerCase() || '';
-    const modelo = r.veiculo_modelo?.toLowerCase() || '';
+  const filteredRegistros = useMemo(() => {
+    const term = debouncedSearch.toLowerCase().trim();
+    if (!term) return registros;
 
-    return nome.includes(term) || equipe.includes(term) || placa.includes(term) || modelo.includes(term);
-  });
+    return registros.filter(r => {
+      const nome = r.participacoes?.pessoas?.nome_completo?.toLowerCase() || '';
+      const equipe = r.participacoes?.equipes?.nome?.toLowerCase() || '';
+      const placa = r.veiculo_placa?.toLowerCase() || '';
+      const modelo = r.veiculo_modelo?.toLowerCase() || '';
+
+      return nome.includes(term) || equipe.includes(term) || placa.includes(term) || modelo.includes(term);
+    });
+  }, [registros, debouncedSearch]);
 
   return (
     <div className="fade-in">
@@ -165,19 +171,37 @@ export function RecepcaoAdminPage() {
 
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Buscar Registro</label>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <Search size={18} style={{ position: 'absolute', left: '12px', opacity: 0.4 }} />
+            <div className="form-input-wrapper">
+              <div className="form-input-icon">
+                <Search size={16} />
+              </div>
               <input
                 type="text"
-                className="form-input"
+                className="form-input form-input--with-icon"
                 placeholder="Nome, placa, equipe..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ paddingLeft: '2.5rem', width: '100%' }}
               />
               {searchTerm && (
-                <button onClick={() => setSearchTerm('')} style={{ position: 'absolute', right: '10px', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5 }}>
-                  <X size={16} />
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  style={{
+                    position: 'absolute',
+                    right: '0.6rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--muted-text)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0.2rem',
+                  }}
+                  title="Limpar busca"
+                >
+                  <X size={14} />
                 </button>
               )}
             </div>

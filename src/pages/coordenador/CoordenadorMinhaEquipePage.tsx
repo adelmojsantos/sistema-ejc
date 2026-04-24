@@ -5,12 +5,14 @@ import {
   Check,
   CheckCircle,
   ChevronLeft,
+  ChevronRight,
   DollarSign,
   Download,
   FileSpreadsheet,
   FileText,
   Loader,
-  Mail, MapPin,
+  Mail,
+  MapPin,
   Pencil,
   Phone,
   Shield,
@@ -18,9 +20,11 @@ import {
   X,
   Car,
   ShirtIcon,
-  Baby
+  Baby,
+  UserX
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -70,6 +74,8 @@ export function CoordenadorMinhaEquipePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<EquipeMember | null>(null);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [teamConfirmation, setTeamConfirmation] = useState<{ confirmado_por: string; confirmado_em: string; profiles?: { email?: string } | null } | null>(null);
   const [valorTaxa, setValorTaxa] = useState(0);
   const [pedidosCamisetas, setPedidosCamisetas] = useState<CamisetaPedido[]>([]);
@@ -81,6 +87,8 @@ export function CoordenadorMinhaEquipePage() {
   const [recepcaoParticipanteNome, setRecepcaoParticipanteNome] = useState<string>('');
   const [recreacaoParticipacaoId, setRecreacaoParticipacaoId] = useState<string | null>(null);
   const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState<string>('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -187,6 +195,22 @@ export function CoordenadorMinhaEquipePage() {
   useEffect(() => {
     loadMembers();
   }, [loadMembers]);
+
+  const handleDeleteMember = async () => {
+    if (!deleteTarget) return;
+    setIsConfirmingDelete(true);
+    try {
+      await inscricaoService.excluir(deleteTarget.id);
+      setMembers(prev => prev.filter(m => m.id !== deleteTarget.id));
+      toast.success('Integrante desvinculado com sucesso!');
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error('Erro ao desvincular:', error);
+      toast.error('Erro ao desvincular integrante.');
+    } finally {
+      setIsConfirmingDelete(false);
+    }
+  };
 
   const handleEditSubmit = async (data: PessoaFormData) => {
     if (!editingPessoa) return;
@@ -302,8 +326,14 @@ export function CoordenadorMinhaEquipePage() {
       const row: Record<string, string | number> = {
         '#': idx + 1,
         'Nome Completo': p.nome_completo || '—',
-        'Função': m.coordenador ? 'Coordenador' : 'Membro',
-        'Taxa': m.pago_taxa ? 'Paga' : 'Pendente',
+        'Função': m.coordenador ? 'Coordenador' : 'Encontreiro(a)',
+        'Nascimento': p.data_nascimento ? new Date(p.data_nascimento).toLocaleDateString('pt-BR') : '—',
+        'Email': p.email || '—',
+        'Telefone': formatTelefone(p.telefone),
+        'Endereço': p.endereco || '—',
+        'Número': p.numero || '—',
+        'Bairro': p.bairro || '—',
+        'Cidade': p.cidade || '—',
       };
 
       // Adicionar colunas dinâmicas de camisetas
@@ -312,106 +342,117 @@ export function CoordenadorMinhaEquipePage() {
         row[comb] = order ? order.quantidade : 0;
       });
 
-      row['Telefone'] = formatTelefone(p.telefone);
-      row['Comunidade'] = p.comunidade || '—';
-
       return row;
     });
 
-    // Linha de totais
-    const totals: Record<string, string | number> = {
-      '#': 'TOTAL',
-      'Nome Completo': '',
-      'Função': '',
-      'Taxa': members.filter(m => m.pago_taxa).length,
-    };
-    shirtCombinations.forEach(comb => {
-      totals[comb] = pedidosCamisetas
-        .filter(p => `${p.camiseta_modelos?.nome} ${p.tamanho}` === comb && members.some(m => m.id === p.participacao_id))
-        .reduce((acc, p) => acc + p.quantidade, 0);
-    });
-
-    return { rows, shirtCombinations, totals };
+    return { rows, shirtCombinations };
   };
 
+  const displayedMembers = useMemo(() => {
+    return members.filter(m => {
+      if (activeFilter === 'confirmed') return m.dados_confirmados;
+      if (activeFilter === 'pending') return !m.dados_confirmados;
+      return true;
+    });
+  }, [members, activeFilter]);
+
   const handleExportPDF = async () => {
-    const { rows, shirtCombinations, totals } = getExportData();
+    const { rows, shirtCombinations } = getExportData();
     if (rows.length === 0) return;
 
-    let config = null;
+    setIsExporting(true);
     try {
-      config = await exportConfigService.obter(userParticipacao!.encontro_id);
-    } catch (e) {
-      console.warn('Config de exportação não encontrada', e);
-    }
-    const hasConfig = config && config.config_telas && config.config_telas['CoordenadorMinhaEquipe'];
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    let startY = 30;
-
-    if (hasConfig && config) {
-      if (config.imagem_esq_base64) { try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch { console.warn('Erro imagem esq'); } }
-      if (config.imagem_dir_base64) { try { doc.addImage(config.imagem_dir_base64, 'PNG', 253, 10, 30, 30); } catch { console.warn('Erro imagem dir'); } }
-      doc.setFontSize(14).setFont('helvetica', 'bold').text(config.titulo || '', 148.5, 18, { align: 'center' });
-      doc.setFontSize(10).setFont('helvetica', 'normal').text(config.subtitulo || '', 148.5, 24, { align: 'center' });
-      doc.text(config.tema || '', 148.5, 30, { align: 'center' });
-      startY = config.observacoes ? 58 : 52;
-      doc.setFontSize(11).setFont('helvetica', 'bold').text(`Equipe: ${equipeNome || 'Minha Equipe'}`, 14, startY - 6);
-    } else {
-      doc.setFontSize(16).setFont('helvetica', 'bold').text(`Equipe: ${equipeNome || 'Minha Equipe'}`, 14, 18);
-      startY = 28;
-    }
-
-    const columns = ['#', 'Nome Completo', 'Função', 'Taxa', ...shirtCombinations];
-    const dataRows = [...rows, totals].map(r => columns.map(c => r[c]));
-
-    autoTable(doc, {
-      head: [columns],
-      body: dataRows,
-      startY: startY,
-      styles: { fontSize: 7, cellPadding: 2 },
-      headStyles: { fillColor: [37, 99, 235], textColor: 255 },
-      didParseCell: (data) => {
-        if (data.row.index === rows.length) {
-          data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = [240, 244, 255];
-        }
+      let config = null;
+      try {
+        config = await exportConfigService.obter(userParticipacao!.encontro_id);
+      } catch (e) {
+        console.warn('Config de exportação não encontrada', e);
       }
-    });
+      const hasConfig = config && config.config_telas && config.config_telas['CoordenadorMinhaEquipe'];
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      let startY = 30;
 
-    doc.save(`equipe_${equipeNome?.replace(/\s+/g, '_') || 'minha_equipe'}.pdf`);
-    toast.success('PDF exportado com sucesso!');
-    setShowExportMenu(false);
+      if (hasConfig && config) {
+        if (config.imagem_esq_base64) { try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch { console.warn('Erro imagem esq'); } }
+        if (config.imagem_dir_base64) { try { doc.addImage(config.imagem_dir_base64, 'PNG', 253, 10, 30, 30); } catch { console.warn('Erro imagem dir'); } }
+        doc.setFontSize(14).setFont('helvetica', 'bold').text(config.titulo || '', 148.5, 18, { align: 'center' });
+        doc.setFontSize(10).setFont('helvetica', 'normal').text(config.subtitulo || '', 148.5, 24, { align: 'center' });
+        doc.text(config.tema || '', 148.5, 30, { align: 'center' });
+        startY = config.observacoes ? 58 : 52;
+        doc.setFontSize(11).setFont('helvetica', 'bold').text(`Equipe: ${equipeNome || 'Minha Equipe'}`, 14, startY - 6);
+      } else {
+        doc.setFontSize(16).setFont('helvetica', 'bold').text(`Equipe: ${equipeNome || 'Minha Equipe'}`, 14, 18);
+        startY = 28;
+      }
+
+      const columns = [
+        '#', 'Nome Completo', 'Função', 'Nascimento', 'Email', 'Telefone',
+        'Endereço', 'Número', 'Bairro', 'Cidade',
+        ...shirtCombinations
+      ];
+      const dataRows = rows.map(r => columns.map(c => r[c]));
+
+      autoTable(doc, {
+        head: [columns],
+        body: dataRows,
+        startY: startY,
+        styles: { fontSize: 7, cellPadding: 2, overflow: 'linebreak' },
+        columnStyles: {
+          0: { cellWidth: 10 }, // #
+          1: { cellWidth: 60 }, // Nome
+          2: { cellWidth: 25 }, // Função
+        },
+        headStyles: { fillColor: [37, 99, 235], textColor: 255 },
+      });
+
+      doc.save(`equipe_${equipeNome?.replace(/\s+/g, '_') || 'minha_equipe'}.pdf`);
+      toast.success('PDF exportado com sucesso!');
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error);
+      toast.error('Erro ao gerar PDF.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleExportExcel = async () => {
-    const { rows, totals } = getExportData();
+    const { rows } = getExportData();
     if (rows.length === 0) return;
-    const exportRows = [...rows, totals];
+    const exportRows = rows;
 
-    let config = null;
+    setIsExporting(true);
     try {
-      config = await exportConfigService.obter(userParticipacao!.encontro_id);
-    } catch (e) {
-      console.warn('Config de exportação não encontrada', e);
-    }
-    const hasConfig = config && config.config_telas && config.config_telas['CoordenadorMinhaEquipe'];
-    const ws = XLSX.utils.json_to_sheet([]);
+      let config = null;
+      try {
+        config = await exportConfigService.obter(userParticipacao!.encontro_id);
+      } catch (e) {
+        console.warn('Config de exportação não encontrada', e);
+      }
+      const hasConfig = config && config.config_telas && config.config_telas['CoordenadorMinhaEquipe'];
+      const ws = XLSX.utils.json_to_sheet([]);
 
-    if (hasConfig && config) {
-      XLSX.utils.sheet_add_aoa(ws, [
-        [config.titulo], [config.subtitulo], [config.tema], [config.observacoes || ''],
-        [`Equipe: ${equipeNome || 'Minha Equipe'} - Gerado em: ${new Date().toLocaleDateString('pt-BR')}`]
-      ], { origin: 'A1' });
-      XLSX.utils.sheet_add_json(ws, exportRows, { origin: 'A6', skipHeader: false });
-    } else {
-      XLSX.utils.sheet_add_json(ws, exportRows, { origin: 'A1', skipHeader: false });
-    }
+      if (hasConfig && config) {
+        XLSX.utils.sheet_add_aoa(ws, [
+          [config.titulo], [config.subtitulo], [config.tema], [config.observacoes || ''],
+          [`${equipeNome || 'Minha Equipe'}`]
+        ], { origin: 'A1' });
+        XLSX.utils.sheet_add_json(ws, exportRows, { origin: 'A6', skipHeader: false });
+      } else {
+        XLSX.utils.sheet_add_json(ws, exportRows, { origin: 'A1', skipHeader: false });
+      }
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Equipe');
-    XLSX.writeFile(wb, `equipe_${equipeNome?.replace(/\s+/g, '_') || 'minha_equipe'}.xlsx`);
-    toast.success('Excel exportado com sucesso!');
-    setShowExportMenu(false);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Equipe');
+      XLSX.writeFile(wb, `equipe_${equipeNome?.replace(/\s+/g, '_') || 'minha_equipe'}.xlsx`);
+      toast.success('Excel exportado com sucesso!');
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro ao exportar Excel:', error);
+      toast.error('Erro ao gerar Excel.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (loading) {
@@ -526,44 +567,48 @@ export function CoordenadorMinhaEquipePage() {
                     </div>
                     <button
                       onClick={handleExportPDF}
+                      disabled={isExporting}
                       style={{
                         width: '100%', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
-                        border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-color)', fontSize: '0.9rem',
+                        border: 'none', background: 'none', cursor: isExporting ? 'not-allowed' : 'pointer', color: 'var(--text-color)', fontSize: '0.9rem',
                         transition: 'background-color 0.15s', borderBottom: '1px solid var(--border-color)',
+                        opacity: isExporting ? 0.6 : 1
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 0, 254), 0.06)')}
+                      onMouseEnter={e => !isExporting && (e.currentTarget.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 0, 254), 0.06)')}
                       onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                     >
                       <div style={{
                         width: '36px', height: '36px', borderRadius: '8px',
                         backgroundColor: 'rgba(239, 68, 68, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444',
                       }}>
-                        <FileText size={18} />
+                        {isExporting ? <Loader className="animate-spin" size={18} /> : <FileText size={18} />}
                       </div>
                       <div style={{ textAlign: 'left' }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>PDF</div>
-                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Documento formatado</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{isExporting ? 'Gerando...' : 'PDF'}</div>
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{isExporting ? 'Aguarde um momento' : 'Documento formatado'}</div>
                       </div>
                     </button>
                     <button
                       onClick={handleExportExcel}
+                      disabled={isExporting}
                       style={{
                         width: '100%', padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem',
-                        border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-color)', fontSize: '0.9rem',
+                        border: 'none', background: 'none', cursor: isExporting ? 'not-allowed' : 'pointer', color: 'var(--text-color)', fontSize: '0.9rem',
                         transition: 'background-color 0.15s',
+                        opacity: isExporting ? 0.6 : 1
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 0, 254), 0.06)')}
+                      onMouseEnter={e => !isExporting && (e.currentTarget.style.backgroundColor = 'rgba(var(--primary-rgb, 0, 0, 254), 0.06)')}
                       onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                     >
                       <div style={{
                         width: '36px', height: '36px', borderRadius: '8px',
                         backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981',
                       }}>
-                        <FileSpreadsheet size={18} />
+                        {isExporting ? <Loader className="animate-spin" size={18} /> : <FileSpreadsheet size={18} />}
                       </div>
                       <div style={{ textAlign: 'left' }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>Excel</div>
-                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Planilha editável</div>
+                        <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{isExporting ? 'Gerando...' : 'Excel'}</div>
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{isExporting ? 'Aguarde um momento' : 'Planilha editável'}</div>
                       </div>
                     </button>
                   </div>
@@ -631,29 +676,82 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-        <div className="card" style={{ flex: '1 1 140px', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+        <div 
+          onClick={() => setActiveFilter('all')}
+          className="card" 
+          style={{ 
+            padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
+            border: activeFilter === 'all' ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
+            transform: activeFilter === 'all' ? 'translateY(-2px)' : 'none',
+            transition: 'all 0.2s'
+          }}
+        >
           <div style={{
             width: '40px', height: '40px', borderRadius: '10px',
             backgroundColor: 'rgba(37, 99, 235, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)',
           }}>
             <Users size={20} />
           </div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.length}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Membros</div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--primary-color)', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+            <span>FILTRAR</span>
+            <ChevronRight size={10} />
           </div>
         </div>
-        <div className="card" style={{ flex: '1 1 140px', padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+
+        <div 
+          onClick={() => setActiveFilter('confirmed')}
+          className="card" 
+          style={{ 
+            padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
+            border: activeFilter === 'confirmed' ? '2px solid #10b981' : '1px solid var(--border-color)',
+            transform: activeFilter === 'confirmed' ? 'translateY(-2px)' : 'none',
+            transition: 'all 0.2s'
+          }}
+        >
+          <div style={{
+            width: '40px', height: '40px', borderRadius: '10px',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981',
+          }}>
+            <CheckCircle size={20} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.filter(m => m.dados_confirmados).length}</div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Confirmados</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#10b981', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+            <span>FILTRAR</span>
+            <ChevronRight size={10} />
+          </div>
+        </div>
+
+        <div 
+          onClick={() => setActiveFilter('pending')}
+          className="card" 
+          style={{ 
+            padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
+            border: activeFilter === 'pending' ? '2px solid #f59e0b' : '1px solid var(--border-color)',
+            transform: activeFilter === 'pending' ? 'translateY(-2px)' : 'none',
+            transition: 'all 0.2s'
+          }}
+        >
           <div style={{
             width: '40px', height: '40px', borderRadius: '10px',
             backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b',
           }}>
-            <Shield size={20} />
+            <AlertCircle size={20} />
           </div>
-          <div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.filter(m => m.coordenador).length}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Coordenadores</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.filter(m => !m.dados_confirmados).length}</div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Pendentes</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#f59e0b', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+            <span>FILTRAR</span>
+            <ChevronRight size={10} />
           </div>
         </div>
       </div>
@@ -670,7 +768,7 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {members.map((m) => {
+          {displayedMembers.map((m: EquipeMember) => {
             const p = m.pessoas;
             const address = [p.endereco, p.numero, p.bairro, p.cidade, p.estado]
               .map(v => v?.trim())
@@ -770,6 +868,24 @@ export function CoordenadorMinhaEquipePage() {
                       title="Editar Dados"
                     >
                       <Pencil size={18} />
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(m)}
+                      className="btn-icon"
+                      style={{
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        color: '#ef4444',
+                        padding: '0.5rem',
+                        borderRadius: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '32px',
+                        height: '32px'
+                      }}
+                      title="Desvincular Integrante"
+                    >
+                      <UserX size={18} />
                     </button>
                   </div>
                 </div>
@@ -1068,7 +1184,7 @@ export function CoordenadorMinhaEquipePage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {m.recreacao_dados.map(c => (
+                            {m.recreacao_dados.map((c: RecreacaoDados) => (
                               <tr key={c.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                                 <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{c.nome_crianca}</td>
                                 <td style={{ padding: '0.4rem 0.25rem' }}>{c.idade}a</td>
@@ -1106,6 +1222,17 @@ export function CoordenadorMinhaEquipePage() {
         participacaoId={recreacaoParticipacaoId || ''}
         participanteNome={recreacaoParticipanteNome}
         encontroId={userParticipacao?.encontro_id || ''}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Desvincular Integrante"
+        message={`Deseja realmente remover ${deleteTarget?.pessoas?.nome_completo} desta equipe e do encontro?`}
+        onConfirm={handleDeleteMember}
+        onCancel={() => setDeleteTarget(null)}
+        confirmText="Desvincular"
+        isDestructive={true}
+        isLoading={isConfirmingDelete}
       />
     </>
   );

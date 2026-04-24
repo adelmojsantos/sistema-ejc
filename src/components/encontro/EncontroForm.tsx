@@ -50,6 +50,12 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
         if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const erros = validate(form);
@@ -67,7 +73,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
     };
 
     return (
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} noValidate>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '2.5rem' }}>
                 <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>{title}</h2>
 

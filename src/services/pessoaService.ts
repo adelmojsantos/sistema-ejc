@@ -129,4 +129,14 @@ export const pessoaService = {
         if (error) throw error;
         return data as Pessoa[];
     },
+
+    async buscarNomesPorEmails(emails: string[]): Promise<{ email: string, nome_completo: string }[]> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('email, nome_completo')
+            .in('email', emails);
+
+        if (error) throw error;
+        return data || [];
+    },
 };

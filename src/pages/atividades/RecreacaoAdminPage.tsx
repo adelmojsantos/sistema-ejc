@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useDebounce } from '../../hooks/useDebounce';
 import { useNavigate } from 'react-router-dom';
 import {
   Baby,
@@ -37,6 +38,7 @@ export function RecreacaoAdminPage() {
   const [registros, setRegistros] = useState<RecreacaoDados[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 400);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -94,15 +96,19 @@ export function RecreacaoAdminPage() {
     setIsModalOpen(true);
   };
 
-  const filteredRegistros = registros.filter(r => {
-    const term = searchTerm.toLowerCase();
-    const kidName = r.nome_crianca?.toLowerCase() || '';
-    const resp1 = r.participacoes?.pessoas?.nome_completo?.toLowerCase() || '';
-    const resp2 = r.outro_responsavel?.pessoas?.nome_completo?.toLowerCase() || '';
-    const equipe1 = r.participacoes?.equipes?.nome?.toLowerCase() || '';
+  const filteredRegistros = useMemo(() => {
+    const term = debouncedSearch.toLowerCase().trim();
+    if (!term) return registros;
 
-    return kidName.includes(term) || resp1.includes(term) || resp2.includes(term) || equipe1.includes(term);
-  });
+    return registros.filter(r => {
+      const kidName = r.nome_crianca?.toLowerCase() || '';
+      const resp1 = r.participacoes?.pessoas?.nome_completo?.toLowerCase() || '';
+      const resp2 = r.outro_responsavel?.pessoas?.nome_completo?.toLowerCase() || '';
+      const equipe1 = r.participacoes?.equipes?.nome?.toLowerCase() || '';
+
+      return kidName.includes(term) || resp1.includes(term) || resp2.includes(term) || equipe1.includes(term);
+    });
+  }, [registros, debouncedSearch]);
 
   return (
     <div className="fade-in">
@@ -141,19 +147,37 @@ export function RecreacaoAdminPage() {
 
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Buscar Criança ou Responsável</label>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <Search size={18} style={{ position: 'absolute', left: '12px', opacity: 0.4 }} />
+            <div className="form-input-wrapper">
+              <div className="form-input-icon">
+                <Search size={16} />
+              </div>
               <input
                 type="text"
-                className="form-input"
+                className="form-input form-input--with-icon"
                 placeholder="Criança, pai/mãe, equipe..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ paddingLeft: '2.5rem', width: '100%' }}
               />
               {searchTerm && (
-                <button onClick={() => setSearchTerm('')} style={{ position: 'absolute', right: '10px', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5 }}>
-                  <X size={16} />
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  style={{
+                    position: 'absolute',
+                    right: '0.6rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--muted-text)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0.2rem',
+                  }}
+                  title="Limpar busca"
+                >
+                  <X size={14} />
                 </button>
               )}
             </div>

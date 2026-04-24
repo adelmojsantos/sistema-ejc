@@ -81,7 +81,13 @@ export default function FormRecreacaoPage() {
     loadInitialData();
   }, [session]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session?.participacao_id) return;
 
@@ -341,7 +347,7 @@ export default function FormRecreacaoPage() {
               {editingId ? 'Editar Criança' : 'Cadastrar Criança'}
             </h2>
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
               <FormField
                 label="Nome da Criança"
                 required

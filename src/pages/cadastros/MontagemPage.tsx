@@ -11,7 +11,6 @@ import type { InscricaoEnriched } from '../../types/inscricao';
 import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
 import { pessoaService } from '../../services/pessoaService';
-import { normalizeString } from '../../utils/stringUtils';
 import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
@@ -30,7 +29,7 @@ export function MontagemPage() {
     const [encontros, setEncontros] = useState<Encontro[]>([]);
     const [equipes, setEquipes] = useState<Equipe[]>([]);
     const [inscricoes, setInscricoes] = useState<InscricaoEnriched[]>([]); // Membros persistidos
-    const [pessoas, setPessoas] = useState<Pessoa[]>([]); // Para busca
+    const [searchResults, setSearchResults] = useState<(Pessoa & { equipeAtual?: string, noStaging?: boolean })[]>([]); // Para busca
 
     const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
     const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
@@ -42,6 +41,7 @@ export function MontagemPage() {
     const [staging, setStaging] = useState<StagedMembro[]>([]); // Novos para salvar
 
     const [isFetching, setIsFetching] = useState(true);
+    const [isSearching, setIsSearching] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isSavingPerson, setIsSavingPerson] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<InscricaoEnriched | null>(null);
@@ -53,14 +53,12 @@ export function MontagemPage() {
     useEffect(() => {
         async function loadBaseData() {
             try {
-                const [es, eqs, ps] = await Promise.all([
+                const [es, eqs] = await Promise.all([
                     encontroService.listar(),
-                    equipeService.listar(),
-                    pessoaService.listar()
+                    equipeService.listar()
                 ]);
                 setEncontros(es);
                 setEquipes(eqs);
-                setPessoas(ps);
                 if (es.length > 0) setSelectedEncontroId(es[es.length - 1].id);
             } finally {
                 setIsFetching(false);
@@ -87,8 +85,24 @@ export function MontagemPage() {
     // Derived Data
     const membrosSalvos = useMemo(() => {
         if (!selectedEquipeId) return [];
-        return inscricoes.filter(i => i.equipe_id === selectedEquipeId);
+        return inscricoes
+            .filter(i => i.equipe_id === selectedEquipeId)
+            .sort((a, b) => {
+                if (a.coordenador && !b.coordenador) return -1;
+                if (!a.coordenador && b.coordenador) return 1;
+                const nomeA = a.pessoas?.nome_completo || '';
+                const nomeB = b.pessoas?.nome_completo || '';
+                return nomeA.localeCompare(nomeB);
+            });
     }, [inscricoes, selectedEquipeId]);
+
+    const stagingSorted = useMemo(() => {
+        return [...staging].sort((a, b) => {
+            if (a.coordenador && !b.coordenador) return -1;
+            if (!a.coordenador && b.coordenador) return 1;
+            return a.nome_completo.localeCompare(b.nome_completo);
+        });
+    }, [staging]);
 
     const equipeCounts = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -97,30 +111,46 @@ export function MontagemPage() {
                 counts[i.equipe_id] = (counts[i.equipe_id] || 0) + 1;
             }
         });
+        const countsWithoutStaging = { ...counts };
         // Adiciona contagem do staging
         if (selectedEquipeId) { // Only count staging for the currently selected team
             counts[selectedEquipeId] = (counts[selectedEquipeId] || 0) + staging.length;
         }
-        return counts;
+        return { withStaging: counts, withoutStaging: countsWithoutStaging };
     }, [inscricoes, staging, selectedEquipeId]);
 
-    // Filtragem de busca de pessoas
-    const searchResults = useMemo(() => {
-        if (searchPessoa.length < 2) return [];
-        const q = normalizeString(searchPessoa);
+    // Busca de pessoas (debounced)
+    useEffect(() => {
+        if (searchPessoa.length < 2) {
+            setSearchResults([]);
+            return;
+        }
 
-        // Mapear quem já está no encontro para saber a equipe
-        const inscricoesMap = new Map(inscricoes.map(i => [i.pessoa_id, i.equipes?.nome || 'Outra equipe']));
-        const jaNoStagingIds = new Set(staging.map(s => s.pessoa_id));
+        const handler = setTimeout(async () => {
+            setIsSearching(true);
+            try {
+                const { data } = await pessoaService.buscarComPaginacao(searchPessoa, 1, 20);
+                
+                // Mapear quem já está no encontro para saber a equipe
+                const inscricoesMap = new Map(inscricoes.map(i => [i.pessoa_id, i.equipes?.nome || 'Outra equipe']));
+                const jaNoStagingIds = new Set(staging.map(s => s.pessoa_id));
 
-        return pessoas
-            .filter(p => normalizeString(p.nome_completo).includes(q) || (p.cpf && p.cpf.includes(q)))
-            .map(p => ({
-                ...p,
-                equipeAtual: inscricoesMap.get(p.id),
-                noStaging: jaNoStagingIds.has(p.id)
-            }));
-    }, [searchPessoa, pessoas, inscricoes, staging]);
+                const enrichedResults = data.map(p => ({
+                    ...p,
+                    equipeAtual: inscricoesMap.get(p.id),
+                    noStaging: jaNoStagingIds.has(p.id)
+                }));
+
+                setSearchResults(enrichedResults);
+            } catch (error) {
+                console.error("Erro na busca:", error);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(handler);
+    }, [searchPessoa, inscricoes, staging]);
 
     // Handlers
     const addToStaging = (p: Pessoa) => {
@@ -142,12 +172,10 @@ export function MontagemPage() {
         setStaging(prev => prev.map(s => s.pessoa_id === pessoa_id ? { ...s, coordenador: !s.coordenador } : s));
     };
 
-    const handleQuickAddPerson = async (data: PessoaFormData) => {
+    const handleQuickAddPerson = async (formData: PessoaFormData) => {
         setIsSavingPerson(true);
         try {
-            const newPerson = await pessoaService.criar(data);
-            // Adiciona nova pessoa aos dados locais para que a busca funcione se necessário
-            setPessoas(prev => [...prev, newPerson]);
+            const newPerson = await pessoaService.criar(formData);
             // Adiciona direto ao staging
             addToStaging(newPerson);
             setShowQuickAddPerson(false);
@@ -233,16 +261,82 @@ export function MontagemPage() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const selectedEquipe = useMemo(() => equipes.find(e => e.id === selectedEquipeId), [equipes, selectedEquipeId]);
+
     if (isFetching && encontros.length === 0) return <div className="empty-state">Carregando dados...</div>;
 
     return (
-        <div className="container" style={{ paddingBottom: '2rem' }}>
+        <div className="container montagem-container" style={{ paddingBottom: '2rem' }}>
+            <style>{`
+                .montagem-main-grid {
+                    display: grid; 
+                    grid-template-columns: 280px 1fr; 
+                    gap: 2rem; 
+                    margin-top: 1.5rem;
+                }
+
+                .mobile-team-selector {
+                    display: none;
+                    margin-bottom: 1.5rem;
+                }
+
+                .team-summary-line {
+                    display: none;
+                    padding: 0.75rem 1rem;
+                    background: var(--secondary-bg);
+                    border-radius: 8px;
+                    border: 1px solid var(--border-color);
+                    margin-bottom: 1rem;
+                    font-size: 0.9rem;
+                    align-items: center;
+                    gap: 0.5rem;
+                    flex-wrap: wrap;
+                }
+
+                @media (max-width: 1024px) {
+                    .montagem-main-grid {
+                        grid-template-columns: 1fr;
+                        gap: 1rem;
+                    }
+                    
+                    .desktop-sidebar {
+                        display: none;
+                    }
+
+                    .mobile-team-selector {
+                        display: block;
+                    }
+
+                    .team-summary-line {
+                        justify-content: center;
+                        text-align: center;
+                    }
+
+                    .pessoa-row {
+                        flex-direction: column;
+                        align-items: flex-start !important;
+                        gap: 1rem !important;
+                        padding: 1rem !important;
+                    }
+
+                    .pessoa-row-main {
+                        width: 100%;
+                    }
+
+                    .pessoa-row > div:last-child {
+                        width: 100%;
+                        justify-content: space-between;
+                        padding-top: 0.5rem;
+                        border-top: 1px solid var(--border-color);
+                    }
+                }
+            `}</style>
             <div className="page-header" style={{ marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <button onClick={() => navigate('/cadastros')} className="icon-btn" title="Voltar"><ChevronLeft size={18} /></button>
                     <div>
                         <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Equipes por Encontro</p>
-                        <div style={{ width: '300px' }}>
+                        <div style={{ width: '100%', maxWidth: '300px' }}>
                             <LiveSearchSelect<Encontro>
                                 value={selectedEncontroId}
                                 onChange={(val) => setSelectedEncontroId(val)}
@@ -265,9 +359,9 @@ export function MontagemPage() {
                 )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '2rem', marginTop: '1.5rem' }}>
+            <div className="montagem-main-grid" style={{ marginTop: '1.5rem' }}>
                 {/* Sidebar: Equipes */}
-                <aside>
+                <aside className="desktop-sidebar">
                     <div className="card" style={{ padding: '0.5rem' }}>
                         <h3 style={{ padding: '1rem', margin: 0, fontSize: '1rem', borderBottom: '1px solid var(--border-color)' }}>
                             <Shield size={16} style={{ marginRight: '0.5rem' }} /> Equipes
@@ -297,7 +391,7 @@ export function MontagemPage() {
                                         padding: '2px 8px',
                                         borderRadius: '10px'
                                     }}>
-                                        {equipeCounts[eq.id] || 0}
+                                        {equipeCounts.withStaging[eq.id] || 0}
                                     </span>
                                 </div>
                             ))}
@@ -307,6 +401,33 @@ export function MontagemPage() {
 
                 {/* Main: Membros da Equipe */}
                 <main>
+                    {/* Seletor Mobile */}
+                    <div className="mobile-team-selector">
+                        <select 
+                            className="form-input"
+                            value={selectedEquipeId}
+                            onChange={(e) => { setSelectedEquipeId(e.target.value); setStaging([]); setSearchPessoa(''); }}
+                        >
+                            <option value="">Selecione uma equipe...</option>
+                            {equipes.map(eq => (
+                                <option key={eq.id} value={eq.id}>
+                                    {eq.nome} ({equipeCounts.withoutStaging[eq.id] || 0})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {selectedEquipeId && (
+                        <div className="team-summary-line fade-in">
+                            <Shield size={16} className="text-primary" />
+                            <span>
+                                <strong>Equipe:</strong> {selectedEquipe?.nome}
+                            </span>
+                            <span style={{ opacity: 0.7, fontSize: '0.8rem', marginLeft: 'auto' }}>
+                                {equipeCounts.withoutStaging[selectedEquipeId] || 0} membros confirmados
+                            </span>
+                        </div>
+                    )}
                     {!selectedEquipeId ? (
                         <div className="empty-state card">
                             <Shield size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
@@ -332,7 +453,12 @@ export function MontagemPage() {
                                         position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
                                         marginTop: '0.5rem', maxHeight: '300px', overflowY: 'auto'
                                     }}>
-                                        {searchResults.length === 0 ? (
+                                        {isSearching ? (
+                                            <div style={{ padding: '2rem', textAlign: 'center' }}>
+                                                <Loader size={24} className="animate-spin" style={{ margin: '0 auto', opacity: 0.3 }} />
+                                                <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', opacity: 0.5 }}>Buscando...</p>
+                                            </div>
+                                        ) : searchResults.length === 0 ? (
                                             <div style={{ padding: '1.5rem', textAlign: 'center' }}>
                                                 <p style={{ opacity: 0.5, marginBottom: '1rem' }}>Ninguém disponível com este nome</p>
                                                 <button
@@ -418,7 +544,7 @@ export function MontagemPage() {
                                 ) : (
                                     <div className="pessoa-list">
                                         {/* Membros em Staging (Não salvos) */}
-                                        {staging.map(s => (
+                                        {stagingSorted.map(s => (
                                             <div key={s.pessoa_id} className="pessoa-row" style={{ borderBottom: '1px solid var(--border-color)', borderRadius: 0, background: 'rgba(245, 158, 11, 0.05)', borderLeft: '4px solid #f59e0b' }}>
                                                 <div className="pessoa-row-main" style={{ flex: 1 }}>
                                                     <div className="pessoa-avatar small" style={{ backgroundColor: s.coordenador ? '#367910ff' : '#f59e0b', color: 'white' }}>

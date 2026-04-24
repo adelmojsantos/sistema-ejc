@@ -14,6 +14,7 @@ interface PessoaFormProps {
     onCancel: () => void;
     isLoading?: boolean;
     requireBirthDate?: boolean;
+    requireFezEjc?: boolean;
     isConfirmationContext?: boolean;
 }
 
@@ -32,7 +33,7 @@ function formatCep(value: string): string {
     return value.replace(/\D/g, '').slice(0, 8).replace(/(\d{5})(\d{0,3})/, '$1-$2');
 }
 
-function validate(data: PessoaFormData, requireBirthDate: boolean = false): FormErrors {
+function validate(data: PessoaFormData, requireBirthDate: boolean = false, requireFezEjc: boolean = false): FormErrors {
     const errors: FormErrors = {};
 
     if (!data.nome_completo.trim()) errors.nome_completo = 'Nome completo é obrigatório.';
@@ -56,7 +57,7 @@ function validate(data: PessoaFormData, requireBirthDate: boolean = false): Form
         errors.data_nascimento = 'Data de nascimento é obrigatória.';
     }
 
-    if (data.fez_ejc_outra_paroquia === null) {
+    if (requireFezEjc && data.fez_ejc_outra_paroquia === null) {
         errors.fez_ejc_outra_paroquia = 'Selecione uma opção.';
     }
 
@@ -67,7 +68,7 @@ function validate(data: PessoaFormData, requireBirthDate: boolean = false): Form
     return errors;
 }
 
-export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false, requireBirthDate = false, isConfirmationContext = false }: PessoaFormProps) {
+export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false, requireBirthDate = false, requireFezEjc = false, isConfirmationContext = false }: PessoaFormProps) {
     const [form, setForm] = useState<PessoaFormData>({
         nome_completo: initialData?.nome_completo ?? '',
         cpf: initialData?.cpf ? formatCpf(initialData.cpf) : '',
@@ -85,7 +86,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
         telefone_pai: initialData?.telefone_pai ? formatTelefone(initialData.telefone_pai) : '',
         telefone_mae: initialData?.telefone_mae ? formatTelefone(initialData.telefone_mae) : '',
         outros_contatos: initialData?.outros_contatos ?? '',
-        fez_ejc_outra_paroquia: initialData?.fez_ejc_outra_paroquia ?? null,
+        fez_ejc_outra_paroquia: initialData?.fez_ejc_outra_paroquia ?? (requireFezEjc ? null : false),
         qual_paroquia_ejc: initialData?.qual_paroquia_ejc ?? '',
         // Preserve existing geolocation — never overwrite with undefined
         latitude: initialData?.latitude ?? null,
@@ -97,7 +98,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<FormErrors>({});
 
-    const handleChange = (field: keyof PessoaFormData, value: string | boolean) => {
+    const handleChange = (field: keyof PessoaFormData, value: string | boolean | null) => {
         let formatted = value;
         if (typeof value === 'string') {
             if (field === 'cpf') formatted = formatCpf(value);
@@ -136,9 +137,15 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
         }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const erros = validate(form, requireBirthDate);
+        const erros = validate(form, requireBirthDate, requireFezEjc);
         if (Object.keys(erros).length > 0) {
             setErrors(erros);
             return;
@@ -178,7 +185,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
     };
 
     return (
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} noValidate>
             <FormSection title="Dados Pessoais" icon={<User size={18} />}>
                 <FormRow>
                     <FormField
@@ -315,12 +322,12 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                 <FormRow>
                     <div className="col-12">
                         <RadioGroup
-                            label="Já fez EJC em outra paróquia?"
-                            value={form.fez_ejc_outra_paroquia ?? false}
+                            label={`Já fez EJC em outra paróquia? ${requireFezEjc ? '*' : ''}`}
+                            value={form.fez_ejc_outra_paroquia}
                             onChange={(val) => handleChange('fez_ejc_outra_paroquia', val)}
                             options={[
                                 { label: 'Não Fiz EJC', value: false },
-                                { label: 'Sim, fiz EJC em Outra Paróquia', value: true }
+                                { label: 'Sim, já fiz EJC em Outra Paróquia', value: true }
                             ]}
                             error={errors.fez_ejc_outra_paroquia}
                         />
@@ -405,18 +412,18 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
             </FormSection>
 
             <div className="form-actions">
-                <button type="button" className="btn-cancel" onClick={onCancel} disabled={isLoading}>
-                    <X size={16} />
+                <button type="button" className="btn-cancel" onClick={onCancel} disabled={isLoading} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                    <X size={18} />
                     Cancelar
                 </button>
-                <button type="submit" disabled={isLoading || isSubmitting}>
+                <button type="submit" disabled={isLoading || isSubmitting} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                     {isLoading || isSubmitting ? (
-                        <><Loader size={16} className="animate-spin" /> Salvando...</>
+                        <><Loader size={18} className="animate-spin" /> Salvando...</>
                     ) : (
-                        <>
-                            <Check size={16} />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', gap: '0.5rem' }}>
+                            <Check size={18} />
                             {isConfirmationContext ? 'Salvar e Confirmar Dados' : 'Salvar Alterações'}
-                        </>
+                        </div>
                     )}
                 </button>
             </div>

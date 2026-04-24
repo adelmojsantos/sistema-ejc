@@ -14,6 +14,7 @@ import { maskCpf } from '../utils/cpfUtils';
 import type { Encontro } from '../types/encontro';
 import type { Pessoa, PessoaFormData } from '../types/pessoa';
 import type { PreCadastroEntry } from '../types/preCadastro';
+import { calculateAge } from '../utils/dateUtils';
 
 export function InscricaoPage() {
   const navigate = useNavigate();
@@ -36,6 +37,8 @@ export function InscricaoPage() {
   const [selectedPreCadastro, setSelectedPreCadastro] = useState<PreCadastroEntry | null>(null);
   const [pessoaFormKey, setPessoaFormKey] = useState(0);
   const [initialFormData, setInitialFormData] = useState<Partial<PessoaFormData> | undefined>(undefined);
+  const [showAgeModal, setShowAgeModal] = useState(false);
+  const [userAge, setUserAge] = useState<number | null>(null);
 
   useEffect(() => {
     const loadEncontros = async () => {
@@ -86,6 +89,18 @@ export function InscricaoPage() {
   const handleSubmit = async (data: PessoaFormData) => {
     setIsSaving(true);
     try {
+      // 0. Verificar idade (Mínimo 15 anos na data do encontro)
+      const encontro = encontros.find(e => e.id === selectedEncontroId);
+      if (encontro && data.data_nascimento) {
+        const age = calculateAge(data.data_nascimento, encontro.data_inicio);
+        if (age !== null && age < 15) {
+          setUserAge(age);
+          setShowAgeModal(true);
+          setIsSaving(false);
+          return;
+        }
+      }
+
       // 1. Verificar semelhança
       const matches = await pessoaService.buscarPorSemelhanca(data.nome_completo, data.cpf);
 
@@ -346,6 +361,7 @@ export function InscricaoPage() {
               isLoading={isSaving}
               initialData={initialFormData}
               requireBirthDate={true}
+              requireFezEjc={true}
             />
           </div>
         </div>
@@ -439,6 +455,38 @@ export function InscricaoPage() {
             )}
           </div>
         }
+      />
+      <ConfirmDialog
+        isOpen={showAgeModal}
+        title="Idade não permitida"
+        message={
+          <div style={{ textAlign: 'center' }}>
+            <AlertTriangle size={48} color="#f59e0b" style={{ marginBottom: '1rem' }} />
+            <p style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.5rem' }}>
+              Este jovem tem apenas {userAge} anos.
+            </p>
+            <p style={{ opacity: 0.8 }}>
+              Para participar do EJC, é necessário ter <strong>15 anos ou mais</strong> na data do encontro.
+            </p>
+            <p style={{ marginTop: '1rem', fontSize: '0.9rem' }}>
+              O cadastro não será realizado. Por favor, aguarde os próximos encontros.
+            </p>
+          </div>
+        }
+        confirmText="Entendi"
+        onConfirm={() => {
+          setShowAgeModal(false);
+          // Reinicia o cadastro
+          setSelectedPreCadastro(null);
+          setInitialFormData(undefined);
+          setPessoaFormKey(prev => prev + 1);
+        }}
+        onCancel={() => {
+          setShowAgeModal(false);
+          setSelectedPreCadastro(null);
+          setInitialFormData(undefined);
+          setPessoaFormKey(prev => prev + 1);
+        }}
       />
     </>
   );

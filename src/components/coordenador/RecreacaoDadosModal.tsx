@@ -107,7 +107,13 @@ export function RecreacaoDadosModal({
     if (picked) setCurrentParticipant(picked);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentParticipacaoId) return;
     setSaving(true);
@@ -265,7 +271,7 @@ export function RecreacaoDadosModal({
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Baby size={20} color="var(--primary-color)" />
             {editingId ? 'Editar Criança' : 'Nova Criança'}

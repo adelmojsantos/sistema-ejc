@@ -9,11 +9,15 @@ import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, 
 import type { Encontro } from '../../types/encontro';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import { useDebounce } from '../../hooks/useDebounce';
 import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { geocodeWithFallback } from '../../utils/geocoding';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { calculateAge } from '../../utils/dateUtils';
+import { formatTelefone } from '../../utils/cpfUtils';
 
 type GeoItemStatus = 'pending' | 'processing' | 'success' | 'error' | 'skipped';
 
@@ -24,13 +28,6 @@ interface GeoProgressItem {
   message?: string;
 }
 
-function formatTelefone(tel: string | null | undefined) {
-  if (!tel) return '—';
-  const d = tel.replace(/\D/g, '');
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return tel;
-}
 
 export function SecretariaParticipantesPage() {
   const { setIsLoading: setGlobalLoading } = useLoading();
@@ -47,9 +44,11 @@ export function SecretariaParticipantesPage() {
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 400);
   const [pendingGeoCount, setPendingGeoCount] = useState(0);
   const [geoProgressItems, setGeoProgressItems] = useState<GeoProgressItem[]>([]);
   const [geoDone, setGeoDone] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const progressListRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,20 +92,32 @@ export function SecretariaParticipantesPage() {
     loadParticipantes();
   }, [selectedEncontroId, loadParticipantes]);
 
-  const filteredParticipantes = participantes.filter(p => {
-    const term = searchTerm.toLowerCase();
+  const filteredParticipantes = React.useMemo(() => {
+    const term = debouncedSearch.toLowerCase().trim();
+    if (!term) {
+      return [...participantes].sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
+    }
+
     const normalize = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
-    const termDigits = normalize(searchTerm);
+    const termDigits = normalize(term);
 
-    const matchNome = p.pessoas?.nome_completo?.toLowerCase().includes(term);
-    const matchCpf = p.pessoas?.cpf && (p.pessoas.cpf.includes(term) || (termDigits && normalize(p.pessoas.cpf).includes(termDigits)));
-    const matchEmail = p.pessoas?.email?.toLowerCase().includes(term);
-    const matchTelefone = p.pessoas?.telefone && normalize(p.pessoas.telefone).includes(termDigits);
-    const matchComunidade = p.pessoas?.comunidade?.toLowerCase().includes(term);
-    const matchBairro = p.pessoas?.bairro?.toLowerCase().includes(term);
+    return participantes
+      .filter(p => {
+        const pData = p.pessoas;
+        if (!pData) return false;
 
-    return matchNome || matchCpf || matchEmail || matchTelefone || matchComunidade || matchBairro;
-  }).sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
+        const matchNome = pData.nome_completo?.toLowerCase().includes(term);
+        const matchCpf = pData.cpf && (pData.cpf.includes(term) || (termDigits && normalize(pData.cpf).includes(termDigits)));
+        const matchEmail = pData.email?.toLowerCase().includes(term);
+        const matchTelefone = pData.telefone && ((termDigits && normalize(pData.telefone).includes(termDigits)) || pData.telefone.includes(term));
+        const matchComunidade = pData.comunidade?.toLowerCase().includes(term);
+        const matchBairro = pData.bairro?.toLowerCase().includes(term);
+        const matchCidade = pData.cidade?.toLowerCase().includes(term);
+
+        return !!(matchNome || matchCpf || matchEmail || matchTelefone || matchComunidade || matchBairro || matchCidade);
+      })
+      .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
+  }, [participantes, debouncedSearch]);
 
   const selectedEncontro = encontros.find(e => e.id === selectedEncontroId);
 
@@ -213,28 +224,94 @@ export function SecretariaParticipantesPage() {
   };
 
   const getExportData = () => {
-    return filteredParticipantes.map((p, idx) => ({
-      '#': idx + 1,
-      'Nome Completo': p.pessoas?.nome_completo || '—',
-      'Telefone': formatTelefone(p.pessoas?.telefone),
-      'Comunidade': p.pessoas?.comunidade || '—',
-      'Bairro': p.pessoas?.bairro || '—',
-      'Cidade': p.pessoas?.cidade || '—',
-    }));
+    return filteredParticipantes.map((p, idx) => {
+      const pData = p.pessoas;
+      const origem = p.origem || pData?.origem || '—';
+      const origemTexto = origem === 'online' ? 'Online' : (origem !== '—' ? 'Presencial' : '—');
+      
+      return {
+        '#': idx + 1,
+        'Nome Completo': pData?.nome_completo || '—',
+        'Data de Nascimento': pData?.data_nascimento ? new Date(pData.data_nascimento.includes('T') ? pData.data_nascimento : `${pData.data_nascimento}T12:00:00`).toLocaleDateString('pt-BR') : '—',
+        'Idade': calculateAge(pData?.data_nascimento) || '—',
+        'Telefone': formatTelefone(pData?.telefone),
+        'Logradouro': pData?.endereco || '—',
+        'Número': pData?.numero || '—',
+        'Bairro': pData?.bairro || '—',
+        'Cidade': pData?.cidade || '—',
+        'Estado': pData?.estado || '—',
+        'CEP': pData?.cep || '—',
+        'Comunidade': pData?.comunidade || '—',
+        'Origem': origemTexto,
+      };
+    });
   };
 
   const handleExportPDF = async () => {
-    const data = getExportData();
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    doc.setFontSize(16);
-    doc.text(`Participantes: ${selectedEncontro?.nome || 'Encontro'}`, 14, 18);
-    autoTable(doc, {
-      head: [['#', 'Nome Completo', 'Telefone', 'Comunidade', 'Bairro', 'Cidade']],
-      body: data.map(d => [d['#'], d['Nome Completo'], d['Telefone'], d['Comunidade'], d['Bairro'], d['Cidade']]),
-      startY: 25,
-    });
-    doc.save(`participantes_${selectedEncontro?.nome || 'encontro'}.pdf`);
-    setShowExportMenu(false);
+    setIsExporting(true);
+    try {
+      const data = getExportData();
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      
+      doc.setFontSize(16);
+      doc.text(`Participantes: ${selectedEncontro?.nome || 'Encontro'}`, 14, 18);
+      
+      autoTable(doc, {
+        head: [['#', 'Nome', 'Nasc.', 'Idade', 'Telefone', 'Endereço', 'Bairro', 'Cidade', 'Origem']],
+        body: data.map(d => [
+          d['#'], 
+          d['Nome Completo'], 
+          d['Data de Nascimento'], 
+          d['Idade'], 
+          d['Telefone'], 
+          `${d['Logradouro']}${d['Número'] !== '—' ? `, ${d['Número']}` : ''}`, 
+          d['Bairro'], 
+          d['Cidade'],
+          d['Origem']
+        ]),
+        startY: 25,
+        styles: { fontSize: 8 },
+        columnStyles: {
+          1: { cellWidth: 50 }, // Nome
+          5: { cellWidth: 50 }, // Endereço
+        }
+      });
+      
+      doc.save(`participantes_${selectedEncontro?.nome || 'encontro'}.pdf`);
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error);
+      toast.error('Erro ao gerar PDF.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const data = getExportData();
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Participantes');
+      
+      // Auto-size columns
+      const maxWidths = Object.keys(data[0] || {}).map(key => {
+        return Math.max(
+          key.length,
+          ...data.map(row => String(row[key as keyof typeof row]).length)
+        );
+      });
+      worksheet['!cols'] = maxWidths.map(w => ({ wch: w + 2 }));
+
+      XLSX.writeFile(workbook, `participantes_${selectedEncontro?.nome || 'encontro'}.xlsx`);
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro ao exportar Excel:', error);
+      toast.error('Erro ao gerar planilha.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -300,18 +377,30 @@ export function SecretariaParticipantesPage() {
                       <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-color)', opacity: 0.5, fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
                         Exportar como
                       </div>
-                      <button onClick={handleExportPDF} className="dropdown-item-custom">
-                        <div className="icon-box-pdf"><FileText size={18} /></div>
+                      <button 
+                        onClick={handleExportPDF} 
+                        className="dropdown-item-custom"
+                        disabled={isExporting}
+                      >
+                        <div className="icon-box-pdf">
+                          {isExporting ? <Loader size={18} className="animate-spin" /> : <FileText size={18} />}
+                        </div>
                         <div style={{ textAlign: 'left' }}>
                           <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>PDF</div>
-                          <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Documento formatado</div>
+                          <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{isExporting ? 'Gerando...' : 'Documento formatado'}</div>
                         </div>
                       </button>
-                      <button className="dropdown-item-custom">
-                        <div className="icon-box-excel"><FileSpreadsheet size={18} /></div>
+                      <button 
+                        onClick={handleExportExcel} 
+                        className="dropdown-item-custom"
+                        disabled={isExporting}
+                      >
+                        <div className="icon-box-excel">
+                          {isExporting ? <Loader size={18} className="animate-spin" /> : <FileSpreadsheet size={18} />}
+                        </div>
                         <div style={{ textAlign: 'left' }}>
                           <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>Excel</div>
-                          <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Planilha editável</div>
+                          <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{isExporting ? 'Gerando...' : 'Planilha editável'}</div>
                         </div>
                       </button>
                     </div>
@@ -338,24 +427,38 @@ export function SecretariaParticipantesPage() {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0, flex: 2 }}>
-                <label className="form-label">Buscar por Nome</label>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <Search size={18} style={{ position: 'absolute', left: '12px', opacity: 0.4 }} />
+                <label className="form-label">Buscar Participante</label>
+                <div className="form-input-wrapper">
+                  <div className="form-input-icon">
+                    <Search size={16} />
+                  </div>
                   <input
                     type="text"
-                    className="form-input"
-                    placeholder="Digite o nome..."
+                    className="form-input form-input--with-icon"
+                    placeholder="Nome, e-mail, telefone, bairro ou cidade..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem', width: '100%' }}
                   />
                   {searchTerm && (
                     <button
+                      type="button"
                       onClick={() => setSearchTerm('')}
-                      style={{ position: 'absolute', right: '12px', background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5, display: 'flex', alignItems: 'center', padding: 0 }}
+                      style={{
+                        position: 'absolute',
+                        right: '0.6rem',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--muted-text)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0.2rem',
+                      }}
                       title="Limpar busca"
                     >
-                      <X size={16} />
+                      <X size={14} />
                     </button>
                   )}
                 </div>
