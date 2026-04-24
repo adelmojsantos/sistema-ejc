@@ -222,6 +222,12 @@ export function UsersAdminPage() {
         setShowDropdown(false);
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
+
     const handleCreateUser = async (event: SyntheticEvent) => {
         event.preventDefault();
 
@@ -579,7 +585,7 @@ export function UsersAdminPage() {
                 </div>
 
                 {creationMode === 'individual' ? (
-                    <form onSubmit={handleCreateUser}>
+                    <form onSubmit={handleCreateUser} onKeyDown={handleKeyDown}>
                         <FormRow>
                             {/* Live search combobox */}
                             <div className="form-group col-6" ref={wrapperRef} style={{ position: 'relative' }}>

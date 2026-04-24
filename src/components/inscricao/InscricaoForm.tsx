@@ -54,6 +54,12 @@ export function InscricaoForm({ initialData, onSubmit, onCancel, isLoading = fal
         loadData();
     }, []);
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!form.pessoa_id || !form.encontro_id) return;
@@ -69,7 +75,7 @@ export function InscricaoForm({ initialData, onSubmit, onCancel, isLoading = fal
     if (isDataLoading) return <div className="empty-state">Carregando opções...</div>;
 
     return (
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} noValidate>
             <FormSection title="Dados do Vínculo" icon={<Shield size={18} />} columns={0}>
                 <FormRow>
                     <div className="form-group col-6">

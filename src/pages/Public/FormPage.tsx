@@ -48,7 +48,13 @@ export default function FormPage() {
     loadExistingData();
   }, [session]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session?.participacao_id) return;
 
@@ -174,7 +180,7 @@ export default function FormPage() {
             <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Informações do Veículo</h2>
           </div>
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ 
               padding: '1rem', 
               backgroundColor: 'rgba(var(--primary-rgb, 0, 0, 254), 0.04)', 

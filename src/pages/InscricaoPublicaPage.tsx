@@ -163,6 +163,12 @@ export default function InscricaoPublicaPage() {
 
     const isCoolingDown = cooldownUntil !== null && Date.now() < cooldownUntil;
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
+
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
         if (isCoolingDown) return;
@@ -304,7 +310,7 @@ export default function InscricaoPublicaPage() {
                                     </button>
                                 </div>
                             ) : (
-                                <form onSubmit={handleSubmit} className="landing-form">
+                                <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="landing-form">
                                     <h4 style={{ color: 'var(--text-color)', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
                                         <User size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }} />
                                         Dados Pessoais

@@ -103,7 +103,13 @@ export function RecepcaoDadosModal({
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentParticipacaoId) {
       toast.error('Selecione um participante primeiro.');
@@ -134,7 +140,7 @@ export function RecepcaoDadosModal({
           <Loader className="animate-spin" size={32} />
         </div>
       ) : (
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
           {allowParticipantSelection && !initialParticipacaoId ? (
             <div className="form-group">

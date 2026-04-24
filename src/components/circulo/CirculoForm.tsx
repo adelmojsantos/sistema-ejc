@@ -17,6 +17,12 @@ export function CirculoForm({ initialData, onSubmit, onCancel, isLoading = false
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!nome.trim()) {
@@ -33,7 +39,7 @@ export function CirculoForm({ initialData, onSubmit, onCancel, isLoading = false
     };
 
     return (
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} noValidate>
             <FormSection title="Informações do Círculo" icon={<UsersRound size={18} />} columns={0}>
                 <FormRow>
                     <FormField

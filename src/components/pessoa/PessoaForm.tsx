@@ -137,6 +137,12 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
         }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const erros = validate(form, requireBirthDate, requireFezEjc);
@@ -179,7 +185,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
     };
 
     return (
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} noValidate>
             <FormSection title="Dados Pessoais" icon={<User size={18} />}>
                 <FormRow>
                     <FormField
