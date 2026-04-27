@@ -22,6 +22,7 @@ import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosMo
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useAuth } from '../../hooks/useAuth';
 import { useLoading } from '../../contexts/LoadingContext';
+import { useEncontros } from '../../contexts/EncontroContext';
 import { encontroService } from '../../services/encontroService';
 import { recepcaoService } from '../../services/recepcaoService';
 import type { Encontro } from '../../types/encontro';
@@ -35,7 +36,7 @@ export function RecepcaoAdminPage() {
   
   const canChangeEncontro = hasPermission('modulo_admin');
 
-  const [encontros, setEncontros] = useState<Encontro[]>([]);
+  const { encontros, encontroAtivo } = useEncontros();
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [registros, setRegistros] = useState<RecepcaoDados[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,21 +52,13 @@ export function RecepcaoAdminPage() {
   const [registroToDelete, setRegistroToDelete] = useState<RecepcaoDados | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Load initial encounters
+  // Seleciona encontro ativo via contexto
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const data = await encontroService.listar();
-        setEncontros(data);
-        const active = data.find(e => e.ativo);
-        if (active) setSelectedEncontroId(active.id);
-        else if (data.length > 0) setSelectedEncontroId(data[0].id);
-      } catch {
-        toast.error('Erro ao carregar encontros.');
-      }
-    };
-    loadInitialData();
-  }, []);
+    if (!selectedEncontroId) {
+      if (encontroAtivo) setSelectedEncontroId(encontroAtivo.id);
+      else if (encontros.length > 0) setSelectedEncontroId(encontros[0].id);
+    }
+  }, [encontros, encontroAtivo, selectedEncontroId]);
 
   const loadRegistros = useCallback(async () => {
     if (!selectedEncontroId) return;

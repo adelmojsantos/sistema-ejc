@@ -1,13 +1,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useNavigate } from 'react-router-dom';
-import { encontroService } from '../../services/encontroService';
-import { inscricaoService } from '../../services/inscricaoService';
 import { equipeService } from '../../services/equipeService';
-import type { InscricaoEnriched } from '../../types/inscricao';
+import { encontroService } from '../../services/encontroService';
+import { useEncontros } from '../../contexts/EncontroContext';
 import type { Encontro } from '../../types/encontro';
-import type { Equipe } from '../../types/equipe';
-import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import {
   ChevronLeft,
   ChevronRight,
@@ -18,20 +15,13 @@ import {
   Search,
   Mail,
   MailWarning,
-  Pencil,
-  Check,
-  Phone,
-  MapPin,
-  Loader,
   Eye,
-  X
+  X,
+  Loader,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
-import { Modal } from '../../components/ui/Modal';
-import { PessoaForm } from '../../components/pessoa/PessoaForm';
-import { useAuth } from '../../hooks/useAuth';
-import { pessoaService } from '../../services/pessoaService';
 
 function formatDate(date: string | null | undefined) {
   if (!date) return '—';
@@ -49,269 +39,59 @@ function formatDate(date: string | null | undefined) {
   }
 }
 
-function getInitials(name: string) {
-  return name
-    .split(' ')
-    .filter(n => n.length > 2)
-    .map(n => n[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-}
-
-function formatTelefone(tel: string | null | undefined) {
-  if (!tel) return '—';
-  const d = tel.replace(/\D/g, '');
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return tel;
-}
-
-interface TeamConfirmationStatus {
-  equipe_id: string;
-  equipe_nome: string;
-  confirmado: boolean;
-  membros_confirmados: number;
-  total_membros: number;
-  progresso: number;
-  confirmado_por?: string;
-  confirmado_email?: string | null;
-  confirmado_em?: string;
-  coordenadores: {
-    nome: string;
-    email: string | null;
-    confirmou: boolean;
-    data_confirmacao: string | null;
-  }[];
-}
+type EquipeResumo = Awaited<ReturnType<typeof equipeService.listarResumoConfirmacoes>>[number];
 
 export function ConfirmationReportPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [encontros, setEncontros] = useState<Encontro[]>([]);
+  const { encontros, encontroAtivo } = useEncontros();
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
-  const [equipes, setEquipes] = useState<Equipe[]>([]);
-  const [participacoes, setParticipacoes] = useState<InscricaoEnriched[]>([]);
-  const [equipeConfirmacoes, setEquipeConfirmacoes] = useState<{
-    equipe_id: string;
-    confirmado_por: string;
-    confirmado_em: string;
-    profiles?: { email?: string } | null;
-    confirmador_nome?: string;
-  }[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [equipesResumo, setEquipesResumo] = useState<EquipeResumo[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
-  const [editingPessoa, setEditingPessoa] = useState<any>(null);
-  const [modalData, setModalData] = useState<{ title: string; coordinators: TeamConfirmationStatus['coordenadores'] } | null>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
-  const [activeTeamFilter, setActiveTeamFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
 
-  const teamParticipacoes = useMemo(() => {
-    if (!selectedTeamId) return [];
-    return participacoes
-      .filter(p => p.equipe_id === selectedTeamId)
-      .filter((p): p is InscricaoEnriched & { pessoas: Pessoa } => !!p.pessoas)
-      .filter(p => {
-        if (activeTeamFilter === 'confirmed') return p.dados_confirmados;
-        if (activeTeamFilter === 'pending') return !p.dados_confirmados;
-        return true;
-      })
-      .sort((a, b) => {
-        if (a.coordenador && !b.coordenador) return -1;
-        if (!a.coordenador && b.coordenador) return 1;
-        return a.pessoas.nome_completo.localeCompare(b.pessoas.nome_completo);
-      });
-  }, [participacoes, selectedTeamId, activeTeamFilter]);
-
-  const teamStats = useMemo(() => {
-    if (!selectedTeamId) return { total: 0, confirmed: 0, pending: 0 };
-    const all = participacoes.filter(p => p.equipe_id === selectedTeamId && !!p.pessoas);
-    const confirmed = all.filter(p => p.dados_confirmados).length;
-    return {
-      total: all.length,
-      confirmed,
-      pending: all.length - confirmed
-    };
-  }, [participacoes, selectedTeamId]);
-
+  // Seleciona o encontro ativo automaticamente via contexto
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const [encontrosData, equipesData] = await Promise.all([
-          encontroService.listar(),
-          equipeService.listar()
-        ]);
-        setEncontros(encontrosData);
-        setEquipes(equipesData);
-
-        const active = encontrosData.find(e => e.ativo);
-        if (active) setSelectedEncontroId(active.id);
-        else if (encontrosData.length > 0) setSelectedEncontroId(encontrosData[0].id);
-      } catch {
-        toast.error('Erro ao carregar dados iniciais.');
-      }
-    };
-    loadInitialData();
-  }, []);
-
-  const loadData = async () => {
-    if (!selectedEncontroId) return;
-    setIsLoading(true);
-    try {
-      const [data, confsRaw] = await Promise.all([
-        inscricaoService.listarPorEncontro(selectedEncontroId),
-        equipeService.listarConfirmacoes(selectedEncontroId)
-      ]);
-
-      const confs = confsRaw as any[];
-
-      // Buscar nomes dos confirmadores (case-insensitive e robusto)
-      const emails = [...new Set(confs.map(c => {
-        const p = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
-        return p?.email;
-      }).filter(Boolean))];
-
-      if (emails.length > 0) {
-        const nomesData = await pessoaService.buscarNomesPorEmails(emails as string[]);
-        const nomesMap = new Map<string, string>();
-
-        nomesData.forEach(n => {
-          if (n.email) nomesMap.set(n.email.toLowerCase(), n.nome_completo);
-        });
-
-        confs.forEach(c => {
-          const p = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
-          c.profiles = p;
-          if (p?.email) {
-            c.confirmador_nome = nomesMap.get(p.email.toLowerCase());
-          }
-        });
-      }
-
-      setParticipacoes(data);
-      setEquipeConfirmacoes(confs);
-    } catch {
-      toast.error('Erro ao carregar participações.');
-    } finally {
-      setIsLoading(false);
+    if (!selectedEncontroId && encontroAtivo) {
+      setSelectedEncontroId(encontroAtivo.id);
+    } else if (!selectedEncontroId && encontros.length > 0) {
+      setSelectedEncontroId(encontros[0].id);
     }
-  };
+  }, [encontros, encontroAtivo, selectedEncontroId]);
 
+  // Carrega resumo leve ao trocar de encontro
   useEffect(() => {
-    loadData();
+    if (!selectedEncontroId) return;
+    const load = async () => {
+      setIsLoading(true);
+      try {
+        const resumo = await equipeService.listarResumoConfirmacoes(selectedEncontroId);
+        setEquipesResumo(resumo);
+      } catch {
+        toast.error('Erro ao carregar resumo de confirmações.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    load();
   }, [selectedEncontroId]);
 
-  const handleConfirmOneMember = async (memberId: string) => {
-    try {
-      await inscricaoService.confirmarDados(memberId);
-      toast.success('Integrante confirmado!');
-      setParticipacoes(prev =>
-        prev.map(p => p.id === memberId ? { ...p, dados_confirmados: true, confirmado_em: new Date().toISOString() } : p)
-      );
-    } catch {
-      toast.error('Erro ao confirmar integrante.');
-    }
-  };
-
-  const handleEditSubmit = async (data: PessoaFormData) => {
-    if (!editingPessoa?.id) {
-      toast.error('Erro: ID do integrante não encontrado.');
-      return;
-    }
-    setIsActionLoading(true);
-    try {
-      // Find the participation for this person in the current context
-      const participacao = participacoes.find(p => p.pessoa_id === editingPessoa.id && p.equipe_id === selectedTeamId);
-
-      await pessoaService.atualizar(editingPessoa.id, data);
-
-      if (participacao) {
-        await inscricaoService.confirmarDados(participacao.id);
-      }
-
-      toast.success('Dados salvos e confirmados!');
-      setEditingPessoa(null);
-      await loadData();
-    } catch (error) {
-      toast.error('Erro ao salvar alterações.');
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const handleConfirmTeam = async () => {
-    if (!selectedTeamId || !selectedEncontroId || !user) return;
-
-    const teamParticipacoes = participacoes.filter(p => p.equipe_id === selectedTeamId);
-    const allConfirmed = teamParticipacoes.length > 0 && teamParticipacoes.every(p => p.dados_confirmados);
-
-    if (!allConfirmed) {
-      toast.error('Todos os integrantes devem ser confirmados individualmente antes da finalização.');
-      return;
-    }
-
-    setIsActionLoading(true);
-    try {
-      await equipeService.confirmarEquipe(selectedTeamId, selectedEncontroId, user.id);
-      toast.success('Equipe finalizada com sucesso!');
-      await loadData();
-    } catch (error) {
-      toast.error('Erro ao finalizar equipe.');
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const allTeamStatuses = useMemo(() => {
-    const statuses: TeamConfirmationStatus[] = equipes.map(eq => {
-      const teamParticipacoes = participacoes.filter(p => p.equipe_id === eq.id);
-      const membersConfirmed = teamParticipacoes.filter(p => p.dados_confirmados).length;
-      const totalMembers = teamParticipacoes.length;
-      const progresso = totalMembers > 0 ? (membersConfirmed / totalMembers) * 100 : 0;
-
-      const coordinators = teamParticipacoes.filter(p => p.coordenador);
-      const teamConf = equipeConfirmacoes.find(c => c.equipe_id === eq.id);
-
-      return {
-        equipe_id: eq.id,
-        equipe_nome: eq.nome || 'Sem nome',
-        confirmado: !!teamConf,
-        membros_confirmados: membersConfirmed,
-        total_membros: totalMembers,
-        progresso,
-        confirmado_por: teamConf?.confirmador_nome || teamConf?.profiles?.email || 'Coordenador',
-        confirmado_email: teamConf?.confirmador_nome ? teamConf?.profiles?.email : null,
-        confirmado_em: teamConf?.confirmado_em || undefined,
-        coordenadores: coordinators.map(c => ({
-          nome: c.pessoas?.nome_completo || 'Sem nome',
-          email: c.pessoas?.email || null,
-          confirmou: !!c.dados_confirmados,
-          data_confirmacao: c.confirmado_em
-        }))
-      };
-    });
-
-    return statuses;
-  }, [equipes, participacoes, equipeConfirmacoes]);
-
   const stats = useMemo(() => {
-    const total = allTeamStatuses.length;
-    const confirmed = allTeamStatuses.filter(s => s.confirmado).length;
+    const total = equipesResumo.length;
+    const confirmed = equipesResumo.filter(s => s.confirmado).length;
     return {
       total,
       confirmed,
       pending: total - confirmed,
       percent: total > 0 ? Math.round((confirmed / total) * 100) : 0
     };
-  }, [allTeamStatuses]);
+  }, [equipesResumo]);
 
   const displayedTeams = useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
-
-    return allTeamStatuses
+    return equipesResumo
       .filter(s => {
         if (activeFilter === 'confirmed') return s.confirmado;
         if (activeFilter === 'pending') return !s.confirmado;
@@ -328,258 +108,26 @@ export function ConfirmationReportPage() {
         return matchEquipe || matchCoord;
       })
       .sort((a, b) => a.equipe_nome.localeCompare(b.equipe_nome));
-  }, [allTeamStatuses, activeFilter, debouncedSearch]);
+  }, [equipesResumo, activeFilter, debouncedSearch]);
 
-  if (editingPessoa) {
-    return (
-      <div className="fade-in">
-        <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button onClick={() => setEditingPessoa(null)} className="icon-btn" aria-label="Voltar">
-              <ChevronLeft size={20} />
-            </button>
-            <div>
-              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55, fontWeight: 600, textTransform: 'uppercase' }}>Editando Integrante</p>
-              <h1 className="page-title text-gradient" style={{ margin: 0, fontSize: '1.5rem' }}>{editingPessoa.nome_completo}</h1>
-            </div>
-          </div>
-        </div>
-        <div className="card shadow-sm animate-fade-in">
-          <PessoaForm
-            initialData={editingPessoa}
-            onSubmit={handleEditSubmit}
-            onCancel={() => setEditingPessoa(null)}
-            isLoading={isActionLoading}
-            isConfirmationContext={true}
-          />
-        </div>
-      </div>
-    );
-  }
+  const handleVisualizarEquipe = (equipeId: string) => {
+    navigate(`/secretaria/confirmacoes/${equipeId}`, {
+      state: { encontroId: selectedEncontroId }
+    });
+  };
 
-  if (selectedTeamId) {
-    const status = allTeamStatuses.find(s => s.equipe_id === selectedTeamId);
-
-    return (
-      <div className="fade-in">
-        <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <button onClick={() => { setSelectedTeamId(null); setActiveTeamFilter('all'); }} className="icon-btn" aria-label="Voltar">
-              <ChevronLeft size={20} />
-            </button>
-            <div>
-              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55, fontWeight: 600, textTransform: 'uppercase' }}>Equipe</p>
-              <h1 className="page-title text-gradient" style={{ margin: 0, fontSize: '1.75rem' }}>{status?.equipe_nome}</h1>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            {!status?.confirmado && (
-              <button
-                onClick={handleConfirmTeam}
-                disabled={isActionLoading || teamParticipacoes.length === 0}
-                className="btn-primary flex items-center gap-2"
-                style={{
-                  fontSize: '0.85rem',
-                  padding: '0.5rem 1rem',
-                  backgroundColor: teamParticipacoes.every(p => p.dados_confirmados) && teamParticipacoes.length > 0 ? '#10b981' : '#cbd5e1',
-                  borderColor: teamParticipacoes.every(p => p.dados_confirmados) && teamParticipacoes.length > 0 ? '#10b981' : '#cbd5e1',
-                  cursor: teamParticipacoes.every(p => p.dados_confirmados) && teamParticipacoes.length > 0 ? 'pointer' : 'not-allowed'
-                }}
-              >
-                {isActionLoading ? <Loader className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-                <span>Finalizar Equipe</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div
-            onClick={() => setActiveTeamFilter('all')}
-            className="card"
-            style={{
-              padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
-              border: activeTeamFilter === 'all' ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
-              transform: activeTeamFilter === 'all' ? 'translateY(-2px)' : 'none',
-              transition: 'all 0.2s',
-              position: 'relative'
-            }}
-          >
-            <div style={{
-              width: '40px', height: '40px', borderRadius: '10px',
-              backgroundColor: 'rgba(37, 99, 235, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)',
-            }}>
-              <Users size={20} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{teamStats.total}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--primary-color)', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
-              <span>FILTRAR</span>
-              <ChevronRight size={10} />
-            </div>
-          </div>
-
-          <div
-            onClick={() => setActiveTeamFilter('confirmed')}
-            className="card"
-            style={{
-              padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
-              border: activeTeamFilter === 'confirmed' ? '2px solid #10b981' : '1px solid var(--border-color)',
-              transform: activeTeamFilter === 'confirmed' ? 'translateY(-2px)' : 'none',
-              transition: 'all 0.2s',
-              position: 'relative'
-            }}
-          >
-            <div style={{
-              width: '40px', height: '40px', borderRadius: '10px',
-              backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981',
-            }}>
-              <CheckCircle size={20} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{teamStats.confirmed}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Confirmados</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#10b981', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
-              <span>FILTRAR</span>
-              <ChevronRight size={10} />
-            </div>
-          </div>
-
-          <div
-            onClick={() => setActiveTeamFilter('pending')}
-            className="card"
-            style={{
-              padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
-              border: activeTeamFilter === 'pending' ? '2px solid #f59e0b' : '1px solid var(--border-color)',
-              transform: activeTeamFilter === 'pending' ? 'translateY(-2px)' : 'none',
-              transition: 'all 0.2s',
-              position: 'relative'
-            }}
-          >
-            <div style={{
-              width: '40px', height: '40px', borderRadius: '10px',
-              backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b',
-            }}>
-              <AlertCircle size={20} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{teamStats.pending}</div>
-              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Pendentes</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#f59e0b', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
-              <span>FILTRAR</span>
-              <ChevronRight size={10} />
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {teamParticipacoes.length === 0 ? (
-            <div className="card empty-state">
-              <Users size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-              <p>Nenhum integrante encontrado nesta equipe.</p>
-            </div>
-          ) : (
-            teamParticipacoes.map((p) => (
-              <div key={p.id} className="card animate-fade-in" style={{ padding: '1.25rem', borderLeft: p.coordenador ? '4px solid #f59e0b' : '1px solid var(--border-color)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                    <div style={{
-                      width: '44px', height: '44px', borderRadius: '12px',
-                      backgroundColor: 'rgba(var(--primary-rgb), 0.1)', color: 'var(--primary-color)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1rem'
-                    }}>
-                      {getInitials(p.pessoas.nome_completo)}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>{p.pessoas.nome_completo}</h3>
-                        {p.coordenador && (
-                          <span className="badge" style={{ fontSize: '0.6rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', fontWeight: 800 }}>COORDENADOR</span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem', fontSize: '0.85rem', opacity: 0.7, flexWrap: 'wrap', minWidth: 0 }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><Phone size={14} style={{ flexShrink: 0 }} /> {formatTelefone(p.pessoas.telefone)}</span>
-                        {p.pessoas.email && <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.pessoas.email}><Mail size={14} style={{ flexShrink: 0 }} /> {p.pessoas.email}</span>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem', fontSize: '0.85rem', opacity: 0.6, minWidth: 0 }}>
-                        <MapPin size={14} style={{ flexShrink: 0 }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {[p.pessoas.endereco, p.pessoas.numero, p.pessoas.bairro, p.pessoas.cidade].filter(Boolean).join(', ')}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                    {p.dados_confirmados ? (
-                      <div
-                        className="btn-icon"
-                        style={{
-                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                          color: '#10b981',
-                          border: '1px solid rgba(16, 185, 129, 0.2)',
-                          width: '32px',
-                          height: '32px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'default'
-                        }}
-                        title="Dados Confirmados"
-                      >
-                        <CheckCircle size={18} style={{ flexShrink: 0 }} />
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleConfirmOneMember(p.id)}
-                        className="btn-icon"
-                        style={{
-                          backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                          color: 'var(--text-color)',
-                          border: '1px solid var(--border-color)',
-                          opacity: 0.5,
-                          width: '32px',
-                          height: '32px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}
-                        title="Confirmar integrante"
-                      >
-                        <Check size={18} style={{ flexShrink: 0 }} />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => setEditingPessoa(p.pessoas)}
-                      className="btn-icon"
-                      style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                        border: '1px solid var(--border-color)',
-                        width: '32px',
-                        height: '32px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--text-color)'
-                      }}
-                      title="Editar Dados"
-                    >
-                      <Pencil size={18} style={{ flexShrink: 0 }} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    );
-  }
+  const handleRefreshCard = async (equipeId: string) => {
+    if (!selectedEncontroId || refreshingId) return;
+    setRefreshingId(equipeId);
+    try {
+      const resumo = await equipeService.listarResumoConfirmacoes(selectedEncontroId);
+      setEquipesResumo(resumo);
+    } catch {
+      toast.error('Erro ao atualizar dados.');
+    } finally {
+      setRefreshingId(null);
+    }
+  };
 
   return (
     <>
@@ -590,12 +138,13 @@ export function ConfirmationReportPage() {
               <ChevronLeft size={18} />
             </button>
             <div>
-              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Relatórios</p>
+              <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Secretaria</p>
               <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Confirmação de Dados por Equipe</h1>
             </div>
           </div>
         </div>
 
+        {/* Filtros */}
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', alignItems: 'end' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -651,7 +200,7 @@ export function ConfirmationReportPage() {
           </div>
         </div>
 
-        {/* Summary Stats */}
+        {/* Dashboard Stats */}
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
           <div
             className={`card ${activeFilter === 'all' ? 'active-filter' : ''}`}
@@ -659,25 +208,19 @@ export function ConfirmationReportPage() {
             style={{
               flex: '1 1 180px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem',
               cursor: 'pointer', border: activeFilter === 'all' ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
-              position: 'relative',
-              transition: 'all 0.2s ease',
+              position: 'relative', transition: 'all 0.2s ease',
               transform: activeFilter === 'all' ? 'translateY(-2px)' : 'none',
               boxShadow: activeFilter === 'all' ? '0 4px 12px rgba(37, 99, 235, 0.15)' : 'none'
             }}
           >
-            <div style={{
-              width: '48px', height: '48px', borderRadius: '12px',
-              backgroundColor: 'rgba(71, 124, 239, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)',
-            }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: 'rgba(71, 124, 239, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)' }}>
               <Users size={24} />
             </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{stats.total}</div>
               <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase', marginTop: '0.25rem' }}>Total Equipes</div>
             </div>
-            <div style={{
-              color: 'var(--primary-color)', position: 'absolute', bottom: '8px', right: '12px', fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '2px'
-            }}>
+            <div style={{ color: 'var(--primary-color)', position: 'absolute', bottom: '8px', right: '12px', fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '2px' }}>
               <span>Filtrar</span> <ChevronRight size={10} />
             </div>
           </div>
@@ -688,16 +231,12 @@ export function ConfirmationReportPage() {
             style={{
               flex: '1 1 180px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem',
               cursor: 'pointer', border: activeFilter === 'confirmed' ? '2px solid #10b981' : '1px solid var(--border-color)',
-              position: 'relative',
-              transition: 'all 0.2s ease',
+              position: 'relative', transition: 'all 0.2s ease',
               transform: activeFilter === 'confirmed' ? 'translateY(-2px)' : 'none',
               boxShadow: activeFilter === 'confirmed' ? '0 4px 12px rgba(16, 185, 129, 0.15)' : 'none'
             }}
           >
-            <div style={{
-              width: '48px', height: '48px', borderRadius: '12px',
-              backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981',
-            }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
               <CheckCircle size={24} />
             </div>
             <div style={{ flex: 1 }}>
@@ -715,16 +254,12 @@ export function ConfirmationReportPage() {
             style={{
               flex: '1 1 180px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem',
               cursor: 'pointer', border: activeFilter === 'pending' ? '2px solid #f59e0b' : '1px solid var(--border-color)',
-              position: 'relative',
-              transition: 'all 0.2s ease',
+              position: 'relative', transition: 'all 0.2s ease',
               transform: activeFilter === 'pending' ? 'translateY(-2px)' : 'none',
               boxShadow: activeFilter === 'pending' ? '0 4px 12px rgba(245, 158, 11, 0.15)' : 'none'
             }}
           >
-            <div style={{
-              width: '48px', height: '48px', borderRadius: '12px',
-              backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b',
-            }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
               <AlertCircle size={24} />
             </div>
             <div style={{ flex: 1 }}>
@@ -736,7 +271,7 @@ export function ConfirmationReportPage() {
             </div>
           </div>
 
-          <div className="card" style={{ flex: '1 1 180px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', opacity: 0.85 }}>
+          <div className="card" style={{ flex: '1 1 180px', padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', opacity: 0.85, position: 'relative' }}>
             <div style={{
               width: '48px', height: '48px', borderRadius: '12px',
               backgroundColor: stats.percent === 100 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(37, 99, 235, 0.1)',
@@ -749,12 +284,43 @@ export function ConfirmationReportPage() {
               <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{stats.percent}%</div>
               <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase', marginTop: '0.25rem' }}>Progresso Total</div>
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'absolute', top: '50%', right: '10px', transform: 'translateY(-50%)' }}>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleRefreshCard('__stats__'); }}
+                disabled={!!refreshingId}
+                title="Atualizar dados"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: 'transparent',
+                  cursor: refreshingId ? 'not-allowed' : 'pointer',
+                  color: 'var(--text-color)',
+                  opacity: refreshingId ? 0.6 : 1,
+                  transition: 'opacity 0.2s, background 0.2s',
+                  padding: 0,
+                }}
+                onMouseEnter={e => { if (!refreshingId) { e.currentTarget.style.opacity = '1'; e.currentTarget.style.background = 'var(--secondary-bg)'; } }}
+                onMouseLeave={e => { e.currentTarget.style.opacity = refreshingId ? '0.4' : '0.55'; e.currentTarget.style.background = 'transparent'; }}
+              >
+                <RefreshCw
+                  size={16}
+                  style={{ animation: refreshingId === '__stats__' ? 'spin 0.8s linear infinite' : 'none' }}
+                />
+              </button>
+            </div>
           </div>
         </div>
 
+        {/* Cards de Equipes */}
         {isLoading ? (
-          <div className="card text-center py-8">
-            <p>Carregando dados de confirmação...</p>
+          <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', padding: '2.5rem', opacity: 0.6 }}>
+            <Loader className="animate-spin" size={20} />
+            <span>Carregando equipes...</span>
           </div>
         ) : (
           <div style={{
@@ -762,6 +328,12 @@ export function ConfirmationReportPage() {
             gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))',
             gap: '1rem'
           }}>
+            {displayedTeams.length === 0 && (
+              <div className="card empty-state" style={{ gridColumn: '1 / -1' }}>
+                <Users size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+                <p>Nenhuma equipe encontrada.</p>
+              </div>
+            )}
             {displayedTeams.map(status => (
               <div
                 key={status.equipe_id}
@@ -813,7 +385,7 @@ export function ConfirmationReportPage() {
                     )}
 
                     <button
-                      onClick={() => setSelectedTeamId(status.equipe_id)}
+                      onClick={() => handleVisualizarEquipe(status.equipe_id)}
                       className="btn-primary"
                       style={{
                         padding: '0.4rem 0.75rem',
@@ -830,15 +402,9 @@ export function ConfirmationReportPage() {
                   </div>
                 </div>
 
-                {/* Progress Bar */}
+                {/* Barra de Progresso */}
                 <div style={{ marginTop: '-0.25rem' }}>
-                  <div style={{
-                    width: '100%',
-                    height: '6px',
-                    backgroundColor: 'rgba(0,0,0,0.05)',
-                    borderRadius: '3px',
-                    overflow: 'hidden'
-                  }}>
+                  <div style={{ width: '100%', height: '6px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
                     <div style={{
                       width: `${status.progresso}%`,
                       height: '100%',
@@ -853,22 +419,21 @@ export function ConfirmationReportPage() {
                   )}
                 </div>
 
+                {/* Info de finalização */}
                 {status.confirmado && (
                   <div style={{
-                    padding: '0.75rem',
-                    borderRadius: '8px',
+                    padding: '0.75rem', borderRadius: '8px',
                     backgroundColor: 'rgba(16, 185, 129, 0.05)',
-                    fontSize: '0.85rem',
-                    border: '1px solid rgba(16, 185, 129, 0.1)'
+                    fontSize: '0.85rem', border: '1px solid rgba(16, 185, 129, 0.1)'
                   }}>
                     <div style={{ fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Equipe Finalizada:</div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.8, flexWrap: 'wrap', gap: '0.25rem' }}>
                       <div style={{ flex: 1, minWidth: '150px' }}>
-                        <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={status.confirmado_por}>
-                          {status.confirmado_por}
+                        <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={status.confirmado_por_nome}>
+                          {status.confirmado_por_nome || status.confirmado_por_email || '—'}
                         </div>
-                        {status.confirmado_email && (
-                          <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{status.confirmado_email}</div>
+                        {status.confirmado_por_email && status.confirmado_por_nome && (
+                          <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{status.confirmado_por_email}</div>
                         )}
                       </div>
                       <span style={{ whiteSpace: 'nowrap', fontSize: '0.8rem' }}>{formatDate(status.confirmado_em)}</span>
@@ -876,6 +441,7 @@ export function ConfirmationReportPage() {
                   </div>
                 )}
 
+                {/* Coordenadores */}
                 <div style={{ marginTop: '0.5rem' }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', opacity: 0.4, marginBottom: '0.5rem', letterSpacing: '0.05em' }}>
                     Coordenadores
@@ -887,13 +453,9 @@ export function ConfirmationReportPage() {
                       <>
                         {status.coordenadores.slice(0, 2).map((coord, i) => (
                           <div key={i} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             fontSize: '0.85rem',
-                            opacity: coord.confirmou ? 1 : 0.9,
-                            padding: '0.45rem 0.75rem',
-                            borderRadius: '8px',
+                            padding: '0.45rem 0.75rem', borderRadius: '8px',
                             backgroundColor: coord.email ? 'var(--success-bg)' : 'rgba(245, 158, 11, 0.1)',
                             border: `1px solid ${coord.email ? 'var(--success-border)' : 'var(--accent-color)'}`,
                             color: coord.email ? 'var(--success-text)' : 'var(--accent-color)',
@@ -908,7 +470,6 @@ export function ConfirmationReportPage() {
                             )}
                           </div>
                         ))}
-
                         {status.coordenadores.length > 2 && (
                           <div style={{ fontSize: '0.75rem', padding: '0 0.5rem', opacity: 0.5 }}>+ {status.coordenadores.length - 2} mais...</div>
                         )}
@@ -920,50 +481,6 @@ export function ConfirmationReportPage() {
             ))}
           </div>
         )}
-
-        <Modal
-          isOpen={!!modalData}
-          onClose={() => setModalData(null)}
-          title={modalData?.title || ''}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {modalData?.coordinators.map((coord, i) => (
-              <div key={i} style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '1rem',
-                borderRadius: '12px',
-                backgroundColor: coord.email ? 'var(--success-bg)' : 'rgba(245, 158, 11, 0.08)',
-                border: `1px solid ${coord.email ? 'var(--success-border)' : 'var(--accent-color)'}`,
-                color: 'var(--text-color)',
-                marginBottom: '0.5rem'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                  <div style={{
-                    width: '36px', height: '36px', borderRadius: '50%',
-                    backgroundColor: coord.email ? 'var(--success-bg)' : 'rgba(245, 158, 11, 0.15)',
-                    color: coord.email ? 'var(--success-text)' : 'var(--accent-color)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    border: `1px solid ${coord.email ? 'var(--success-border)' : 'var(--accent-color)'}`
-                  }}>
-                    {coord.email ? <Mail size={18} /> : <MailWarning size={18} />}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-color)' }}>{coord.nome}</div>
-                    <div style={{ fontSize: '0.8rem', opacity: 0.6, color: 'var(--text-color)' }}>{coord.email || 'Sem e-mail cadastrado'}</div>
-                  </div>
-                </div>
-                {coord.confirmou && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981', fontSize: '0.75rem', fontWeight: 800 }}>
-                    <CheckCircle size={16} />
-                    CONFIRMOU
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </Modal>
       </div>
     </>
   );

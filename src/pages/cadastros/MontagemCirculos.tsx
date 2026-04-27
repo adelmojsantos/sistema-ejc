@@ -7,18 +7,20 @@ import { circuloService } from '../../services/circuloService';
 import { circuloParticipacaoService } from '../../services/circuloParticipacaoService';
 import { inscricaoService } from '../../services/inscricaoService';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { equipeService } from '../../services/equipeService';
 import { normalizeString } from '../../utils/stringUtils';
 import type { Encontro } from '../../types/encontro';
 import type { Circulo } from '../../types/circulo';
 import type { CirculoParticipacaoEnriched } from '../../types/circuloParticipacao';
 import { UserPlus, Trash2, Plus, ChevronLeft, Users, Loader, Search, X, Shield, Info } from 'lucide-react';
+import { useEncontros } from '../../contexts/EncontroContext';
+import { useEquipes } from '../../contexts/EquipeContext';
 
 export function MontagemCirculos() {
   const navigate = useNavigate();
+  const { encontros } = useEncontros();
+  const { equipes } = useEquipes();
 
   // Data States
-  const [encontros, setEncontros] = useState<Encontro[]>([]);
   const [circulos, setCirculos] = useState<Circulo[]>([]);
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [selectedCirculoId, setSelectedCirculoId] = useState<string>('');
@@ -32,48 +34,49 @@ export function MontagemCirculos() {
   const [searchParticipant, setSearchParticipant] = useState('');
 
   // UI States
-  const [isFetching, setIsFetching] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Initial load
+  // Initial load — apenas círculos (encontros e equipes vêm do contexto)
   useEffect(() => {
     async function loadBaseData() {
       try {
-        const [es, cs] = await Promise.all([
-          encontroService.listar(),
-          circuloService.listar()
-        ]);
-        setEncontros(es);
+        const cs = await circuloService.listar();
         setCirculos(cs);
-        if (es.length > 0) setSelectedEncontroId(es[es.length - 1].id);
         if (cs.length > 0) setSelectedCirculoId(cs[0].id.toString());
       } catch (_error) {
-        console.error('Error loading base data:', _error);
-      } finally {
-        setIsFetching(false);
+        console.error('Error loading circulos:', _error);
       }
     }
     loadBaseData();
   }, []);
 
+  // Seleciona o encontro mais recente quando o contexto carregar
+  useEffect(() => {
+    if (encontros.length > 0 && !selectedEncontroId) {
+      setSelectedEncontroId(encontros[encontros.length - 1].id);
+    }
+  }, [encontros, selectedEncontroId]);
+
   const loadData = useCallback(async () => {
     if (!selectedEncontroId) return;
     setIsFetching(true);
     try {
-      const allInscricoes = await inscricaoService.listarPorEncontro(selectedEncontroId);
+      // Filtro server-side: busca apenas participantes (jovens), não encontreiros
+      const allParticipantes = await inscricaoService.listarParticipantesPorEncontro(selectedEncontroId);
+      setParticipantes(allParticipantes);
 
-      // Filter participants (jovens)
-      setParticipantes(allInscricoes.filter(i => i.participante === true));
-
-      // Try to find the "Círculo" team to form "Casais"
-      const equipes = await equipeService.listar();
+      // Usa equipes do contexto (já cacheado) para encontrar a equipe do Círculo
       const circuloTeam = equipes.find(e => e.nome?.toLowerCase().includes('círculo') || e.nome?.toLowerCase().includes('circulo'));
 
       if (circuloTeam) {
-        setEquipeCirculo(allInscricoes.filter(i => i.equipe_id === circuloTeam.id));
+        // Busca encontreiros apenas da equipe círculo
+        const encontreirosCirculo = await inscricaoService.listarEncontreirosPorEncontro(selectedEncontroId);
+        setEquipeCirculo(encontreirosCirculo.filter(i => i.equipe_id === circuloTeam.id));
       } else {
-        // If team not found, show all team members as potential "Casais"
-        setEquipeCirculo(allInscricoes.filter(i => i.participante !== true));
+        // Fallback: todos os encontreiros
+        const encontreiros = await inscricaoService.listarEncontreirosPorEncontro(selectedEncontroId);
+        setEquipeCirculo(encontreiros);
       }
 
       // Get all circle linkings for this meeting
@@ -84,7 +87,7 @@ export function MontagemCirculos() {
     } finally {
       setIsFetching(false);
     }
-  }, [selectedEncontroId]);
+  }, [selectedEncontroId, equipes]);
 
   useEffect(() => {
     loadData();

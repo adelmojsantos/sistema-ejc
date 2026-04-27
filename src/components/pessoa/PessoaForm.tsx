@@ -1,5 +1,6 @@
-import { Calendar, Check, CreditCard, Home, Loader, Mail, MapPin, Phone, User, UsersRound, X } from 'lucide-react';
+import { Calendar, Check, CreditCard, Home, Loader, Mail, MapPin, Phone, Save, User, UsersRound, X } from 'lucide-react';
 import React, { useState } from 'react';
+import { toast } from 'react-hot-toast';
 import type { PessoaFormData } from '../../types/pessoa';
 import { formatCpf, isValidCpf } from '../../utils/cpfUtils';
 import { geocodeWithFallback } from '../../utils/geocoding';
@@ -10,7 +11,7 @@ import { RadioGroup } from '../ui/RadioGroup';
 
 interface PessoaFormProps {
     initialData?: Partial<PessoaFormData>;
-    onSubmit: (data: PessoaFormData) => Promise<void>;
+    onSubmit: (data: PessoaFormData, shouldConfirm: boolean) => Promise<void>;
     onCancel: () => void;
     isLoading?: boolean;
     requireBirthDate?: boolean;
@@ -143,12 +144,22 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const erros = validate(form, requireBirthDate, requireFezEjc);
-        if (Object.keys(erros).length > 0) {
-            setErrors(erros);
-            return;
+    const handleSubmit = async (e: React.FormEvent, skipValidation = false) => {
+        if (e) e.preventDefault();
+
+        if (!skipValidation) {
+            const erros = validate(form, isConfirmationContext || requireBirthDate, requireFezEjc);
+
+            // For confirmation, also validate address
+            if (isConfirmationContext && !form.endereco?.trim()) {
+                erros.endereco = 'Endereço é obrigatório para confirmação.';
+            }
+
+            if (Object.keys(erros).length > 0) {
+                setErrors(erros);
+                toast.error('Por favor, preencha todos os campos obrigatórios.');
+                return;
+            }
         }
 
         setIsSubmitting(true);
@@ -178,14 +189,14 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                 }
             }
 
-            await onSubmit(payload);
+            await onSubmit(payload, !skipValidation);
         } finally {
             setIsSubmitting(false);
         }
     };
 
     return (
-        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} noValidate>
+        <form onSubmit={(e) => handleSubmit(e)} onKeyDown={handleKeyDown} noValidate>
             <FormSection title="Dados Pessoais" icon={<User size={18} />}>
                 <FormRow>
                     <FormField
@@ -233,7 +244,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         value={form.data_nascimento || ''}
                         onChange={(e) => handleChange('data_nascimento', e.target.value)}
                         error={errors.data_nascimento}
-                        required={requireBirthDate}
+                        required={isConfirmationContext || requireBirthDate}
                         colSpan={4}
                         icon={<Calendar size={18} />}
                     />
@@ -387,6 +398,8 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         name="endereco"
                         value={form.endereco ?? ''}
                         onChange={(e) => handleChange('endereco', e.target.value)}
+                        error={errors.endereco}
+                        required={isConfirmationContext}
                         colSpan={9}
                         placeholder="Ex: Rua das Flores"
                     />
@@ -412,20 +425,58 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
             </FormSection>
 
             <div className="form-actions">
-                <button type="button" className="btn-cancel" onClick={onCancel} disabled={isLoading} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                <button type="button" className="btn-cancel" onClick={onCancel} disabled={isLoading || isSubmitting} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                     <X size={18} />
                     Cancelar
                 </button>
-                <button type="submit" disabled={isLoading || isSubmitting} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                    {isLoading || isSubmitting ? (
-                        <><Loader size={18} className="animate-spin" /> Salvando...</>
-                    ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', gap: '0.5rem' }}>
-                            <Check size={18} />
-                            {isConfirmationContext ? 'Salvar e Confirmar Dados' : 'Salvar Alterações'}
-                        </div>
-                    )}
-                </button>
+
+                {isConfirmationContext ? (
+                    <>
+                        <button
+                            type="button"
+                            className="btn-primary-secondary"
+                            onClick={(e) => handleSubmit(e, true)}
+                            disabled={isLoading || isSubmitting}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                        >
+                            {isLoading || isSubmitting ? (
+                                <><Loader size={18} className="animate-spin" /> Salvando...</>
+                            ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                    <Save size={18} />
+                                    Salvar
+                                </div>
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={(e) => handleSubmit(e, false)}
+                            disabled={isLoading || isSubmitting}
+                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                        >
+                            {isLoading || isSubmitting ? (
+                                <><Loader size={18} className="animate-spin" /> Confirmando...</>
+                            ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', gap: '0.5rem' }}>
+                                    <Check size={18} />
+                                    Salvar e Confirmar Dados
+                                </div>
+                            )}
+                        </button>
+                    </>
+                ) : (
+                    <button type="submit" disabled={isLoading || isSubmitting} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                        {isLoading || isSubmitting ? (
+                            <><Loader size={18} className="animate-spin" /> Salvando...</>
+                        ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', gap: '0.5rem' }}>
+                                <Check size={18} />
+                                Salvar Alterações
+                            </div>
+                        )}
+                    </button>
+                )}
             </div>
         </form>
     );

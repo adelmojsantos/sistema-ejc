@@ -6,6 +6,8 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { PageTransition } from './components/ui/PageTransition';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { EncontroProvider } from './contexts/EncontroContext';
+import { EquipeProvider } from './contexts/EquipeContext';
 import { useAuth } from './hooks/useAuth';
 import { UsersAdminPage } from './pages/admin/UsersAdminPage';
 import { ImportarDadosPage } from './pages/admin/ImportarDadosPage';
@@ -33,6 +35,7 @@ import { Login } from './pages/Login';
 import { PrivacidadePage } from './pages/PrivacidadePage';
 import { Secretaria } from './pages/Secretaria';
 import { ConfirmationReportPage } from './pages/secretaria/ConfirmationReportPage';
+import { ConfirmationTeamDetailPage } from './pages/secretaria/ConfirmationTeamDetailPage';
 import { VisitacaoMeusParticipantesPage } from './pages/visitacao/VisitacaoMeusParticipantesPage';
 import { CoordenadorVisitacaoPage } from './pages/visitacao/CoordenadorVisitacaoPage';
 import { VisitacaoManutencaoPage } from './pages/visitacao/VisitacaoManutencaoPage';
@@ -156,6 +159,7 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           }>
             <Route path="confirmacoes" element={<ConfirmationReportPage />} />
+            <Route path="confirmacoes/:equipe_id" element={<ConfirmationTeamDetailPage />} />
             <Route path="participantes" element={<SecretariaParticipantesPage />} />
             <Route path="encontreiros" element={<SecretariaEncontreirosPage />} />
             <Route path="lista-espera" element={<GerenciarListaEsperaPage />} />
@@ -272,7 +276,11 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <ExternalSessionProvider>
-          <MainApp />
+          <EncontroProvider>
+            <EquipeProvider>
+              <MainApp />
+            </EquipeProvider>
+          </EncontroProvider>
         </ExternalSessionProvider>
       </AuthProvider>
     </ThemeProvider>

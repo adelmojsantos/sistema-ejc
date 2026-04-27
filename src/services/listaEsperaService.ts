@@ -68,9 +68,10 @@ export const listaEsperaService = {
     },
 
     async listPendentesNoEncontro(encontroId: string): Promise<ListaEsperaEntry[]> {
+        const COLS = 'id, nome_completo, cpf, email, telefone, data_nascimento, bairro, cidade, endereco, numero, estado, cep, comunidade, created_at, criado_em, fez_ejc_outra_paroquia, qual_paroquia_ejc, status, encontro_id, origem, nome_pai, nome_mae, telefone_pai, telefone_mae, outros_contatos';
         const { data, error } = await supabase
             .from('lista_espera')
-            .select('*')
+            .select(COLS)
             .eq('encontro_id', encontroId)
             .eq('status', 'pendente')
             .order('created_at', { ascending: true });
@@ -83,9 +84,10 @@ export const listaEsperaService = {
         return (data || []) as ListaEsperaEntry[];
     },
     async listEfetivadosNoEncontro(encontroId: string): Promise<ListaEsperaEntry[]> {
+        const COLS = 'id, nome_completo, cpf, email, telefone, data_nascimento, bairro, cidade, endereco, numero, estado, cep, comunidade, created_at, criado_em, fez_ejc_outra_paroquia, qual_paroquia_ejc, status, encontro_id, origem, nome_pai, nome_mae, telefone_pai, telefone_mae, outros_contatos';
         const { data, error } = await supabase
             .from('lista_espera')
-            .select('*')
+            .select(COLS)
             .eq('encontro_id', encontroId)
             .eq('status', 'convertido')
             .order('created_at', { ascending: true });
@@ -99,9 +101,10 @@ export const listaEsperaService = {
     },
 
     async listReprovadosNoEncontro(encontroId: string): Promise<ListaEsperaEntry[]> {
+        const COLS = 'id, nome_completo, cpf, email, telefone, data_nascimento, bairro, cidade, endereco, numero, estado, cep, comunidade, created_at, criado_em, fez_ejc_outra_paroquia, qual_paroquia_ejc, status, encontro_id, origem, nome_pai, nome_mae, telefone_pai, telefone_mae, outros_contatos';
         const { data, error } = await supabase
             .from('lista_espera')
-            .select('*')
+            .select(COLS)
             .eq('encontro_id', encontroId)
             .eq('status', 'reprovado')
             .order('created_at', { ascending: true });

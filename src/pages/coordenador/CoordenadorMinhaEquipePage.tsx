@@ -38,6 +38,7 @@ import { equipeService } from '../../services/equipeService';
 import { exportConfigService } from '../../services/exportConfigService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
+import { validatePessoaForConfirmation } from '../../utils/pessoaValidation';
 import type { CamisetaModelo, CamisetaPedido } from '../../types/camiseta';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import type { RecepcaoDados } from '../../types/recepcao';
@@ -89,6 +90,8 @@ export function CoordenadorMinhaEquipePage() {
   const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [isFinalizingTeam, setIsFinalizingTeam] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -184,9 +187,11 @@ export function CoordenadorMinhaEquipePage() {
         return nomeA.localeCompare(nomeB);
       });
       setMembers(sortedData);
+      return sortedData;
     } catch (error) {
       console.error('Erro ao buscar membros da equipe:', error);
       toast.error('Erro ao carregar membros da equipe.');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -212,19 +217,25 @@ export function CoordenadorMinhaEquipePage() {
     }
   };
 
-  const handleEditSubmit = async (data: PessoaFormData) => {
+  const handleEditSubmit = async (data: PessoaFormData, shouldConfirm: boolean) => {
     if (!editingPessoa) return;
     setIsSaving(true);
     try {
       const member = members.find(m => m.pessoa_id === editingPessoa.id);
       await pessoaService.atualizar(editingPessoa.id, data);
-      if (member) {
+      
+      if (member && shouldConfirm) {
         await inscricaoService.confirmarDados(member.id);
+        toast.success('Dados salvos e confirmados com sucesso!');
+      } else {
+        toast.success('Dados salvos com sucesso!');
       }
-      toast.success('Dados salvos e confirmados com sucesso!');
+
       setEditingPessoa(null);
-      setLoading(true);
-      await loadMembers();
+      const updatedMembers = await loadMembers();
+      if (shouldConfirm && updatedMembers) {
+        checkAllMembersConfirmed(updatedMembers);
+      }
     } catch (error) {
       console.error('Erro ao salvar:', error);
       toast.error('Erro ao salvar alterações.');
@@ -233,11 +244,57 @@ export function CoordenadorMinhaEquipePage() {
     }
   };
 
+  const checkAllMembersConfirmed = (currentMembers: EquipeMember[]) => {
+    if (currentMembers.length === 0) return;
+    const allConfirmed = currentMembers.every(m => m.dados_confirmados);
+    if (allConfirmed && !teamConfirmation) {
+      setShowFinalizeModal(true);
+    }
+  };
+
+  const handleFinalizeTeam = async () => {
+    if (!userParticipacao?.equipe_id || !userParticipacao?.encontro_id || !user?.id) return;
+    
+    setIsFinalizingTeam(true);
+    try {
+      await equipeService.confirmarEquipe(
+        userParticipacao.equipe_id, 
+        userParticipacao.encontro_id, 
+        user.id
+      );
+      toast.success('Equipe finalizada com sucesso!');
+      setShowFinalizeModal(false);
+      // Reload to update confirmation badge
+      await loadMembers();
+    } catch (error) {
+      console.error('Erro ao finalizar equipe:', error);
+      toast.error('Erro ao finalizar equipe.');
+    } finally {
+      setIsFinalizingTeam(false);
+    }
+  };
+
   const handleConfirmOneMember = async (memberId: string) => {
+    const member = members.find(m => m.id === memberId);
+    if (member?.pessoas) {
+      const validation = validatePessoaForConfirmation(member.pessoas);
+      if (!validation.isValid) {
+        toast.error(`Para confirmar, preencha os seguintes campos: ${validation.missingFields.join(', ')}`, {
+          duration: 5000,
+          icon: '⚠️'
+        });
+        return;
+      }
+    }
+
     try {
       await inscricaoService.confirmarDados(memberId);
       toast.success('Integrante confirmado!');
-      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, dados_confirmados: true } : m));
+      const updatedMembers = members.map(m => m.id === memberId ? { ...m, dados_confirmados: true } : m);
+      setMembers(updatedMembers);
+      
+      // Check if team is now complete
+      checkAllMembersConfirmed(updatedMembers);
     } catch {
       toast.error('Erro ao confirmar integrante.');
     }
@@ -1233,6 +1290,16 @@ export function CoordenadorMinhaEquipePage() {
         confirmText="Desvincular"
         isDestructive={true}
         isLoading={isConfirmingDelete}
+      />
+
+      <ConfirmDialog
+        isOpen={showFinalizeModal}
+        title="Finalizar Confirmação da Equipe"
+        message={`Todos os integrantes desta equipe foram confirmados! Deseja finalizar a confirmação da equipe "${equipeNome}" agora?`}
+        onConfirm={handleFinalizeTeam}
+        onCancel={() => setShowFinalizeModal(false)}
+        confirmText="Finalizar Equipe"
+        isLoading={isFinalizingTeam}
       />
     </>
   );

@@ -234,18 +234,18 @@ h2 {
   background-color: white;
   transition: .4s;
   border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-input:checked + .toggle-slider {
+input:checked+.toggle-slider {
   background-color: #10b981;
 }
 
-input:focus + .toggle-slider {
+input:focus+.toggle-slider {
   box-shadow: 0 0 1px #10b981;
 }
 
-input:checked + .toggle-slider:before {
+input:checked+.toggle-slider:before {
   transform: translateX(20px);
 }
 
@@ -265,6 +265,7 @@ input:checked + .toggle-slider:before {
 
 .btn-primary,
 .btn-secondary,
+.btn-primary-secondary,
 .btn-text {
   border-radius: 12px;
   font-weight: 700;
@@ -293,6 +294,19 @@ input:checked + .toggle-slider:before {
   background: var(--surface-2);
   border-color: var(--primary-color);
   color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.btn-primary-secondary {
+  background: var(--success-bg);
+  border: 1px solid var(--success-bg);
+  color: #fff;
+}
+
+.btn-primary-secondary:hover:not(:disabled) {
+  background: var(--success-border);
+  border-color: var(--success-border);
+  color: var(--success-text);
   transform: translateY(-1px);
 }
 
@@ -2741,53 +2755,53 @@ tbody tr:hover {
 }
 
 .radio-option:hover:not(.is-selected) {
-    border-color: var(--primary-color);
-    background: var(--primary-light);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+  border-color: var(--primary-color);
+  background: var(--primary-light);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .radio-option.is-selected {
-    border-color: var(--primary-color);
-    background: var(--primary-light);
-    color: var(--primary-color);
-    box-shadow: 0 0 0 1px var(--primary-color), var(--shadow-md);
+  border-color: var(--primary-color);
+  background: var(--primary-light);
+  color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color), var(--shadow-md);
 }
 
 .dark .radio-option.is-selected {
-    background: rgba(59, 130, 246, 0.15);
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 1px var(--primary-color);
+  background: rgba(59, 130, 246, 0.15);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color);
 }
 
 /* Custom Radio Indicator */
 .radio-indicator {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    border: 2px solid var(--border-color);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s var(--ease-smooth);
-    flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s var(--ease-smooth);
+  flex-shrink: 0;
 }
 
 .is-selected .radio-indicator {
-    border-color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .radio-indicator-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--primary-color);
-    transform: scale(0);
-    transition: transform 0.2s var(--ease-smooth);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  transform: scale(0);
+  transition: transform 0.2s var(--ease-smooth);
 }
 
 .is-selected .radio-indicator-dot {
-    transform: scale(1);
+  transform: scale(1);
 }
 
 /* Scrollbar Styling */
@@ -4516,16 +4530,16 @@ tbody tr:hover {
 
 .auth-logo-sidebar {
   height: auto;
-  filter: invert(1) brightness(2) drop-shadow(0 20px 30px rgba(0,0,0,0.3));
+  filter: invert(1) brightness(2) drop-shadow(0 20px 30px rgba(0, 0, 0, 0.3));
 }
 
 .auth-logo-header {
   height: auto;
-  filter: drop-shadow(0 10px 20px rgba(0,0,0,0.1));
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.1));
 }
 
 .dark .auth-logo-header {
-  filter: invert(1) brightness(2) drop-shadow(0 10px 20px rgba(0,0,0,0.5));
+  filter: invert(1) brightness(2) drop-shadow(0 10px 20px rgba(0, 0, 0, 0.5));
 }
 
 .auth-header h2 {
@@ -5181,6 +5195,7 @@ tbody tr:hover {
     align-items: flex-start;
     gap: 1rem;
   }
+
   .toggle-sim-nao {
     width: 100%;
   }

@@ -24,23 +24,25 @@ import { Modal } from '../../components/ui/Modal';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { EncontristaMap } from '../../components/visitacao/EncontristaMap';
 import { encontroService } from '../../services/encontroService';
-import { equipeService } from '../../services/equipeService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { visitacaoService } from '../../services/visitacaoService';
+import { useEncontros } from '../../contexts/EncontroContext';
+import { useEquipes } from '../../contexts/EquipeContext';
 import type { Encontro } from '../../types/encontro';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { VisitaGrupo, VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
 import { normalizeString } from '../../utils/stringUtils';
 
 export function CoordenadorVisitacaoPage() {
+  const { encontros } = useEncontros();
+  const { equipes } = useEquipes();
   const [activeTab, setActiveTab] = useState<'duplas' | 'vincular' | 'monitoramento'>('duplas');
 
   // Data States
-  const [encontros, setEncontros] = useState<Encontro[]>([]);
   const [grupos, setGrupos] = useState<VisitaGrupo[]>([]);
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [selectedGrupoId, setSelectedGrupoId] = useState<string>('');
-  const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
+  const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]); // jovens
   const [equipeVisitacao, setEquipeVisitacao] = useState<InscricaoEnriched[]>([]);
   const [vinculos, setVinculos] = useState<VisitaParticipacaoEnriched[]>([]);
 
@@ -60,39 +62,34 @@ export function CoordenadorVisitacaoPage() {
   const [showOnlyLinkedToSelected, setShowOnlyLinkedToSelected] = useState(false);
 
   // UI States
-  const [isFetching, setIsFetching] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
+  // Seleciona o encontro mais recente quando o contexto carregar
   useEffect(() => {
-    async function loadBaseData() {
-      try {
-        const es = await encontroService.listar();
-        setEncontros(es);
-        if (es.length > 0) setSelectedEncontroId(es[es.length - 1].id);
-      } catch (_error) {
-        console.error('Error loading base data:', _error);
-      } finally {
-        setIsFetching(false);
-      }
+    if (encontros.length > 0 && !selectedEncontroId) {
+      setSelectedEncontroId(encontros[encontros.length - 1].id);
     }
-    loadBaseData();
-  }, []);
+  }, [encontros, selectedEncontroId]);
 
   const loadData = useCallback(async () => {
     if (!selectedEncontroId) return;
     setIsFetching(true);
     try {
-      const allInscricoes = await inscricaoService.listarPorEncontro(selectedEncontroId);
-      setParticipantes(allInscricoes.filter(i => i.participante === true));
+      // Filtros server-side: busca apenas participantes (jovens)
+      const allParticipantes = await inscricaoService.listarParticipantesPorEncontro(selectedEncontroId);
+      setParticipantes(allParticipantes);
 
-      const equipes = await equipeService.listar();
+      // Usa equipes do contexto (já cacheado) para encontrar a equipe de visitação
       const visitacaoTeam = equipes.find(e => e.nome?.toLowerCase().includes('visitação') || e.nome?.toLowerCase().includes('visitacao'));
 
       if (visitacaoTeam) {
-        setEquipeVisitacao(allInscricoes.filter(i => i.equipe_id === visitacaoTeam.id));
+        const encontreiros = await inscricaoService.listarEncontreirosPorEncontro(selectedEncontroId);
+        setEquipeVisitacao(encontreiros.filter(i => i.equipe_id === visitacaoTeam.id));
       } else {
-        setEquipeVisitacao(allInscricoes.filter(i => i.participante !== true));
+        const encontreiros = await inscricaoService.listarEncontreirosPorEncontro(selectedEncontroId);
+        setEquipeVisitacao(encontreiros);
       }
 
       const [gData, vData] = await Promise.all([
@@ -111,7 +108,7 @@ export function CoordenadorVisitacaoPage() {
     } finally {
       setIsFetching(false);
     }
-  }, [selectedEncontroId, selectedGrupoId]);
+  }, [selectedEncontroId, selectedGrupoId, equipes]);
 
   useEffect(() => {
     loadData();

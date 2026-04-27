@@ -9,10 +9,10 @@ import { HistoricoModal } from '../../components/pessoa/HistoricoModal';
 import { inscricaoService } from '../../services/inscricaoService';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import { encontroService } from '../../services/encontroService';
-import { equipeService } from '../../services/equipeService';
 import { pessoaService } from '../../services/pessoaService';
+import { useEncontros } from '../../contexts/EncontroContext';
+import { useEquipes } from '../../contexts/EquipeContext';
 import type { Encontro } from '../../types/encontro';
-import type { Equipe } from '../../types/equipe';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 
 interface StagedMembro {
@@ -24,10 +24,10 @@ interface StagedMembro {
 
 export function MontagemPage() {
     const navigate = useNavigate();
+    const { encontros } = useEncontros();
+    const { equipes } = useEquipes();
 
     // States
-    const [encontros, setEncontros] = useState<Encontro[]>([]);
-    const [equipes, setEquipes] = useState<Equipe[]>([]);
     const [inscricoes, setInscricoes] = useState<InscricaoEnriched[]>([]); // Membros persistidos
     const [searchResults, setSearchResults] = useState<(Pessoa & { equipeAtual?: string, noStaging?: boolean })[]>([]); // Para busca
 
@@ -40,7 +40,7 @@ export function MontagemPage() {
     const [showQuickAddPerson, setShowQuickAddPerson] = useState(false);
     const [staging, setStaging] = useState<StagedMembro[]>([]); // Novos para salvar
 
-    const [isFetching, setIsFetching] = useState(true);
+    const isFetching = !encontros.length;
     const [isSearching, setIsSearching] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isSavingPerson, setIsSavingPerson] = useState(false);
@@ -49,34 +49,22 @@ export function MontagemPage() {
 
     const searchRef = useRef<HTMLDivElement>(null);
 
-    // Initial load
+    // Seleciona o encontro mais recente (último) quando o contexto carregar
     useEffect(() => {
-        async function loadBaseData() {
-            try {
-                const [es, eqs] = await Promise.all([
-                    encontroService.listar(),
-                    equipeService.listar()
-                ]);
-                setEncontros(es);
-                setEquipes(eqs);
-                if (es.length > 0) setSelectedEncontroId(es[es.length - 1].id);
-            } finally {
-                setIsFetching(false);
-            }
+        if (encontros.length > 0 && !selectedEncontroId) {
+            setSelectedEncontroId(encontros[encontros.length - 1].id);
         }
-        loadBaseData();
-    }, []);
+    }, [encontros, selectedEncontroId]);
 
-    // Load memberships when Encontro changes
+    // Load memberships when Encontro changes (versão leve para montagem)
     const loadInscricoes = useCallback(async () => {
         if (!selectedEncontroId) return;
-        setIsFetching(true);
         try {
-            const data = await inscricaoService.listarPorEncontro(selectedEncontroId);
+            const data = await inscricaoService.listarResumoPorEncontro(selectedEncontroId);
             setInscricoes(data);
             setStaging([]); // Limpa rascunho ao mudar encontro
-        } finally {
-            setIsFetching(false);
+        } catch {
+            toast.error('Erro ao carregar membros.');
         }
     }, [selectedEncontroId]);
 
@@ -172,7 +160,7 @@ export function MontagemPage() {
         setStaging(prev => prev.map(s => s.pessoa_id === pessoa_id ? { ...s, coordenador: !s.coordenador } : s));
     };
 
-    const handleQuickAddPerson = async (formData: PessoaFormData) => {
+    const handleQuickAddPerson = async (formData: PessoaFormData, _shouldConfirm: boolean) => {
         setIsSavingPerson(true);
         try {
             const newPerson = await pessoaService.criar(formData);

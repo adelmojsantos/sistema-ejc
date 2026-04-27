@@ -24,6 +24,67 @@ export const inscricaoService = {
         return data;
     },
 
+    /**
+     * Busca apenas os encontreiros (participante=false) de um encontro.
+     * Retorna somente as colunas necessárias para a listagem da SecretariaEncontreirosPage.
+     * Evita baixar todos os dados de participantes desnecessariamente.
+     */
+    async listarEncontreirosPorEncontro(encontroId: string): Promise<InscricaoEnriched[]> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('id, equipe_id, coordenador, participante, pessoa_id, pessoas(nome_completo, telefone, email, cpf, comunidade, bairro), equipes(nome)')
+            .eq('encontro_id', encontroId)
+            .eq('participante', false);
+
+        if (error) throw error;
+        return data as unknown as InscricaoEnriched[];
+    },
+
+    /**
+     * Busca apenas os participantes (participante=true) de um encontro.
+     * Retorna os campos necessários para SecretariaParticipantesPage (inclui endereço e geo).
+     */
+    async listarParticipantesPorEncontro(encontroId: string): Promise<InscricaoEnriched[]> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('id, equipe_id, coordenador, participante, pessoa_id, origem, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome)')
+            .eq('encontro_id', encontroId)
+            .eq('participante', true);
+
+        if (error) throw error;
+        return data as unknown as InscricaoEnriched[];
+    },
+
+    /**
+     * Versão ultra-leve para MontagemPage.
+     * Carrega apenas id, equipe_id, coordenador, participante e nome/cpf da pessoa.
+     * Não inclui endereço, geo, email ou outros campos pesados — só o necessário para montagem e contagens.
+     */
+    async listarResumoPorEncontro(encontroId: string): Promise<InscricaoEnriched[]> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('id, equipe_id, coordenador, participante, pessoa_id, dados_confirmados, pago_taxa, pessoas(nome_completo, cpf), equipes(nome)')
+            .eq('encontro_id', encontroId);
+
+        if (error) throw error;
+        return data as unknown as InscricaoEnriched[];
+    },
+
+    /**
+     * Carrega dados completos apenas das participações de uma equipe específica.
+     * Usar na página de detalhe de equipe para evitar carregar todos os participantes do encontro.
+     */
+    async listarPorEquipeEEncontro(equipeId: string, encontroId: string): Promise<InscricaoEnriched[]> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('*, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome)')
+            .eq('encontro_id', encontroId)
+            .eq('equipe_id', equipeId);
+
+        if (error) throw error;
+        return data;
+    },
+
     async criar(formData: InscricaoFormData): Promise<Inscricao> {
         const { data, error } = await supabase
             .from(TABLE)

@@ -20,6 +20,7 @@ import { recreacaoService } from '../../services/recreacaoService';
 import { encontroService } from '../../services/encontroService';
 import { useAuth } from '../../hooks/useAuth';
 import { useLoading } from '../../contexts/LoadingContext';
+import { useEncontros } from '../../contexts/EncontroContext';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
 import type { Encontro } from '../../types/encontro';
@@ -33,7 +34,7 @@ export function RecreacaoAdminPage() {
 
   const canChangeEncontro = hasPermission('modulo_admin');
 
-  const [encontros, setEncontros] = useState<Encontro[]>([]);
+  const { encontros, encontroAtivo } = useEncontros();
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [registros, setRegistros] = useState<RecreacaoDados[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,21 +47,13 @@ export function RecreacaoAdminPage() {
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [obsToShow, setObsToShow] = useState<string | null>(null);
 
-  // Load initial encounters
+  // Seleciona encontro ativo via contexto
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const data = await encontroService.listar();
-        setEncontros(data);
-        const active = data.find(e => e.ativo);
-        if (active) setSelectedEncontroId(active.id);
-        else if (data.length > 0) setSelectedEncontroId(data[0].id);
-      } catch {
-        toast.error('Erro ao carregar encontros.');
-      }
-    };
-    loadInitialData();
-  }, []);
+    if (!selectedEncontroId) {
+      if (encontroAtivo) setSelectedEncontroId(encontroAtivo.id);
+      else if (encontros.length > 0) setSelectedEncontroId(encontros[0].id);
+    }
+  }, [encontros, encontroAtivo, selectedEncontroId]);
 
   const loadRegistros = useCallback(async () => {
     if (!selectedEncontroId) return;
