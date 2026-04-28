@@ -15,7 +15,7 @@ interface ComprasCategory {
 const CATEGORIES: ComprasCategory[] = [
   {
     id: 'taxas',
-    path: '/compras/taxas',
+    path: '/gestao-compras/taxas',
     label: 'Pagamento de Taxas',
     description: 'Gestão de pagamentos das taxas de inscrição por equipe.',
     icon: <CreditCard size={34} />,
@@ -24,7 +24,7 @@ const CATEGORIES: ComprasCategory[] = [
   },
   {
     id: 'camisetas',
-    path: '/compras/camisetas',
+    path: '/gestao-compras/camisetas',
     label: 'Pedidos de Camisetas',
     description: 'Listagem geral, por equipe e resumo consolidado.',
     icon: <Shirt size={34} />,
@@ -33,7 +33,7 @@ const CATEGORIES: ComprasCategory[] = [
   },
   {
     id: 'configuracao',
-    path: '/compras/configuracao',
+    path: '/gestao-compras/configuracao',
     label: 'Modelos e Tamanhos',
     description: 'Cadastrar modelos de camisetas e tamanhos disponíveis.',
     icon: <Settings size={34} />,
@@ -80,7 +80,7 @@ export function ComprasPage() {
               <div>
                 <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   {category.label}
-                  <ChevronRight size={18} opacity={0.3} />
+                  <ChevronRight size={18} style={{ opacity: 0.3 }} />
                 </h3>
                 <p>{category.description}</p>
               </div>

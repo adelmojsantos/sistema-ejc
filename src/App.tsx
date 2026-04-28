@@ -225,24 +225,24 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           } />
 
-          <Route path="/compras" element={
+          <Route path="/gestao-compras" element={
             <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
-              <ComprasPage />
+              <PageTransition><ComprasPage /></PageTransition>
             </ProtectedRoute>
           } />
-          <Route path="/compras/taxas" element={
+          <Route path="/gestao-compras/taxas" element={
             <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
-              <TaxasPage />
+              <PageTransition><TaxasPage /></PageTransition>
             </ProtectedRoute>
           } />
-          <Route path="/compras/camisetas" element={
+          <Route path="/gestao-compras/camisetas" element={
             <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
-              <PedidosCamisetasPage />
+              <PageTransition><PedidosCamisetasPage /></PageTransition>
             </ProtectedRoute>
           } />
-          <Route path="/compras/configuracao" element={
+          <Route path="/gestao-compras/configuracao" element={
             <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
-              <ConfiguracaoCamisetasPage />
+              <PageTransition><ConfiguracaoCamisetasPage /></PageTransition>
             </ProtectedRoute>
           } />
 

@@ -77,7 +77,7 @@ export function ConfiguracaoCamisetasPage() {
     <div className="fade-in">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button onClick={() => navigate('/compras')} className="icon-btn">
+          <button onClick={() => navigate('/gestao-compras')} className="icon-btn">
             <ChevronLeft size={18} />
           </button>
           <div>
