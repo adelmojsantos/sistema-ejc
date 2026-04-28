@@ -45,6 +45,10 @@ import { SecretariaParticipantesPage } from './pages/secretaria/SecretariaPartic
 import { SecretariaEncontreirosPage } from './pages/secretaria/SecretariaEncontreirosPage';
 import { GerenciarListaEsperaPage } from './pages/secretaria/GerenciarListaEsperaPage';
 import { SecretariaFotosPage } from './pages/secretaria/SecretariaFotosPage';
+import { ComprasPage } from './pages/compras/ComprasPage';
+import { TaxasPage } from './pages/compras/TaxasPage';
+import { PedidosCamisetasPage } from './pages/compras/PedidosCamisetasPage';
+import { ConfiguracaoCamisetasPage } from './pages/compras/ConfiguracaoCamisetasPage';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { useEffect } from 'react';
 import { useLoading } from './contexts/LoadingContext';
@@ -218,6 +222,27 @@ function AnimatedRoutes() {
           <Route path="/atividades/recreacao" element={
             <ProtectedRoute requiredPermissions={['modulo_recreacao', 'modulo_admin']}>
               <RecreacaoAdminPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/compras" element={
+            <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
+              <ComprasPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/compras/taxas" element={
+            <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
+              <TaxasPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/compras/camisetas" element={
+            <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
+              <PedidosCamisetasPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/compras/configuracao" element={
+            <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
+              <ConfiguracaoCamisetasPage />
             </ProtectedRoute>
           } />
 

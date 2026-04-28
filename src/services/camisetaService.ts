@@ -13,6 +13,38 @@ export const camisetaService = {
         return data || [];
     },
 
+    async criarModelo(nome: string): Promise<CamisetaModelo> {
+        const { data, error } = await supabase
+            .from('camiseta_modelos')
+            .insert([{ nome, ativo: true }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    async atualizarModelo(id: string, nome: string): Promise<CamisetaModelo> {
+        const { data, error } = await supabase
+            .from('camiseta_modelos')
+            .update({ nome })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    async excluirModelo(id: string): Promise<void> {
+        const { error } = await supabase
+            .from('camiseta_modelos')
+            .update({ ativo: false })
+            .eq('id', id);
+
+        if (error) throw error;
+    },
+
     async listarPedidosPorParticipacao(participacaoId: string): Promise<CamisetaPedido[]> {
         const { data, error } = await supabase
             .from('camiseta_pedidos')
