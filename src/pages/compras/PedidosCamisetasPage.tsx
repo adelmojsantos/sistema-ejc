@@ -1,16 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shirt, ChevronLeft, Search, Copy, Download, FileText, FileSpreadsheet, Loader, Filter } from 'lucide-react';
+import { Shirt, ChevronLeft, Search, Copy, Download, Loader } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useLoading } from '../../contexts/LoadingContext';
-import { comprasService, ResumoCamisetas } from '../../services/comprasService';
+import { comprasService, type ResumoCamisetas, type CamisetaEquipeReport } from '../../services/comprasService';
 import { equipeService } from '../../services/equipeService';
 import type { Equipe } from '../../types/equipe';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useDebounce } from '../../hooks/useDebounce';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 export function PedidosCamisetasPage() {
@@ -21,6 +18,7 @@ export function PedidosCamisetasPage() {
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [resumo, setResumo] = useState<ResumoCamisetas[]>([]);
+  const [relatorioEquipes, setRelatorioEquipes] = useState<CamisetaEquipeReport[]>([]);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
 
   const [selectedEquipeId, setSelectedEquipeId] = useState<string>('all');
@@ -28,7 +26,6 @@ export function PedidosCamisetasPage() {
   const debouncedSearch = useDebounce(searchTerm, 400);
 
   const [loading, setLoading] = useState(true);
-  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     if (encontros.length > 0 && !selectedEncontroId) {
@@ -42,14 +39,16 @@ export function PedidosCamisetasPage() {
     setLoading(true);
     setGlobalLoading(true);
     try {
-      const [pedidosData, resumoData, eqData] = await Promise.all([
+      const [pedData, resData, eqData, relEqData] = await Promise.all([
         comprasService.listarPedidosDetalhados(selectedEncontroId),
         comprasService.listarResumoCamisetas(selectedEncontroId),
-        equipeService.listar()
+        equipeService.listar(),
+        comprasService.listarRelatorioCamisetasPorEquipe(selectedEncontroId)
       ]);
-      setPedidos(pedidosData);
-      setResumo(resumoData);
+      setPedidos(pedData);
+      setResumo(resData);
       setEquipes(eqData);
+      setRelatorioEquipes(relEqData);
     } catch {
       toast.error('Erro ao carregar dados de camisetas.');
     } finally {
@@ -141,7 +140,7 @@ export function PedidosCamisetasPage() {
         <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
           {resumo.map(m => (
             <div key={m.modelo_id} className="card" style={{ padding: '1.25rem' }}>
-              <div style={{ borderBottom: '1px solid var(--border-color)', pb: '0.75rem', mb: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ fontSize: '1rem', margin: 0 }}>{m.modelo_nome}</h3>
                 <span className="badge badge-primary">{m.total} total</span>
               </div>

@@ -5,6 +5,14 @@ export interface CamisetaModelo {
     created_at: string;
 }
 
+export interface CamisetaTamanho {
+    id: string;
+    sigla: string;
+    ordem: number;
+    ativo: boolean;
+    created_at: string;
+}
+
 export interface CamisetaPedido {
     id: string;
     participacao_id: string;

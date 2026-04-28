@@ -1,16 +1,17 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { CreditCard, ChevronLeft, Search, Filter, CheckCircle, XCircle, Loader, Download } from 'lucide-react';
+import { CheckCircle, ChevronLeft, Loader, Search, XCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useLoading } from '../../contexts/LoadingContext';
-import { comprasService, TaxaReport } from '../../services/comprasService';
-import { inscricaoService } from '../../services/inscricaoService';
+import { useDebounce } from '../../hooks/useDebounce';
+import { comprasService, type TaxaReport } from '../../services/comprasService';
 import { equipeService } from '../../services/equipeService';
+import { inscricaoService } from '../../services/inscricaoService';
 import type { Equipe } from '../../types/equipe';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
-import { useDebounce } from '../../hooks/useDebounce';
+import { encontroService } from '../../services/encontroService';
 
 export function TaxasPage() {
   const navigate = useNavigate();
@@ -113,7 +114,17 @@ export function TaxasPage() {
       {/* Resumo por Equipe */}
       <section className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
         {relatorioTaxas.filter(r => r.total_membros > 0).map(r => (
-          <div key={r.equipe_id} className="card" style={{ padding: '1rem', borderLeft: `4px solid ${r.pendentes === 0 ? 'var(--success-color)' : 'var(--warning-color)'}` }}>
+          <div 
+            key={r.equipe_id} 
+            className="card card--clickable" 
+            style={{ 
+              padding: '1rem', 
+              borderLeft: `4px solid ${r.pendentes === 0 ? 'var(--success-color)' : 'var(--warning-color)'}`,
+              cursor: 'pointer',
+              transition: 'transform 0.2s, box-shadow 0.2s'
+            }}
+            onClick={() => setSelectedEquipeId(r.equipe_id)}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
               <h3 style={{ fontSize: '0.9rem', margin: 0 }}>{r.equipe_nome}</h3>
               <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-text)' }}>{r.pagos}/{r.total_membros}</span>

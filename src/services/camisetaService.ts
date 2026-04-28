@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { CamisetaModelo, CamisetaPedido, CamisetaPedidoFormData } from '../types/camiseta';
+import type { CamisetaModelo, CamisetaPedido, CamisetaPedidoFormData, CamisetaTamanho } from '../types/camiseta';
 
 export const camisetaService = {
     async listarModelos(): Promise<CamisetaModelo[]> {
@@ -39,6 +39,49 @@ export const camisetaService = {
     async excluirModelo(id: string): Promise<void> {
         const { error } = await supabase
             .from('camiseta_modelos')
+            .update({ ativo: false })
+            .eq('id', id);
+
+        if (error) throw error;
+    },
+
+    async listarTamanhos(): Promise<CamisetaTamanho[]> {
+        const { data, error } = await supabase
+            .from('camiseta_tamanhos')
+            .select('*')
+            .eq('ativo', true)
+            .order('ordem');
+
+        if (error) throw error;
+        return data || [];
+    },
+
+    async criarTamanho(sigla: string, ordem: number = 0): Promise<CamisetaTamanho> {
+        const { data, error } = await supabase
+            .from('camiseta_tamanhos')
+            .insert([{ sigla, ordem, ativo: true }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    async atualizarTamanho(id: string, sigla: string, ordem: number): Promise<CamisetaTamanho> {
+        const { data, error } = await supabase
+            .from('camiseta_tamanhos')
+            .update({ sigla, ordem })
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    },
+
+    async excluirTamanho(id: string): Promise<void> {
+        const { error } = await supabase
+            .from('camiseta_tamanhos')
             .update({ ativo: false })
             .eq('id', id);
 

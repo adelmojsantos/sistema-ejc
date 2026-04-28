@@ -17,6 +17,13 @@ export interface TaxaReport {
   pendentes: number;
 }
 
+export interface CamisetaEquipeReport {
+  equipe_id: string;
+  equipe_nome: string;
+  total_pedidos: number;
+  total_camisetas: number;
+}
+
 export const comprasService = {
   async listarRelatorioTaxas(encontroId: string): Promise<TaxaReport[]> {
     const { data: parts, error: partsError } = await supabase
@@ -93,5 +100,35 @@ export const comprasService = {
       pessoa_nome: p.participacoes?.pessoas?.nome_completo || 'N/A',
       equipe_nome: p.participacoes?.equipes?.nome || 'Sem Equipe'
     }));
+  },
+
+  async listarRelatorioCamisetasPorEquipe(encontroId: string): Promise<CamisetaEquipeReport[]> {
+    const { data: pedidos, error } = await supabase
+      .from('camiseta_pedidos')
+      .select('quantidade, participacoes!inner(equipe_id, equipes(nome))')
+      .eq('participacoes.encontro_id', encontroId);
+
+    if (error) throw error;
+
+    const { data: equipes, error: equipesError } = await supabase
+      .from('equipes')
+      .select('id, nome')
+      .is('deleted_at', null)
+      .order('nome');
+
+    if (equipesError) throw equipesError;
+
+    const relatorio = (equipes || []).map(eq => {
+      const teamPedidos = (pedidos || []).filter(p => p.participacoes?.equipe_id === eq.id);
+      const totalCamisetas = teamPedidos.reduce((sum, p) => sum + p.quantidade, 0);
+      return {
+        equipe_id: eq.id,
+        equipe_nome: eq.nome || 'Sem Equipe',
+        total_pedidos: teamPedidos.length,
+        total_camisetas: totalCamisetas
+      };
+    });
+
+    return relatorio;
   }
 };
