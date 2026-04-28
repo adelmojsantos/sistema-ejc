@@ -11,6 +11,7 @@ import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
 import { inscricaoService } from '../../services/inscricaoService';
+import { useEncontros } from '../../contexts/EncontroContext';
 import { useDebounce } from '../../hooks/useDebounce';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { Encontro } from '../../types/encontro';
@@ -52,7 +53,7 @@ export function UsersAdminPage() {
 
     // Bulk creation state
     const [creationMode, setCreationMode] = useState<'individual' | 'lote'>('individual');
-    const [encontros, setEncontros] = useState<Encontro[]>([]);
+    const { encontros, encontroAtivo } = useEncontros();
     const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
     const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
     const [teamMembers, setTeamMembers] = useState<InscricaoEnriched[]>([]);
@@ -130,25 +131,12 @@ export function UsersAdminPage() {
                 }
             }
 
-            const encontrosData = await encontroService.listar();
-            setEncontros(encontrosData);
-
             try {
                 const configs = await exportConfigService.listarTodas();
                 setExportConfigs(configs);
                 if (configs.length > 0) setSelectedExportConfigId(configs[0].id);
             } catch (e) {
                 console.warn('Could not load export configs', e);
-            }
-
-            const active = encontrosData.find(e => e.ativo);
-            if (active) {
-                setSelectedEncontroId(active.id);
-                if (targetEncontroId === null) setTargetEncontroId(active.id); // Init
-            }
-            else if (encontrosData.length > 0) {
-                setSelectedEncontroId(encontrosData[0].id);
-                if (targetEncontroId === null) setTargetEncontroId(encontrosData[0].id);
             }
 
         } catch (err: unknown) {
@@ -169,6 +157,16 @@ export function UsersAdminPage() {
             }
         });
     }, [loadUsers]);
+
+    // Inicializa encontro a partir do contexto global
+    useEffect(() => {
+        if (encontros.length === 0) return;
+        if (!selectedEncontroId) {
+            const active = encontroAtivo || encontros[0];
+            setSelectedEncontroId(active.id);
+            if (targetEncontroId === null) setTargetEncontroId(active.id);
+        }
+    }, [encontros, encontroAtivo, selectedEncontroId, targetEncontroId]);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -240,10 +238,10 @@ export function UsersAdminPage() {
         setCreating(true);
         try {
             const result = await adminUserService.createUser({ email, gruposIds: selectedGruposIds, encontroId: targetEncontroId });
-            setUsers((prev) => [...prev, result.user]);
             setTempPasswords((prev) => ({ ...prev, [result.user.id]: result.temporaryPassword }));
             toast.success('Usuário criado com senha temporária.');
             handleClearSelection();
+            loadUsers();
         } catch (createError: unknown) {
             const message = createError instanceof Error ? createError.message : 'Erro ao criar usuário.';
             toast.error(message);
@@ -258,9 +256,8 @@ export function UsersAdminPage() {
         setSelectedMemberIds([]);
         setBulkResults([]);
         try {
-            const inscricoes = await inscricaoService.listarPorEncontro(selectedEncontroId);
-            const teamFilteres = inscricoes.filter(i => i.equipe_id === selectedEquipeId);
-            setTeamMembers(teamFilteres);
+            const membros = await adminUserService.listTeamMembers(selectedEncontroId, selectedEquipeId);
+            setTeamMembers(membros as unknown as InscricaoEnriched[]);
         } catch {
             toast.error('Erro ao carregar membros da equipe.');
         } finally {
@@ -309,6 +306,7 @@ export function UsersAdminPage() {
         if (successes > 0) toast.success(`${successes} usuário(s) criado(s) com sucesso.`);
         if (results.length > successes) toast.error(`${results.length - successes} erro(s) encontrados.`);
         setSelectedMemberIds([]);
+        if (successes > 0) loadUsers();
     };
 
     const handleConfirmMemberInBulk = async (participacaoId: string) => {
@@ -927,10 +925,20 @@ export function UsersAdminPage() {
             </section>
 
             <section className="card">
-                <div className="admin-users-table-header">
-                    <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Usuários cadastrados</h2>
-                    <button className="btn-secondary" type="button" onClick={loadUsers} disabled={loading}>
-                        Atualizar
+                <div className="admin-users-table-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div>
+                        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Usuários cadastrados</h2>
+                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'var(--muted-text)' }}>
+                            {filteredUsers.length} usuário(s)
+                            {filteredUsers.filter(u => u.temporary_password).length > 0 && (
+                                <span style={{ marginLeft: '0.5rem', color: 'var(--warning-color)', fontWeight: 600 }}>
+                                    · {filteredUsers.filter(u => u.temporary_password).length} com senha pendente
+                                </span>
+                            )}
+                        </p>
+                    </div>
+                    <button className="btn-secondary" type="button" onClick={loadUsers} disabled={loading} title="Atualizar lista" style={{ padding: '0.4rem 0.75rem' }}>
+                        <RotateCcw size={15} />
                     </button>
                 </div>
 
@@ -1030,82 +1038,103 @@ export function UsersAdminPage() {
                 </div>
 
                 {!loading && !error && (
-                    <div className="admin-users-table-wrapper" style={{ marginTop: 0, borderTopLeftRadius: 0, borderTopRightRadius: 0 }}>
-                        <table className="admin-users-table">
-                            <thead>
-                                <tr>
-                                    <th>Nome / E-mail</th>
-                                    <th>Grupos de Acesso</th>
-                                    <th>Senha temporária</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredUsers.map((user) => {
-                                    const tempPassword = tempPasswords[user.id];
-                                    const roleUpdating = !!updatingRoleById[user.id];
-                                    const passwordResetting = !!resettingPasswordById[user.id];
+                    <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
+                        {filteredUsers.length === 0 && (
+                            <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>Nenhum usuário encontrado.</div>
+                        )}
+                        {filteredUsers.map((user) => {
+                            const tempPassword = tempPasswords[user.id];
+                            const roleUpdating = !!updatingRoleById[user.id];
+                            const passwordResetting = !!resettingPasswordById[user.id];
+                            const initial = (user.nome || user.email).charAt(0).toUpperCase();
 
-                                    return (
-                                        <tr key={user.id}>
-                                            <td>
-                                                <div style={{ fontWeight: 500 }}>{user.nome || <span className="text-muted" style={{ fontStyle: 'italic' }}>Sem registro de pessoa</span>}</div>
-                                                <div style={{ fontSize: '0.85rem', color: 'var(--muted-text)' }}>{user.email}</div>
-                                                {tempPassword && (
-                                                    <code className="admin-temp-password">Senha temporária: {tempPassword}</code>
-                                                )}
-                                                {user.temporary_password && !tempPassword && (
-                                                    <span style={{ fontSize: '0.7rem', background: 'var(--warning-color)', color: '#fff', padding: '0.1rem 0.4rem', borderRadius: '4px', display: 'inline-block', marginTop: '0.2rem' }}>
-                                                        Senha Pendente
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td>
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', maxWidth: '280px' }}>
-                                                    {grupos.map(g => {
-                                                        const isSelected = user.grupos?.some(v => v.grupo_id === g.id && v.encontro_id === targetEncontroId);
-                                                        return (
-                                                            <button
-                                                                key={g.id}
-                                                                type="button"
-                                                                disabled={roleUpdating || targetEncontroId === undefined}
-                                                                onClick={() => handleToggleGroups(user.id, g.id, user.grupos || [])}
-                                                                title={isSelected ? 'Clique para remover' : 'Clique para adicionar'}
-                                                                style={{
-                                                                    padding: '0.2rem 0.5rem',
-                                                                    fontSize: '0.75rem',
-                                                                    borderRadius: '4px',
-                                                                    border: `1px solid ${isSelected ? 'var(--primary-color)' : 'var(--border-color)'}`,
-                                                                    background: isSelected ? 'var(--primary-light)' : 'transparent',
-                                                                    color: isSelected ? 'var(--primary-color)' : 'var(--muted-text)',
-                                                                    cursor: roleUpdating ? 'not-allowed' : 'pointer',
-                                                                    transition: 'all 0.2s',
-                                                                    opacity: roleUpdating ? 0.6 : 1
-                                                                }}
-                                                            >
-                                                                {g.nome}
-                                                            </button>
-                                                        )
-                                                    })}
-                                                </div>
-                                            </td>
-                                            <td>{user.temporary_password ? 'Sim' : 'Não'}</td>
-                                            <td>
+                            return (
+                                <div key={user.id} style={{
+                                    display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-start',
+                                    padding: '1rem 1.25rem',
+                                    background: 'var(--surface-1)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '12px',
+                                    transition: 'box-shadow 0.2s'
+                                }}>
+                                    {/* Avatar */}
+                                    <div style={{
+                                        width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
+                                        background: 'var(--primary-color)', color: '#fff',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontWeight: 700, fontSize: '1.1rem'
+                                    }}>{initial}</div>
+
+                                    {/* Info */}
+                                    <div style={{ flex: 1, minWidth: '160px' }}>
+                                        <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                                            {user.nome || <span style={{ fontStyle: 'italic', opacity: 0.6 }}>Sem vínculo</span>}
+                                        </div>
+                                        <div style={{ fontSize: '0.82rem', color: 'var(--muted-text)' }}>{user.email}</div>
+                                        {user.temporary_password && !tempPassword && (
+                                            <span style={{ fontSize: '0.7rem', background: 'var(--warning-color)', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '12px', display: 'inline-block', marginTop: '0.3rem', fontWeight: 600 }}>
+                                                Senha Pendente
+                                            </span>
+                                        )}
+                                        {tempPassword && (
+                                            <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                                <code style={{ fontSize: '0.78rem', background: 'var(--secondary-bg)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                                                    {tempPassword}
+                                                </code>
                                                 <button
                                                     type="button"
-                                                    className="btn-secondary"
-                                                    disabled={passwordResetting}
-                                                    onClick={() => handleResetTemporaryPassword(user.id)}
+                                                    title="Copiar senha"
+                                                    onClick={() => { navigator.clipboard.writeText(tempPassword); toast.success('Senha copiada!'); }}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center' }}
                                                 >
-                                                    <RotateCcw size={14} style={{ marginRight: '0.35rem', verticalAlign: 'middle' }} />
-                                                    {passwordResetting ? 'Redefinindo...' : 'Redefinir senha'}
+                                                    <CheckCircle size={14} />
                                                 </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Grupos */}
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center', minWidth: '140px' }}>
+                                        {grupos.map(g => {
+                                            const isSelected = user.grupos?.some(v => v.grupo_id === g.id && v.encontro_id === targetEncontroId);
+                                            return (
+                                                <button
+                                                    key={g.id}
+                                                    type="button"
+                                                    disabled={roleUpdating || targetEncontroId === undefined}
+                                                    onClick={() => handleToggleGroups(user.id, g.id, user.grupos || [])}
+                                                    title={isSelected ? 'Clique para remover' : 'Clique para adicionar'}
+                                                    style={{
+                                                        padding: '0.2rem 0.55rem', fontSize: '0.75rem', borderRadius: '20px',
+                                                        border: `1px solid ${isSelected ? 'var(--primary-color)' : 'var(--border-color)'}`,
+                                                        background: isSelected ? 'var(--primary-color)' : 'transparent',
+                                                        color: isSelected ? '#fff' : 'var(--muted-text)',
+                                                        cursor: roleUpdating ? 'not-allowed' : 'pointer',
+                                                        transition: 'all 0.15s', opacity: roleUpdating ? 0.6 : 1
+                                                    }}
+                                                >
+                                                    {g.nome}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Ação */}
+                                    <div style={{ flexShrink: 0 }}>
+                                        <button
+                                            type="button"
+                                            className="btn-secondary"
+                                            disabled={passwordResetting}
+                                            onClick={() => handleResetTemporaryPassword(user.id)}
+                                            style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem', whiteSpace: 'nowrap' }}
+                                        >
+                                            <RotateCcw size={13} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />
+                                            {passwordResetting ? 'Redefinindo...' : 'Nova senha'}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </section>

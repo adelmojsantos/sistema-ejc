@@ -152,5 +152,17 @@ export const adminUserService = {
         const { data, error } = await supabase.from('grupos').select('id, nome').order('nome');
         if (error) throw error;
         return data || [];
+    },
+
+    async listTeamMembers(encontroId: string, equipeId: string) {
+        const { data, error } = await supabase
+            .from('participacoes')
+            .select('id, pessoa_id, equipe_id, encontro_id, coordenador, participante, dados_confirmados, confirmado_em, pessoas(id, nome_completo, email)')
+            .eq('encontro_id', encontroId)
+            .eq('equipe_id', equipeId)
+            .order('pessoas(nome_completo)', { ascending: true });
+
+        if (error) throw error;
+        return data || [];
     }
 };
