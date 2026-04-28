@@ -5200,3 +5200,22 @@ tbody tr:hover {
     width: 100%;
   }
 }
+
+.main-library-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 3rem;
+}
+
+@media (max-width: 640px) {
+  .main-library-content {
+    padding: 0 0 2rem;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .main-library-content {
+    padding: 0 0 2.5rem;
+  }
+}

@@ -148,6 +148,16 @@ export const adminUserService = {
         return data as ResetPasswordResponse;
     },
 
+    async deleteUser(userId: string): Promise<void> {
+        const headers = await getAuthHeaders();
+        const { error } = await supabase.functions.invoke('admin-users', {
+            body: { action: 'delete', userId },
+            headers,
+        });
+
+        if (error) throw error;
+    },
+
     async listGrupos(): Promise<{ id: string, nome: string }[]> {
         const { data, error } = await supabase.from('grupos').select('id, nome').order('nome');
         if (error) throw error;

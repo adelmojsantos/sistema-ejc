@@ -1,4 +1,4 @@
-import { Calendar, CircleDot, FileText, UserPlus, Users, Users2Icon, Shield, ListChecks, MapPin } from 'lucide-react';
+import { Calendar, CircleDot, FileText, UserPlus, Users, Users2Icon, Shield, ListChecks, MapPin, Folder } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -119,6 +119,16 @@ export function Home() {
       path: '/admin/acessos',
       icon: <Shield size={36} />,
       accent: 'success'
+    });
+  }
+
+  if (hasPermission('modulo_biblioteca') || hasPermission('modulo_admin')) {
+    dashboardActions.push({
+      title: 'Biblioteca',
+      description: 'Documentos, manuais e arquivos globais do EJC.',
+      path: '/admin/biblioteca',
+      icon: <Folder size={36} />,
+      accent: 'violet' as const
     });
   }
 

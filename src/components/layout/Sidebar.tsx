@@ -12,7 +12,8 @@ import {
   Baby,
   ChevronLeft,
   ChevronRight,
-  X
+  X,
+  Folder
 } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
@@ -50,6 +51,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { to: '/admin/usuarios', label: 'Usuários', icon: Users },
       { to: '/admin/acessos', label: 'Acessos', icon: Shield },
     );
+  }
+
+  if (hasPermission('modulo_biblioteca') || hasPermission('modulo_admin')) {
+    navLinks.push({ to: '/admin/biblioteca', label: 'Biblioteca', icon: Folder });
   }
 
   if (hasPermission('modulo_coordenador') || userParticipacao?.coordenador) {

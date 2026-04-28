@@ -228,6 +228,21 @@ Deno.serve(async (request) => {
       });
     }
 
+    if (action === 'delete') {
+      const userId = body?.userId as string | undefined;
+      if (!userId) {
+        return jsonResponse(400, { error: 'userId is required' });
+      }
+
+      // Deleta o usuário da auth (cascade para profiles se configurado, ou podemos deletar explicitamente se precisar, mas auth.admin.deleteUser geralmente já resolve se as foreign keys forem CASCADE).
+      const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
+      if (deleteError) {
+        return jsonResponse(400, { error: deleteError.message });
+      }
+
+      return jsonResponse(200, { success: true });
+    }
+
     return jsonResponse(400, { error: 'Unsupported action' });
   } catch (error) {
     console.error(error);

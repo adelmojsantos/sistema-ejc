@@ -1,7 +1,7 @@
 import type { SyntheticEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { CheckCircle, RotateCcw, Search, ShieldCheck, UserPlus, X } from 'lucide-react';
+import { CheckCircle, RotateCcw, Search, ShieldCheck, UserPlus, X, Trash2 } from 'lucide-react';
 import { FormRow } from '../../components/ui/FormRow';
 import { supabase } from '../../lib/supabase';
 import { adminUserService } from '../../services/adminUserService';
@@ -19,6 +19,7 @@ import type { Equipe } from '../../types/equipe';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { exportConfigService, type ExportConfig } from '../../services/exportConfigService';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 export interface UserExtended {
     id: string;
@@ -41,6 +42,8 @@ export function UsersAdminPage() {
     const [tempPasswords, setTempPasswords] = useState<Record<string, string>>({});
     const [updatingRoleById, setUpdatingRoleById] = useState<Record<string, boolean>>({});
     const [resettingPasswordById, setResettingPasswordById] = useState<Record<string, boolean>>({});
+    const [userToDelete, setUserToDelete] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Live search state
     const [searchQuery, setSearchQuery] = useState('');
@@ -247,6 +250,22 @@ export function UsersAdminPage() {
             toast.error(message);
         } finally {
             setCreating(false);
+        }
+    };
+
+    const handleDeleteUser = async () => {
+        if (!userToDelete) return;
+        setIsDeleting(true);
+        try {
+            await adminUserService.deleteUser(userToDelete);
+            toast.success('Acesso removido com sucesso.');
+            setUsers((prev) => prev.filter(u => u.id !== userToDelete));
+            setUserToDelete(null);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Erro ao remover usuário.';
+            toast.error(message);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -1120,7 +1139,7 @@ export function UsersAdminPage() {
                                     </div>
 
                                     {/* Ação */}
-                                    <div style={{ flexShrink: 0 }}>
+                                    <div style={{ flexShrink: 0, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                         <button
                                             type="button"
                                             className="btn-secondary"
@@ -1131,6 +1150,15 @@ export function UsersAdminPage() {
                                             <RotateCcw size={13} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />
                                             {passwordResetting ? 'Redefinindo...' : 'Nova senha'}
                                         </button>
+                                        <button
+                                            type="button"
+                                            className="btn-secondary"
+                                            onClick={() => setUserToDelete(user.id)}
+                                            style={{ fontSize: '0.82rem', padding: '0.4rem', color: 'var(--danger-text)', borderColor: 'transparent', background: 'transparent' }}
+                                            title="Remover acesso"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
                                     </div>
                                 </div>
                             );
@@ -1138,6 +1166,22 @@ export function UsersAdminPage() {
                     </div>
                 )}
             </section>
+            <ConfirmDialog
+                isOpen={!!userToDelete}
+                title="Remover Acesso"
+                message={
+                    <>
+                        <p>Tem certeza que deseja remover o acesso deste usuário?</p>
+                        <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--muted-text)' }}>
+                            Isso apagará o usuário do sistema de login. As participações no histórico serão mantidas.
+                        </p>
+                    </>
+                }
+                onConfirm={handleDeleteUser}
+                onCancel={() => setUserToDelete(null)}
+                confirmText={isDeleting ? 'Removendo...' : 'Sim, Remover Acesso'}
+                cancelText="Cancelar"
+            />
         </div>
     );
 }
