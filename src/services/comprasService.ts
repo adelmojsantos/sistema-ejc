@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase';
-import type { InscricaoEnriched } from '../types/inscricao';
 import type { CamisetaPedido } from '../types/camiseta';
 
 export interface ResumoCamisetas {
@@ -119,7 +118,10 @@ export const comprasService = {
     if (equipesError) throw equipesError;
 
     const relatorio = (equipes || []).map(eq => {
-      const teamPedidos = (pedidos || []).filter(p => p.participacoes?.equipe_id === eq.id);
+      const teamPedidos = (pedidos as any[] || []).filter(p => {
+        const participacao = Array.isArray(p.participacoes) ? p.participacoes[0] : p.participacoes;
+        return participacao?.equipe_id === eq.id;
+      });
       const totalCamisetas = teamPedidos.reduce((sum, p) => sum + p.quantidade, 0);
       return {
         equipe_id: eq.id,

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, ChevronLeft, Plus, Edit2, Trash2, Save, Loader } from 'lucide-react';
+import { ChevronLeft, Plus, Edit2, Trash2, Save, Loader } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { camisetaService } from '../../services/camisetaService';
 import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
@@ -26,7 +26,7 @@ export function ConfiguracaoCamisetasPage() {
   const [tamanhoToDelete, setTamanhoToDelete] = useState<CamisetaTamanho | null>(null);
 
   useEffect(() => {
-    loadModelos();
+    loadData();
   }, []);
 
   const loadData = async () => {

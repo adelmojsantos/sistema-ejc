@@ -132,6 +132,29 @@ export function PedidosCamisetasPage() {
         </div>
       </div>
 
+      {/* Resumo por Equipe */}
+      <section className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        {relatorioEquipes.filter(r => r.total_camisetas > 0).map(r => (
+          <div 
+            key={r.equipe_id} 
+            className="card card--clickable" 
+            style={{ 
+              padding: '1rem', 
+              borderLeft: '4px solid var(--primary-color)',
+              cursor: 'pointer',
+              transition: 'transform 0.2s, box-shadow 0.2s'
+            }}
+            onClick={() => setSelectedEquipeId(r.equipe_id)}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <h3 style={{ fontSize: '0.85rem', margin: 0 }}>{r.equipe_nome}</h3>
+              <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>{r.total_camisetas}</span>
+            </div>
+            <p style={{ fontSize: '0.75rem', margin: '0.25rem 0 0', opacity: 0.6 }}>{r.total_pedidos} pedidos</p>
+          </div>
+        ))}
+      </section>
+
       {/* Resumo Consolidado */}
       <section style={{ marginBottom: '2rem' }}>
         <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
