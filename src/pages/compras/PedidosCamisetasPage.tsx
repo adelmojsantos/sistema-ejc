@@ -17,16 +17,16 @@ export function PedidosCamisetasPage() {
   const navigate = useNavigate();
   const { encontros } = useEncontros();
   const { setIsLoading: setGlobalLoading } = useLoading();
-  
+
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [resumo, setResumo] = useState<ResumoCamisetas[]>([]);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
-  
+
   const [selectedEquipeId, setSelectedEquipeId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
-  
+
   const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -65,8 +65,8 @@ export function PedidosCamisetasPage() {
   const filteredPedidos = useMemo(() => {
     return pedidos.filter(p => {
       const matchEquipe = selectedEquipeId === 'all' || p.participacoes?.equipe_id === selectedEquipeId;
-      const matchSearch = (p.pessoa_nome || '').toLowerCase().includes(debouncedSearch.toLowerCase()) || 
-                          (p.camiseta_modelos?.nome || '').toLowerCase().includes(debouncedSearch.toLowerCase());
+      const matchSearch = (p.pessoa_nome || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+        (p.camiseta_modelos?.nome || '').toLowerCase().includes(debouncedSearch.toLowerCase());
       return matchEquipe && matchSearch;
     }).sort((a, b) => a.pessoa_nome.localeCompare(b.pessoa_nome));
   }, [pedidos, selectedEquipeId, debouncedSearch]);
@@ -114,7 +114,7 @@ export function PedidosCamisetasPage() {
     <div className="fade-in">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button onClick={() => navigate('/gestao-compras')} className="icon-btn">
+          <button onClick={() => navigate('/compras')} className="icon-btn">
             <ChevronLeft size={18} />
           </button>
           <div>

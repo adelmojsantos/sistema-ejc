@@ -59,7 +59,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }
 
   if (hasPermission('modulo_compras') || hasPermission('modulo_admin')) {
-    navLinks.push({ to: '/gestao-compras', label: 'Compras', icon: ShoppingBag });
+    navLinks.push({ to: '/compras', label: 'Compras', icon: ShoppingBag });
   }
 
   if (hasPermission('modulo_coordenador') || userParticipacao?.coordenador) {

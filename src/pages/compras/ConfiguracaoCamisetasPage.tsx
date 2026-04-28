@@ -11,11 +11,11 @@ export function ConfiguracaoCamisetasPage() {
   const [modelos, setModelos] = useState<CamisetaModelo[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingModelo, setEditingModelo] = useState<CamisetaModelo | null>(null);
   const [nomeModelo, setNomeModelo] = useState('');
-  
+
   const [modeloToDelete, setModeloToDelete] = useState<CamisetaModelo | null>(null);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export function ConfiguracaoCamisetasPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nomeModelo.trim()) return;
-    
+
     setSaving(true);
     try {
       if (editingModelo) {
@@ -77,7 +77,7 @@ export function ConfiguracaoCamisetasPage() {
     <div className="fade-in">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button onClick={() => navigate('/gestao-compras')} className="icon-btn">
+          <button onClick={() => navigate('/compras')} className="icon-btn">
             <ChevronLeft size={18} />
           </button>
           <div>

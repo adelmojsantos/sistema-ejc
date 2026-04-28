@@ -1,6 +1,8 @@
-import { useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ShoppingBag, CreditCard, Shirt, Settings, ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { useAuth } from '../../hooks/useAuth';
+import { Navigate } from 'react-router-dom';
 
 interface ComprasCategory {
   id: string;
@@ -15,7 +17,7 @@ interface ComprasCategory {
 const CATEGORIES: ComprasCategory[] = [
   {
     id: 'taxas',
-    path: '/gestao-compras/taxas',
+    path: '/compras/taxas',
     label: 'Pagamento de Taxas',
     description: 'Gestão de pagamentos das taxas de inscrição por equipe.',
     icon: <CreditCard size={34} />,
@@ -24,7 +26,7 @@ const CATEGORIES: ComprasCategory[] = [
   },
   {
     id: 'camisetas',
-    path: '/gestao-compras/camisetas',
+    path: '/compras/camisetas',
     label: 'Pedidos de Camisetas',
     description: 'Listagem geral, por equipe e resumo consolidado.',
     icon: <Shirt size={34} />,
@@ -33,7 +35,7 @@ const CATEGORIES: ComprasCategory[] = [
   },
   {
     id: 'configuracao',
-    path: '/gestao-compras/configuracao',
+    path: '/compras/configuracao',
     label: 'Modelos e Tamanhos',
     description: 'Cadastrar modelos de camisetas e tamanhos disponíveis.',
     icon: <Settings size={34} />,
@@ -44,8 +46,19 @@ const CATEGORIES: ComprasCategory[] = [
 
 export function ComprasPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { hasPermission } = useAuth();
+  
+  const isHub = location.pathname === '/compras' || location.pathname === '/compras/';
 
-  return (
+  // Proteção interna
+  if (!hasPermission('modulo_compras') && !hasPermission('modulo_admin')) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return !isHub ? (
+    <Outlet />
+  ) : (
     <section className="cadastros-hub fade-in">
       <header className="page-header">
         <div>

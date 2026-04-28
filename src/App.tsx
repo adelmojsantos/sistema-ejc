@@ -115,7 +115,7 @@ function AnimatedRoutes() {
           } />
 
           <Route path="/inscricao" element={<InscricaoPage />} />
-          
+
           <Route path="/inscricao/participantes" element={
             <ProtectedRoute requiredPermissions={['modulo_inscricao', 'modulo_secretaria', 'modulo_admin']}>
               <SecretariaParticipantesPage />
@@ -151,13 +151,13 @@ function AnimatedRoutes() {
               <ExportConfigListPage />
             </ProtectedRoute>
           } />
-          
+
           <Route path="/admin/configuracoes-exportacao/novo" element={
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
               <ExportConfigFormPage />
             </ProtectedRoute>
           } />
-          
+
           <Route path="/admin/configuracoes-exportacao/:id" element={
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
               <ExportConfigFormPage />
@@ -225,26 +225,11 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           } />
 
-          <Route path="/gestao-compras" element={
-            <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
-              <PageTransition><ComprasPage /></PageTransition>
-            </ProtectedRoute>
-          } />
-          <Route path="/gestao-compras/taxas" element={
-            <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
-              <PageTransition><TaxasPage /></PageTransition>
-            </ProtectedRoute>
-          } />
-          <Route path="/gestao-compras/camisetas" element={
-            <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
-              <PageTransition><PedidosCamisetasPage /></PageTransition>
-            </ProtectedRoute>
-          } />
-          <Route path="/gestao-compras/configuracao" element={
-            <ProtectedRoute requiredPermissions={['modulo_compras', 'modulo_admin']}>
-              <PageTransition><ConfiguracaoCamisetasPage /></PageTransition>
-            </ProtectedRoute>
-          } />
+          <Route path="/compras" element={<ComprasPage />}>
+            <Route path="taxas" element={<PageTransition><TaxasPage /></PageTransition>} />
+            <Route path="camisetas" element={<PageTransition><PedidosCamisetasPage /></PageTransition>} />
+            <Route path="configuracao" element={<PageTransition><ConfiguracaoCamisetasPage /></PageTransition>} />
+          </Route>
 
           <Route path="/cadastros" element={
             <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>

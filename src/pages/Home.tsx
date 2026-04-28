@@ -136,7 +136,7 @@ export function Home() {
     dashboardActions.push({
       title: 'Compras',
       description: 'Gestão de taxas e pedidos de camisetas.',
-      path: '/gestao-compras',
+      path: '/compras',
       icon: <ShoppingBag size={36} />,
       accent: 'primary'
     });

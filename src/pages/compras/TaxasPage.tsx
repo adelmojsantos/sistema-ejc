@@ -16,16 +16,16 @@ export function TaxasPage() {
   const navigate = useNavigate();
   const { encontros } = useEncontros();
   const { setIsLoading: setGlobalLoading } = useLoading();
-  
+
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [relatorioTaxas, setRelatorioTaxas] = useState<TaxaReport[]>([]);
-  
+
   const [selectedEquipeId, setSelectedEquipeId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
-  
+
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
@@ -74,7 +74,7 @@ export function TaxasPage() {
     try {
       await inscricaoService.alterarStatusPagamento(id, !currentStatus);
       setParticipantes(prev => prev.map(p => p.id === id ? { ...p, pago_taxa: !currentStatus } : p));
-      
+
       // Update summary report locally to avoid full reload
       setRelatorioTaxas(prev => prev.map(r => {
         const p = participantes.find(part => part.id === id);
@@ -100,7 +100,7 @@ export function TaxasPage() {
     <div className="fade-in">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <button onClick={() => navigate('/gestao-compras')} className="icon-btn">
+          <button onClick={() => navigate('/compras')} className="icon-btn">
             <ChevronLeft size={18} />
           </button>
           <div>
@@ -119,13 +119,13 @@ export function TaxasPage() {
               <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-text)' }}>{r.pagos}/{r.total_membros}</span>
             </div>
             <div className="progress-bar" style={{ height: '6px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden' }}>
-              <div 
-                style={{ 
-                  height: '100%', 
-                  width: `${(r.pagos / r.total_membros) * 100}%`, 
+              <div
+                style={{
+                  height: '100%',
+                  width: `${(r.pagos / r.total_membros) * 100}%`,
                   background: r.pendentes === 0 ? 'var(--success-color)' : 'var(--primary-color)',
                   transition: 'width 0.3s'
-                }} 
+                }}
               />
             </div>
           </div>
@@ -221,8 +221,8 @@ export function TaxasPage() {
                       )}
                     </td>
                     <td style={{ padding: '1rem', textAlign: 'center' }}>
-                      <button 
-                        className={p.pago_taxa ? "btn-secondary" : "btn-primary"} 
+                      <button
+                        className={p.pago_taxa ? "btn-secondary" : "btn-primary"}
                         style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
                         disabled={updatingId === p.id}
                         onClick={() => handleTogglePagamento(p.id, p.pago_taxa || false)}
