@@ -13,17 +13,22 @@ export function ConfiguracaoCamisetasPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Estados para Modelos
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingModelo, setEditingModelo] = useState<CamisetaModelo | null>(null);
   const [nomeModelo, setNomeModelo] = useState('');
+  const [modeloToDelete, setModeloToDelete] = useState<CamisetaModelo | null>(null);
 
+  // Estados para Tamanhos
   const [isSizeModalOpen, setIsSizeModalOpen] = useState(false);
   const [editingTamanho, setEditingTamanho] = useState<CamisetaTamanho | null>(null);
   const [siglaTamanho, setSiglaTamanho] = useState('');
   const [ordemTamanho, setOrdemTamanho] = useState(0);
-
-  const [modeloToDelete, setModeloToDelete] = useState<CamisetaModelo | null>(null);
+  const [modeloIdTamanho, setModeloIdTamanho] = useState<string | null>(null);
   const [tamanhoToDelete, setTamanhoToDelete] = useState<CamisetaTamanho | null>(null);
+
+  // Filtro de Tamanhos por Modelo
+  const [filterModeloId, setFilterModeloId] = useState<string>('all');
 
   useEffect(() => {
     loadData();
@@ -76,16 +81,17 @@ export function ConfiguracaoCamisetasPage() {
     setSaving(true);
     try {
       if (editingTamanho) {
-        await camisetaService.atualizarTamanho(editingTamanho.id, siglaTamanho, ordemTamanho);
+        await camisetaService.atualizarTamanho(editingTamanho.id, siglaTamanho, modeloIdTamanho, ordemTamanho);
         toast.success('Tamanho atualizado!');
       } else {
-        await camisetaService.criarTamanho(siglaTamanho, ordemTamanho);
+        await camisetaService.criarTamanho(siglaTamanho, modeloIdTamanho, ordemTamanho);
         toast.success('Tamanho criado!');
       }
       setIsSizeModalOpen(false);
       setEditingTamanho(null);
       setSiglaTamanho('');
       setOrdemTamanho(0);
+      setModeloIdTamanho(null);
       loadData();
     } catch {
       toast.error('Erro ao salvar tamanho.');
@@ -124,6 +130,10 @@ export function ConfiguracaoCamisetasPage() {
     }
   };
 
+  const filteredTamanhos = tamanhos.filter(t => 
+    filterModeloId === 'all' || t.modelo_id === filterModeloId
+  );
+
   return (
     <div className="fade-in">
       <div className="page-header">
@@ -136,6 +146,7 @@ export function ConfiguracaoCamisetasPage() {
             <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Configuração de Camisetas</h1>
           </div>
         </div>
+      </div>
 
       <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
         {/* Seção de Modelos */}
@@ -161,12 +172,20 @@ export function ConfiguracaoCamisetasPage() {
                   <tr><td colSpan={2} style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>Nenhum modelo.</td></tr>
                 ) : (
                   modelos.map(m => (
-                    <tr key={m.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                    <tr 
+                      key={m.id} 
+                      style={{ 
+                        borderBottom: '1px solid var(--border-color)', 
+                        background: filterModeloId === m.id ? 'var(--surface-2)' : 'transparent',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => setFilterModeloId(m.id === filterModeloId ? 'all' : m.id)}
+                    >
                       <td style={{ padding: '1rem', fontWeight: 600 }}>{m.nome}</td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                          <button className="icon-btn" onClick={() => { setEditingModelo(m); setNomeModelo(m.nome); setIsModalOpen(true); }}><Edit2 size={16} /></button>
-                          <button className="icon-btn text-danger" onClick={() => setModeloToDelete(m)}><Trash2 size={16} /></button>
+                          <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setEditingModelo(m); setNomeModelo(m.nome); setIsModalOpen(true); }}><Edit2 size={16} /></button>
+                          <button className="icon-btn text-danger" onClick={(e) => { e.stopPropagation(); setModeloToDelete(m); }}><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>
@@ -180,8 +199,25 @@ export function ConfiguracaoCamisetasPage() {
         {/* Seção de Tamanhos */}
         <section>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Tamanhos Disponíveis</h2>
-            <button className="btn-primary" onClick={() => { setEditingTamanho(null); setSiglaTamanho(''); setOrdemTamanho(tamanhos.length + 1); setIsSizeModalOpen(true); }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Tamanhos</h2>
+              <select 
+                className="form-input" 
+                style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', width: 'auto' }}
+                value={filterModeloId}
+                onChange={(e) => setFilterModeloId(e.target.value)}
+              >
+                <option value="all">Todos os Modelos</option>
+                {modelos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              </select>
+            </div>
+            <button className="btn-primary" onClick={() => { 
+              setEditingTamanho(null); 
+              setSiglaTamanho(''); 
+              setModeloIdTamanho(filterModeloId !== 'all' ? filterModeloId : null);
+              setOrdemTamanho(tamanhos.length + 1); 
+              setIsSizeModalOpen(true); 
+            }}>
               <Plus size={16} /> Novo Tamanho
             </button>
           </div>
@@ -191,22 +227,32 @@ export function ConfiguracaoCamisetasPage() {
                 <tr style={{ textAlign: 'left', background: 'var(--surface-1)' }}>
                   <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', width: '60px' }}>Ordem</th>
                   <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Sigla/Nome</th>
+                  <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Modelo</th>
                   <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', width: '100px', textAlign: 'center' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={3} style={{ padding: '2rem', textAlign: 'center' }}><Loader className="animate-spin" size={24} style={{ margin: '0 auto' }} /></td></tr>
-                ) : tamanhos.length === 0 ? (
-                  <tr><td colSpan={3} style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>Nenhum tamanho.</td></tr>
+                  <tr><td colSpan={4} style={{ padding: '2rem', textAlign: 'center' }}><Loader className="animate-spin" size={24} style={{ margin: '0 auto' }} /></td></tr>
+                ) : filteredTamanhos.length === 0 ? (
+                  <tr><td colSpan={4} style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>Nenhum tamanho encontrado.</td></tr>
                 ) : (
-                  tamanhos.map(t => (
+                  filteredTamanhos.map(t => (
                     <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                       <td style={{ padding: '1rem', opacity: 0.5 }}>{t.ordem}</td>
                       <td style={{ padding: '1rem', fontWeight: 600 }}>{t.sigla}</td>
+                      <td style={{ padding: '1rem', fontSize: '0.8rem' }}>
+                        {modelos.find(m => m.id === t.modelo_id)?.nome || <span className="text-muted">Global</span>}
+                      </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                          <button className="icon-btn" onClick={() => { setEditingTamanho(t); setSiglaTamanho(t.sigla); setOrdemTamanho(t.ordem); setIsSizeModalOpen(true); }}><Edit2 size={16} /></button>
+                          <button className="icon-btn" onClick={() => { 
+                            setEditingTamanho(t); 
+                            setSiglaTamanho(t.sigla); 
+                            setOrdemTamanho(t.ordem); 
+                            setModeloIdTamanho(t.modelo_id);
+                            setIsSizeModalOpen(true); 
+                          }}><Edit2 size={16} /></button>
                           <button className="icon-btn text-danger" onClick={() => setTamanhoToDelete(t)}><Trash2 size={16} /></button>
                         </div>
                       </td>
@@ -219,33 +265,22 @@ export function ConfiguracaoCamisetasPage() {
         </section>
       </div>
 
-      {/* Modal de Cadastro/Edição */}
+      {/* Modal de Cadastro/Edição de Modelo */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px' }}>
-            <div className="modal-header">
-              <h3>{editingModelo ? 'Editar Modelo' : 'Novo Modelo'}</h3>
-            </div>
+            <div className="modal-header"><h3>{editingModelo ? 'Editar Modelo' : 'Novo Modelo'}</h3></div>
             <form onSubmit={handleSave}>
               <div className="modal-body">
                 <div className="form-group">
                   <label className="form-label">Nome do Modelo</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={nomeModelo}
-                    onChange={e => setNomeModelo(e.target.value)}
-                    placeholder="Ex: Camiseta Oficial 2024"
-                    required
-                    autoFocus
-                  />
+                  <input type="text" className="form-input" value={nomeModelo} onChange={e => setNomeModelo(e.target.value)} placeholder="Ex: Camiseta Oficial" required autoFocus />
                 </div>
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn-secondary" onClick={() => setIsModalOpen(false)}>Cancelar</button>
                 <button type="submit" className="btn-primary" disabled={saving}>
-                  {saving ? <Loader className="animate-spin" size={16} /> : <Save size={16} style={{ marginRight: '0.4rem' }} />}
-                  Salvar
+                  {saving ? <Loader className="animate-spin" size={16} /> : <Save size={16} />} Salvar
                 </button>
               </div>
             </form>
@@ -253,7 +288,7 @@ export function ConfiguracaoCamisetasPage() {
         </div>
       )}
 
-      {/* Modal de Tamanho */}
+      {/* Modal de Cadastro/Edição de Tamanho */}
       {isSizeModalOpen && (
         <div className="modal-overlay" onClick={() => setIsSizeModalOpen(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
@@ -263,6 +298,13 @@ export function ConfiguracaoCamisetasPage() {
                 <div className="form-group">
                   <label className="form-label">Sigla/Nome</label>
                   <input type="text" className="form-input" value={siglaTamanho} onChange={e => setSiglaTamanho(e.target.value)} placeholder="Ex: P, M, GG..." required autoFocus />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Vincular ao Modelo</label>
+                  <select className="form-input" value={modeloIdTamanho || ''} onChange={e => setModeloIdTamanho(e.target.value || null)}>
+                    <option value="">Global (Disponível para todos)</option>
+                    {modelos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                  </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Ordem de Exibição</label>
@@ -283,7 +325,7 @@ export function ConfiguracaoCamisetasPage() {
       <ConfirmDialog
         isOpen={!!modeloToDelete}
         title="Excluir Modelo"
-        message={`Tem certeza que deseja excluir o modelo "${modeloToDelete?.nome}"? Isso não afetará os pedidos já realizados.`}
+        message={`Tem certeza que deseja excluir o modelo "${modeloToDelete?.nome}"?`}
         onConfirm={handleDelete}
         onCancel={() => setModeloToDelete(null)}
         isLoading={saving}

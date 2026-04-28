@@ -45,21 +45,26 @@ export const camisetaService = {
         if (error) throw error;
     },
 
-    async listarTamanhos(): Promise<CamisetaTamanho[]> {
-        const { data, error } = await supabase
+    async listarTamanhos(modeloId?: string): Promise<CamisetaTamanho[]> {
+        let query = supabase
             .from('camiseta_tamanhos')
             .select('*')
-            .eq('ativo', true)
-            .order('ordem');
+            .eq('ativo', true);
+        
+        if (modeloId) {
+            query = query.eq('modelo_id', modeloId);
+        }
+
+        const { data, error } = await query.order('ordem');
 
         if (error) throw error;
         return data || [];
     },
 
-    async criarTamanho(sigla: string, ordem: number = 0): Promise<CamisetaTamanho> {
+    async criarTamanho(sigla: string, modeloId: string | null, ordem: number = 0): Promise<CamisetaTamanho> {
         const { data, error } = await supabase
             .from('camiseta_tamanhos')
-            .insert([{ sigla, ordem, ativo: true }])
+            .insert([{ sigla, modelo_id: modeloId, ordem, ativo: true }])
             .select()
             .single();
 
@@ -67,10 +72,10 @@ export const camisetaService = {
         return data;
     },
 
-    async atualizarTamanho(id: string, sigla: string, ordem: number): Promise<CamisetaTamanho> {
+    async atualizarTamanho(id: string, sigla: string, modeloId: string | null, ordem: number): Promise<CamisetaTamanho> {
         const { data, error } = await supabase
             .from('camiseta_tamanhos')
-            .update({ sigla, ordem })
+            .update({ sigla, modelo_id: modeloId, ordem })
             .eq('id', id)
             .select()
             .single();

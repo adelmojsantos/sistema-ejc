@@ -8,6 +8,7 @@ export interface CamisetaModelo {
 export interface CamisetaTamanho {
     id: string;
     sigla: string;
+    modelo_id: string | null;
     ordem: number;
     ativo: boolean;
     created_at: string;
