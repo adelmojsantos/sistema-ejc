@@ -248,6 +248,54 @@ export const equipeService = {
 
         if (error) throw error;
     },
+    async uploadComprovante(equipeId: string, encontroId: string, file: File, tipo: 'taxas' | 'camisetas'): Promise<string> {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `comprovante_${tipo}_${equipeId}_${encontroId}_${Date.now()}.${fileExt}`;
+        const filePath = `comprovantes/${tipo}/${fileName}`;
+
+        // Upload para o bucket 'galeria'
+        const { error: uploadError } = await supabase.storage
+            .from('galeria')
+            .upload(filePath, file, { upsert: true });
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+            .from('galeria')
+            .getPublicUrl(filePath);
+
+        return data.publicUrl;
+    },
+    async atualizarComprovante(equipeId: string, encontroId: string, url: string, usuarioId: string, tipo: 'taxas' | 'camisetas'): Promise<void> {
+        const field = tipo === 'taxas' ? 'comprovante_taxas_url' : 'comprovante_camisetas_url';
+        
+        // Verifica se já existe confirmação
+        const { data: existing } = await supabase
+            .from('equipe_confirmacoes')
+            .select('id')
+            .eq('equipe_id', equipeId)
+            .eq('encontro_id', encontroId)
+            .maybeSingle();
+
+        if (existing) {
+            const { error } = await supabase
+                .from('equipe_confirmacoes')
+                .update({ [field]: url })
+                .eq('id', existing.id);
+            if (error) throw error;
+        } else {
+            const { error } = await supabase
+                .from('equipe_confirmacoes')
+                .insert([{
+                    equipe_id: equipeId,
+                    encontro_id: encontroId,
+                    [field]: url,
+                    confirmado_por: usuarioId,
+                    confirmado_em: new Date().toISOString()
+                }]);
+            if (error) throw error;
+        }
+    },
     async verificarSeEquipeCompleta(equipeId: string, encontroId: string, isParticipante: boolean): Promise<boolean> {
         const { data, error } = await supabase
             .from('participacoes')

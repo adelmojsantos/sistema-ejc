@@ -77,12 +77,12 @@ export const inscricaoService = {
     async listarPorEquipeEEncontro(equipeId: string, encontroId: string): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('*, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome)')
+            .select('*, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome), recepcao_dados(*), recreacao_dados!recreacao_dados_participacao_id_fkey(*)')
             .eq('encontro_id', encontroId)
             .eq('equipe_id', equipeId);
 
         if (error) throw error;
-        return data;
+        return data as unknown as InscricaoEnriched[];
     },
 
     async criar(formData: InscricaoFormData): Promise<Inscricao> {

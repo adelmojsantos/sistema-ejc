@@ -6,6 +6,7 @@ export interface UserProfile {
     created_at: string;
     updated_at: string;
     grupos: string[];
+    grupoIds?: string[];
     permissions: string[];
 }
 

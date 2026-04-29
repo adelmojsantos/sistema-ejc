@@ -2,21 +2,55 @@ import { supabase } from '../lib/supabase';
 import type { CamisetaModelo, CamisetaPedido, CamisetaPedidoFormData, CamisetaTamanho } from '../types/camiseta';
 
 export const camisetaService = {
-    async listarModelos(): Promise<CamisetaModelo[]> {
-        const { data, error } = await supabase
+    async listarModelos(encontroId?: string): Promise<CamisetaModelo[]> {
+        let query = supabase
             .from('camiseta_modelos')
-            .select('*')
-            .eq('ativo', true)
-            .order('nome');
+            .select('*, configuracao_encontro:camiseta_config_encontro(*)')
+            .eq('ativo', true);
+        
+        if (encontroId) {
+            query = query.eq('camiseta_config_encontro.encontro_id', encontroId);
+        }
+
+        const { data, error } = await query.order('nome');
 
         if (error) throw error;
+
+        // Se houver encontroId, mapeia o valor da configuração para o valor do modelo
+        if (encontroId && data) {
+            return data.map((m: any) => {
+                const config = m.configuracao_encontro?.find((c: any) => c.encontro_id === encontroId);
+                return {
+                    ...m,
+                    valor: config ? config.valor : m.valor,
+                    esta_ativo_no_encontro: config ? config.ativo : false
+                };
+            });
+        }
+
         return data || [];
     },
 
-    async criarModelo(nome: string): Promise<CamisetaModelo> {
+    async salvarConfiguracaoEncontro(encontroId: string, modeloId: string, valor: number, ativo: boolean = true): Promise<void> {
+        const { error } = await supabase
+            .from('camiseta_config_encontro')
+            .upsert({
+                encontro_id: encontroId,
+                modelo_id: modeloId,
+                valor: valor,
+                ativo: ativo,
+                updated_at: new Date().toISOString()
+            }, {
+                onConflict: 'encontro_id,modelo_id'
+            });
+
+        if (error) throw error;
+    },
+
+    async criarModelo(nome: string, valor: number = 0): Promise<CamisetaModelo> {
         const { data, error } = await supabase
             .from('camiseta_modelos')
-            .insert([{ nome, ativo: true }])
+            .insert([{ nome, valor, ativo: true }])
             .select()
             .single();
 
@@ -24,10 +58,10 @@ export const camisetaService = {
         return data;
     },
 
-    async atualizarModelo(id: string, nome: string): Promise<CamisetaModelo> {
+    async atualizarModelo(id: string, nome: string, valor: number): Promise<CamisetaModelo> {
         const { data, error } = await supabase
             .from('camiseta_modelos')
-            .update({ nome })
+            .update({ nome, valor })
             .eq('id', id)
             .select()
             .single();

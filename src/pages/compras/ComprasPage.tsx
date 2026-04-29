@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingBag, CreditCard, Shirt, Settings, ChevronRight } from 'lucide-react';
+import { ShoppingBag, CreditCard, Shirt, Settings } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { Navigate } from 'react-router-dom';
@@ -85,16 +85,12 @@ export function ComprasPage() {
               }
             }}
           >
-            <span className="cadastros-hub__bar" style={{ backgroundColor: category.color }} />
             <div className="cadastros-hub__content">
-              <span className="cadastros-hub__icon" style={{ backgroundColor: `${category.color}20`, color: category.color, padding: '0.5rem' }}>
+              <span className="cadastros-hub__icon" style={{ backgroundColor: `${category.color}15`, color: category.color }}>
                 {category.icon}
               </span>
               <div>
-                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  {category.label}
-                  <ChevronRight size={18} style={{ opacity: 0.3 }} />
-                </h3>
+                <h3>{category.label}</h3>
                 <p>{category.description}</p>
               </div>
             </div>

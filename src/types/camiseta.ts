@@ -1,8 +1,20 @@
 export interface CamisetaModelo {
     id: string;
     nome: string;
+    valor: number;
     ativo: boolean;
     created_at: string;
+    configuracao_encontro?: CamisetaConfigEncontro[];
+}
+
+export interface CamisetaConfigEncontro {
+    id: string;
+    encontro_id: string;
+    modelo_id: string;
+    valor: number;
+    ativo: boolean;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface CamisetaTamanho {

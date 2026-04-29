@@ -18,7 +18,15 @@ import {
   Pencil,
   Check,
   Loader,
+  Car,
+  Baby,
+  Trash2,
 } from 'lucide-react';
+import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
+import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
+import { recepcaoService } from '../../services/recepcaoService';
+import { formatPlate } from '../../utils/plateUtils';
+import type { RecreacaoDados } from '../../types/recreacao';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { toast } from 'react-hot-toast';
 import { Modal as _Modal } from '../../components/ui/Modal';
@@ -64,6 +72,10 @@ export function ConfirmationTeamDetailPage() {
   const [finalizeModal, setFinalizeModal] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [activeTeamFilter, setActiveTeamFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
+  const [recepcaoParticipacaoId, setRecepcaoParticipacaoId] = useState<string | null>(null);
+  const [recepcaoParticipanteNome, setRecepcaoParticipanteNome] = useState<string>('');
+  const [recreacaoParticipacaoId, setRecreacaoParticipacaoId] = useState<string | null>(null);
+  const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState<string>('');
 
   // Resolve encontroId caso acesso direto pela URL (sem route state), usando o contexto
   const { encontroAtivo } = useEncontros();
@@ -75,13 +87,16 @@ export function ConfirmationTeamDetailPage() {
   }, [encontroId, encontroAtivo]);
 
   const loadData = async () => {
-    if (!equipe_id || !encontroId) return;
+    if (!equipe_id || !encontroId) {
+      setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const [parts, conf, equipe] = await Promise.all([
         inscricaoService.listarPorEquipeEEncontro(equipe_id, encontroId),
         equipeService.obterConfirmacao(equipe_id, encontroId),
-        equipeService.buscarPorId(equipe_id),  // Busca apenas 1 equipe, não todas
+        equipeService.buscarPorId(equipe_id),
       ]);
 
       setParticipacoes(parts);
@@ -492,6 +507,162 @@ export function ConfirmationTeamDetailPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* Seções de Recepção e Recreação (Novas) */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr',
+                  gap: '1.25rem',
+                  marginTop: '1.25rem',
+                  paddingTop: '1.25rem',
+                  borderTop: '1px solid var(--border-color)'
+                }}>
+                  {/* Recepção Section */}
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: 'var(--surface-2, rgba(0,0,0,0.02))',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    minHeight: '120px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
+                        Recepção
+                      </div>
+                      <button
+                        onClick={() => {
+                          setRecepcaoParticipacaoId(p.id);
+                          setRecepcaoParticipanteNome(p.pessoas.nome_completo || '');
+                        }}
+                        className="btn-text"
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          fontSize: '0.6rem',
+                          fontWeight: 600,
+                          color: 'var(--primary-color)',
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Car size={16} />
+                          {p.recepcao_dados ? 'EDITAR' : 'CADASTRAR'}
+                        </div>
+                      </button>
+                    </div>
+
+                    {!p.recepcao_dados ? (
+                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
+                        Não cadastrado
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Veículo</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Placa</th>
+                              <th style={{ width: '30px' }}></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                              <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{p.recepcao_dados.veiculo_modelo} ({p.recepcao_dados.veiculo_cor})</td>
+                              <td style={{ padding: '0.4rem 0.25rem' }}>{formatPlate(p.recepcao_dados.veiculo_placa)}</td>
+                              <td style={{ padding: '0.25rem', textAlign: 'right' }}>
+                                <button
+                                  onClick={async () => {
+                                    if (window.confirm(`Deseja remover o veículo de ${p.pessoas.nome_completo}?`)) {
+                                      try {
+                                        await recepcaoService.excluir(p.recepcao_dados!.id);
+                                        toast.success('Veículo removido!');
+                                        loadData();
+                                      } catch (e) {
+                                        toast.error('Erro ao remover veículo');
+                                      }
+                                    }
+                                  }}
+                                  style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.5, cursor: 'pointer', padding: '0.25rem' }}
+                                  title="Remover Veículo"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Recreação Section */}
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: 'rgba(var(--primary-rgb), 0.02)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    minHeight: '120px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
+                        Recreação
+                      </div>
+                      <button
+                        onClick={() => {
+                          setRecreacaoParticipacaoId(p.id);
+                          setRecreacaoParticipanteNome(p.pessoas.nome_completo || '');
+                        }}
+                        className="btn-text"
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          fontSize: '0.6rem',
+                          fontWeight: 600,
+                          color: 'var(--primary-color)',
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Baby size={16} />
+                          {p.recreacao_dados && p.recreacao_dados.length > 0 ? (
+                            'GERENCIAR'
+                          ) : (
+                            'CADASTRAR'
+                          )}
+                        </div>
+                      </button>
+                    </div>
+
+                    {!p.recreacao_dados || p.recreacao_dados.length === 0 ? (
+                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
+                        Não cadastrado
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', fontSize: '0.7rem', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.6rem' }}>Criança</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.6rem' }}>Idade</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {p.recreacao_dados.map((c: RecreacaoDados) => (
+                              <tr key={c.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                                <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{c.nome_crianca}</td>
+                                <td style={{ padding: '0.4rem 0.25rem' }}>{c.idade}a</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             ))
           )}
@@ -507,6 +678,28 @@ export function ConfirmationTeamDetailPage() {
         onCancel={() => setFinalizeModal(false)}
         confirmText="Finalizar Equipe"
         isLoading={isFinalizing}
+      />
+
+      <RecepcaoDadosModal
+        isOpen={!!recepcaoParticipacaoId}
+        onClose={() => {
+          setRecepcaoParticipacaoId(null);
+          loadData();
+        }}
+        participacaoId={recepcaoParticipacaoId || ''}
+        participanteNome={recepcaoParticipanteNome}
+        equipeNome={equipeNome}
+      />
+
+      <RecreacaoDadosModal
+        isOpen={!!recreacaoParticipacaoId}
+        onClose={() => {
+          setRecreacaoParticipacaoId(null);
+          loadData();
+        }}
+        participacaoId={recreacaoParticipacaoId || ''}
+        participanteNome={recreacaoParticipanteNome}
+        encontroId={encontroId}
       />
     </div>
   );

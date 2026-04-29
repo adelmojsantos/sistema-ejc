@@ -52,6 +52,11 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
   // Simple breadcrumb/title logic based on path
   const getPageTitle = () => {
     const path = location.pathname;
+    const searchParams = new URLSearchParams(location.search);
+    const moduleName = searchParams.get('module');
+
+    if (moduleName) return moduleName;
+
     if (path === '/dashboard') return 'Dashboard';
     if (path.startsWith('/admin/usuarios')) return 'Gerenciar Usuários';
     if (path.startsWith('/admin/acessos')) return 'Controle de Acessos';
@@ -68,7 +73,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
     if (path.startsWith('/cadastros/equipes')) return 'Equipes';
     if (path.startsWith('/cadastros/circulos')) return 'Círculos';
     if (path.startsWith('/cadastros')) return 'Cadastros';
-    if (path.startsWith('/inscricao')) return 'Inscrições';
+    if (path.startsWith('/biblioteca')) return 'Biblioteca';
     if (path.startsWith('/coordenador/minha-equipe')) return 'Minha Equipe';
     return 'EJC Capelinha';
   };

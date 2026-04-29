@@ -2180,54 +2180,63 @@ input:checked+.theme-toggle-slider:before {
 }
 
 .cadastros-hub__card {
+  composes: dashboard-card;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1rem;
   cursor: pointer;
-  position: relative;
-  overflow: hidden;
-  min-height: 180px;
+  border-radius: 20px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  transition: all 0.3s ease;
+  min-height: 220px;
 }
 
 .cadastros-hub__card:hover:not(.is-disabled) {
-  transform: translateY(-4px);
+  transform: translateY(-6px);
+  border-color: var(--primary-color);
+  box-shadow: 0 12px 24px -10px rgba(var(--primary-rgb, 37, 99, 235), 0.2);
 }
 
 .cadastros-hub__card.is-disabled {
-  opacity: 0.65;
+  opacity: 0.5;
   cursor: not-allowed;
-}
-
-.cadastros-hub__bar {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 4px;
-  height: 100%;
+  filter: grayscale(1);
 }
 
 .cadastros-hub__content {
   display: flex;
-  align-items: flex-start;
-  gap: 0.85rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
 }
 
 .cadastros-hub__icon {
-  width: 58px;
-  height: 58px;
-  border-radius: 14px;
-  display: inline-flex;
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 0.5rem;
 }
 
 .cadastros-hub__content h3 {
   margin: 0;
-  font-size: 1.08rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-color);
 }
 
 .cadastros-hub__content p {
-  margin: 0.35rem 0 0;
+  margin: 0;
   color: var(--muted-text);
-  line-height: 1.45;
-  font-size: 0.92rem;
+  line-height: 1.5;
+  font-size: 0.9rem;
+  max-width: 260px;
 }
 
 .cadastros-hub__tag {
@@ -2894,66 +2903,57 @@ tbody tr:hover {
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 2.5rem;
+  align-items: center;
+  text-align: center;
+  padding: 2.5rem 1.5rem;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 24px;
   text-decoration: none;
-  transition: all 0.4s var(--ease-spring);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
+  gap: 1rem;
 }
 
-.portal-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, var(--primary-color), var(--primary-hover));
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
+
 
 .portal-card:hover {
   transform: translateY(-8px);
-  box-shadow: var(--shadow-xl);
+  box-shadow: 0 12px 30px -10px rgba(var(--primary-rgb, 37, 99, 235), 0.2);
   border-color: var(--primary-color);
 }
 
-.portal-card:hover::before {
-  opacity: 1;
-}
+
 
 .portal-card__icon {
-  width: 56px;
-  height: 56px;
-  background: var(--primary-light);
-  color: var(--primary-color);
-  border-radius: 16px;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.5rem;
   transition: all 0.3s ease;
 }
 
 .portal-card:hover .portal-card__icon {
-  background: var(--primary-color);
-  color: white;
-  transform: scale(1.1) rotate(-5deg);
+  transform: scale(1.1);
 }
 
 .portal-card__title {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 800;
-  margin-bottom: 0.75rem;
+  margin: 0;
   color: var(--text-color);
+  letter-spacing: -0.01em;
 }
 
 .portal-card__description {
   color: var(--muted-text);
-  line-height: 1.6;
+  line-height: 1.5;
+  font-size: 0.9rem;
+  margin: 0;
+  max-width: 300px;
 }
 
 /* Modern Tabs */
@@ -4658,16 +4658,18 @@ tbody tr:hover {
 
 .dashboard-card {
   position: relative;
-  padding: 2rem;
+  padding: 2rem 1.5rem;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 1rem;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   border: 1px solid var(--border-color);
   background: var(--card-bg);
-  border-radius: 16px;
+  border-radius: 20px;
 }
 
 .dashboard-card:hover {
@@ -4716,13 +4718,15 @@ tbody tr:hover {
   font-weight: 700;
   margin: 0;
   color: var(--text-color);
+  letter-spacing: -0.01em;
 }
 
 .dashboard-card p {
-  font-size: 0.9375rem;
+  font-size: 0.9rem;
   color: var(--muted-text);
   line-height: 1.5;
   margin: 0;
+  max-width: 260px;
 }
 
 /* Featured Card Style */

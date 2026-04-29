@@ -95,7 +95,7 @@ export function RecreacaoDadosModal({
       setChildren(data);
     } catch (error) {
       console.error('Erro ao carregar crianças:', error);
-      toast.error('Erro ao carregar dados.');
+      toast.error('Não foi possível carregar os dados. Verifique sua conexão ou permissões.');
     } finally {
       setLoading(false);
     }
@@ -129,8 +129,8 @@ export function RecreacaoDadosModal({
       if (onSave) onSave();
       resetForm();
     } catch (error) {
-      console.error('Erro ao salvar dados de recreação:', error);
-      toast.error('Erro ao salvar dados.');
+      console.error('Erro ao carregar dados da recepção:', error);
+      toast.error('Não foi possível salvar os dados. Verifique sua conexão ou permissões.');
     } finally {
       setSaving(false);
     }

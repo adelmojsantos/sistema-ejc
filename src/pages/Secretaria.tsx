@@ -106,9 +106,8 @@ export function Secretaria() {
               }
             }}
           >
-            <span className="cadastros-hub__bar" style={{ backgroundColor: category.color }} />
             <div className="cadastros-hub__content">
-              <span className="cadastros-hub__icon" style={{ backgroundColor: `${category.color}20`, color: category.color }}>
+              <span className="cadastros-hub__icon" style={{ backgroundColor: `${category.color}15`, color: category.color }}>
                 {category.icon}
               </span>
               <div>
@@ -116,7 +115,7 @@ export function Secretaria() {
                 <p>{category.description}</p>
               </div>
             </div>
-            {!category.available && <span className="cadastros-hub__tag">Em Breve</span>}
+            {!category.available && <span className="cadastros-hub__tag" style={{ position: 'absolute', bottom: '1.25rem' }}>Em Breve</span>}
           </article>
         ))}
       </div>

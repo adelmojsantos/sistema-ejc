@@ -60,6 +60,7 @@ import FormRecreacaoPage from './pages/Public/FormRecreacaoPage';
 import { EncontroQuadranteConfigPage } from './pages/cadastros/EncontroQuadranteConfigPage';
 import { QuadranteAuthPage } from './pages/Public/QuadranteAuthPage';
 import { QuadrantePage } from './pages/Public/QuadrantePage';
+import SharedLibraryPage from './pages/shared/SharedLibraryPage';
 
 
 export function PlaceholderPage({ title }: { title: string }) {
@@ -201,6 +202,12 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           } />
 
+          <Route path="/biblioteca/compartilhada" element={
+            <ProtectedRoute>
+              <PageTransition><SharedLibraryPage /></PageTransition>
+            </ProtectedRoute>
+          } />
+
           <Route path="/montagem-circulos" element={
             <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
               <MontagemCirculos />
@@ -280,7 +287,15 @@ function MainApp() {
   return (
     <>
       <SplashScreen isVisible={isLoading} />
-      <Toaster position="top-right" />
+      <Toaster 
+        position="top-right" 
+        containerStyle={{ zIndex: 100000 }}
+        toastOptions={{
+          style: {
+            zIndex: 100001,
+          }
+        }}
+      />
       <Router>
         <AnimatedRoutes />
       </Router>

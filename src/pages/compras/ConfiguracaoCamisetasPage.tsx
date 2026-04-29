@@ -3,8 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Plus, Edit2, Trash2, Save, Loader } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { camisetaService } from '../../services/camisetaService';
+import { encontroService } from '../../services/encontroService';
 import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { CurrencyFormField } from '../../components/ui/CurrencyFormField';
+import { useEncontros } from '../../contexts/EncontroContext';
+import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 
 export function ConfiguracaoCamisetasPage() {
   const navigate = useNavigate();
@@ -12,11 +16,15 @@ export function ConfiguracaoCamisetasPage() {
   const [tamanhos, setTamanhos] = useState<CamisetaTamanho[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { encontros } = useEncontros();
+  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
 
   // Estados para Modelos
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingModelo, setEditingModelo] = useState<CamisetaModelo | null>(null);
   const [nomeModelo, setNomeModelo] = useState('');
+  const [valorModelo, setValorModelo] = useState<number>(0);
+  const [ativoNoEncontro, setAtivoNoEncontro] = useState(true);
   const [modeloToDelete, setModeloToDelete] = useState<CamisetaModelo | null>(null);
 
   // Estados para Tamanhos
@@ -31,14 +39,21 @@ export function ConfiguracaoCamisetasPage() {
   const [filterModeloId, setFilterModeloId] = useState<string>('all');
 
   useEffect(() => {
+    if (encontros.length > 0 && !selectedEncontroId) {
+      const active = encontros.find(e => e.ativo);
+      setSelectedEncontroId(active?.id ?? encontros[0].id);
+    }
+  }, [encontros, selectedEncontroId]);
+
+  useEffect(() => {
     loadData();
-  }, []);
+  }, [selectedEncontroId]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const [modelosData, tamanhosData] = await Promise.all([
-        camisetaService.listarModelos(),
+        camisetaService.listarModelos(selectedEncontroId || undefined),
         camisetaService.listarTamanhos()
       ]);
       setModelos(modelosData);
@@ -57,15 +72,23 @@ export function ConfiguracaoCamisetasPage() {
     setSaving(true);
     try {
       if (editingModelo) {
-        await camisetaService.atualizarModelo(editingModelo.id, nomeModelo);
-        toast.success('Modelo atualizado!');
+        if (selectedEncontroId) {
+          // Se houver encontro selecionado, salva na tabela de configuração de preços
+          await camisetaService.salvarConfiguracaoEncontro(selectedEncontroId, editingModelo.id, valorModelo, ativoNoEncontro);
+          toast.success('Configuração do encontro salva!');
+        } else {
+          // Se não, atualiza o modelo global
+          await camisetaService.atualizarModelo(editingModelo.id, nomeModelo, valorModelo);
+          toast.success('Modelo global atualizado!');
+        }
       } else {
-        await camisetaService.criarModelo(nomeModelo);
-        toast.success('Modelo criado!');
+        await camisetaService.criarModelo(nomeModelo, valorModelo);
+        toast.success('Modelo global criado!');
       }
       setIsModalOpen(false);
       setEditingModelo(null);
       setNomeModelo('');
+      setValorModelo(0);
       loadData();
     } catch {
       toast.error('Erro ao salvar modelo.');
@@ -136,7 +159,7 @@ export function ConfiguracaoCamisetasPage() {
 
   return (
     <div className="fade-in">
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button onClick={() => navigate('/compras')} className="icon-btn">
             <ChevronLeft size={18} />
@@ -145,6 +168,26 @@ export function ConfiguracaoCamisetasPage() {
             <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Módulo de Compras</p>
             <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Configuração de Camisetas</h1>
           </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, opacity: 0.6, whiteSpace: 'nowrap' }}>Preços para:</span>
+          <div className="form-group" style={{ marginBottom: 0, minWidth: '250px' }}>
+            <LiveSearchSelect
+              value={selectedEncontroId}
+              onChange={val => setSelectedEncontroId(val)}
+              fetchData={async (s, p) => await encontroService.buscarComPaginacao(s, p)}
+              getOptionLabel={e => e.nome}
+              getOptionValue={e => e.id}
+              initialOptions={encontros}
+              placeholder="Geral (Modelos Globais)"
+            />
+          </div>
+          {selectedEncontroId && (
+            <button className="btn-text" onClick={() => setSelectedEncontroId('')} style={{ fontSize: '0.8rem' }}>
+              Limpar
+            </button>
+          )}
         </div>
       </div>
 
@@ -162,6 +205,7 @@ export function ConfiguracaoCamisetasPage() {
               <thead>
                 <tr style={{ textAlign: 'left', background: 'var(--surface-1)' }}>
                   <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Nome</th>
+                  <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', width: '100px' }}>Valor</th>
                   <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', width: '100px', textAlign: 'center' }}>Ações</th>
                 </tr>
               </thead>
@@ -182,9 +226,19 @@ export function ConfiguracaoCamisetasPage() {
                       onClick={() => setFilterModeloId(m.id === filterModeloId ? 'all' : m.id)}
                     >
                       <td style={{ padding: '1rem', fontWeight: 600 }}>{m.nome}</td>
+                      <td style={{ padding: '1rem', fontWeight: 500 }}>
+                        {m.valor ? m.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00'}
+                      </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                          <button className="icon-btn" onClick={(e) => { e.stopPropagation(); setEditingModelo(m); setNomeModelo(m.nome); setIsModalOpen(true); }}><Edit2 size={16} /></button>
+                          <button className="icon-btn" onClick={(e) => { 
+                            e.stopPropagation(); 
+                            setEditingModelo(m); 
+                            setNomeModelo(m.nome); 
+                            setValorModelo(m.valor || 0); 
+                            setAtivoNoEncontro((m as any).esta_ativo_no_encontro ?? true);
+                            setIsModalOpen(true); 
+                          }}><Edit2 size={16} /></button>
                           <button className="icon-btn text-danger" onClick={(e) => { e.stopPropagation(); setModeloToDelete(m); }}><Trash2 size={16} /></button>
                         </div>
                       </td>
@@ -276,6 +330,30 @@ export function ConfiguracaoCamisetasPage() {
                   <label className="form-label">Nome do Modelo</label>
                   <input type="text" className="form-input" value={nomeModelo} onChange={e => setNomeModelo(e.target.value)} placeholder="Ex: Camiseta Oficial" required autoFocus />
                 </div>
+                <div className="form-group">
+                  <CurrencyFormField
+                    label="Valor (R$)"
+                    name="valor"
+                    value={valorModelo}
+                    onChange={setValorModelo}
+                    placeholder="0,00"
+                    required
+                  />
+                </div>
+                {selectedEncontroId && editingModelo && (
+                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1rem' }}>
+                    <input 
+                      type="checkbox" 
+                      id="ativo_no_encontro"
+                      checked={ativoNoEncontro} 
+                      onChange={e => setAtivoNoEncontro(e.target.checked)}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                    />
+                    <label htmlFor="ativo_no_encontro" style={{ cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>
+                      Habilitar este modelo para o encontro selecionado
+                    </label>
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
                 <button type="button" className="btn-secondary" onClick={() => setIsModalOpen(false)}>Cancelar</button>

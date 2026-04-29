@@ -1,4 +1,6 @@
 import type { Pessoa } from './pessoa';
+import type { RecepcaoDados } from './recepcao';
+import type { RecreacaoDados } from './recreacao';
 
 export interface Inscricao {
   id: string; // uuid
@@ -22,6 +24,8 @@ export interface InscricaoEnriched extends Inscricao {
   equipes?: {
     nome: string | null;
   };
+  recepcao_dados?: RecepcaoDados | null;
+  recreacao_dados?: RecreacaoDados[];
 }
 
 export type InscricaoFormData = Omit<Inscricao, 'id' | 'data_inscricao'>;

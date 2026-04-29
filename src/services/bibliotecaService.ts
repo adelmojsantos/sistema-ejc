@@ -17,7 +17,23 @@ export interface BibliotecaArquivo {
     created_at: string;
 }
 
+export interface BibliotecaCompartilhamento {
+    id: string;
+    pasta_id: string | null;
+    arquivo_id: string | null;
+    equipe_id: string | null;
+    grupo_id: string | null;
+    criado_em: string;
+}
+
 export const bibliotecaService = {
+    // Grupos de Acesso
+    async listarGruposAcesso(): Promise<{ id: string, nome: string }[]> {
+        const { data, error } = await supabase.from('grupos').select('id, nome').order('nome');
+        if (error) throw error;
+        return data || [];
+    },
+
     // Pastas
     async listarPastas(parentId: string | null = null): Promise<BibliotecaPasta[]> {
         let query = supabase.from('biblioteca_pastas').select('*').order('nome');
@@ -210,5 +226,84 @@ export const bibliotecaService = {
 
         if (error) throw error;
         return data.signedUrl;
+    },
+
+    // Compartilhamento
+    async compartilharItem(params: {
+        pastaId?: string;
+        arquivoId?: string;
+        equipeId?: string;
+        grupoId?: string;
+    }): Promise<void> {
+        const { error } = await supabase
+            .from('biblioteca_compartilhamento')
+            .insert([{
+                pasta_id: params.pastaId || null,
+                arquivo_id: params.arquivoId || null,
+                equipe_id: params.equipeId || null,
+                grupo_id: params.grupoId || null
+            }]);
+
+        if (error) throw error;
+    },
+
+    async removerCompartilhamento(id: string): Promise<void> {
+        const { error } = await supabase
+            .from('biblioteca_compartilhamento')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+    },
+
+    async listarCompartilhamentos(itemId: string, type: 'pasta' | 'arquivo'): Promise<BibliotecaCompartilhamento[]> {
+        const field = type === 'pasta' ? 'pasta_id' : 'arquivo_id';
+        const { data, error } = await supabase
+            .from('biblioteca_compartilhamento')
+            .select('*')
+            .eq(field, itemId);
+
+        if (error) throw error;
+        return data || [];
+    },
+
+    async listarItensCompartilhados(params: {
+        grupoIds?: string[];
+        equipeId?: string;
+        isAdmin?: boolean;
+    }): Promise<{ pastas: BibliotecaPasta[], arquivos: BibliotecaArquivo[] }> {
+        const { data, error } = await supabase.rpc('listar_itens_biblioteca_compartilhados', {
+            p_grupo_ids: params.grupoIds || [],
+            p_equipe_id: params.equipeId || null,
+            p_is_admin: params.isAdmin || false
+        });
+
+        if (error) throw error;
+
+        const pastas: BibliotecaPasta[] = [];
+        const arquivos: BibliotecaArquivo[] = [];
+
+        data.forEach((item: any) => {
+            if (item.res_tipo === 'pasta') {
+                pastas.push({
+                    id: item.res_id,
+                    nome: item.res_nome,
+                    parent_id: item.res_pasta_id,
+                    created_at: item.res_criado_em
+                });
+            } else {
+                arquivos.push({
+                    id: item.res_id,
+                    nome_exibicao: item.res_nome,
+                    pasta_id: item.res_pasta_id,
+                    storage_path: item.res_storage_path,
+                    tamanho_bytes: item.res_tamanho_bytes,
+                    tipo_mime: item.res_tipo_mime,
+                    created_at: item.res_criado_em
+                });
+            }
+        });
+
+        return { pastas, arquivos };
     }
 };

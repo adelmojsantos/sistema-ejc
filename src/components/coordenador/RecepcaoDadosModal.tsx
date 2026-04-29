@@ -90,7 +90,7 @@ export function RecepcaoDadosModal({
       }
     } catch (error) {
       console.error('Erro ao carregar dados da recepção:', error);
-      toast.error('Erro ao carregar dados.');
+      toast.error('Não foi possível carregar os dados do veículo. Verifique sua conexão ou permissões.');
     } finally {
       setLoading(false);
     }

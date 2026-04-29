@@ -16,27 +16,23 @@ import {
   Pencil,
   Phone,
   Shield,
-  Trash2,
   Users,
   X,
-  Car,
-  ShirtIcon,
-  Baby,
-  UserX
+  UserX,
+  Upload,
+  Eye,
+  Shirt as ShirtIcon
 } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
-import { recepcaoService } from '../../services/recepcaoService';
-import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
+import { equipeService } from '../../services/equipeService';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { camisetaService } from '../../services/camisetaService';
-import { equipeService } from '../../services/equipeService';
 import { exportConfigService } from '../../services/exportConfigService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
@@ -46,7 +42,6 @@ import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import type { RecepcaoDados } from '../../types/recepcao';
 import type { RecreacaoDados } from '../../types/recreacao';
 import { formatBRL } from '../../utils/currencyUtils';
-import { formatPlate } from '../../utils/plateUtils';
 
 interface EquipeMember {
   id: string;
@@ -88,14 +83,13 @@ export function CoordenadorMinhaEquipePage() {
   const [modelosCamiseta, setModelosCamiseta] = useState<CamisetaModelo[]>([]);
   const [tamanhosCamiseta, setTamanhosCamiseta] = useState<CamisetaTamanho[]>([]);
   const [newShirtData, setNewShirtData] = useState({ modelo_id: '', tamanho: 'G', quantidade: 1 });
-  const [recepcaoParticipacaoId, setRecepcaoParticipacaoId] = useState<string | null>(null);
-  const [recepcaoParticipanteNome, setRecepcaoParticipanteNome] = useState<string>('');
-  const [recreacaoParticipacaoId, setRecreacaoParticipacaoId] = useState<string | null>(null);
-  const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [isFinalizingTeam, setIsFinalizingTeam] = useState(false);
+  const [isUploadingProof, setIsUploadingProof] = useState<string | null>(null); // 'taxas' | 'camisetas' | null
+  const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
+  const [comprovanteCamisetasUrl, setComprovanteCamisetasUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -108,11 +102,13 @@ export function CoordenadorMinhaEquipePage() {
   const loadPedidos = useCallback(async () => {
     if (!userParticipacao?.encontro_id) return;
     try {
-      const [pedidos, modelos, tamanhos] = await Promise.all([
+      const [pedidos, modelosRaw, tamanhos] = await Promise.all([
         camisetaService.listarPedidosPorEncontro(userParticipacao.encontro_id),
-        camisetaService.listarModelos(),
+        camisetaService.listarModelos(userParticipacao.encontro_id),
         camisetaService.listarTamanhos()
       ]);
+      // Filtra apenas os modelos que estão ativos especificamente para este encontro
+      const modelos = modelosRaw.filter((m: any) => m.esta_ativo_no_encontro !== false);
       setPedidosCamisetas(pedidos);
       setModelosCamiseta(modelos);
       setTamanhosCamiseta(tamanhos);
@@ -137,8 +133,14 @@ export function CoordenadorMinhaEquipePage() {
         setEquipeNome(userParticipacao.equipes.nome);
       }
 
-      const conf = await equipeService.obterConfirmacao(userParticipacao.equipe_id!, userParticipacao.encontro_id);
-      setTeamConfirmation(conf);
+      if (userParticipacao?.encontro_id && userParticipacao?.equipe_id) {
+        const conf = await equipeService.obterConfirmacao(userParticipacao.equipe_id, userParticipacao.encontro_id);
+        if (conf) {
+          setTeamConfirmation(conf);
+          setComprovanteUrl(conf.comprovante_taxas_url);
+          setComprovanteCamisetasUrl(conf.comprovante_camisetas_url);
+        }
+      }
 
       // Get encounter fee
       const { data: encData } = await supabase.from('encontros').select('valor_taxa').eq('id', userParticipacao.encontro_id).single();
@@ -146,44 +148,7 @@ export function CoordenadorMinhaEquipePage() {
 
       loadPedidos();
 
-      const { data, error } = await supabase
-        .from('participacoes')
-        .select(`
-          id,
-          pessoa_id,
-          coordenador,
-          participante,
-          dados_confirmados,
-          pessoas (
-            id,
-            nome_completo,
-            cpf,
-            email,
-            telefone,
-            comunidade,
-            data_nascimento,
-            nome_pai,
-            nome_mae,
-            endereco,
-            numero,
-            bairro,
-            cidade,
-            telefone_pai,
-            telefone_mae,
-            outros_contatos,
-            fez_ejc_outra_paroquia,
-            qual_paroquia_ejc,
-            qr_code_token,
-            created_at
-          ),
-          pago_taxa,
-          recepcao_dados(*),
-          recreacao_dados!participacao_id(*)
-        `)
-        .eq('encontro_id', userParticipacao.encontro_id)
-        .eq('equipe_id', userParticipacao.equipe_id!);
-
-      if (error) throw error;
+      const data = await inscricaoService.listarPorEquipeEEncontro(userParticipacao.equipe_id!, userParticipacao.encontro_id);
 
       const typedData = (data as unknown as EquipeMember[]) || [];
 
@@ -225,13 +190,44 @@ export function CoordenadorMinhaEquipePage() {
     }
   };
 
+  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>, tipo: 'taxas' | 'camisetas') => {
+    const file = e.target.files?.[0];
+    if (!file || !userParticipacao?.equipe_id || !userParticipacao?.encontro_id || !user) return;
+
+    // Validar tamanho (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('O arquivo deve ter no máximo 5MB');
+      return;
+    }
+
+    setIsUploadingProof(tipo);
+    try {
+      const url = await equipeService.uploadComprovante(userParticipacao.equipe_id, userParticipacao.encontro_id, file, tipo);
+      await equipeService.atualizarComprovante(userParticipacao.equipe_id, userParticipacao.encontro_id, url, user.id, tipo);
+      
+      if (tipo === 'taxas') setComprovanteUrl(url);
+      else setComprovanteCamisetasUrl(url);
+
+      toast.success(`Comprovante de ${tipo} enviado com sucesso!`);
+      
+      // Atualiza o estado da confirmação se necessário
+      const conf = await equipeService.obterConfirmacao(userParticipacao.equipe_id, userParticipacao.encontro_id);
+      if (conf) setTeamConfirmation(conf);
+    } catch (error) {
+      console.error('Erro ao enviar comprovante:', error);
+      toast.error('Erro ao enviar comprovante');
+    } finally {
+      setIsUploadingProof(null);
+    }
+  };
+
   const handleEditSubmit = async (data: PessoaFormData, shouldConfirm: boolean) => {
     if (!editingPessoa) return;
     setIsSaving(true);
     try {
       const member = members.find(m => m.pessoa_id === editingPessoa.id);
       await pessoaService.atualizar(editingPessoa.id, data);
-      
+
       if (member && shouldConfirm) {
         await inscricaoService.confirmarDados(member.id);
         toast.success('Dados salvos e confirmados com sucesso!');
@@ -262,12 +258,12 @@ export function CoordenadorMinhaEquipePage() {
 
   const handleFinalizeTeam = async () => {
     if (!userParticipacao?.equipe_id || !userParticipacao?.encontro_id || !user?.id) return;
-    
+
     setIsFinalizingTeam(true);
     try {
       await equipeService.confirmarEquipe(
-        userParticipacao.equipe_id, 
-        userParticipacao.encontro_id, 
+        userParticipacao.equipe_id,
+        userParticipacao.encontro_id,
         user.id
       );
       toast.success('Equipe finalizada com sucesso!');
@@ -300,7 +296,7 @@ export function CoordenadorMinhaEquipePage() {
       toast.success('Integrante confirmado!');
       const updatedMembers = members.map(m => m.id === memberId ? { ...m, dados_confirmados: true } : m);
       setMembers(updatedMembers);
-      
+
       // Check if team is now complete
       checkAllMembersConfirmed(updatedMembers);
     } catch {
@@ -741,11 +737,111 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       )}
 
+      {/* Seção de Comprovantes */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+        gap: '1rem',
+        marginBottom: '1.5rem'
+      }}>
+        {/* Card 1: Taxas */}
+        <div className="card animate-fade-in" style={{
+          padding: '1.25rem',
+          background: 'var(--card-bg)',
+          border: '1px solid var(--border-color)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              backgroundColor: comprovanteUrl ? 'rgba(16, 185, 129, 0.1)' : 'rgba(var(--primary-rgb), 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: comprovanteUrl ? '#10b981' : 'var(--primary-color)',
+            }}>
+              <FileText size={22} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Taxas da Equipe</h3>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', opacity: 0.7 }}>
+                {comprovanteUrl ? 'Documento enviado!' : 'Envie o comprovante das taxas.'}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {comprovanteUrl && (
+              <a href={comprovanteUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center' }}>
+                <Eye size={18} />
+                <span>Ver</span>
+              </a>
+            )}
+            <label className={`btn ${comprovanteUrl ? 'btn-secondary' : 'btn-primary'}`} style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', cursor: isUploadingProof === 'taxas' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center', margin: 0 }}>
+              {isUploadingProof === 'taxas' ? <Loader className="animate-spin" size={14} /> : <Upload size={14} />}
+              <span>{comprovanteUrl ? 'Trocar' : 'Enviar'}</span>
+              <input type="file" onChange={(e) => handleUploadProof(e, 'taxas')} accept="image/*,.pdf" style={{ display: 'none' }} disabled={isUploadingProof === 'taxas'} />
+            </label>
+          </div>
+        </div>
+
+        {/* Card 2: Camisetas */}
+        <div className="card animate-fade-in" style={{
+          padding: '1.25rem',
+          background: 'var(--card-bg)',
+          border: '1px solid var(--border-color)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              backgroundColor: comprovanteCamisetasUrl ? 'rgba(var(--accent-rgb), 0.1)' : 'rgba(var(--primary-rgb), 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: comprovanteCamisetasUrl ? 'var(--accent-color)' : 'var(--primary-color)',
+            }}>
+              <ShirtIcon size={22} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Camisetas da Equipe</h3>
+              <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', opacity: 0.7 }}>
+                {comprovanteCamisetasUrl ? 'Documento enviado!' : 'Envie o comprovante das camisetas.'}
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {comprovanteCamisetasUrl && (
+              <a href={comprovanteCamisetasUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center' }}>
+                <Eye size={18} />
+                <span>Ver</span>
+              </a>
+            )}
+            <label className={`btn ${comprovanteCamisetasUrl ? 'btn-secondary' : 'btn-primary'}`} style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', cursor: isUploadingProof === 'camisetas' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center', margin: 0 }}>
+              {isUploadingProof === 'camisetas' ? <Loader className="animate-spin" size={14} /> : <Upload size={14} />}
+              <span>{comprovanteCamisetasUrl ? 'Trocar' : 'Enviar'}</span>
+              <input type="file" onChange={(e) => handleUploadProof(e, 'camisetas')} accept="image/*,.pdf" style={{ display: 'none' }} disabled={isUploadingProof === 'camisetas'} />
+            </label>
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-        <div 
+        <div
           onClick={() => setActiveFilter('all')}
-          className="card" 
-          style={{ 
+          className="card"
+          style={{
             padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
             border: activeFilter === 'all' ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
             transform: activeFilter === 'all' ? 'translateY(-2px)' : 'none',
@@ -768,10 +864,10 @@ export function CoordenadorMinhaEquipePage() {
           </div>
         </div>
 
-        <div 
+        <div
           onClick={() => setActiveFilter('confirmed')}
-          className="card" 
-          style={{ 
+          className="card"
+          style={{
             padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
             border: activeFilter === 'confirmed' ? '2px solid #10b981' : '1px solid var(--border-color)',
             transform: activeFilter === 'confirmed' ? 'translateY(-2px)' : 'none',
@@ -794,10 +890,10 @@ export function CoordenadorMinhaEquipePage() {
           </div>
         </div>
 
-        <div 
+        <div
           onClick={() => setActiveFilter('pending')}
-          className="card" 
-          style={{ 
+          className="card"
+          style={{
             padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
             border: activeFilter === 'pending' ? '2px solid #f59e0b' : '1px solid var(--border-color)',
             transform: activeFilter === 'pending' ? 'translateY(-2px)' : 'none',
@@ -974,7 +1070,7 @@ export function CoordenadorMinhaEquipePage() {
                 {/* Body: 3-column Grid (Taxa, Camisetas, Recepção) */}
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(130px, 1fr))',
+                  gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
                   gap: '1.25rem',
                   paddingTop: '1.25rem',
                   borderTop: '1px solid var(--border-color)'
@@ -1074,10 +1170,10 @@ export function CoordenadorMinhaEquipePage() {
                           <select
                             value={newShirtData.modelo_id}
                             onChange={e => {
-                               const newModelId = e.target.value;
-                               const availableSizes = tamanhosCamiseta.filter(t => !t.modelo_id || t.modelo_id === newModelId);
-                               const newSize = availableSizes.some(t => t.sigla === newShirtData.tamanho) ? newShirtData.tamanho : (availableSizes[0]?.sigla || '');
-                               setNewShirtData({ ...newShirtData, modelo_id: newModelId, tamanho: newSize });
+                              const newModelId = e.target.value;
+                              const availableSizes = tamanhosCamiseta.filter(t => !t.modelo_id || t.modelo_id === newModelId);
+                              const newSize = availableSizes.some(t => t.sigla === newShirtData.tamanho) ? newShirtData.tamanho : (availableSizes[0]?.sigla || '');
+                              setNewShirtData({ ...newShirtData, modelo_id: newModelId, tamanho: newSize });
                             }}
                             className="form-input"
                             style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem' }}
@@ -1095,8 +1191,8 @@ export function CoordenadorMinhaEquipePage() {
                             {tamanhosCamiseta
                               .filter(t => !t.modelo_id || t.modelo_id === newShirtData.modelo_id)
                               .map(t => (
-                              <option key={t.id} value={t.sigla}>{t.sigla}</option>
-                            ))}
+                                <option key={t.id} value={t.sigla}>{t.sigla}</option>
+                              ))}
                           </select>
                         </div>
                         <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
@@ -1136,153 +1232,7 @@ export function CoordenadorMinhaEquipePage() {
                     )}
                   </div>
 
-                  {/* Recepção Section */}
-                  <div style={{
-                    padding: '1rem',
-                    backgroundColor: 'var(--surface-2)',
-                    borderRadius: '12px',
-                    border: '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem',
-                    minHeight: '150px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
-                        Recepção
-                      </div>
-                      <button
-                        onClick={() => {
-                          setRecepcaoParticipacaoId(m.id);
-                          setRecepcaoParticipanteNome(p.nome_completo || '');
-                        }}
-                        className="btn-text"
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          fontSize: '0.6rem',
-                          fontWeight: 600,
-                          color: 'var(--primary-color)',
-                          letterSpacing: '0.05em',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Car size={16} />
-                          {m.recepcao_dados ? 'EDITAR' : 'CADASTRAR'}
-                        </div>
-                      </button>
-                    </div>
 
-                    {!m.recepcao_dados ? (
-                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
-                        Não cadastrado
-                      </div>
-                    ) : (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Veículo</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Cor</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Placa</th>
-                              <th style={{ width: '30px' }}></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                              <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{m.recepcao_dados.veiculo_modelo}</td>
-                              <td style={{ padding: '0.4rem 0.25rem' }}>{m.recepcao_dados.veiculo_cor}</td>
-                              <td style={{ padding: '0.4rem 0.25rem' }}>{formatPlate(m.recepcao_dados.veiculo_placa)}</td>
-                              <td style={{ padding: '0.25rem', textAlign: 'right' }}>
-                                <button
-                                  onClick={async () => {
-                                    if (window.confirm(`Deseja remover o veículo de ${p.nome_completo}?`)) {
-                                      try {
-                                        await recepcaoService.excluir(m.recepcao_dados!.id);
-                                        toast.success('Veículo removido!');
-                                        loadMembers();
-                                      } catch (e) {
-                                        toast.error('Erro ao remover veículo');
-                                      }
-                                    }
-                                  }}
-                                  style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.5, cursor: 'pointer', padding: '0.25rem' }}
-                                  title="Remover Veículo"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Recreação Section */}
-                  <div style={{
-                    padding: '1rem',
-                    backgroundColor: 'rgba(var(--primary-rgb), 0.02)',
-                    borderRadius: '12px',
-                    border: '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem',
-                    minHeight: '150px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
-                        Recreação
-                      </div>
-                      <button
-                        onClick={() => {
-                          setRecreacaoParticipacaoId(m.id);
-                          setRecreacaoParticipanteNome(p.nome_completo || '');
-                        }}
-                        className="btn-text"
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          fontSize: '0.6rem',
-                          fontWeight: 600,
-                          color: 'var(--primary-color)',
-                          letterSpacing: '0.05em',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Baby size={16} />
-                          {m.recreacao_dados && m.recreacao_dados.length > 0 ? (
-                            'GERENCIAR'
-                          ) : (
-                            'CADASTRAR'
-                          )}
-                        </div>
-                      </button>
-                    </div>
-
-                    {!m.recreacao_dados || m.recreacao_dados.length === 0 ? (
-                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
-                        Não cadastrado
-                      </div>
-                    ) : (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', fontSize: '0.7rem', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.6rem' }}>Criança</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.6rem' }}>Idade</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {m.recreacao_dados.map((c: RecreacaoDados) => (
-                              <tr key={c.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                                <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{c.nome_crianca}</td>
-                                <td style={{ padding: '0.4rem 0.25rem' }}>{c.idade}a</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             );
@@ -1290,27 +1240,7 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       )}
 
-      <RecepcaoDadosModal
-        isOpen={!!recepcaoParticipacaoId}
-        onClose={() => {
-          setRecepcaoParticipacaoId(null);
-          loadMembers();
-        }}
-        participacaoId={recepcaoParticipacaoId || ''}
-        participanteNome={recepcaoParticipanteNome}
-        equipeNome={equipeNome}
-      />
 
-      <RecreacaoDadosModal
-        isOpen={!!recreacaoParticipacaoId}
-        onClose={() => {
-          setRecreacaoParticipacaoId(null);
-          loadMembers();
-        }}
-        participacaoId={recreacaoParticipacaoId || ''}
-        participanteNome={recreacaoParticipanteNome}
-        encontroId={userParticipacao?.encontro_id || ''}
-      />
 
       <ConfirmDialog
         isOpen={!!deleteTarget}
