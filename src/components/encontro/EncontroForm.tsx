@@ -1,10 +1,11 @@
-import { Calendar, Check, Info, Loader, Tag, X } from 'lucide-react';
+import { Calendar, Check, Copy, Info, LinkIcon, Loader, Tag, X } from 'lucide-react';
 import React, { useState } from 'react';
 import type { Encontro, EncontroFormData } from '../../types/encontro';
 import { FormField } from '../ui/FormField';
 import { CurrencyFormField } from '../ui/CurrencyFormField';
 import { FormRow } from '../ui/FormRow';
 import { FormSection } from '../ui/FormSection';
+import toast from 'react-hot-toast';
 
 interface EncontroFormProps {
     title: string;
@@ -44,6 +45,19 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<FormErrors>({});
+
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        const url = `${window.location.origin}/formulario?encontro=${initialData?.id}`;
+        navigator.clipboard.writeText(url);
+
+        setCopied(true);
+        toast.success('Link copiado!');
+
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     const handleChange = (field: keyof EncontroFormData, value: string | number | boolean | null) => {
         setForm((prev) => ({ ...prev, [field]: value }));
@@ -131,6 +145,23 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Liberar Formulários</span>
                             <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Recepção e Recreação</span>
+                            {initialData && initialData.formulario_publico_ativo && (
+                                <div className="encontro-detail-item" style={{ marginTop: '0.4rem', gap: '0.5rem' }}>
+                                    <LinkIcon size={12} className="icon-dim" />
+                                    <span style={{ fontSize: '0.75rem', opacity: 0.8, fontWeight: 500 }}>Link Formulários Recepção e Recreação</span>
+                                    <div className="musica-actions">
+                                        <button
+                                            type="button"
+                                            className={`mini-link-btn ${copied ? 'copied' : ''}`}
+                                            onClick={handleCopy}
+                                            title="Copiar Link"
+                                            style={{ width: '20px', height: '20px' }}
+                                        >
+                                            {copied ? <Check size={10} className="icon-check-anim" /> : <Copy size={10} />}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div className="toggle-sim-nao">
                             <button
@@ -293,6 +324,20 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                     )}
                 </button>
             </div>
+            <style>{`
+                .encontro-detail-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; width: 100%; }
+                .icon-dim { opacity: 0.5; flex-shrink: 0; }
+                .musica-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+                .mini-link-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: var(--secondary-bg); border: 1px solid var(--border-color); color: var(--text-color); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
+                .mini-link-btn:hover { background: var(--primary-color) !important; color: white !important; border-color: var(--primary-color); transform: translateY(-1px); }
+                .mini-link-btn.copied { background: #10b981 !important; color: white !important; border-color: #10b981; }
+                .icon-check-anim { animation: check-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+
+                @keyframes check-pop {
+                    0% { transform: scale(0.5) rotate(-20deg); opacity: 0; }
+                    100% { transform: scale(1) rotate(0); opacity: 1; }
+                }
+            `}</style>
         </form>
     );
 }
