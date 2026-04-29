@@ -130,7 +130,7 @@ export function ConfiguracaoCamisetasPage() {
     }
   };
 
-  const filteredTamanhos = tamanhos.filter(t => 
+  const filteredTamanhos = tamanhos.filter(t =>
     filterModeloId === 'all' || t.modelo_id === filterModeloId
   );
 
@@ -172,10 +172,10 @@ export function ConfiguracaoCamisetasPage() {
                   <tr><td colSpan={2} style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>Nenhum modelo.</td></tr>
                 ) : (
                   modelos.map(m => (
-                    <tr 
-                      key={m.id} 
-                      style={{ 
-                        borderBottom: '1px solid var(--border-color)', 
+                    <tr
+                      key={m.id}
+                      style={{
+                        borderBottom: '1px solid var(--border-color)',
                         background: filterModeloId === m.id ? 'var(--surface-2)' : 'transparent',
                         cursor: 'pointer'
                       }}
@@ -201,22 +201,22 @@ export function ConfiguracaoCamisetasPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
               <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Tamanhos</h2>
-              <select 
-                className="form-input" 
-                style={{ padding: '0.2rem 0.5rem', fontSize: '0.8rem', width: 'auto' }}
+              <select
+                className="form-input"
+                style={{ padding: '0.5rem', fontSize: '0.8rem', width: 'auto' }}
                 value={filterModeloId}
                 onChange={(e) => setFilterModeloId(e.target.value)}
               >
-                <option value="all">Todos os Modelos</option>
+                <option value="all">Todos</option>
                 {modelos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
               </select>
             </div>
-            <button className="btn-primary" onClick={() => { 
-              setEditingTamanho(null); 
-              setSiglaTamanho(''); 
+            <button className="btn-primary" onClick={() => {
+              setEditingTamanho(null);
+              setSiglaTamanho('');
               setModeloIdTamanho(filterModeloId !== 'all' ? filterModeloId : null);
-              setOrdemTamanho(tamanhos.length + 1); 
-              setIsSizeModalOpen(true); 
+              setOrdemTamanho(tamanhos.length + 1);
+              setIsSizeModalOpen(true);
             }}>
               <Plus size={16} /> Novo Tamanho
             </button>
@@ -246,12 +246,12 @@ export function ConfiguracaoCamisetasPage() {
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                          <button className="icon-btn" onClick={() => { 
-                            setEditingTamanho(t); 
-                            setSiglaTamanho(t.sigla); 
-                            setOrdemTamanho(t.ordem); 
+                          <button className="icon-btn" onClick={() => {
+                            setEditingTamanho(t);
+                            setSiglaTamanho(t.sigla);
+                            setOrdemTamanho(t.ordem);
                             setModeloIdTamanho(t.modelo_id);
-                            setIsSizeModalOpen(true); 
+                            setIsSizeModalOpen(true);
                           }}><Edit2 size={16} /></button>
                           <button className="icon-btn text-danger" onClick={() => setTamanhoToDelete(t)}><Trash2 size={16} /></button>
                         </div>

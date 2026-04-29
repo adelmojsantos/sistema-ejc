@@ -89,7 +89,7 @@ export const comprasService = {
   async listarPedidosDetalhados(encontroId: string): Promise<(CamisetaPedido & { pessoa_nome: string, equipe_nome: string })[]> {
     const { data, error } = await supabase
       .from('camiseta_pedidos')
-      .select('*, camiseta_modelos(nome), participacoes!inner(encontro_id, pessoas(nome_completo), equipes(nome))')
+      .select('*, camiseta_modelos(nome), participacoes!inner(encontro_id, equipe_id, pessoas(nome_completo), equipes(nome))')
       .eq('participacoes.encontro_id', encontroId);
 
     if (error) throw error;

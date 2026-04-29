@@ -39,7 +39,7 @@ import { exportConfigService } from '../../services/exportConfigService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
 import { validatePessoaForConfirmation } from '../../utils/pessoaValidation';
-import type { CamisetaModelo, CamisetaPedido } from '../../types/camiseta';
+import type { CamisetaModelo, CamisetaPedido, CamisetaTamanho } from '../../types/camiseta';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import type { RecepcaoDados } from '../../types/recepcao';
 import type { RecreacaoDados } from '../../types/recreacao';
@@ -83,6 +83,7 @@ export function CoordenadorMinhaEquipePage() {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [addingShirtToMemberId, setAddingShirtToMemberId] = useState<string | null>(null);
   const [modelosCamiseta, setModelosCamiseta] = useState<CamisetaModelo[]>([]);
+  const [tamanhosCamiseta, setTamanhosCamiseta] = useState<CamisetaTamanho[]>([]);
   const [newShirtData, setNewShirtData] = useState({ modelo_id: '', tamanho: 'G', quantidade: 1 });
   const [recepcaoParticipacaoId, setRecepcaoParticipacaoId] = useState<string | null>(null);
   const [recepcaoParticipanteNome, setRecepcaoParticipanteNome] = useState<string>('');
@@ -104,14 +105,18 @@ export function CoordenadorMinhaEquipePage() {
   const loadPedidos = useCallback(async () => {
     if (!userParticipacao?.encontro_id) return;
     try {
-      const [pedidos, modelos] = await Promise.all([
+      const [pedidos, modelos, tamanhos] = await Promise.all([
         camisetaService.listarPedidosPorEncontro(userParticipacao.encontro_id),
-        camisetaService.listarModelos()
+        camisetaService.listarModelos(),
+        camisetaService.listarTamanhos()
       ]);
       setPedidosCamisetas(pedidos);
       setModelosCamiseta(modelos);
+      setTamanhosCamiseta(tamanhos);
       if (modelos.length > 0) {
-        setNewShirtData(prev => ({ ...prev, modelo_id: modelos[0].id }));
+        const availableSizes = tamanhos.filter(t => !t.modelo_id || t.modelo_id === modelos[0].id);
+        const defaultSize = availableSizes.length > 0 ? availableSizes[0].sigla : '';
+        setNewShirtData(prev => ({ ...prev, modelo_id: modelos[0].id, tamanho: defaultSize }));
       }
     } catch (error) {
       console.error('Erro ao carregar pedidos:', error);
@@ -1065,7 +1070,12 @@ export function CoordenadorMinhaEquipePage() {
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <select
                             value={newShirtData.modelo_id}
-                            onChange={e => setNewShirtData({ ...newShirtData, modelo_id: e.target.value })}
+                            onChange={e => {
+                               const newModelId = e.target.value;
+                               const availableSizes = tamanhosCamiseta.filter(t => !t.modelo_id || t.modelo_id === newModelId);
+                               const newSize = availableSizes.some(t => t.sigla === newShirtData.tamanho) ? newShirtData.tamanho : (availableSizes[0]?.sigla || '');
+                               setNewShirtData({ ...newShirtData, modelo_id: newModelId, tamanho: newSize });
+                            }}
                             className="form-input"
                             style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem' }}
                           >
@@ -1079,8 +1089,10 @@ export function CoordenadorMinhaEquipePage() {
                             className="form-input"
                             style={{ width: '60px', padding: '0.4rem', fontSize: '0.8rem' }}
                           >
-                            {['P', 'M', 'G', 'GG', 'XG'].map(t => (
-                              <option key={t} value={t}>{t}</option>
+                            {tamanhosCamiseta
+                              .filter(t => !t.modelo_id || t.modelo_id === newShirtData.modelo_id)
+                              .map(t => (
+                              <option key={t.id} value={t.sigla}>{t.sigla}</option>
                             ))}
                           </select>
                         </div>

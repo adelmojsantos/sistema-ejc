@@ -23,7 +23,6 @@ export default function FormAccess() {
   const [formData, setFormData] = useState({
     equipe_id: '',
     nome: '',
-    data_nascimento: '',
     telefone_fim: '',
     form_type: 'recepcao'
   });
@@ -65,7 +64,6 @@ export default function FormAccess() {
       encontro_id,
       equipe_id: formData.equipe_id,
       nome: formData.nome,
-      data_nascimento: formData.data_nascimento,
       telefone_fim: formData.telefone_fim
     });
   };
@@ -158,18 +156,9 @@ export default function FormAccess() {
           />
 
           <FormField
-            label="Data de Nascimento"
-            type="date"
+            label="Telefone (com ou sem DDD)"
             required
-            value={formData.data_nascimento}
-            onChange={e => setFormData({ ...formData, data_nascimento: e.target.value })}
-          />
-
-          <FormField
-            label="Últimos 4 dígitos do Telefone"
-            required
-            maxLength={4}
-            placeholder="Ex: 1234"
+            placeholder="Ex: 11987654321 ou 87654321"
             value={formData.telefone_fim}
             onChange={e => setFormData({ ...formData, telefone_fim: e.target.value.replace(/\D/g, '') })}
           />

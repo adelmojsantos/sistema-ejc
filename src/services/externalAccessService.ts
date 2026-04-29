@@ -4,7 +4,6 @@ export interface ExternalAccessParams {
   encontro_id: string;
   equipe_id: string;
   nome: string;
-  data_nascimento: string;
   telefone_fim: string;
 }
 
@@ -36,8 +35,7 @@ export const externalAccessService = {
       p_encontro_id: params.encontro_id,
       p_equipe_id: params.equipe_id,
       p_nome: params.nome,
-      p_data_nascimento: params.data_nascimento,
-      p_telefone_fim: params.telefone_fim
+      p_telefone: params.telefone_fim
     });
 
     if (error) {

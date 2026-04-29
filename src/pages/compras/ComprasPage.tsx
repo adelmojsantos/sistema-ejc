@@ -48,7 +48,7 @@ export function ComprasPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { hasPermission } = useAuth();
-  
+
   const isHub = location.pathname === '/compras' || location.pathname === '/compras/';
 
   // Proteção interna
@@ -87,12 +87,12 @@ export function ComprasPage() {
           >
             <span className="cadastros-hub__bar" style={{ backgroundColor: category.color }} />
             <div className="cadastros-hub__content">
-              <span className="cadastros-hub__icon" style={{ backgroundColor: `${category.color}20`, color: category.color }}>
+              <span className="cadastros-hub__icon" style={{ backgroundColor: `${category.color}20`, color: category.color, padding: '0.5rem' }}>
                 {category.icon}
               </span>
               <div>
                 <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  {category.label}
+                  {category.label}''
                   <ChevronRight size={18} style={{ opacity: 0.3 }} />
                 </h3>
                 <p>{category.description}</p>
