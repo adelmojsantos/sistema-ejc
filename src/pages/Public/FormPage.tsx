@@ -4,16 +4,19 @@ import { useExternalAccess } from '../../hooks/useExternalAccess';
 import { recepcaoService } from '../../services/recepcaoService';
 import { FormField } from '../../components/ui/FormField';
 import { RadioGroup } from '../../components/ui/RadioGroup';
-import { Loader, Car, CheckCircle, LogOut } from 'lucide-react';
+import { Loader, Car, CheckCircle, LogOut, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import type { RecepcaoDadosFormData } from '../../types/recepcao';
+import { cleanPlate, formatPlate } from '../../utils/plateUtils';
 
 export default function FormPage() {
   const navigate = useNavigate();
   const { session, isAuthenticated, isSessionLoading, logout } = useExternalAccess();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [recordId, setRecordId] = useState<string | null>(null);
   const [formData, setFormData] = useState<RecepcaoDadosFormData>({
     veiculo_tipo: 'carro',
     veiculo_modelo: '',
@@ -33,12 +36,15 @@ export default function FormPage() {
         try {
           const existing = await recepcaoService.obterPorParticipacao(session.participacao_id);
           if (existing) {
+            setRecordId(existing.id);
             setFormData({
               veiculo_tipo: existing.veiculo_tipo,
               veiculo_modelo: existing.veiculo_modelo,
               veiculo_cor: existing.veiculo_cor,
-              veiculo_placa: existing.veiculo_placa,
+              veiculo_placa: formatPlate(existing.veiculo_placa),
             });
+          } else {
+            setRecordId(null);
           }
         } catch (error) {
           console.error('Erro ao carregar dados prévios:', error);
@@ -54,13 +60,54 @@ export default function FormPage() {
         }
     };
 
+    const handleDelete = async () => {
+      if (!recordId) return;
+      if (!window.confirm('Deseja realmente remover os dados do seu veículo?')) return;
+
+      setIsDeleting(true);
+      try {
+        await recepcaoService.excluir(recordId);
+        toast.success('Veículo removido com sucesso!');
+        setRecordId(null);
+        setFormData({
+          veiculo_tipo: 'carro',
+          veiculo_modelo: '',
+          veiculo_cor: '',
+          veiculo_placa: '',
+        });
+      } catch (error) {
+        console.error('Erro ao excluir dados:', error);
+        toast.error('Erro ao excluir os dados. Tente novamente.');
+      } finally {
+        setIsDeleting(false);
+      }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session?.participacao_id) return;
 
+    if (!formData.veiculo_modelo.trim()) {
+      toast.error('O modelo do veículo é obrigatório.');
+      return;
+    }
+    if (!formData.veiculo_cor.trim()) {
+      toast.error('A cor do veículo é obrigatória.');
+      return;
+    }
+    if (!formData.veiculo_placa.trim()) {
+      toast.error('A placa do veículo é obrigatória.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await recepcaoService.salvar(session.participacao_id, formData);
+      const cleanedData = {
+        ...formData,
+        veiculo_placa: cleanPlate(formData.veiculo_placa)
+      };
+      const result = await recepcaoService.salvar(session.participacao_id, cleanedData);
+      setRecordId(result.id);
       toast.success('Dados salvos com sucesso!');
       setIsSuccess(true);
     } catch (error) {
@@ -224,15 +271,27 @@ export default function FormPage() {
               required
               placeholder="ABC-1234 ou ABC1D23"
               value={formData.veiculo_placa}
-              onChange={e => setFormData({ ...formData, veiculo_placa: e.target.value })}
+              onChange={e => setFormData({ ...formData, veiculo_placa: formatPlate(e.target.value) })}
             />
 
-            <div style={{ marginTop: '1rem' }}>
+            <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
+              {recordId && (
+                <button 
+                  type="button" 
+                  onClick={handleDelete} 
+                  className="btn-danger-outline" 
+                  style={{ height: '48px', display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'center' }}
+                  disabled={isSubmitting || isDeleting}
+                >
+                  {isDeleting ? <Loader className="animate-spin" size={20} /> : <Trash2 size={20} />}
+                  <span>Remover</span>
+                </button>
+              )}
               <button 
                 type="submit" 
                 className="btn-primary" 
-                style={{ width: '100%', height: '48px', fontSize: '1rem' }}
-                disabled={isSubmitting}
+                style={{ height: '48px', fontSize: '1rem', flex: 2 }}
+                disabled={isSubmitting || isDeleting}
               >
                 {isSubmitting ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Loader } from 'lucide-react';
+import { Loader, Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { FormField } from '../ui/FormField';
 import { RadioGroup } from '../ui/RadioGroup';
@@ -37,6 +37,8 @@ export function RecepcaoDadosModal({
   
   const [currentParticipacaoId, setCurrentParticipacaoId] = useState(initialParticipacaoId);
   const [currentParticipant, setCurrentParticipant] = useState<InscricaoEnriched | null>(null);
+  const [recordId, setRecordId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [formData, setFormData] = useState<RecepcaoDadosFormData>({
     veiculo_tipo: 'carro',
@@ -54,6 +56,7 @@ export function RecepcaoDadosModal({
       loadDados();
     } else if (isOpen && !currentParticipacaoId) {
       // Clear for new entry
+      setRecordId(null);
       setFormData({
         veiculo_tipo: 'carro',
         veiculo_modelo: '',
@@ -68,13 +71,15 @@ export function RecepcaoDadosModal({
     try {
       const dados = await recepcaoService.obterPorParticipacao(currentParticipacaoId);
       if (dados) {
+        setRecordId(dados.id);
         setFormData({
           veiculo_tipo: dados.veiculo_tipo,
           veiculo_modelo: dados.veiculo_modelo,
           veiculo_cor: dados.veiculo_cor,
-          veiculo_placa: dados.veiculo_placa,
+          veiculo_placa: formatPlate(dados.veiculo_placa),
         });
       } else {
+        setRecordId(null);
         // Default values for new registrations
         setFormData({
           veiculo_tipo: 'carro',
@@ -109,19 +114,59 @@ export function RecepcaoDadosModal({
         }
     };
 
+    const handleDelete = async () => {
+      if (!recordId) return;
+      if (!window.confirm('Deseja realmente remover os dados do veículo deste participante?')) return;
+
+      setIsDeleting(true);
+      try {
+        await recepcaoService.excluir(recordId);
+        toast.success('Veículo removido com sucesso!');
+        setRecordId(null);
+        setFormData({
+          veiculo_tipo: 'carro',
+          veiculo_modelo: '',
+          veiculo_cor: '',
+          veiculo_placa: '',
+        });
+        if (onSave) onSave();
+        onClose();
+      } catch (error) {
+        console.error('Erro ao excluir dados da recepção:', error);
+        toast.error('Erro ao excluir dados.');
+      } finally {
+        setIsDeleting(false);
+      }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentParticipacaoId) {
       toast.error('Selecione um participante primeiro.');
       return;
     }
+
+    if (!formData.veiculo_modelo.trim()) {
+      toast.error('O modelo do veículo é obrigatório.');
+      return;
+    }
+    if (!formData.veiculo_cor.trim()) {
+      toast.error('A cor do veículo é obrigatória.');
+      return;
+    }
+    if (!formData.veiculo_placa.trim()) {
+      toast.error('A placa do veículo é obrigatória.');
+      return;
+    }
+
     setSaving(true);
     try {
       const cleanedData = {
         ...formData,
         veiculo_placa: cleanPlate(formData.veiculo_placa)
       };
-      await recepcaoService.salvar(currentParticipacaoId, cleanedData);
+      const result = await recepcaoService.salvar(currentParticipacaoId, cleanedData);
+      setRecordId(result.id);
       toast.success('Dados da recepção salvos com sucesso!');
       if (onSave) onSave();
       onClose();
@@ -208,13 +253,29 @@ export function RecepcaoDadosModal({
             onChange={e => setFormData({ ...formData, veiculo_placa: formatPlate(e.target.value) })}
           />
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-            <button type="button" onClick={onClose} className="btn-secondary">
-              Cancelar
-            </button>
-            <button type="submit" disabled={saving || (!currentParticipacaoId && allowParticipantSelection)} className="btn-primary" style={{ minWidth: '120px' }}>
-              {saving ? <Loader className="animate-spin" size={18} /> : 'Salvar'}
-            </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginTop: '1rem' }}>
+            <div>
+              {recordId && (
+                <button 
+                  type="button" 
+                  onClick={handleDelete} 
+                  className="btn-danger-outline" 
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  disabled={isDeleting || saving}
+                >
+                  {isDeleting ? <Loader className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                  Remover Veículo
+                </button>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button type="button" onClick={onClose} className="btn-secondary">
+                Cancelar
+              </button>
+              <button type="submit" disabled={saving || isDeleting || (!currentParticipacaoId && allowParticipantSelection)} className="btn-primary" style={{ minWidth: '120px' }}>
+                {saving ? <Loader className="animate-spin" size={18} /> : 'Salvar'}
+              </button>
+            </div>
           </div>
         </form>
       )}

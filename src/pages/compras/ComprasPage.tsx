@@ -92,7 +92,7 @@ export function ComprasPage() {
               </span>
               <div>
                 <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  {category.label}''
+                  {category.label}
                   <ChevronRight size={18} style={{ opacity: 0.3 }} />
                 </h3>
                 <p>{category.description}</p>

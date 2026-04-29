@@ -155,9 +155,9 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                                             className={`mini-link-btn ${copied ? 'copied' : ''}`}
                                             onClick={handleCopy}
                                             title="Copiar Link"
-                                            style={{ width: '20px', height: '20px' }}
+                                            style={{ width: '22px', height: '22px' }}
                                         >
-                                            {copied ? <Check size={10} className="icon-check-anim" /> : <Copy size={10} />}
+                                            {copied ? <Check size={12} className="icon-check-anim" /> : <Copy size={12} />}
                                         </button>
                                     </div>
                                 </div>
@@ -331,6 +331,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                 .mini-link-btn { display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; background: var(--secondary-bg); border: 1px solid var(--border-color); color: var(--text-color); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; }
                 .mini-link-btn:hover { background: var(--primary-color) !important; color: white !important; border-color: var(--primary-color); transform: translateY(-1px); }
                 .mini-link-btn.copied { background: #10b981 !important; color: white !important; border-color: #10b981; }
+                .mini-link-btn svg { display: block; flex-shrink: 0; }
                 .icon-check-anim { animation: check-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 
                 @keyframes check-pop {

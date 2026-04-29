@@ -24,6 +24,7 @@ export function TaxasPage() {
   const [relatorioTaxas, setRelatorioTaxas] = useState<TaxaReport[]>([]);
 
   const [selectedEquipeId, setSelectedEquipeId] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<'encontristas' | 'equipes'>('encontristas');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
 
@@ -62,13 +63,35 @@ export function TaxasPage() {
     loadData();
   }, [loadData]);
 
+  // Cálculos consolidados
+  const statsGeral = useMemo(() => {
+    const total = participantes.length;
+    const pagos = participantes.filter(p => p.pago_taxa).length;
+
+    const encontristas = participantes.filter(p => p.participante);
+    const totalEnc = encontristas.length;
+    const pagosEnc = encontristas.filter(p => p.pago_taxa).length;
+
+    const trabalhadores = participantes.filter(p => !p.participante);
+    const totalTrab = trabalhadores.length;
+    const pagosTrab = trabalhadores.filter(p => p.pago_taxa).length;
+
+    return { total, pagos, totalEnc, pagosEnc, totalTrab, pagosTrab };
+  }, [participantes]);
+
   const filteredParticipantes = useMemo(() => {
     return participantes.filter(p => {
-      const matchEquipe = selectedEquipeId === 'all' || p.equipe_id === selectedEquipeId;
+      // Filtro por Aba
+      const matchTab = activeTab === 'encontristas' ? p.participante : !p.participante;
+      if (!matchTab) return false;
+
+      // Filtro por Equipe (apenas na aba de equipes)
+      const matchEquipe = activeTab === 'encontristas' || selectedEquipeId === 'all' || p.equipe_id === selectedEquipeId;
+
       const matchSearch = (p.pessoas?.nome_completo || '').toLowerCase().includes(debouncedSearch.toLowerCase());
       return matchEquipe && matchSearch;
     }).sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
-  }, [participantes, selectedEquipeId, debouncedSearch]);
+  }, [participantes, activeTab, selectedEquipeId, debouncedSearch]);
 
   const handleTogglePagamento = async (id: string, currentStatus: boolean) => {
     setUpdatingId(id);
@@ -109,144 +132,269 @@ export function TaxasPage() {
             <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Pagamento de Taxas</h1>
           </div>
         </div>
+
+        <div className="form-group" style={{ marginBottom: 0, minWidth: '220px' }}>
+          <LiveSearchSelect
+            value={selectedEncontroId}
+            onChange={val => setSelectedEncontroId(val)}
+            fetchData={async (s, p) => await encontroService.buscarComPaginacao(s, p)}
+            getOptionLabel={e => e.nome}
+            getOptionValue={e => e.id}
+            initialOptions={encontros}
+          />
+        </div>
       </div>
 
-      {/* Resumo por Equipe */}
-      <section className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        {relatorioTaxas.filter(r => r.total_membros > 0).map(r => (
-          <div 
-            key={r.equipe_id} 
-            className="card card--clickable" 
-            style={{ 
-              padding: '1rem', 
-              borderLeft: `4px solid ${r.pendentes === 0 ? 'var(--success-color)' : 'var(--warning-color)'}`,
-              cursor: 'pointer',
-              transition: 'transform 0.2s, box-shadow 0.2s'
-            }}
-            onClick={() => setSelectedEquipeId(r.equipe_id)}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-              <h3 style={{ fontSize: '0.9rem', margin: 0 }}>{r.equipe_nome}</h3>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--muted-text)' }}>{r.pagos}/{r.total_membros}</span>
-            </div>
-            <div className="progress-bar" style={{ height: '6px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden' }}>
-              <div
-                style={{
-                  height: '100%',
-                  width: `${(r.pagos / r.total_membros) * 100}%`,
-                  background: r.pendentes === 0 ? 'var(--success-color)' : 'var(--primary-color)',
-                  transition: 'width 0.3s'
-                }}
-              />
-            </div>
+      {/* Resumo Geral Consolidado */}
+      <section className="grid-container" style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '1rem',
+        marginBottom: '2rem'
+      }}>
+        <div className="card" style={{ padding: '1.25rem 1rem', borderLeft: '4px solid var(--primary-color)' }}>
+          <span style={{ fontSize: '0.7rem', fontWeight: 800, opacity: 0.5, textTransform: 'uppercase' }}>Geral (Total)</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.25rem', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '1.5rem', fontWeight: 800 }}>{statsGeral.pagos}</span>
+            <span style={{ opacity: 0.4, fontSize: '0.9rem' }}>/ {statsGeral.total}</span>
           </div>
-        ))}
-      </section>
-
-      {/* Filtros e Busca */}
-      <div className="card" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
-          <div className="form-group" style={{ marginBottom: 0, minWidth: '220px' }}>
-            <label className="form-label">Filtrar por Equipe</label>
-            <select className="form-input" value={selectedEquipeId} onChange={e => setSelectedEquipeId(e.target.value)}>
-              <option value="all">Todas as Equipes</option>
-              {equipes.map(eq => (
-                <option key={eq.id} value={eq.id}>{eq.nome}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '280px' }}>
-            <label className="form-label">Buscar Participante</label>
-            <div className="form-input-wrapper">
-              <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
-              <input
-                type="text"
-                className="form-input"
-                style={{ paddingLeft: '2.5rem' }}
-                placeholder="Nome do participante..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0, minWidth: '220px' }}>
-            <label className="form-label">Encontro</label>
-            <LiveSearchSelect
-              value={selectedEncontroId}
-              onChange={val => setSelectedEncontroId(val)}
-              fetchData={async (s, p) => await encontroService.buscarComPaginacao(s, p)}
-              getOptionLabel={e => e.nome}
-              getOptionValue={e => e.id}
-              initialOptions={encontros}
+          <div className="progress-bar" style={{ height: '6px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                width: `${(statsGeral.pagos / (statsGeral.total || 1)) * 100}%`,
+                background: 'var(--primary-color)',
+                transition: 'width 0.3s'
+              }}
             />
           </div>
         </div>
+        <div className="card" style={{ padding: '1.25rem 1rem', borderLeft: '4px solid var(--accent-color)' }}>
+          <span style={{ fontSize: '0.7rem', fontWeight: 800, opacity: 0.5, textTransform: 'uppercase' }}>Encontristas</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.25rem', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--accent-color)' }}>{statsGeral.pagosEnc}</span>
+            <span style={{ opacity: 0.4, fontSize: '0.9rem' }}>/ {statsGeral.totalEnc}</span>
+          </div>
+          <div className="progress-bar" style={{ height: '6px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                width: `${(statsGeral.pagosEnc / (statsGeral.totalEnc || 1)) * 100}%`,
+                background: 'var(--accent-color)',
+                transition: 'width 0.3s'
+              }}
+            />
+          </div>
+        </div>
+        <div className="card" style={{ padding: '1.25rem 1rem', borderLeft: '4px solid var(--success-color)' }}>
+          <span style={{ fontSize: '0.7rem', fontWeight: 800, opacity: 0.5, textTransform: 'uppercase' }}>Equipes</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.25rem', marginBottom: '0.75rem' }}>
+            <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--success-color)' }}>{statsGeral.pagosTrab}</span>
+            <span style={{ opacity: 0.4, fontSize: '0.9rem' }}>/ {statsGeral.totalTrab}</span>
+          </div>
+          <div className="progress-bar" style={{ height: '6px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                width: `${(statsGeral.pagosTrab / (statsGeral.totalTrab || 1)) * 100}%`,
+                background: 'var(--success-color)',
+                transition: 'width 0.3s'
+              }}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Abas de Navegação */}
+      <div className="tabs-container" style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.5rem' }}>
+        <button
+          className={`btn ${activeTab === 'encontristas' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ borderRadius: '20px', padding: '0.5rem 1.5rem' }}
+          onClick={() => { setActiveTab('encontristas'); setSelectedEquipeId('all'); }}
+        >
+          Encontristas
+        </button>
+        <button
+          className={`btn ${activeTab === 'equipes' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ borderRadius: '20px', padding: '0.5rem 1.5rem' }}
+          onClick={() => setActiveTab('equipes')}
+        >
+          Equipes
+        </button>
       </div>
 
-      {/* Tabela de Resultados */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ textAlign: 'left', background: 'var(--surface-1)' }}>
-                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Participante</th>
-                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>Equipe</th>
-                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', textAlign: 'center' }}>Status</th>
-                <th style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', textAlign: 'center' }}>Ação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={4} style={{ padding: '3rem', textAlign: 'center' }}>
-                    <Loader className="animate-spin" size={24} style={{ margin: '0 auto' }} />
-                    <p style={{ marginTop: '0.5rem', opacity: 0.6 }}>Carregando dados...</p>
-                  </td>
-                </tr>
-              ) : filteredParticipantes.length === 0 ? (
-                <tr>
-                  <td colSpan={4} style={{ padding: '3rem', textAlign: 'center', opacity: 0.5 }}>
-                    Nenhum participante encontrado com os filtros atuais.
-                  </td>
-                </tr>
-              ) : (
-                filteredParticipantes.map(p => (
-                  <tr key={p.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '1rem' }}>
-                      <span style={{ fontWeight: 600 }}>{p.pessoas?.nome_completo}</span>
-                    </td>
-                    <td style={{ padding: '1rem' }}>
-                      <span style={{ fontSize: '0.9rem' }}>{p.equipes?.nome || 'Sem Equipe'}</span>
-                    </td>
-                    <td style={{ padding: '1rem', textAlign: 'center' }}>
-                      {p.pago_taxa ? (
-                        <span style={{ color: 'var(--success-color)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', fontWeight: 600 }}>
-                          <CheckCircle size={16} /> Pago
-                        </span>
-                      ) : (
-                        <span style={{ color: 'var(--danger-text)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', fontWeight: 600 }}>
-                          <XCircle size={16} /> Pendente
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '1rem', textAlign: 'center' }}>
-                      <button
-                        className={p.pago_taxa ? "btn-secondary" : "btn-primary"}
-                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
-                        disabled={updatingId === p.id}
-                        onClick={() => handleTogglePagamento(p.id, p.pago_taxa || false)}
-                      >
-                        {updatingId === p.id ? <Loader className="animate-spin" size={14} /> : (p.pago_taxa ? 'Estornar' : 'Marcar como Pago')}
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Conteúdo Dependente da Aba: Resumo de Equipes */}
+      {activeTab === 'equipes' && (
+        <section className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div
+            className={`card card--clickable ${selectedEquipeId === 'all' ? 'active-filter' : ''}`}
+            style={{
+              padding: '0.75rem 1rem',
+              borderLeft: '4px solid var(--primary-color)',
+              cursor: 'pointer',
+              backgroundColor: selectedEquipeId === 'all' ? 'rgba(37, 99, 235, 0.05)' : 'var(--card-bg)'
+            }}
+            onClick={() => setSelectedEquipeId('all')}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>Todas Equipes</span>
+              <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>{statsGeral.pagosTrab}/{statsGeral.totalTrab}</span>
+            </div>
+          </div>
+          {relatorioTaxas.filter(r => r.total_membros > 0).map(r => (
+            <div
+              key={r.equipe_id}
+              className={`card card--clickable ${selectedEquipeId === r.equipe_id ? 'active-filter' : ''}`}
+              style={{
+                padding: '0.75rem 1rem',
+                borderLeft: `4px solid ${r.pendentes === 0 ? 'var(--success-color)' : 'var(--warning-color)'}`,
+                cursor: 'pointer',
+                backgroundColor: selectedEquipeId === r.equipe_id ? 'rgba(37, 99, 235, 0.05)' : 'var(--card-bg)'
+              }}
+              onClick={() => setSelectedEquipeId(r.equipe_id)}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{r.equipe_nome}</span>
+                <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>{r.pagos}/{r.total_membros}</span>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {/* Busca e Filtros Secundários */}
+      <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+          <div className="form-input-wrapper" style={{ flex: 1, minWidth: '280px' }}>
+            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+            <input
+              type="text"
+              className="form-input"
+              style={{ paddingLeft: '2.5rem' }}
+              placeholder={`Buscar ${activeTab}...`}
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
+          </div>
+          {activeTab === 'equipes' && (
+            <div className="form-group" style={{ marginBottom: 0, minWidth: '200px' }}>
+              <select className="form-input" value={selectedEquipeId} onChange={e => setSelectedEquipeId(e.target.value)}>
+                <option value="all">Todas as Equipes</option>
+                {equipes.map(eq => (
+                  <option key={eq.id} value={eq.id}>{eq.nome}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Listagem Final */}
+      <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ fontSize: '1rem', margin: 0, opacity: 0.7, textTransform: 'capitalize' }}>
+          {activeTab} ({filteredParticipantes.length})
+        </h2>
+      </div>
+
+      <div className="grid-container" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.75rem',
+        paddingBottom: '2rem'
+      }}>
+        {loading ? (
+          <div style={{ padding: '4rem', textAlign: 'center' }}>
+            <Loader className="animate-spin" size={32} style={{ margin: '0 auto', opacity: 0.5 }} />
+            <p style={{ marginTop: '1rem', opacity: 0.6 }}>Carregando...</p>
+          </div>
+        ) : filteredParticipantes.length === 0 ? (
+          <div style={{ padding: '4rem', textAlign: 'center', opacity: 0.5 }}>
+            Nenhum {activeTab === 'encontristas' ? 'encontrista' : 'trabalhador'} encontrado.
+          </div>
+        ) : (
+          filteredParticipantes.map(p => (
+            <div key={p.id} className="card" style={{
+              padding: '0.8rem 1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '1.5rem',
+              borderLeft: `4px solid ${p.pago_taxa ? 'var(--success-border)' : 'var(--danger-border)'}`,
+              transition: 'transform 0.2s',
+              flexWrap: 'wrap',
+              backgroundColor: `${p.pago_taxa ? 'var(--success-bg)' : 'var(--secondary-bg)'}`
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flex: 1, minWidth: '300px' }}>
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ fontSize: '1rem', margin: '0 0 0.15rem 0', fontWeight: 700 }}>{p.pessoas?.nome_completo}</h3>
+                  <p style={{ fontSize: '0.8rem', margin: 0, opacity: 0.6, fontWeight: 500 }}>
+                    {activeTab === 'encontristas' ? (p.pessoas?.cpf || 'Encontrista') : (p.equipes?.nome || 'Sem Equipe')}
+                  </p>
+                </div>
+
+                <div style={{ minWidth: '110px', textAlign: 'center' }}>
+                  {p.pago_taxa ? (
+                    <span style={{
+                      backgroundColor: 'var(--success-bg)',
+                      color: 'var(--success-text)',
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      border: '1px solid var(--success-border)'
+                    }}>
+                      <CheckCircle size={14} /> PAGO
+                    </span>
+                  ) : (
+                    <span style={{
+                      backgroundColor: 'var(--danger-bg)',
+                      color: 'var(--danger-text)',
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      border: '1px solid var(--danger-border)'
+                    }}>
+                      <XCircle size={14} /> PENDENTE
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                minWidth: '180px'
+              }}>
+                <button
+                  className={p.pago_taxa ? "btn-secondary" : "btn-primary"}
+                  style={{
+                    padding: '0.4rem 1.25rem',
+                    fontSize: '0.8rem',
+                    minWidth: '160px',
+                    justifyContent: 'center'
+                  }}
+                  disabled={updatingId === p.id}
+                  onClick={() => handleTogglePagamento(p.id, p.pago_taxa || false)}
+                >
+                  {updatingId === p.id ? (
+                    <Loader className="animate-spin" size={16} />
+                  ) : (
+                    <>
+                      {p.pago_taxa ? 'Estornar' : 'Confirmar'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

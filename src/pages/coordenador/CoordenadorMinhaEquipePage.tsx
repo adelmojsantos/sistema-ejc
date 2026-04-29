@@ -16,6 +16,7 @@ import {
   Pencil,
   Phone,
   Shield,
+  Trash2,
   Users,
   X,
   Car,
@@ -29,6 +30,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
+import { recepcaoService } from '../../services/recepcaoService';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { useAuth } from '../../hooks/useAuth';
@@ -44,6 +46,7 @@ import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import type { RecepcaoDados } from '../../types/recepcao';
 import type { RecreacaoDados } from '../../types/recreacao';
 import { formatBRL } from '../../utils/currencyUtils';
+import { formatPlate } from '../../utils/plateUtils';
 
 interface EquipeMember {
   id: string;
@@ -1164,11 +1167,7 @@ export function CoordenadorMinhaEquipePage() {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <Car size={16} />
-                          {m.recepcao_dados ? (
-                            'EDITAR'
-                          ) : (
-                            'CADASTRAR'
-                          )}
+                          {m.recepcao_dados ? 'EDITAR' : 'CADASTRAR'}
                         </div>
                       </button>
                     </div>
@@ -1185,13 +1184,33 @@ export function CoordenadorMinhaEquipePage() {
                               <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Veículo</th>
                               <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Cor</th>
                               <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Placa</th>
+                              <th style={{ width: '30px' }}></th>
                             </tr>
                           </thead>
                           <tbody>
                             <tr style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                               <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{m.recepcao_dados.veiculo_modelo}</td>
                               <td style={{ padding: '0.4rem 0.25rem' }}>{m.recepcao_dados.veiculo_cor}</td>
-                              <td style={{ padding: '0.4rem 0.25rem' }}>{m.recepcao_dados.veiculo_placa}</td>
+                              <td style={{ padding: '0.4rem 0.25rem' }}>{formatPlate(m.recepcao_dados.veiculo_placa)}</td>
+                              <td style={{ padding: '0.25rem', textAlign: 'right' }}>
+                                <button
+                                  onClick={async () => {
+                                    if (window.confirm(`Deseja remover o veículo de ${p.nome_completo}?`)) {
+                                      try {
+                                        await recepcaoService.excluir(m.recepcao_dados!.id);
+                                        toast.success('Veículo removido!');
+                                        loadMembers();
+                                      } catch (e) {
+                                        toast.error('Erro ao remover veículo');
+                                      }
+                                    }
+                                  }}
+                                  style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.5, cursor: 'pointer', padding: '0.25rem' }}
+                                  title="Remover Veículo"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
                             </tr>
                           </tbody>
                         </table>
