@@ -142,6 +142,9 @@ export function Home() {
     });
   }
 
+  // Ordena os cards alfabeticamente pelo título
+  dashboardActions.sort((a, b) => a.title.localeCompare(b.title));
+
   return (
     <div className="dashboard animate-fade-in">
       <header className="dashboard__header">
