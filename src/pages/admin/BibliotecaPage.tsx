@@ -330,6 +330,7 @@ export function BibliotecaPage() {
                       isSelected={selectedItems.has(a.id)} isActiveDropdown={activeDropdown === a.id}
                       onToggleSelection={actions.toggleSelection} onToggleDropdown={setActiveDropdown}
                       onNavigate={() => {}} onDownload={handleDownload}
+                      onPreview={handleDownload}
                       onRename={(item) => { setFileToRename(item); setFileName(item.nome_exibicao); setFileRenameModalOpen(true); }}
                       onMove={(item) => { setItemToMove(item); setMoveModalOpen(true); }}
                       onShare={(item) => { setItemToShare(item); setShareModalOpen(true); }}
@@ -368,6 +369,7 @@ export function BibliotecaPage() {
                         isSelected={selectedItems.has(a.id)} isActiveDropdown={activeDropdown === a.id}
                         onToggleSelection={actions.toggleSelection} onToggleDropdown={setActiveDropdown}
                         onNavigate={() => {}} onDownload={handleDownload}
+                        onPreview={handleDownload}
                         onRename={(item) => { setFileToRename(item); setFileName(item.nome_exibicao); setFileRenameModalOpen(true); }}
                         onMove={(item) => { setItemToMove(item); setMoveModalOpen(true); }}
                         onShare={(item) => { setItemToShare(item); setShareModalOpen(true); }}

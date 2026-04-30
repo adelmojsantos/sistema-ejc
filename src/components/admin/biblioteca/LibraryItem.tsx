@@ -14,7 +14,8 @@ import {
   Trash2,
   Download,
   Link,
-  Share2
+  Share2,
+  Eye
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { bibliotecaService, type BibliotecaArquivo, type BibliotecaPasta } from '../../../services/bibliotecaService';
@@ -33,6 +34,7 @@ interface LibraryItemProps {
   onMove: (item: any) => void;
   onShare: (item: any) => void;
   onDelete: (item: any) => void;
+  onPreview?: (arquivo: BibliotecaArquivo) => void;
   isReadOnly?: boolean;
 }
 
@@ -66,6 +68,7 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
   onMove,
   onShare,
   onDelete,
+  onPreview,
   isReadOnly = false
 }) => {
   const isPasta = type === 'pasta';
@@ -93,7 +96,7 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
   if (viewMode === 'grid') {
     return (
       <div
-        className="library-card"
+        className="library-card group"
         onDoubleClick={handleDoubleClick}
         style={{
           padding: '1.25rem',
@@ -108,6 +111,68 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
           backgroundColor: isSelected ? 'rgba(37, 99, 235, 0.05)' : 'var(--surface-1)'
         }}
       >
+        {/* Quick Actions for Files */}
+        {!isPasta && (
+          <div style={{
+            position: 'absolute',
+            bottom: '0.5rem',
+            right: '0.5rem',
+            display: 'flex',
+            gap: '0.4rem',
+            zIndex: 5,
+            opacity: 0,
+            transition: 'opacity 0.2s',
+          }} className="quick-actions">
+            {['pdf', 'image'].some(type => arquivo.tipo_mime.includes(type)) && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onPreview ? onPreview(arquivo) : onDownload(arquivo); }}
+                className="action-btn-hover"
+                style={{
+                  padding: '0.4rem',
+                  backgroundColor: 'var(--primary-color)',
+                  color: 'white',
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'all 0.2s'
+                }}
+                title="Visualizar"
+              >
+                <Eye size={16} />
+              </button>
+            )}
+            <button
+              onClick={(e) => { e.stopPropagation(); onDownload(arquivo); }}
+              className="action-btn-hover"
+              style={{
+                padding: '0.4rem',
+                backgroundColor: 'var(--surface-2)',
+                color: 'var(--text-color)',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                transition: 'all 0.2s'
+              }}
+              title="Baixar"
+            >
+              <Download size={16} />
+            </button>
+          </div>
+        )}
+
+        <style>{`
+          .library-card:hover .quick-actions { opacity: 1 !important; }
+          .action-btn-hover:hover { transform: translateY(-2px); filter: brightness(1.1); }
+          .action-btn-hover:active { transform: translateY(0); }
+        `}</style>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             {isPasta ? (
@@ -240,12 +305,34 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
         {new Date(item.created_at).toLocaleDateString()}
       </td>
       <td style={{ padding: '1rem', position: 'relative' }}>
-        <button 
-          onClick={(e) => { e.stopPropagation(); onToggleDropdown(isActiveDropdown ? null : item.id); }} 
-          style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.6 }}
-        >
-          <MoreVertical size={16} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {!isPasta && (
+            <>
+              {['pdf', 'image'].some(type => arquivo.tipo_mime.includes(type)) && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); onPreview ? onPreview(arquivo) : onDownload(arquivo); }} 
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--primary-color)' }}
+                  title="Visualizar"
+                >
+                  <Eye size={18} />
+                </button>
+              )}
+              <button 
+                onClick={(e) => { e.stopPropagation(); onDownload(arquivo); }} 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--text-color)', opacity: 0.6 }}
+                title="Baixar"
+              >
+                <Download size={18} />
+              </button>
+            </>
+          )}
+          <button 
+            onClick={(e) => { e.stopPropagation(); onToggleDropdown(isActiveDropdown ? null : item.id); }} 
+            style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.6 }}
+          >
+            <MoreVertical size={16} />
+          </button>
+        </div>
         {isActiveDropdown && (
           <div style={{
             position: 'absolute', top: '100%', right: '10px',

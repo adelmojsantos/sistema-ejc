@@ -1,12 +1,12 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { inscricaoService } from '../services/inscricaoService';
-import { equipeService } from '../services/equipeService';
 import { comprasService, type TaxaReport } from '../services/comprasService';
-import { taxaService, type TaxasStats } from '../services/taxaService';
-import { useDebounce } from './useDebounce';
-import type { InscricaoEnriched } from '../types/inscricao';
+import { equipeService } from '../services/equipeService';
+import { inscricaoService } from '../services/inscricaoService';
+import { taxaService } from '../services/taxaService';
 import type { Equipe } from '../types/equipe';
+import type { InscricaoEnriched } from '../types/inscricao';
+import { useDebounce } from './useDebounce';
 
 export type TaxaTab = 'encontristas' | 'equipes';
 

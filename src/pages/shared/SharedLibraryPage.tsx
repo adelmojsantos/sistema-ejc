@@ -148,6 +148,7 @@ export default function SharedLibraryPage() {
                                                 isSelected={selectedItems.has(a.id)} isActiveDropdown={activeDropdown === a.id}
                                                 onToggleSelection={actions.toggleSelection} onToggleDropdown={setActiveDropdown}
                                                 onNavigate={() => { }} onDownload={handleDownload}
+                                                onPreview={handleDownload}
                                                 onRename={() => { }} onMove={() => { }} onShare={() => { }} onDelete={() => { }}
                                                 isReadOnly={true}
                                             />
@@ -181,6 +182,7 @@ export default function SharedLibraryPage() {
                                                     isSelected={selectedItems.has(a.id)} isActiveDropdown={activeDropdown === a.id}
                                                     onToggleSelection={actions.toggleSelection} onToggleDropdown={setActiveDropdown}
                                                     onNavigate={() => { }} onDownload={handleDownload}
+                                                    onPreview={handleDownload}
                                                     onRename={() => { }} onMove={() => { }} onShare={() => { }} onDelete={() => { }}
                                                     isReadOnly={true}
                                                 />
