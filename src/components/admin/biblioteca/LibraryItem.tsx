@@ -184,7 +184,15 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
             )}
             <div>
               <span 
-                style={{ fontWeight: 600, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }} 
+                style={{ 
+                  fontWeight: 600, 
+                  display: 'block', 
+                  fontSize: '0.875rem',
+                  lineHeight: '1.2',
+                  wordBreak: 'break-word',
+                  overflow: 'visible',
+                  maxWidth: '180px' 
+                }} 
                 title={isPasta ? pasta.nome : arquivo.nome_exibicao}
               >
                 {isPasta ? pasta.nome : arquivo.nome_exibicao}
@@ -279,7 +287,15 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
 
   // List View
   return (
-    <tr style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: isSelected ? 'rgba(37, 99, 235, 0.05)' : 'transparent', transition: 'background-color 0.2s' }}>
+    <tr style={{ 
+      borderBottom: '1px solid var(--border-color)', 
+      backgroundColor: isSelected 
+        ? 'rgba(37, 99, 235, 0.08)' 
+        : isActiveDropdown 
+          ? 'rgba(37, 99, 235, 0.04)' 
+          : 'transparent', 
+      transition: 'background-color 0.2s' 
+    }}>
       <td style={{ padding: '1rem' }}>
         <div
           onClick={(e) => { e.stopPropagation(); onToggleSelection(item.id, e); }}
@@ -305,7 +321,7 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
         {new Date(item.created_at).toLocaleDateString()}
       </td>
       <td style={{ padding: '1rem', position: 'relative' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
           {!isPasta && (
             <>
               {['pdf', 'image'].some(type => arquivo.tipo_mime.includes(type)) && (
@@ -340,34 +356,42 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
             borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
             zIndex: 10, minWidth: '160px', padding: '0.5rem 0'
           }}>
-            {/* Same Menu as Grid, can be further refactored if needed */}
             {isPasta ? (
               <>
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onNavigate(pasta.id); }}>
                   <FolderOpen size={14} /> Abrir
                 </button>
-                {!isReadOnly && (
-                  <>
-                    <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onRename(pasta); }}>
-                      <Edit2 size={14} /> Renomear
-                    </button>
-                    <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onShare({ id: pasta.id, name: pasta.nome, type: 'pasta' }); }}>
-                      <Share2 size={14} /> Compartilhar
-                    </button>
-                    <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
-                    <button className="dropdown-item text-danger" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onDelete(pasta.id); }}>
-                      <Trash2 size={14} /> Excluir
-                    </button>
-                  </>
-                )}
+                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onRename(pasta); }}>
+                  <Edit2 size={14} /> Renomear
+                </button>
+                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: pasta.id, name: pasta.nome, type: 'pasta' }); }}>
+                  <CornerUpRight size={14} /> Mover para...
+                </button>
+                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onShare({ id: pasta.id, name: pasta.nome, type: 'pasta' }); }}>
+                  <Share2 size={14} /> Compartilhar
+                </button>
+                <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
+                <button className="dropdown-item text-danger" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onDelete(pasta.id); }}>
+                  <Trash2 size={14} /> Excluir
+                </button>
               </>
             ) : (
               <>
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onDownload(arquivo); }}>
                   <Download size={14} /> Baixar
                 </button>
+                <button className="dropdown-item" onClick={handleCopyLink}>
+                  <Link size={14} /> Copiar Link
+                </button>
                 {!isReadOnly && (
                   <>
+                    <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
+                    <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onRename(arquivo); }}>
+                      <Edit2 size={14} /> Renomear
+                    </button>
+                    <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
+                      <CornerUpRight size={14} /> Mover para...
+                    </button>
                     <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onShare({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
                       <Share2 size={14} /> Compartilhar
                     </button>

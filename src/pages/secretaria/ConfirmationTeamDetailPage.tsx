@@ -494,12 +494,11 @@ export function ConfirmationTeamDetailPage() {
                     )}
                     <button
                       onClick={() => setEditingPessoa(p.pessoas)}
-                      disabled={isTeamConfirmed}
                       className="btn-icon"
                       style={{
                         backgroundColor: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)',
                         width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: 'var(--text-color)', opacity: isTeamConfirmed ? 0.3 : 1
+                        color: 'var(--text-color)'
                       }}
                       title="Editar Dados"
                     >
