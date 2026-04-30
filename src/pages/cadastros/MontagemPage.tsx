@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Search, Plus, Shield, Users, Trash2, Loader, Check, X, UserPlus, History } from 'lucide-react';
+import { ChevronLeft, Search, Plus, Trash2, Loader, Check, X, UserPlus, History, ChevronDown, ChevronUp, Save } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
@@ -46,8 +47,20 @@ export function MontagemPage() {
     const [isSavingPerson, setIsSavingPerson] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<InscricaoEnriched | null>(null);
     const [historyTarget, setHistoryTarget] = useState<Pessoa | null>(null);
+    const [expandedEquipeId, setExpandedEquipeId] = useState<string | null>(null);
 
-    const searchRef = useRef<HTMLDivElement>(null);
+    // Efeito para rolar até a equipe expandida
+    useEffect(() => {
+        if (expandedEquipeId) {
+            const element = document.getElementById(`equipe-card-${expandedEquipeId}`);
+            if (element) {
+                // Delay curto para sincronizar com a animação do framer-motion
+                setTimeout(() => {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
+        }
+    }, [expandedEquipeId]);
 
     // Seleciona o encontro mais recente (último) quando o contexto carregar
     useEffect(() => {
@@ -69,28 +82,6 @@ export function MontagemPage() {
     }, [selectedEncontroId]);
 
     useEffect(() => { loadInscricoes(); }, [loadInscricoes]);
-
-    // Derived Data
-    const membrosSalvos = useMemo(() => {
-        if (!selectedEquipeId) return [];
-        return inscricoes
-            .filter(i => i.equipe_id === selectedEquipeId)
-            .sort((a, b) => {
-                if (a.coordenador && !b.coordenador) return -1;
-                if (!a.coordenador && b.coordenador) return 1;
-                const nomeA = a.pessoas?.nome_completo || '';
-                const nomeB = b.pessoas?.nome_completo || '';
-                return nomeA.localeCompare(nomeB);
-            });
-    }, [inscricoes, selectedEquipeId]);
-
-    const stagingSorted = useMemo(() => {
-        return [...staging].sort((a, b) => {
-            if (a.coordenador && !b.coordenador) return -1;
-            if (!a.coordenador && b.coordenador) return 1;
-            return a.nome_completo.localeCompare(b.nome_completo);
-        });
-    }, [staging]);
 
     const equipeCounts = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -118,18 +109,18 @@ export function MontagemPage() {
             setIsSearching(true);
             try {
                 const { data } = await pessoaService.buscarComPaginacao(searchPessoa, 1, 20);
-                
-                // Mapear quem já está no encontro para saber a equipe
-                const inscricoesMap = new Map(inscricoes.map(i => [i.pessoa_id, i.equipes?.nome || 'Outra equipe']));
+
+                // Mapear quem já está no encontro para saber a equipe (ID e Nome)
+                const inscricoesMap = new Map(inscricoes.map(i => [i.pessoa_id, { id: i.equipe_id, nome: i.equipes?.nome || 'Outra equipe' }]));
                 const jaNoStagingIds = new Set(staging.map(s => s.pessoa_id));
 
                 const enrichedResults = data.map(p => ({
                     ...p,
-                    equipeAtual: inscricoesMap.get(p.id),
+                    infoEquipe: inscricoesMap.get(p.id),
                     noStaging: jaNoStagingIds.has(p.id)
                 }));
 
-                setSearchResults(enrichedResults);
+                setSearchResults(enrichedResults as any);
             } catch (error) {
                 console.error("Erro na busca:", error);
             } finally {
@@ -154,10 +145,6 @@ export function MontagemPage() {
 
     const removeFromStaging = (pessoa_id: string) => {
         setStaging(prev => prev.filter(s => s.pessoa_id !== pessoa_id));
-    };
-
-    const toggleStagingCoord = (pessoa_id: string) => {
-        setStaging(prev => prev.map(s => s.pessoa_id === pessoa_id ? { ...s, coordenador: !s.coordenador } : s));
     };
 
     const handleQuickAddPerson = async (formData: PessoaFormData, _shouldConfirm: boolean) => {
@@ -241,7 +228,8 @@ export function MontagemPage() {
     // Fechar resultados ao clicar fora
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+            const target = event.target as HTMLElement;
+            if (!target.closest('.search-container-custom')) {
                 setShowSearchResults(false);
             }
         };
@@ -249,432 +237,390 @@ export function MontagemPage() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const selectedEquipe = useMemo(() => equipes.find(e => e.id === selectedEquipeId), [equipes, selectedEquipeId]);
-
     if (isFetching && encontros.length === 0) return <div className="empty-state">Carregando dados...</div>;
 
     return (
         <div className="container montagem-container" style={{ paddingBottom: '2rem' }}>
-            <style>{`
-                .montagem-main-grid {
-                    display: grid; 
-                    grid-template-columns: 280px 1fr; 
-                    gap: 2rem; 
-                    margin-top: 1.5rem;
-                }
-
-                .mobile-team-selector {
-                    display: none;
-                    margin-bottom: 1.5rem;
-                }
-
-                .team-summary-line {
-                    display: none;
-                    padding: 0.75rem 1rem;
-                    background: var(--secondary-bg);
-                    border-radius: 8px;
-                    border: 1px solid var(--border-color);
-                    margin-bottom: 1rem;
-                    font-size: 0.9rem;
-                    align-items: center;
-                    gap: 0.5rem;
-                    flex-wrap: wrap;
-                }
-
-                @media (max-width: 1024px) {
-                    .montagem-main-grid {
-                        grid-template-columns: 1fr;
-                        gap: 1rem;
-                    }
-                    
-                    .desktop-sidebar {
-                        display: none;
-                    }
-
-                    .mobile-team-selector {
-                        display: block;
-                    }
-
-                    .team-summary-line {
-                        justify-content: center;
-                        text-align: center;
-                    }
-
-                    .pessoa-row {
-                        flex-direction: column;
-                        align-items: flex-start !important;
-                        gap: 1rem !important;
-                        padding: 1rem !important;
-                    }
-
-                    .pessoa-row-main {
-                        width: 100%;
-                    }
-
-                    .pessoa-row > div:last-child {
-                        width: 100%;
-                        justify-content: space-between;
-                        padding-top: 0.5rem;
-                        border-top: 1px solid var(--border-color);
-                    }
-                }
-            `}</style>
-            <div className="page-header" style={{ marginBottom: '1rem' }}>
+            <div className="page-header" style={{ marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <button onClick={() => navigate('/cadastros')} className="icon-btn" title="Voltar"><ChevronLeft size={18} /></button>
                     <div>
-                        <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Equipes por Encontro</p>
-                        <div style={{ width: '100%', maxWidth: '300px' }}>
-                            <LiveSearchSelect<Encontro>
-                                value={selectedEncontroId}
-                                onChange={(val) => setSelectedEncontroId(val)}
-                                fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-                                getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
-                                getOptionValue={(e) => String(e.id)}
-                                placeholder="Selecione um Encontro..."
-                                initialOptions={encontros}
-                                className="montagem-header-select"
-                            />
-                        </div>
+                        <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Montagem de Equipes</h1>
+                        <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Selecione o encontro e gerencie as equipes abaixo</p>
                     </div>
                 </div>
 
-                {staging.length > 0 && (
-                    <button onClick={handleSaveStaging} disabled={isLoading} className="btn-success" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {isLoading ? <Loader size={18} className="animate-spin" /> : <Check size={18} />}
-                        Salvar Alterações ({staging.length})
-                    </button>
-                )}
+                <div style={{ width: '100%', maxWidth: '350px' }}>
+                    <LiveSearchSelect<Encontro>
+                        value={selectedEncontroId}
+                        onChange={(val) => setSelectedEncontroId(val)}
+                        fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
+                        getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
+                        getOptionValue={(e) => String(e.id)}
+                        placeholder="Selecione um Encontro..."
+                        initialOptions={encontros}
+                        className="montagem-header-select"
+                    />
+                </div>
             </div>
 
-            <div className="montagem-main-grid" style={{ marginTop: '1.5rem' }}>
-                {/* Sidebar: Equipes */}
-                <aside className="desktop-sidebar">
-                    <div className="card" style={{ padding: '0.5rem' }}>
-                        <h3 style={{ padding: '1rem', margin: 0, fontSize: '1rem', borderBottom: '1px solid var(--border-color)' }}>
-                            <Shield size={16} style={{ marginRight: '0.5rem' }} /> Equipes
-                        </h3>
-                        <div style={{ padding: '0.5rem' }}>
-                            {equipes.map(eq => (
+            <motion.div
+                style={{ display: 'grid', gap: '1rem' }}
+                initial="hidden"
+                animate="visible"
+                variants={{
+                    visible: { transition: { staggerChildren: 0.05 } }
+                }}
+            >
+                {equipes.map(eq => {
+                    const isExpanded = expandedEquipeId === eq.id;
+                    const count = equipeCounts.withStaging[eq.id] || 0;
+
+                    // Membros filtrados para esta equipe
+                    const membrosDaEquipe = isExpanded ? inscricoes
+                        .filter(i => i.equipe_id === eq.id)
+                        .sort((a, b) => {
+                            if (a.coordenador && !b.coordenador) return -1;
+                            if (!a.coordenador && b.coordenador) return 1;
+                            const nomeA = a.pessoas?.nome_completo || '';
+                            const nomeB = b.pessoas?.nome_completo || '';
+                            return nomeA.localeCompare(nomeB);
+                        }) : [];
+
+                    return (
+                        <motion.article
+                            key={eq.id}
+                            id={`equipe-card-${eq.id}`}
+                            layout
+                            className="card"
+                            style={{
+                                padding: 0,
+                                marginBottom: '1rem',
+                                overflow: 'visible',
+                                border: isExpanded ? '1px solid rgba(255,255,255,0.05)' : '1px solid var(--border-color)',
+                                scrollMarginTop: '180px'
+                            }}
+                        >
+                            {/* Header da Equipe - Sticky Wrapper */}
+                            <div style={{
+                                position: 'sticky',
+                                top: '65px',
+                                zIndex: 30,
+                                padding: '0 1px',
+                                background: isExpanded ? 'var(--bg-color)' : 'transparent',
+                                borderRadius: isExpanded ? '12px 12px 0 0' : '0',
+                                transition: 'all 0.2s'
+                            }}>
+                                {/* Espaço para o gap */}
+                                {isExpanded && <div style={{ height: '15px' }} />}
+
                                 <div
-                                    key={eq.id}
-                                    onClick={() => { setSelectedEquipeId(eq.id); setStaging([]); setSearchPessoa(''); }}
+                                    onClick={() => {
+                                        if (isExpanded) {
+                                            setExpandedEquipeId(null);
+                                        } else {
+                                            setExpandedEquipeId(eq.id);
+                                            setSelectedEquipeId(eq.id);
+                                            setStaging([]);
+                                            setSearchPessoa('');
+                                            setShowSearchResults(false);
+                                        }
+                                    }}
                                     style={{
-                                        padding: '0.75rem 1rem',
-                                        borderRadius: '8px',
+                                        padding: '1.25rem 1.5rem',
                                         cursor: 'pointer',
                                         display: 'flex',
-                                        justifyContent: 'space-between',
                                         alignItems: 'center',
-                                        background: selectedEquipeId === eq.id ? 'var(--primary-color)' : 'transparent',
-                                        color: selectedEquipeId === eq.id ? 'white' : 'inherit',
-                                        marginBottom: '0.25rem',
+                                        justifyContent: 'space-between',
+                                        background: isExpanded ? 'transparent' : 'var(--secondary-bg)',
+                                        borderBottom: 'none',
+                                        borderRadius: '12px',
                                         transition: 'all 0.2s'
                                     }}
                                 >
-                                    <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{eq.nome}</span>
-                                    <span style={{
-                                        fontSize: '0.75rem',
-                                        background: selectedEquipeId === eq.id ? 'rgba(255,255,255,0.2)' : 'var(--secondary-bg)',
-                                        padding: '2px 8px',
-                                        borderRadius: '10px'
-                                    }}>
-                                        {equipeCounts.withStaging[eq.id] || 0}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </aside>
-
-                {/* Main: Membros da Equipe */}
-                <main>
-                    {/* Seletor Mobile */}
-                    <div className="mobile-team-selector">
-                        <select 
-                            className="form-input"
-                            value={selectedEquipeId}
-                            onChange={(e) => { setSelectedEquipeId(e.target.value); setStaging([]); setSearchPessoa(''); }}
-                        >
-                            <option value="">Selecione uma equipe...</option>
-                            {equipes.map(eq => (
-                                <option key={eq.id} value={eq.id}>
-                                    {eq.nome} ({equipeCounts.withoutStaging[eq.id] || 0})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {selectedEquipeId && (
-                        <div className="team-summary-line fade-in">
-                            <Shield size={16} className="text-primary" />
-                            <span>
-                                <strong>Equipe:</strong> {selectedEquipe?.nome}
-                            </span>
-                            <span style={{ opacity: 0.7, fontSize: '0.8rem', marginLeft: 'auto' }}>
-                                {equipeCounts.withoutStaging[selectedEquipeId] || 0} membros confirmados
-                            </span>
-                        </div>
-                    )}
-                    {!selectedEquipeId ? (
-                        <div className="empty-state card">
-                            <Shield size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                            <p>Selecione uma equipe ao lado para gerenciar.</p>
-                        </div>
-                    ) : (
-                        <div className="fade-in">
-                            {/* Busca Integrada */}
-                            <div ref={searchRef} style={{ position: 'relative', marginBottom: '1.5rem' }}>
-                                <div className="search-bar" style={{ marginBottom: 0 }}>
-                                    <Search size={18} style={{ opacity: 0.5 }} />
-                                    <input
-                                        className="search-input"
-                                        placeholder="Pesquisar pessoa para adicionar à equipe..."
-                                        value={searchPessoa}
-                                        onChange={e => { setSearchPessoa(e.target.value); setShowSearchResults(true); }}
-                                        onFocus={() => setShowSearchResults(true)}
-                                    />
-                                </div>
-
-                                {showSearchResults && searchPessoa.length >= 2 && (
-                                    <div className="card shadow" style={{
-                                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-                                        marginTop: '0.5rem', maxHeight: '300px', overflowY: 'auto'
-                                    }}>
-                                        {isSearching ? (
-                                            <div style={{ padding: '2rem', textAlign: 'center' }}>
-                                                <Loader size={24} className="animate-spin" style={{ margin: '0 auto', opacity: 0.3 }} />
-                                                <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', opacity: 0.5 }}>Buscando...</p>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                                        <div>
+                                            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: isExpanded ? 'var(--primary-color)' : 'var(--text-color)' }}>
+                                                {eq.nome}
+                                            </h3>
+                                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                                <span className="badge badge-secondary" style={{ fontSize: '0.7rem' }}>
+                                                    {count} membros
+                                                </span>
                                             </div>
-                                        ) : searchResults.length === 0 ? (
-                                            <div style={{ padding: '1.5rem', textAlign: 'center' }}>
-                                                <p style={{ opacity: 0.5, marginBottom: '1rem' }}>Ninguém disponível com este nome</p>
-                                                <button
-                                                    onClick={() => { setShowQuickAddPerson(true); setShowSearchResults(false); }}
-                                                    className="btn-outline"
-                                                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                                                >
-                                                    <UserPlus size={16} /> Cadastrar Nova Pessoa
-                                                </button>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {searchResults.map(p => {
-                                                    const isDisabled = !!p.equipeAtual || p.noStaging;
-                                                    return (
-                                                        <div
-                                                            key={p.id}
-                                                            onClick={() => !isDisabled && addToStaging(p)}
-                                                            className={`pessoa-row ${!isDisabled ? 'row-hover' : ''}`}
-                                                            style={{
-                                                                borderRadius: 0,
-                                                                borderBottom: '1px solid var(--border-color)',
-                                                                cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                                                padding: '0.75rem 1rem',
-                                                                opacity: isDisabled ? 0.6 : 1,
-                                                                background: isDisabled ? 'var(--secondary-bg)' : 'transparent'
-                                                            }}
-                                                        >
-                                                            <div style={{ flex: 1 }}>
-                                                                <div style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                    {p.nome_completo}
-                                                                    <button 
-                                                                        className="icon-btn" 
-                                                                        style={{ padding: '0.1rem', color: 'var(--primary-color)' }}
-                                                                        title="Ver histórico"
-                                                                        onClick={(e) => { e.stopPropagation(); setHistoryTarget(p); }}
-                                                                    >
-                                                                        <History size={14} />
-                                                                    </button>
-                                                                    {p.equipeAtual && (
-                                                                        <span style={{ fontSize: '0.65rem', background: '#ef4444', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>
-                                                                            EQUIPE: {p.equipeAtual.toUpperCase()}
-                                                                        </span>
-                                                                    )}
-                                                                    {p.noStaging && (
-                                                                        <span style={{ fontSize: '0.65rem', background: '#f59e0b', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>
-                                                                            NO RASCUNHO
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>CPF: {p.cpf}</div>
-                                                            </div>
-                                                            {!isDisabled ? <Plus size={16} /> : <Check size={16} style={{ color: p.noStaging ? '#f59e0b' : '#ef4444' }} />}
-                                                        </div>
-                                                    );
-                                                })}
-                                                <div style={{ padding: '0.75rem', borderTop: '1px solid var(--border-color)', background: 'var(--secondary-bg)' }}>
-                                                    <button
-                                                        onClick={() => { setShowQuickAddPerson(true); setShowSearchResults(false); }}
-                                                        className="btn-link"
-                                                        style={{ width: '100%', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                                                    >
-                                                        <Plus size={14} /> Não encontrou? Cadastre aqui
-                                                    </button>
-                                                </div>
-                                            </>
-                                        )}
+                                        </div>
+
                                     </div>
-                                )}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', color: 'var(--muted-text)' }}>
+                                        {/* Botão de Salvar no Header (lado do chevron) */}
+                                        {staging.length > 0 && isExpanded && (
+                                            <motion.button
+                                                initial={{ opacity: 0, scale: 0.9 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleSaveStaging();
+                                                }}
+                                                className="btn-primary"
+                                                disabled={isLoading}
+                                                style={{
+                                                    padding: '0.5rem 1rem',
+                                                    fontSize: '0.85rem',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '0.5rem',
+                                                    boxShadow: '0 4px 12px rgba(var(--primary-rgb), 0.3)',
+                                                    marginRight: '0.5rem'
+                                                }}
+                                            >
+                                                {isLoading ? (
+                                                    <span className="spinner-border spinner-border-sm" />
+                                                ) : (
+                                                    <Save size={16} />
+                                                )}
+                                                Confirmar Alteraçoes({staging.length})
+                                            </motion.button>
+                                        )}
+                                        {isExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="card" style={{ padding: 0 }}>
-                                <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--secondary-bg)', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-                                    <h2 style={{ margin: 0, fontSize: '1rem' }}>Membros da Equipe</h2>
-                                    <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{membrosSalvos.length + staging.length} total</span>
-                                </div>
+                            {/* Conteúdo Expandido */}
+                            <AnimatePresence>
+                                {isExpanded && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                        style={{ overflow: 'hidden' }}
+                                    >
+                                        <div style={{
+                                            padding: '1.5rem',
+                                            background: 'var(--bg-color)',
+                                            borderRadius: '0 0 12px 12px'
+                                        }}>
 
-                                {membrosSalvos.length === 0 && staging.length === 0 ? (
-                                    <div style={{ padding: '4rem 2rem', textAlign: 'center', opacity: 0.5 }}>
-                                        <Users size={32} style={{ marginBottom: '1rem', opacity: 0.3 }} />
-                                        <p>Nenhum membro vinculado. Use a busca acima para adicionar.</p>
-                                    </div>
-                                ) : (
-                                    <div className="pessoa-list">
-                                        {/* Membros em Staging (Não salvos) */}
-                                        {stagingSorted.map(s => (
-                                            <div key={s.pessoa_id} className="pessoa-row" style={{ borderBottom: '1px solid var(--border-color)', borderRadius: 0, background: 'rgba(245, 158, 11, 0.05)', borderLeft: '4px solid #f59e0b' }}>
-                                                <div className="pessoa-row-main" style={{ flex: 1 }}>
-                                                    <div className="pessoa-avatar small" style={{ backgroundColor: s.coordenador ? '#367910ff' : '#f59e0b', color: 'white' }}>
-                                                        <Plus size={16} />
-                                                    </div>
-                                                    <div className="pessoa-row-info">
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                            <h4 className="pessoa-row-name" style={{ margin: 0 }}>{s.nome_completo}</h4>
-                                                            <span style={{ fontSize: '0.6rem', background: '#f59e0b', color: 'white', padding: '1px 5px', borderRadius: '4px', fontWeight: 'bold' }}>NOVO</span>
-                                                        </div>
-                                                        <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>CPF: {s.cpf}</span>
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                    <div style={{ display: 'flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)', background: 'var(--bg-color)' }}>
+                                            {/* Busca dentro da Equipe */}
+                                            <div className="search-container-custom" style={{ position: 'relative', marginBottom: '1.5rem' }}>
+                                                <div className="search-bar" style={{ marginBottom: 0, background: 'var(--surface-1)', border: '1px solid var(--border-color)' }}>
+                                                    <Search size={18} style={{ opacity: 0.5 }} />
+                                                    <input
+                                                        className="search-input"
+                                                        placeholder={`Adicionar pessoa em ${eq.nome}...`}
+                                                        value={searchPessoa}
+                                                        onChange={e => { setSearchPessoa(e.target.value); setShowSearchResults(true); }}
+                                                        onFocus={() => setShowSearchResults(true)}
+                                                    />
+                                                    {searchPessoa && (
                                                         <button
-                                                            type="button"
-                                                            onClick={() => s.coordenador && toggleStagingCoord(s.pessoa_id)}
-                                                            className="role-radio-btn"
-                                                            style={{
-                                                                padding: '0.25rem 0.6rem',
-                                                                fontSize: '0.6rem',
-                                                                fontWeight: 'bold',
-                                                                borderRadius: 0,
-                                                                backgroundColor: !s.coordenador ? '#0000FE' : 'transparent',
-                                                                color: !s.coordenador ? 'white' : 'inherit',
-                                                                border: 'none',
-                                                                cursor: 'pointer',
-                                                                transition: 'all 0.2s',
-                                                                opacity: !s.coordenador ? 1 : 0.5
-                                                            }}
+                                                            onClick={() => { setSearchPessoa(''); setShowSearchResults(false); }}
+                                                            style={{ background: 'none', border: 'none', color: 'var(--muted-text)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                                         >
-                                                            MEMBRO
+                                                            <X size={16} />
                                                         </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => !s.coordenador && toggleStagingCoord(s.pessoa_id)}
-                                                            className="role-radio-btn"
-                                                            style={{
-                                                                padding: '0.25rem 0.6rem',
-                                                                fontSize: '0.6rem',
-                                                                fontWeight: 'bold',
-                                                                borderRadius: 0,
-                                                                backgroundColor: s.coordenador ? '#137e0aff' : 'transparent',
-                                                                color: s.coordenador ? 'white' : 'inherit',
-                                                                border: 'none',
-                                                                cursor: 'pointer',
-                                                                transition: 'all 0.2s',
-                                                                opacity: s.coordenador ? 1 : 0.5
-                                                            }}
-                                                        >
-                                                            COORDENADOR
-                                                        </button>
-                                                    </div>
-                                                    <button className="icon-btn icon-btn-danger" onClick={() => removeFromStaging(s.pessoa_id)} title="Remover"><X size={16} /></button>
+                                                    )}
                                                 </div>
+
+                                                {showSearchResults && searchPessoa.length >= 2 && (
+                                                    <div className="card shadow" style={{
+                                                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                                                        marginTop: '0.5rem', maxHeight: '300px', overflowY: 'auto', padding: 0
+                                                    }}>
+                                                        {isSearching ? (
+                                                            <div style={{ padding: '2rem', textAlign: 'center' }}>
+                                                                <Loader size={24} className="animate-spin" style={{ margin: '0 auto', opacity: 0.3 }} />
+                                                            </div>
+                                                        ) : searchResults.length === 0 ? (
+                                                            <div style={{ padding: '1.5rem', textAlign: 'center' }}>
+                                                                <p style={{ opacity: 0.5, marginBottom: '1rem', fontSize: '0.9rem' }}>Ninguém encontrado</p>
+                                                                <button onClick={() => { setShowQuickAddPerson(true); setShowSearchResults(false); }} className="btn-secondary" style={{ width: '100%' }}>
+                                                                    <UserPlus size={16} style={{ marginRight: '0.5rem' }} /> Cadastrar Novo
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                {searchResults.map(p => {
+                                                                    const info = (p as any).infoEquipe;
+                                                                    const isInCurrentTeam = info?.id === eq.id;
+                                                                    const isInOtherTeam = info && info.id !== eq.id;
+                                                                    const noStaging = (p as any).noStaging;
+                                                                    const isDisabled = isInOtherTeam || noStaging;
+
+                                                                    const handleClickSearchRow = () => {
+                                                                        if (isInCurrentTeam) {
+                                                                            const membro = inscricoes.find(i => i.pessoa_id === p.id && i.equipe_id === eq.id);
+                                                                            if (membro) setDeleteTarget(membro);
+                                                                        } else if (!isDisabled) {
+                                                                            addToStaging(p);
+                                                                        }
+                                                                    };
+
+                                                                    return (
+                                                                        <div
+                                                                            key={p.id}
+                                                                            onClick={handleClickSearchRow}
+                                                                            style={{
+                                                                                padding: '0.75rem 1rem',
+                                                                                borderBottom: '1px solid var(--border-color)',
+                                                                                cursor: (isDisabled && !isInCurrentTeam) ? 'not-allowed' : 'pointer',
+                                                                                opacity: (isDisabled && !isInCurrentTeam) ? 0.6 : 1,
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'space-between',
+                                                                                background: isInCurrentTeam ? 'rgba(239, 68, 68, 0.05)' : (isDisabled ? 'var(--secondary-bg)' : 'transparent')
+                                                                            }}
+                                                                        >
+                                                                            <div>
+                                                                                <div style={{ fontWeight: 600, fontSize: '0.9rem', color: isInCurrentTeam ? '#ef4444' : 'inherit' }}>{p.nome_completo}</div>
+                                                                                <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>
+                                                                                    {isInCurrentTeam ? 'Já está nesta equipe (Clique para remover)' : (isInOtherTeam ? `Já em: ${info.nome}` : (noStaging ? 'No rascunho' : `CPF: ${p.cpf || 'Não inf.'}`))}
+                                                                                </div>
+                                                                            </div>
+                                                                            {isInCurrentTeam ? (
+                                                                                <Trash2 size={16} color="#ef4444" />
+                                                                            ) : (
+                                                                                !isDisabled ? <Plus size={16} color="var(--primary-color)" /> : <Check size={16} color={noStaging ? "var(--warning-color)" : "var(--success-border)"} />
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                                <div style={{ padding: '0.75rem', background: 'var(--surface-2)', textAlign: 'center' }}>
+                                                                    <button onClick={() => { setShowQuickAddPerson(true); setShowSearchResults(false); }} className="btn-text" style={{ fontSize: '0.8rem' }}>
+                                                                        <Plus size={14} /> Não encontrou? Cadastre aqui
+                                                                    </button>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
-                                        ))}
 
-                                        {/* Membros Salvos */}
-                                        {membrosSalvos.map((m) => (
-                                            <div key={m.id} className="pessoa-row" style={{ borderBottom: '1px solid var(--border-color)', borderRadius: 0 }}>
-                                                <div className="pessoa-row-main" style={{ flex: 1 }}>
-                                                    <div className="pessoa-avatar small" style={{ backgroundColor: m.coordenador ? '#137e0aff' : 'var(--secondary-bg)', color: m.coordenador ? 'white' : 'inherit' }}>
-                                                        {m.coordenador ? <Shield size={16} /> : <Users size={16} />}
-                                                    </div>
-                                                    <div className="pessoa-row-info">
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                            <h4 className="pessoa-row-name" style={{ margin: 0 }}>{m.pessoas?.nome_completo}</h4>
-                                                            <button 
-                                                                className="icon-btn" 
-                                                                style={{ padding: '0.1rem', color: 'var(--primary-color)' }}
-                                                                title="Ver histórico"
-                                                                onClick={(e) => { 
-                                                                    e.stopPropagation(); 
-                                                                    setHistoryTarget({ ...m.pessoas, id: m.pessoa_id } as Pessoa); 
-                                                                }}
+                                            {/* Listagem de Membros */}
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1rem' }}>
+                                                {/* Membros em Staging */}
+                                                {staging.map(s => (
+                                                    <motion.div
+                                                        key={s.pessoa_id}
+                                                        initial={{ opacity: 0, x: -10 }}
+                                                        animate={{ opacity: 1, x: 0 }}
+                                                        style={{
+                                                            padding: '1rem',
+                                                            background: 'rgba(245, 158, 11, 0.05)',
+                                                            border: '1px solid #f59e0b',
+                                                            borderRadius: '12px',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: '0.75rem'
+                                                        }}
+                                                    >
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                            <div>
+                                                                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{s.nome_completo}</div>
+                                                                <span style={{ fontSize: '0.65rem', background: '#f59e0b', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 'bold' }}>RASCUNHO</span>
+                                                            </div>
+                                                            <button
+                                                                className="btn-secondary danger"
+                                                                style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid #ef4444', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                                                                onClick={() => removeFromStaging(s.pessoa_id)}
                                                             >
-                                                                <History size={14} />
+                                                                <Trash2 size={14} /> Remover
                                                             </button>
                                                         </div>
-                                                        <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>CPF: {m.pessoas?.cpf}</span>
-                                                    </div>
-                                                </div>
 
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                    <div style={{ display: 'flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)', background: 'var(--bg-color)' }}>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => m.coordenador && handleToggleCoord(m)}
-                                                            className="role-radio-btn"
-                                                            style={{
-                                                                padding: '0.25rem 0.6rem',
-                                                                fontSize: '0.6rem',
-                                                                fontWeight: 'bold',
-                                                                borderRadius: 0,
-                                                                backgroundColor: !m.coordenador ? '#0000FE' : 'transparent',
-                                                                color: !m.coordenador ? 'white' : 'inherit',
-                                                                border: 'none',
-                                                                cursor: 'pointer',
-                                                                transition: 'all 0.2s',
-                                                                opacity: !m.coordenador ? 1 : 0.5
-                                                            }}
-                                                        >
-                                                            MEMBRO
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => !m.coordenador && handleToggleCoord(m)}
-                                                            className="role-radio-btn"
-                                                            style={{
-                                                                padding: '0.25rem 0.6rem',
-                                                                fontSize: '0.6rem',
-                                                                fontWeight: 'bold',
-                                                                borderRadius: 0,
-                                                                backgroundColor: m.coordenador ? '#137e0aff' : 'transparent',
-                                                                color: m.coordenador ? 'white' : 'inherit',
-                                                                border: 'none',
-                                                                cursor: 'pointer',
-                                                                transition: 'all 0.2s',
-                                                                opacity: m.coordenador ? 1 : 0.5
-                                                            }}
-                                                        >
-                                                            COORDENADOR
-                                                        </button>
-                                                    </div>
-                                                    <button className="icon-btn icon-btn-danger" onClick={() => setDeleteTarget(m)} title="Remover"><Trash2 size={16} /></button>
-                                                </div>
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                            <div style={{ display: 'flex', background: 'var(--bg-color)', padding: '2px', borderRadius: '8px', border: '1px solid var(--border-color)', width: '100%' }}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setStaging(prev => prev.map(item => item.pessoa_id === s.pessoa_id ? { ...item, coordenador: true } : item))}
+                                                                    style={{ flex: 1, padding: '8px', fontSize: '0.75rem', fontWeight: 700, borderRadius: '6px', border: 'none', backgroundColor: s.coordenador ? 'var(--success-border)' : 'transparent', color: s.coordenador ? '#fff' : 'var(--muted-text)', cursor: 'pointer', transition: '0.2s' }}
+                                                                >
+                                                                    Coordenador
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setStaging(prev => prev.map(item => item.pessoa_id === s.pessoa_id ? { ...item, coordenador: false } : item))}
+                                                                    style={{ flex: 1, padding: '8px', fontSize: '0.75rem', fontWeight: 700, borderRadius: '6px', border: 'none', backgroundColor: !s.coordenador ? 'var(--primary-color)' : 'transparent', color: !s.coordenador ? '#fff' : 'var(--muted-text)', cursor: 'pointer', transition: '0.2s' }}
+                                                                >
+                                                                    Membro
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </motion.div>
+                                                ))}
+
+                                                {/* Membros Salvos */}
+                                                {membrosDaEquipe.map(m => (
+                                                    <motion.div
+                                                        key={m.id}
+                                                        layout
+                                                        style={{
+                                                            padding: '1rem',
+                                                            background: m.coordenador ? 'rgba(34, 197, 94, 0.05)' : 'var(--surface-1)',
+                                                            border: `1px solid ${m.coordenador ? 'var(--success-border)' : 'var(--border-color)'}`,
+                                                            borderRadius: '12px',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: '0.75rem'
+                                                        }}
+                                                    >
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                            <div>
+                                                                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{m.pessoas?.nome_completo}</div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.2rem' }}>
+                                                                    <span style={{ fontSize: '0.75rem', opacity: 0.6 }}>CPF: {m.pessoas?.cpf || '---'}</span>
+                                                                    <button className="btn-text" style={{ padding: '0.2rem', minHeight: 'auto' }} onClick={() => setHistoryTarget({ ...m.pessoas, id: m.pessoa_id } as Pessoa)}>
+                                                                        <History size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                className="btn-secondary danger"
+                                                                style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', backgroundColor: '#ef4444', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                                                                onClick={() => setDeleteTarget(m)}
+                                                            >
+                                                                <Trash2 size={14} /> Remover
+                                                            </button>
+                                                        </div>
+
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                            <div style={{ display: 'flex', background: 'var(--bg-color)', padding: '2px', borderRadius: '8px', border: '1px solid var(--border-color)', width: '100%' }}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => !m.coordenador && handleToggleCoord(m)}
+                                                                    style={{ flex: 1, padding: '8px', fontSize: '0.75rem', fontWeight: 700, borderRadius: '6px', border: 'none', backgroundColor: m.coordenador ? 'var(--success-border)' : 'transparent', color: m.coordenador ? '#fff' : 'var(--muted-text)', cursor: 'pointer', transition: '0.2s' }}
+                                                                >
+                                                                    Coordenador
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => m.coordenador && handleToggleCoord(m)}
+                                                                    style={{ flex: 1, padding: '8px', fontSize: '0.75rem', fontWeight: 700, borderRadius: '6px', border: 'none', backgroundColor: !m.coordenador ? 'var(--primary-color)' : 'transparent', color: !m.coordenador ? '#fff' : 'var(--muted-text)', cursor: 'pointer', transition: '0.2s' }}
+                                                                >
+                                                                    Membro
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </motion.div>
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
+
+                                            {/* Espaço extra no fim */}
+                                            <div style={{ height: '1rem' }} />
+                                        </div>
+                                    </motion.div>
                                 )}
-                            </div>
-                        </div>
-                    )}
-                </main>
-            </div>
+                            </AnimatePresence>
+                        </motion.article>
+                    );
+                })}
+            </motion.div>
 
             <ConfirmDialog
                 isOpen={!!deleteTarget}
                 title="Remover Membro"
-                message={`Deseja remover "${deleteTarget?.pessoas?.nome_completo}" desta equipe ? `}
+                message={`Deseja remover "${deleteTarget?.pessoas?.nome_completo}" desta equipe?`}
                 onConfirm={handleDelete}
                 onCancel={() => setDeleteTarget(null)}
                 isLoading={isLoading}
@@ -699,10 +645,10 @@ export function MontagemPage() {
             )}
 
             {historyTarget && (
-                <HistoricoModal 
-                    pessoa={historyTarget} 
-                    isOpen={!!historyTarget} 
-                    onClose={() => setHistoryTarget(null)} 
+                <HistoricoModal
+                    pessoa={historyTarget}
+                    isOpen={!!historyTarget}
+                    onClose={() => setHistoryTarget(null)}
                 />
             )}
         </div>
