@@ -13,6 +13,7 @@ import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
 import { useDebounce } from '../../hooks/useDebounce';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import * as XLSX from 'xlsx';
+import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 
 export function PedidosCamisetasPage() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export function PedidosCamisetasPage() {
   const { setIsLoading: setGlobalLoading } = useLoading();
 
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
+  const encontroData = encontros.find(e => e.id === selectedEncontroId);
   const [pedidos, setPedidos] = useState<any[]>([]);
   const [resumo, setResumo] = useState<ResumoCamisetas[]>([]);
   const [relatorioEquipes, setRelatorioEquipes] = useState<CamisetaEquipeReport[]>([]);
@@ -298,6 +300,15 @@ export function PedidosCamisetasPage() {
 
       <div className="container" style={{ paddingTop: '1.5rem', paddingBottom: '3rem' }}>
 
+
+        {/* Informações de Pagamento PIX */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <PixPaymentInfo 
+            chave={encontroData?.pix_chave}
+            tipo={encontroData?.pix_tipo}
+            qrCodeUrl={encontroData?.pix_qrcode_url}
+          />
+        </div>
 
         {/* Resumo de Pedidos */}
         <section style={{ marginBottom: '1.5rem' }}>

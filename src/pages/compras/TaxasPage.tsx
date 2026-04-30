@@ -8,6 +8,7 @@ import { useTaxas } from '../../hooks/useTaxas';
 import { TaxaStatCard } from '../../components/compras/taxas/TaxaStatCard';
 import { TaxaParticipanteItem } from '../../components/compras/taxas/TaxaParticipanteItem';
 import { TaxaEquipeSummaryCard } from '../../components/compras/taxas/TaxaEquipeSummaryCard';
+import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 
 export function TaxasPage() {
   const navigate = useNavigate();
@@ -22,7 +23,8 @@ export function TaxasPage() {
     }
   }, [encontros, selectedEncontroId]);
 
-  const valorTaxa = encontros.find(e => e.id === selectedEncontroId)?.valor_taxa || 0;
+  const encontroData = encontros.find(e => e.id === selectedEncontroId);
+  const valorTaxa = encontroData?.valor_taxa || 0;
 
   // Nossa Camada de Orquestração (Hook Interactor)
   const {
@@ -62,6 +64,14 @@ export function TaxasPage() {
             initialOptions={encontros}
           />
         </div>
+      </div>
+
+      <div style={{ padding: '0 1rem' }}>
+        <PixPaymentInfo 
+          chave={encontroData?.pix_chave}
+          tipo={encontroData?.pix_tipo}
+          qrCodeUrl={encontroData?.pix_qrcode_url}
+        />
       </div>
 
       {/* Estatísticas (Domain Insights) */}

@@ -42,6 +42,7 @@ import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import type { RecepcaoDados } from '../../types/recepcao';
 import type { RecreacaoDados } from '../../types/recreacao';
 import { formatBRL } from '../../utils/currencyUtils';
+import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 
 interface EquipeMember {
   id: string;
@@ -90,6 +91,11 @@ export function CoordenadorMinhaEquipePage() {
   const [isUploadingProof, setIsUploadingProof] = useState<string | null>(null); // 'taxas' | 'camisetas' | null
   const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
   const [comprovanteCamisetasUrl, setComprovanteCamisetasUrl] = useState<string | null>(null);
+  const [pixInfo, setPixInfo] = useState<{
+    chave: string | null;
+    tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+    qrCodeUrl: string | null;
+  }>({ chave: null, tipo: null, qrCodeUrl: null });
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -142,9 +148,21 @@ export function CoordenadorMinhaEquipePage() {
         }
       }
 
-      // Get encounter fee
-      const { data: encData } = await supabase.from('encontros').select('valor_taxa').eq('id', userParticipacao.encontro_id).single();
-      if (encData) setValorTaxa(encData.valor_taxa || 0);
+      // Get encounter fee and PIX info
+      const { data: encData } = await supabase
+        .from('encontros')
+        .select('valor_taxa, pix_chave, pix_tipo, pix_qrcode_url')
+        .eq('id', userParticipacao.encontro_id)
+        .single();
+        
+      if (encData) {
+        setValorTaxa(encData.valor_taxa || 0);
+        setPixInfo({
+          chave: encData.pix_chave,
+          tipo: encData.pix_tipo as any,
+          qrCodeUrl: encData.pix_qrcode_url
+        });
+      }
 
       loadPedidos();
 
@@ -737,12 +755,20 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       )}
 
+      {/* Informações de Pagamento PIX */}
+      <PixPaymentInfo 
+        chave={pixInfo.chave} 
+        tipo={pixInfo.tipo} 
+        qrCodeUrl={pixInfo.qrCodeUrl} 
+      />
+
       {/* Seção de Comprovantes */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
         gap: '1rem',
-        marginBottom: '1.5rem'
+        marginBottom: '1.5rem',
+        marginTop: '1.5rem'
       }}>
         {/* Card 1: Taxas */}
         <div className="card animate-fade-in" style={{

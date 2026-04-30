@@ -18,6 +18,9 @@ export interface Encontro {
     quadrante_token?: string;
     quadrante_pin?: string | null;
     quadrante_ativo?: boolean;
+    pix_chave?: string | null;
+    pix_tipo?: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+    pix_qrcode_url?: string | null;
 }
 
 export type EncontroFormData = Omit<Encontro, 'id' | 'created_at' | 'quadrante_token'>;
@@ -39,4 +42,7 @@ export const encontroFormDataVazio = (): EncontroFormData => ({
     valor_taxa: 0,
     quadrante_pin: '',
     quadrante_ativo: false,
+    pix_chave: '',
+    pix_tipo: null,
+    pix_qrcode_url: '',
 });

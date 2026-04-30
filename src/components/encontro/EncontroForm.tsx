@@ -1,4 +1,4 @@
-import { Calendar, Check, Copy, Info, LinkIcon, Loader, Tag, X } from 'lucide-react';
+import { Calendar, Check, Copy, Info, LinkIcon, Loader, Plus, Tag, X } from 'lucide-react';
 import React, { useState } from 'react';
 import type { Encontro, EncontroFormData } from '../../types/encontro';
 import { FormField } from '../ui/FormField';
@@ -182,6 +182,121 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                     </div>
                 </div>
             </div>
+
+            <FormSection title="Configurações de Pagamento (PIX)" icon={<Info size={18} />} columns={0}>
+                <FormRow>
+                    <div className="form-group floating-label-group col-4">
+                        <div className="form-input-wrapper">
+                            <select
+                                id="pix_tipo"
+                                className="form-input floating-input"
+                                value={form.pix_tipo ?? ''}
+                                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleChange('pix_tipo', e.target.value || null)}
+                            >
+                                <option value="">Selecione...</option>
+                                <option value="cpf">CPF</option>
+                                <option value="cnpj">CNPJ</option>
+                                <option value="email">E-mail</option>
+                                <option value="telefone">Telefone</option>
+                                <option value="aleatoria">Chave Aleatória</option>
+                            </select>
+                            <label className="form-label floating-label" htmlFor="pix_tipo">Tipo de Chave PIX</label>
+                        </div>
+                    </div>
+                    <FormField
+                        label="Chave PIX"
+                        name="pix_chave"
+                        value={form.pix_chave ?? ''}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleChange('pix_chave', e.target.value)}
+                        colSpan={8}
+                        placeholder="Insira a chave PIX aqui"
+                    />
+                </FormRow>
+                <FormRow>
+                    <div style={{ gridColumn: 'span 12' }}>
+                        <label className="form-label">QR Code PIX (Imagem)</label>
+                        <div style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '1.5rem', 
+                            padding: '1.25rem', 
+                            backgroundColor: 'var(--surface-1)', 
+                            borderRadius: '12px', 
+                            border: '1px dashed var(--border-color)',
+                            marginTop: '0.5rem'
+                        }}>
+                            {form.pix_qrcode_url ? (
+                                <div style={{ position: 'relative' }}>
+                                    <img 
+                                        src={form.pix_qrcode_url.startsWith('http') ? form.pix_qrcode_url : `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/equipe_confirmacoes/${form.pix_qrcode_url}`} 
+                                        alt="QR Code PIX" 
+                                        style={{ width: '120px', height: '120px', borderRadius: '8px', objectFit: 'contain', backgroundColor: 'white' }} 
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => handleChange('pix_qrcode_url', null)}
+                                        style={{
+                                            position: 'absolute', top: '-8px', right: '-8px',
+                                            backgroundColor: '#ef4444', color: 'white', borderRadius: '50%',
+                                            width: '24px', height: '24px', border: 'none', cursor: 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                        }}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div style={{ 
+                                    width: '120px', height: '120px', borderRadius: '8px', 
+                                    backgroundColor: 'rgba(0,0,0,0.05)', display: 'flex', 
+                                    alignItems: 'center', justifyContent: 'center', color: 'var(--muted-text)' 
+                                }}>
+                                    Sem imagem
+                                </div>
+                            )}
+                            
+                            <div style={{ flex: 1 }}>
+                                <p style={{ fontSize: '0.85rem', marginBottom: '0.75rem', opacity: 0.7 }}>
+                                    Adicione uma imagem do QR Code para facilitar o pagamento via celular.
+                                </p>
+                                <label className="btn-secondary" style={{ display: 'inline-flex', cursor: 'pointer', fontSize: '0.8rem' }}>
+                                    <Plus size={16} style={{ marginRight: '0.5rem' }} />
+                                    Selecionar QR Code
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        style={{ display: 'none' }} 
+                                        onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+                                            
+                                            setIsSubmitting(true);
+                                            try {
+                                                const { supabase } = await import('../../lib/supabase');
+                                                const fileName = `pix_qr_${Date.now()}_${file.name}`;
+                                                const filePath = `pix/${fileName}`;
+                                                
+                                                const { error: uploadError } = await supabase.storage
+                                                    .from('equipe_confirmacoes')
+                                                    .upload(filePath, file);
+                                                    
+                                                if (uploadError) throw uploadError;
+                                                
+                                                handleChange('pix_qrcode_url', filePath);
+                                                toast.success('QR Code enviado!');
+                                            } catch (err: any) {
+                                                toast.error('Erro ao enviar QR Code: ' + err.message);
+                                            } finally {
+                                                setIsSubmitting(false);
+                                            }
+                                        }} 
+                                    />
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </FormRow>
+            </FormSection>
 
             <FormSection title="Dados Básicos" icon={<Info size={18} />} columns={0}>
                 <FormRow>
