@@ -269,6 +269,7 @@ export function ConfirmationTeamDetailPage() {
             onCancel={() => setEditingPessoa(null)}
             isLoading={isActionLoading}
             isConfirmationContext={true}
+            hideConfirmAction={isTeamConfirmed}
           />
         </div>
       </div>

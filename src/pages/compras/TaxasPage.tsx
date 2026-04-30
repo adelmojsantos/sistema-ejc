@@ -66,11 +66,12 @@ export function TaxasPage() {
         </div>
       </div>
 
-      <div style={{ padding: '0 1rem' }}>
+      <div style={{ padding: '0 1rem', marginBottom: '1.5rem' }}>
         <PixPaymentInfo 
-          chave={encontroData?.pix_chave}
-          tipo={encontroData?.pix_tipo}
-          qrCodeUrl={encontroData?.pix_qrcode_url}
+          chave={encontroData?.pix_taxa_chave}
+          tipo={encontroData?.pix_taxa_tipo as any}
+          qrCodeUrl={encontroData?.pix_taxa_qrcode_url}
+          variant="compact"
         />
       </div>
 

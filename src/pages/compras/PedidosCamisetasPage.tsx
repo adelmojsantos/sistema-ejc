@@ -1,19 +1,19 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Shirt, ChevronLeft, Search, Copy, Download, Loader, ChevronDown, ChevronUp, X, Plus, Trash2, FileText } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronUp, Copy, Download, FileText, Loader, Plus, Search, Shirt, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useLoading } from '../../contexts/LoadingContext';
-import { comprasService, type ResumoCamisetas, type CamisetaEquipeReport } from '../../services/comprasService';
-import { equipeService } from '../../services/equipeService';
-import { camisetaService } from '../../services/camisetaService';
-import { supabase } from '../../lib/supabase';
-import type { Equipe } from '../../types/equipe';
-import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
 import { useDebounce } from '../../hooks/useDebounce';
-import { ConfirmDialog } from '../../components/ConfirmDialog';
-import * as XLSX from 'xlsx';
-import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
+import { supabase } from '../../lib/supabase';
+import { camisetaService } from '../../services/camisetaService';
+import { comprasService, type CamisetaEquipeReport, type ResumoCamisetas } from '../../services/comprasService';
+import { equipeService } from '../../services/equipeService';
+import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
+import type { Equipe } from '../../types/equipe';
 
 export function PedidosCamisetasPage() {
   const navigate = useNavigate();
@@ -30,7 +30,6 @@ export function PedidosCamisetasPage() {
   const [selectedEquipeId, setSelectedEquipeId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showResumo, setShowResumo] = useState(false);
-  const [showFiltros, setShowFiltros] = useState(false);
   const [viewDetailsConfig, setViewDetailsConfig] = useState<{ modeloId: string, tamanho: string, modeloNome: string } | null>(null);
   const debouncedSearch = useDebounce(searchTerm, 400);
 
@@ -302,13 +301,16 @@ export function PedidosCamisetasPage() {
 
 
         {/* Informações de Pagamento PIX */}
-        <div style={{ marginBottom: '1.5rem' }}>
-          <PixPaymentInfo 
-            chave={encontroData?.pix_chave}
-            tipo={encontroData?.pix_tipo}
-            qrCodeUrl={encontroData?.pix_qrcode_url}
-          />
-        </div>
+        {encontroData?.pix_camisetas_chave && (
+          <div style={{ marginBottom: '1.5rem' }}>
+            <PixPaymentInfo
+              chave={encontroData.pix_camisetas_chave}
+              tipo={encontroData.pix_camisetas_tipo as any}
+              qrCodeUrl={encontroData.pix_camisetas_qrcode_url}
+              variant="compact"
+            />
+          </div>
+        )}
 
         {/* Resumo de Pedidos */}
         <section style={{ marginBottom: '1.5rem' }}>
@@ -394,100 +396,47 @@ export function PedidosCamisetasPage() {
           )}
         </section>
 
-
-        {/* Filtros */}
-        <section style={{ marginBottom: '1.5rem' }}>
-          <button
-            onClick={() => setShowFiltros(!showFiltros)}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '1rem',
-              cursor: 'pointer',
-              backgroundColor: 'var(--surface-1)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '12px',
-              transition: 'all 0.2s ease-in-out'
-            }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--surface-2)'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--surface-1)'}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{ padding: '0.6rem', backgroundColor: 'var(--surface-3)', color: 'var(--text-color)', borderRadius: '10px', display: 'flex' }}>
-                <Search size={20} />
-              </div>
-              <div style={{ textAlign: 'left' }}>
-                <h2 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-color)', fontWeight: 600 }}>
-                  Filtros de Pesquisa
-                </h2>
-                <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6, marginTop: '2px' }}>
-                  {showFiltros ? 'Clique para ocultar os filtros' : 'Clique para expandir e filtrar por equipe ou buscar por participante'}
-                </p>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.6 }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase' }}>
-                {showFiltros ? 'Ocultar' : 'Expandir'}
-              </span>
-              {showFiltros ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-            </div>
-          </button>
-
-          {showFiltros && (
-            <div className="card animate-fade-in" style={{ marginTop: '1rem' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-end' }}>
-                <div className="form-group" style={{ marginBottom: 0, minWidth: '220px' }}>
-                  <label className="form-label">Filtrar por Equipe</label>
-                  <select className="form-input" value={selectedEquipeId} onChange={e => setSelectedEquipeId(e.target.value)}>
-                    <option value="all">Todas as Equipes</option>
-                    {equipes.map(eq => (
-                      <option key={eq.id} value={eq.id}>{eq.nome}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: '280px' }}>
-                  <label className="form-label">Buscar Pedido</label>
-                  <div className="form-input-wrapper" style={{ position: 'relative' }}>
-                    <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
-                    <input
-                      type="text"
-                      className="form-input"
-                      style={{ paddingLeft: '2.5rem', paddingRight: searchTerm ? '2.5rem' : '1rem' }}
-                      placeholder="Nome do participante ou modelo..."
-                      value={searchTerm}
-                      onChange={e => setSearchTerm(e.target.value)}
-                    />
-                    {searchTerm && (
-                      <button
-                        className="btn-icon"
-                        onClick={() => setSearchTerm('')}
-                        style={{ backgroundColor: 'transparent', position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, margin: 0, padding: '4px' }}
-                        title="Limpar busca"
-                      >
-                        <X size={16} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-
         {/* Resumo por Equipe */}
-        <section className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        <section className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+          {/* Card TOTAL GERAL */}
+          <div
+            className={`card card--clickable ${selectedEquipeId === 'all' ? 'active-filter' : ''}`}
+            style={{
+              padding: '0.5rem',
+              borderTop: '4px solid var(--text-color)',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              aspectRatio: '1 / 1',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              textAlign: 'center',
+              backgroundColor: selectedEquipeId === 'all' ? 'rgba(var(--primary-rgb), 0.4)' : 'var(--card-bg)',
+              boxShadow: selectedEquipeId === 'all' ? '0 0 0 2px var(--text-color)' : 'none',
+              zIndex: selectedEquipeId === 'all' ? 2 : 1
+            }}
+            onClick={() => setSelectedEquipeId('all')}
+          >
+            <span className="badge badge-primary" style={{ fontSize: '1.1rem', padding: '0.2rem 0.6rem', marginBottom: '0.3rem' }}>
+              {relatorioEquipes.reduce((acc, curr) => acc + curr.total_camisetas, 0)}
+            </span>
+            <h3 style={{ fontSize: '0.75rem', margin: '0 0 0.15rem 0', fontWeight: 700, textTransform: 'uppercase' }}>TODAS</h3>
+            <p style={{ fontSize: '0.65rem', margin: '0 0 0.25rem 0', opacity: 0.6 }}>{relatorioEquipes.reduce((acc, curr) => acc + curr.total_pedidos, 0)} {relatorioEquipes.reduce((acc, curr) => acc + curr.total_pedidos, 0) === 1 ? 'pessoa' : 'pessoas'}</p>
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+              {relatorioEquipes.reduce((acc, curr) => acc + curr.total_valor, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </span>
+          </div>
+
           {relatorioEquipes.filter(r => r.total_camisetas > 0).map(r => (
             <div
               key={r.equipe_id}
-              className="card card--clickable"
+              className={`card card--clickable ${selectedEquipeId === r.equipe_id ? 'active-filter' : ''}`}
               style={{
                 padding: '0.5rem',
                 borderTop: '4px solid var(--primary-color)',
                 cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s',
+                transition: 'all 0.2s',
                 aspectRatio: '1 / 1',
                 display: 'flex',
                 flexDirection: 'column',
@@ -495,7 +444,11 @@ export function PedidosCamisetasPage() {
                 alignItems: 'center',
                 textAlign: 'center',
                 position: 'relative',
-                backgroundColor: r.comprovante_camisetas_url ? 'var(--success-bg)' : 'var(--card-bg)'
+                backgroundColor: selectedEquipeId === r.equipe_id
+                  ? 'rgba(var(--primary-rgb), 0.4)'
+                  : (r.comprovante_camisetas_url ? 'var(--success-bg)' : 'var(--card-bg)'),
+                boxShadow: selectedEquipeId === r.equipe_id ? '0 0 0 2px var(--primary-color)' : 'none',
+                zIndex: selectedEquipeId === r.equipe_id ? 2 : 1
               }}
               onClick={() => setSelectedEquipeId(r.equipe_id)}
             >
@@ -532,9 +485,53 @@ export function PedidosCamisetasPage() {
           ))}
         </section>
 
+
         {/* Listagem em Cards */}
         <div style={{ marginTop: '2rem' }}>
-          <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Listagem de Pedidos</h2>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1rem',
+            gap: '1rem',
+            flexWrap: 'wrap'
+          }}>
+            <h2 style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>Listagem de Pedidos</h2>
+
+            <div style={{ display: 'flex', gap: '0.75rem', flex: 1, justifyContent: 'flex-end', maxWidth: '600px', minWidth: '300px' }}>
+              <div className="form-input-wrapper" style={{ position: 'relative', flex: 1 }}>
+                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ paddingLeft: '2.5rem', paddingRight: searchTerm ? '2.5rem' : '1rem', height: '38px', fontSize: '0.9rem' }}
+                  placeholder="Buscar participante ou modelo..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+                {searchTerm && (
+                  <button
+                    className="btn-icon"
+                    onClick={() => setSearchTerm('')}
+                    style={{ backgroundColor: 'transparent', position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5, margin: 0, padding: '4px' }}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              <select
+                className="form-input"
+                style={{ width: 'auto', minWidth: '160px', height: '38px', fontSize: '0.9rem', padding: '0 0.75rem' }}
+                value={selectedEquipeId}
+                onChange={e => setSelectedEquipeId(e.target.value)}
+              >
+                <option value="all">Todas as Equipes</option>
+                {equipes.map(eq => (
+                  <option key={eq.id} value={eq.id}>{eq.nome}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           {loading ? (
             <div style={{ padding: '3rem', textAlign: 'center' }}>
               <Loader className="animate-spin" size={24} style={{ margin: '0 auto' }} />

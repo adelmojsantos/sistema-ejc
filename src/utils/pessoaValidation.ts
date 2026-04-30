@@ -12,9 +12,6 @@ export function validatePessoaForConfirmation(pessoa: Partial<Pessoa> | Partial<
         missingFields.push('Nome Completo');
     }
 
-    if (!pessoa.data_nascimento || pessoa.data_nascimento.trim() === '') {
-        missingFields.push('Data de Nascimento');
-    }
 
     const telefone = pessoa.telefone ? pessoa.telefone.replace(/\D/g, '') : '';
     if (!telefone || telefone.length < 10) {

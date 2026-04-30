@@ -1,10 +1,23 @@
--- Adicionar campos de PIX à tabela de encontros
+-- Remover campos antigos (caso já tenham sido criados)
 ALTER TABLE encontros 
-ADD COLUMN pix_chave TEXT,
-ADD COLUMN pix_tipo TEXT, -- 'cpf', 'cnpj', 'email', 'telefone', 'aleatoria'
-ADD COLUMN pix_qrcode_url TEXT;
+DROP COLUMN IF EXISTS pix_chave,
+DROP COLUMN IF EXISTS pix_tipo,
+DROP COLUMN IF EXISTS pix_qrcode_url;
+
+-- Adicionar campos separados para Taxas e Camisetas
+ALTER TABLE encontros 
+ADD COLUMN pix_taxa_chave TEXT,
+ADD COLUMN pix_taxa_tipo TEXT,
+ADD COLUMN pix_taxa_qrcode_url TEXT,
+ADD COLUMN pix_camisetas_chave TEXT,
+ADD COLUMN pix_camisetas_tipo TEXT,
+ADD COLUMN pix_camisetas_qrcode_url TEXT;
 
 -- Comentários para documentação
-COMMENT ON COLUMN encontros.pix_chave IS 'Chave PIX para recebimento de pagamentos do encontro';
-COMMENT ON COLUMN encontros.pix_tipo IS 'Tipo da chave PIX (cpf, cnpj, email, telefone, aleatoria)';
-COMMENT ON COLUMN encontros.pix_qrcode_url IS 'URL ou Storage Path da imagem do QR Code PIX';
+COMMENT ON COLUMN encontros.pix_taxa_chave IS 'Chave PIX para taxas';
+COMMENT ON COLUMN encontros.pix_taxa_tipo IS 'Tipo da chave PIX para taxas';
+COMMENT ON COLUMN encontros.pix_taxa_qrcode_url IS 'QR Code para taxas';
+
+COMMENT ON COLUMN encontros.pix_camisetas_chave IS 'Chave PIX para camisetas';
+COMMENT ON COLUMN encontros.pix_camisetas_tipo IS 'Tipo da chave PIX para camisetas';
+COMMENT ON COLUMN encontros.pix_camisetas_qrcode_url IS 'QR Code para camisetas';

@@ -17,6 +17,7 @@ interface PessoaFormProps {
     requireBirthDate?: boolean;
     requireFezEjc?: boolean;
     isConfirmationContext?: boolean;
+    hideConfirmAction?: boolean;
 }
 
 type FormErrors = Partial<Record<keyof PessoaFormData | 'cep', string>>;
@@ -34,10 +35,14 @@ function formatCep(value: string): string {
     return value.replace(/\D/g, '').slice(0, 8).replace(/(\d{5})(\d{0,3})/, '$1-$2');
 }
 
-function validate(data: PessoaFormData, requireBirthDate: boolean = false, requireFezEjc: boolean = false): FormErrors {
+function validate(data: PessoaFormData, requireBirthDate: boolean = false, requireFezEjc: boolean = false, requireEmail: boolean = false): FormErrors {
     const errors: FormErrors = {};
 
     if (!data.nome_completo.trim()) errors.nome_completo = 'Nome completo é obrigatório.';
+ 
+    if (requireEmail && !data.email?.trim()) {
+        errors.email = 'E-mail é obrigatório.';
+    }
 
     if (data.cpf && data.cpf.trim().length > 0) {
         if (!isValidCpf(data.cpf)) {
@@ -53,10 +58,11 @@ function validate(data: PessoaFormData, requireBirthDate: boolean = false, requi
 
     if (!data.telefone.trim() || data.telefone.replace(/\D/g, '').length < 10)
         errors.telefone = 'Telefone inválido.';
-
+ 
     if (requireBirthDate && !data.data_nascimento) {
         errors.data_nascimento = 'Data de nascimento é obrigatória.';
     }
+
 
     if (requireFezEjc && data.fez_ejc_outra_paroquia === null) {
         errors.fez_ejc_outra_paroquia = 'Selecione uma opção.';
@@ -69,7 +75,7 @@ function validate(data: PessoaFormData, requireBirthDate: boolean = false, requi
     return errors;
 }
 
-export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false, requireBirthDate = false, requireFezEjc = false, isConfirmationContext = false }: PessoaFormProps) {
+export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false, requireBirthDate = false, requireFezEjc = false, isConfirmationContext = false, hideConfirmAction = false }: PessoaFormProps) {
     const [form, setForm] = useState<PessoaFormData>({
         nome_completo: initialData?.nome_completo ?? '',
         cpf: initialData?.cpf ? formatCpf(initialData.cpf) : '',
@@ -148,7 +154,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
         if (e) e.preventDefault();
 
         if (!skipValidation) {
-            const erros = validate(form, isConfirmationContext || requireBirthDate, requireFezEjc);
+            const erros = validate(form, isConfirmationContext || requireBirthDate, requireFezEjc, isConfirmationContext);
 
             // For confirmation, also validate address
             if (isConfirmationContext && !form.endereco?.trim()) {
@@ -244,7 +250,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         value={form.data_nascimento || ''}
                         onChange={(e) => handleChange('data_nascimento', e.target.value)}
                         error={errors.data_nascimento}
-                        required={isConfirmationContext || requireBirthDate}
+                        required={requireBirthDate}
                         colSpan={4}
                         icon={<Calendar size={18} />}
                     />
@@ -435,7 +441,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         <button
                             type="button"
                             className="btn-primary-secondary"
-                            onClick={(e) => handleSubmit(e, true)}
+                            onClick={(e) => handleSubmit(e, hideConfirmAction ? false : true)}
                             disabled={isLoading || isSubmitting}
                             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                         >
@@ -448,22 +454,24 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                                 </div>
                             )}
                         </button>
-                        <button
-                            type="button"
-                            className="btn-primary"
-                            onClick={(e) => handleSubmit(e, false)}
-                            disabled={isLoading || isSubmitting}
-                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                        >
-                            {isLoading || isSubmitting ? (
-                                <><Loader size={18} className="animate-spin" /> Confirmando...</>
-                            ) : (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', gap: '0.5rem' }}>
-                                    <Check size={18} />
-                                    Salvar e Confirmar Dados
-                                </div>
-                            )}
-                        </button>
+                        {!hideConfirmAction && (
+                            <button
+                                type="button"
+                                className="btn-primary"
+                                onClick={(e) => handleSubmit(e, false)}
+                                disabled={isLoading || isSubmitting}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                            >
+                                {isLoading || isSubmitting ? (
+                                    <><Loader size={18} className="animate-spin" /> Confirmando...</>
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', gap: '0.5rem' }}>
+                                        <Check size={18} />
+                                        Salvar e Confirmar Dados
+                                    </div>
+                                )}
+                            </button>
+                        )}
                     </>
                 ) : (
                     <button type="submit" disabled={isLoading || isSubmitting} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>

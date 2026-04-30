@@ -91,7 +91,13 @@ export function CoordenadorMinhaEquipePage() {
   const [isUploadingProof, setIsUploadingProof] = useState<string | null>(null); // 'taxas' | 'camisetas' | null
   const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
   const [comprovanteCamisetasUrl, setComprovanteCamisetasUrl] = useState<string | null>(null);
-  const [pixInfo, setPixInfo] = useState<{
+  const [pixTaxa, setPixTaxa] = useState<{
+    chave: string | null;
+    tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+    qrCodeUrl: string | null;
+  }>({ chave: null, tipo: null, qrCodeUrl: null });
+
+  const [pixCamisetas, setPixCamisetas] = useState<{
     chave: string | null;
     tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
     qrCodeUrl: string | null;
@@ -151,16 +157,21 @@ export function CoordenadorMinhaEquipePage() {
       // Get encounter fee and PIX info
       const { data: encData } = await supabase
         .from('encontros')
-        .select('valor_taxa, pix_chave, pix_tipo, pix_qrcode_url')
+        .select('valor_taxa, pix_taxa_chave, pix_taxa_tipo, pix_taxa_qrcode_url, pix_camisetas_chave, pix_camisetas_tipo, pix_camisetas_qrcode_url')
         .eq('id', userParticipacao.encontro_id)
         .single();
         
       if (encData) {
         setValorTaxa(encData.valor_taxa || 0);
-        setPixInfo({
-          chave: encData.pix_chave,
-          tipo: encData.pix_tipo as any,
-          qrCodeUrl: encData.pix_qrcode_url
+        setPixTaxa({
+          chave: encData.pix_taxa_chave,
+          tipo: encData.pix_taxa_tipo as any,
+          qrCodeUrl: encData.pix_taxa_qrcode_url
+        });
+        setPixCamisetas({
+          chave: encData.pix_camisetas_chave,
+          tipo: encData.pix_camisetas_tipo as any,
+          qrCodeUrl: encData.pix_camisetas_qrcode_url
         });
       }
 
@@ -568,6 +579,7 @@ export function CoordenadorMinhaEquipePage() {
             onCancel={() => setEditingPessoa(null)}
             isLoading={isSaving}
             isConfirmationContext={true}
+            hideConfirmAction={!!teamConfirmation}
           />
         </div>
       </>
@@ -755,12 +767,6 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       )}
 
-      {/* Informações de Pagamento PIX */}
-      <PixPaymentInfo 
-        chave={pixInfo.chave} 
-        tipo={pixInfo.tipo} 
-        qrCodeUrl={pixInfo.qrCodeUrl} 
-      />
 
       {/* Seção de Comprovantes */}
       <div style={{
@@ -799,6 +805,16 @@ export function CoordenadorMinhaEquipePage() {
                 {comprovanteUrl ? 'Documento enviado!' : 'Envie o comprovante das taxas.'}
               </p>
             </div>
+          </div>
+
+
+          <div style={{ margin: '0.25rem 0' }}>
+            <PixPaymentInfo 
+              chave={pixTaxa.chave} 
+              tipo={pixTaxa.tipo} 
+              qrCodeUrl={pixTaxa.qrCodeUrl} 
+              variant="compact"
+            />
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -845,6 +861,16 @@ export function CoordenadorMinhaEquipePage() {
                 {comprovanteCamisetasUrl ? 'Documento enviado!' : 'Envie o comprovante das camisetas.'}
               </p>
             </div>
+          </div>
+
+
+          <div style={{ margin: '0.25rem 0' }}>
+            <PixPaymentInfo 
+              chave={pixCamisetas.chave} 
+              tipo={pixCamisetas.tipo} 
+              qrCodeUrl={pixCamisetas.qrCodeUrl} 
+              variant="compact"
+            />
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
