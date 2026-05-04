@@ -68,7 +68,7 @@ export const listaEsperaService = {
     },
 
     async listPendentesNoEncontro(encontroId: string): Promise<ListaEsperaEntry[]> {
-        const COLS = 'id, nome_completo, cpf, email, telefone, data_nascimento, bairro, cidade, endereco, numero, estado, cep, comunidade, created_at, criado_em, fez_ejc_outra_paroquia, qual_paroquia_ejc, status, encontro_id, origem, nome_pai, nome_mae, telefone_pai, telefone_mae, outros_contatos';
+        const COLS = 'id, nome_completo, cpf, email, telefone, data_nascimento, bairro, cidade, endereco, numero, complemento, estado, cep, comunidade, created_at, criado_em, fez_ejc_outra_paroquia, qual_paroquia_ejc, status, encontro_id, origem, nome_pai, nome_mae, telefone_pai, telefone_mae, outros_contatos';
         const { data, error } = await supabase
             .from('lista_espera')
             .select(COLS)
@@ -84,7 +84,7 @@ export const listaEsperaService = {
         return (data || []) as ListaEsperaEntry[];
     },
     async listEfetivadosNoEncontro(encontroId: string): Promise<ListaEsperaEntry[]> {
-        const COLS = 'id, nome_completo, cpf, email, telefone, data_nascimento, bairro, cidade, endereco, numero, estado, cep, comunidade, created_at, criado_em, fez_ejc_outra_paroquia, qual_paroquia_ejc, status, encontro_id, origem, nome_pai, nome_mae, telefone_pai, telefone_mae, outros_contatos';
+        const COLS = 'id, nome_completo, cpf, email, telefone, data_nascimento, bairro, cidade, endereco, numero, complemento, estado, cep, comunidade, created_at, criado_em, fez_ejc_outra_paroquia, qual_paroquia_ejc, status, encontro_id, origem, nome_pai, nome_mae, telefone_pai, telefone_mae, outros_contatos';
         const { data, error } = await supabase
             .from('lista_espera')
             .select(COLS)
@@ -101,7 +101,7 @@ export const listaEsperaService = {
     },
 
     async listReprovadosNoEncontro(encontroId: string): Promise<ListaEsperaEntry[]> {
-        const COLS = 'id, nome_completo, cpf, email, telefone, data_nascimento, bairro, cidade, endereco, numero, estado, cep, comunidade, created_at, criado_em, fez_ejc_outra_paroquia, qual_paroquia_ejc, status, encontro_id, origem, nome_pai, nome_mae, telefone_pai, telefone_mae, outros_contatos';
+        const COLS = 'id, nome_completo, cpf, email, telefone, data_nascimento, bairro, cidade, endereco, numero, complemento, estado, cep, comunidade, created_at, criado_em, fez_ejc_outra_paroquia, qual_paroquia_ejc, status, encontro_id, origem, nome_pai, nome_mae, telefone_pai, telefone_mae, outros_contatos';
         const { data, error } = await supabase
             .from('lista_espera')
             .select(COLS)
@@ -176,6 +176,7 @@ export const listaEsperaService = {
                 comunidade: dadosPessoa.comunidade,
                 endereco: dadosPessoa.endereco,
                 numero: dadosPessoa.numero,
+                complemento: dadosPessoa.complemento,
                 bairro: dadosPessoa.bairro,
                 cidade: dadosPessoa.cidade,
                 cep: dadosPessoa.cep,

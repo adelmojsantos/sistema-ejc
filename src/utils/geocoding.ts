@@ -41,9 +41,6 @@ export function applyJitter(coords: [number, number]): [number, number] {
 /**
  * Normalizes a string by removing diacritics (accents).
  */
-function normalize(str: string): string {
-  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
 
 /**
  * Tries to find a CEP using address components via ViaCEP.
