@@ -11,6 +11,7 @@ import { LandingHeader } from '../components/landing/LandingHeader';
 import { SEO } from '../components/landing/SEO';
 import { Section } from '../components/landing/Section';
 import { FormField } from '../components/ui/FormField';
+import { FormRow } from '../components/ui/FormRow';
 import { RadioGroup } from '../components/ui/RadioGroup';
 
 import { encontroService } from '../services/encontroService';
@@ -113,6 +114,7 @@ export default function InscricaoPublicaPage() {
                 setForm(prev => ({
                     ...prev,
                     endereco: data.logradouro || prev.endereco,
+                    complemento: data.complemento || prev.complemento,
                     bairro: data.bairro || prev.bairro,
                     cidade: data.localidade || prev.cidade,
                     estado: data.uf || prev.estado
@@ -378,43 +380,50 @@ export default function InscricaoPublicaPage() {
                                         Endereço
                                     </h4>
 
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-                                        <div style={{ flex: '1 1 120px' }}>
-                                            <FormField
-                                                label="CEP"
-                                                name="cep"
-                                                value={form.cep || ''}
-                                                onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('cep', event.target.value)}
-                                                onBlur={handleCepBlur}
-                                                className="landing-form__input"
-                                                placeholder="00000-000"
-                                                icon={isSearchingCep ? <Loader size={18} className="animate-spin" /> : <MapPin size={18} />}
-                                            />
-                                        </div>
-                                        <div style={{ flex: '3 1 200px' }}>
-                                            <FormField
-                                                label="Endereço (Rua/Avenida) *"
-                                                name="endereco"
-                                                value={form.endereco || ''}
-                                                onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('endereco', event.target.value)}
-                                                error={errors.endereco}
-                                                required
-                                                placeholder="Sua rua"
-                                                className="landing-form__input"
-                                            />
-                                        </div>
-                                        <div style={{ flex: '1 1 80px' }}>
-                                            <FormField
-                                                label="Nº"
-                                                name="numero"
-                                                value={form.numero || ''}
-                                                onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('numero', event.target.value)}
-                                                className="landing-form__input"
-                                            />
-                                        </div>
+                                    <FormRow>
+                                        <FormField
+                                            label="CEP"
+                                            name="cep"
+                                            value={form.cep || ''}
+                                            onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('cep', event.target.value)}
+                                            onBlur={handleCepBlur}
+                                            className="landing-form__input"
+                                            placeholder="00000-000"
+                                            icon={isSearchingCep ? <Loader size={18} className="animate-spin" /> : <MapPin size={18} />}
+                                            colSpan={3}
+                                        />
+                                        <FormField
+                                            label="Endereço (Rua/Avenida) *"
+                                            name="endereco"
+                                            value={form.endereco || ''}
+                                            onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('endereco', event.target.value)}
+                                            error={errors.endereco}
+                                            required
+                                            placeholder="Sua rua"
+                                            className="landing-form__input"
+                                            colSpan={7}
+                                        />
+                                        <FormField
+                                            label="Nº"
+                                            name="numero"
+                                            value={form.numero || ''}
+                                            onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('numero', event.target.value)}
+                                            className="landing-form__input"
+                                            colSpan={2}
+                                        />
+                                    </FormRow>
+                                    <div style={{ marginBottom: '1rem' }}>
+                                        <FormField
+                                            label="Complemento"
+                                            name="complemento"
+                                            value={form.complemento || ''}
+                                            onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('complemento', event.target.value)}
+                                            placeholder="Apto 12, Bloco B, etc."
+                                            className="landing-form__input"
+                                        />
                                     </div>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: '1rem' }}>
+                                    <FormRow>
                                         <FormField
                                             label="Bairro *"
                                             name="bairro"
@@ -423,44 +432,46 @@ export default function InscricaoPublicaPage() {
                                             error={errors.bairro}
                                             required
                                             className="landing-form__input"
+                                            colSpan={5}
                                         />
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 3fr) minmax(0, 1fr)', gap: '1rem' }}>
-                                            <FormField
-                                                label="Cidade *"
-                                                name="cidade"
-                                                value={form.cidade || ''}
-                                                onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('cidade', event.target.value)}
-                                                error={errors.cidade}
-                                                required
-                                                className="landing-form__input"
-                                            />
-                                            <FormField
-                                                label="Estado *"
-                                                name="estado"
-                                                value={form.estado || ''}
-                                                onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('estado', event.target.value)}
-                                                error={errors.estado}
-                                                required
-                                                placeholder="SP"
-                                                maxLength={2}
-                                                style={{ textTransform: 'uppercase' }}
-                                                className="landing-form__input"
-                                            />
-                                        </div>
-                                    </div>
+                                        <FormField
+                                            label="Cidade *"
+                                            name="cidade"
+                                            value={form.cidade || ''}
+                                            onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('cidade', event.target.value)}
+                                            error={errors.cidade}
+                                            required
+                                            className="landing-form__input"
+                                            colSpan={5}
+                                        />
+                                        <FormField
+                                            label="Estado *"
+                                            name="estado"
+                                            value={form.estado || ''}
+                                            onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('estado', event.target.value)}
+                                            error={errors.estado}
+                                            required
+                                            placeholder="SP"
+                                            maxLength={2}
+                                            style={{ textTransform: 'uppercase' }}
+                                            className="landing-form__input"
+                                            colSpan={2}
+                                        />
+                                    </FormRow>
 
                                     <h4 style={{ color: 'var(--text-color)', margin: '2rem 0 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
                                         <Heart size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }} />
                                         Família & Religião
                                     </h4>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: '1rem' }}>
+                                    <FormRow>
                                         <FormField
                                             label="Nome do Pai"
                                             name="nome_pai"
                                             value={form.nome_pai || ''}
                                             onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('nome_pai', event.target.value)}
                                             className="landing-form__input"
+                                            colSpan={8}
                                         />
                                         <FormField
                                             label="Telefone do Pai"
@@ -468,16 +479,18 @@ export default function InscricaoPublicaPage() {
                                             value={form.telefone_pai || ''}
                                             onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('telefone_pai', event.target.value)}
                                             className="landing-form__input"
+                                            colSpan={4}
                                         />
-                                    </div>
+                                    </FormRow>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: '1rem' }}>
+                                    <FormRow>
                                         <FormField
                                             label="Nome da Mãe"
                                             name="nome_mae"
                                             value={form.nome_mae || ''}
                                             onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('nome_mae', event.target.value)}
                                             className="landing-form__input"
+                                            colSpan={8}
                                         />
                                         <FormField
                                             label="Telefone da Mãe"
@@ -485,8 +498,9 @@ export default function InscricaoPublicaPage() {
                                             value={form.telefone_mae || ''}
                                             onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('telefone_mae', event.target.value)}
                                             className="landing-form__input"
+                                            colSpan={4}
                                         />
-                                    </div>
+                                    </FormRow>
 
                                     <FormField
                                         label="Comunidade Católica que participa"

@@ -99,6 +99,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
         latitude: initialData?.latitude ?? null,
         longitude: initialData?.longitude ?? null,
         cep: initialData?.cep ? formatCep(initialData.cep) : '',
+        complemento: initialData?.complemento ?? '',
     });
 
     const [isSearchingCep, setIsSearchingCep] = useState(false);
@@ -184,10 +185,21 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                 latitude: form.latitude || null,
                 longitude: form.longitude || null,
                 cep: form.cep ? form.cep.replace(/\D/g, '') : null,
+                complemento: form.complemento || null,
             };
 
-            // Silent geocoding before submitting — tries multiple address variants
-            if (form.endereco && (!form.latitude || !form.longitude)) {
+            // Geocoding trigger logic:
+            // Run if coordinates are missing OR if any core address fields changed
+            const addressChanged = 
+                form.endereco !== (initialData?.endereco || '') ||
+                form.numero !== (initialData?.numero || '') ||
+                form.cidade !== (initialData?.cidade || '') ||
+                (form.cep ? form.cep.replace(/\D/g, '') : '') !== (initialData?.cep ? initialData.cep.replace(/\D/g, '') : '');
+
+            const shouldGeocode = (form.endereco && (!form.latitude || !form.longitude)) || (form.endereco && addressChanged);
+
+            if (shouldGeocode) {
+                console.log('[PessoaForm] Address changed or coords missing, geocoding...');
                 const coords = await geocodeWithFallback(form);
                 if (coords) {
                     payload.latitude = coords[0];
@@ -424,8 +436,16 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         name="bairro"
                         value={form.bairro ?? ''}
                         onChange={(e) => handleChange('bairro', e.target.value)}
-                        colSpan={12}
+                        colSpan={6}
                         placeholder="Ex: Centro"
+                    />
+                    <FormField
+                        label="Complemento"
+                        name="complemento"
+                        value={form.complemento ?? ''}
+                        onChange={(e) => handleChange('complemento', e.target.value)}
+                        colSpan={6}
+                        placeholder="Ex: Ap 12, Bloco B, Chácara..."
                     />
                 </FormRow>
             </FormSection>

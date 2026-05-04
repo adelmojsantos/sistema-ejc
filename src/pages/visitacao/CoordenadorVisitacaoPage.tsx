@@ -21,6 +21,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
+import { FormField } from '../../components/ui/FormField';
+import { FormRow } from '../../components/ui/FormRow';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { EncontristaMap } from '../../components/visitacao/EncontristaMap';
 import { encontroService } from '../../services/encontroService';
@@ -32,6 +34,8 @@ import type { Encontro } from '../../types/encontro';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { VisitaGrupo, VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
 import { normalizeString } from '../../utils/stringUtils';
+import { pessoaService } from '../../services/pessoaService';
+import { geocodeWithFallback, getAddressByCEP } from '../../utils/geocoding';
 
 export function CoordenadorVisitacaoPage() {
   const { encontros } = useEncontros();
@@ -60,11 +64,22 @@ export function CoordenadorVisitacaoPage() {
   const [hideLinkedToSelected, setHideLinkedToSelected] = useState(false);
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
   const [showOnlyLinkedToSelected, setShowOnlyLinkedToSelected] = useState(false);
+  const [showOnlyUnlinkedGeral, setShowOnlyUnlinkedGeral] = useState(false);
 
   // UI States
   const [isFetching, setIsFetching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingAddressPessoa, setEditingAddressPessoa] = useState<InscricaoEnriched | null>(null);
+  const [addressForm, setAddressForm] = useState({
+    endereco: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    cep: '',
+    estado: 'SP'
+  });
 
   // Seleciona o encontro mais recente quando o contexto carregar
   useEffect(() => {
@@ -228,6 +243,104 @@ export function CoordenadorVisitacaoPage() {
     }
   };
 
+  const handleEditAddress = (p: InscricaoEnriched) => {
+    if (!p.pessoas) return;
+    setAddressForm({
+      endereco: p.pessoas.endereco || '',
+      numero: p.pessoas.numero || '',
+      complemento: p.pessoas.complemento || '',
+      bairro: p.pessoas.bairro || '',
+      cidade: p.pessoas.cidade || '',
+      cep: p.pessoas.cep || '',
+      estado: p.pessoas.estado || 'SP'
+    });
+    setEditingAddressPessoa(p);
+  };
+
+  const handleCEPBlur = async () => {
+    const cleanCEP = addressForm.cep.replace(/\D/g, '');
+    if (cleanCEP.length === 8) {
+      setIsLoading(true);
+      try {
+        const data = await getAddressByCEP(cleanCEP);
+        if (data) {
+          setAddressForm(prev => ({
+            ...prev,
+            endereco: data.endereco || prev.endereco,
+            bairro: data.bairro || prev.bairro,
+            cidade: data.cidade || prev.cidade,
+            estado: data.estado || prev.estado
+          }));
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const formatCEP = (val: string) => {
+    const v = val.replace(/\D/g, '').slice(0, 8);
+    if (v.length <= 5) return v;
+    return `${v.slice(0, 5)}-${v.slice(5)}`;
+  };
+
+  const handleSaveAddress = async () => {
+    if (!editingAddressPessoa) return;
+    setIsLoading(true);
+    try {
+      // 1. Geocodificação antes de salvar (mesma lógica do cadastro)
+      const coords = await geocodeWithFallback(addressForm);
+
+      const updateData = {
+        ...addressForm,
+        latitude: coords ? coords[0] : (editingAddressPessoa.pessoas?.latitude || null),
+        longitude: coords ? coords[1] : (editingAddressPessoa.pessoas?.longitude || null)
+      };
+
+      // 2. Atualiza no banco
+      await pessoaService.atualizar(editingAddressPessoa.pessoa_id, updateData);
+
+      // 3. Atualiza localmente o estado de participantes para refletir a mudança
+      setParticipantes(prev => prev.map(p => {
+        if (p.pessoa_id === editingAddressPessoa.pessoa_id) {
+          return {
+            ...p,
+            pessoas: {
+              ...(p.pessoas as any),
+              ...updateData
+            }
+          };
+        }
+        return p;
+      }));
+
+      // 4. Se houver vínculos na tela, atualiza eles também
+      setVinculos(prev => prev.map(v => {
+        if (v.participacao_id === editingAddressPessoa.id) {
+          return {
+            ...v,
+            participacoes: {
+              ...(v.participacoes as any),
+              pessoas: {
+                ...(v.participacoes?.pessoas as any),
+                ...updateData
+              }
+            }
+          };
+        }
+        return v;
+      }));
+
+      toast.success('Endereço e geolocalização atualizados!');
+      setEditingAddressPessoa(null);
+    } catch (err) {
+      console.error('Erro ao salvar endereço:', err);
+      toast.error('Erro ao atualizar endereço.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const currentGrupo = useMemo(() =>
     grupos.find(g => g.id === selectedGrupoId),
     [grupos, selectedGrupoId]);
@@ -268,15 +381,19 @@ export function CoordenadorVisitacaoPage() {
       results = results.filter(r => r.status !== 'in_this_group' && r.status !== 'visitor_here');
     }
 
-    if (showOnlyUnmapped) {
+    if (showOnlyUnlinkedGeral) {
+      results = results.filter(r => r.status === 'available');
+    } else if (showOnlyUnmapped) {
       results = results.filter(r => {
         const p = participantes.find(part => part.id === r.id);
         return p && (!p.pessoas?.latitude || !p.pessoas?.longitude);
       });
+    } else if (showOnlyLinkedToSelected) {
+      results = results.filter(r => r.status === 'in_this_group' || r.status === 'visitor_here');
     }
 
     return results.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
-  }, [participantes, vinculos, selectedGrupoId, searchParticipant, hideLinkedToSelected, showOnlyUnmapped]);
+  }, [participantes, vinculos, selectedGrupoId, searchParticipant, hideLinkedToSelected, showOnlyUnmapped, showOnlyUnlinkedGeral, showOnlyLinkedToSelected]);
 
   const stats = useMemo(() => {
     const totalP = vinculos.filter(v => !v.visitante).length;
@@ -610,31 +727,68 @@ export function CoordenadorVisitacaoPage() {
                       <label className="filter-checkbox-modern">
                         <input type="checkbox" checked={hideLinkedToSelected} onChange={e => {
                           setHideLinkedToSelected(e.target.checked);
-                          if (e.target.checked) setShowOnlyLinkedToSelected(false);
+                          if (e.target.checked) {
+                            setShowOnlyLinkedToSelected(false);
+                            setShowOnlyUnlinkedGeral(false);
+                            setShowOnlyUnmapped(false);
+                          }
                         }} />
-                        <span>Ocultar Vinculados</span>
+                        <span>Ocultar desta Dupla</span>
                       </label>
 
                       <label className="filter-checkbox-modern">
                         <input type="checkbox" checked={showOnlyLinkedToSelected} onChange={e => {
                           setShowOnlyLinkedToSelected(e.target.checked);
-                          if (e.target.checked) setHideLinkedToSelected(false);
+                          if (e.target.checked) {
+                            setHideLinkedToSelected(false);
+                            setShowOnlyUnlinkedGeral(false);
+                            setShowOnlyUnmapped(false);
+                          }
                         }} />
-                        <span>Apenas desta Dupla</span>
-                      </label>EncontroForm
+                        <span>Somente desta Dupla</span>
+                      </label>
 
                       <label className="filter-checkbox-modern">
-                        <input type="checkbox" checked={showOnlyUnmapped} onChange={e => setShowOnlyUnmapped(e.target.checked)} />
-                        <span>Sem Coordenadas</span>
+                        <input type="checkbox" checked={showOnlyUnlinkedGeral} onChange={e => {
+                          setShowOnlyUnlinkedGeral(e.target.checked);
+                          if (e.target.checked) {
+                            setHideLinkedToSelected(false);
+                            setShowOnlyLinkedToSelected(false);
+                            setShowOnlyUnmapped(false);
+                          }
+                        }} />
+                        <span>Apenas Sem Grupo</span>
+                      </label>
+
+                      <label className="filter-checkbox-modern">
+                        <input type="checkbox" checked={showOnlyUnmapped} onChange={e => {
+                          setShowOnlyUnmapped(e.target.checked);
+                          if (e.target.checked) {
+                            setHideLinkedToSelected(false);
+                            setShowOnlyLinkedToSelected(false);
+                            setShowOnlyUnlinkedGeral(false);
+                          }
+                        }} />
+                        <span>Apenas Sem Geolocalização</span>
                       </label>
 
                       <div style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--primary-color)', fontWeight: 600 }}>
                         {participantes.filter(p => {
+                          const q = normalizeString(searchParticipant);
+                          const n = normalizeString(neighborhoodFilter);
+                          const nameMatch = normalizeString(p.pessoas?.nome_completo || '').includes(q);
+                          const neighborhoodMatch = normalizeString(p.pessoas?.bairro || '').includes(n);
+
+                          if (!nameMatch || !neighborhoodMatch) return false;
+
                           const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
                           const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
                           const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
+                          const hasNoLink = !vinculo;
+
                           if (hideLinkedToSelected && isLinkedToSelected) return false;
                           if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
+                          if (showOnlyUnlinkedGeral && !hasNoLink) return false;
                           if (showOnlyUnmapped && !isUnmapped) return false;
                           return true;
                         }).length} Encontristas
@@ -652,9 +806,11 @@ export function CoordenadorVisitacaoPage() {
                           const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
                           const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
                           const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
+                          const hasNoLink = !vinculo;
 
                           if (hideLinkedToSelected && isLinkedToSelected) return false;
                           if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
+                          if (showOnlyUnlinkedGeral && !hasNoLink) return false;
                           if (showOnlyUnmapped && !isUnmapped) return false;
 
                           return nameMatch && neighborhoodMatch;
@@ -689,6 +845,14 @@ export function CoordenadorVisitacaoPage() {
                               </div>
 
                               <div className="item-link-card-actions">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleEditAddress(p); }}
+                                  className="btn-secondary btn-icon"
+                                  style={{ width: '42px', height: '42px', padding: 0, color: 'var(--primary-color)' }}
+                                  title="Editar Endereço"
+                                >
+                                  <Edit2 size={18} />
+                                </button>
                                 {!vinculo ? (
                                   <button
                                     onClick={() => handleVincular(p.id)}
@@ -756,22 +920,49 @@ export function CoordenadorVisitacaoPage() {
                         <label className="filter-checkbox-modern">
                           <input type="checkbox" checked={hideLinkedToSelected} onChange={e => {
                             setHideLinkedToSelected(e.target.checked);
-                            if (e.target.checked) setShowOnlyLinkedToSelected(false);
+                            if (e.target.checked) {
+                              setShowOnlyLinkedToSelected(false);
+                              setShowOnlyUnlinkedGeral(false);
+                              setShowOnlyUnmapped(false);
+                            }
                           }} />
-                          <span>Ocultar Vinculados</span>
+                          <span>Ocultar desta Dupla</span>
                         </label>
 
                         <label className="filter-checkbox-modern">
                           <input type="checkbox" checked={showOnlyLinkedToSelected} onChange={e => {
                             setShowOnlyLinkedToSelected(e.target.checked);
-                            if (e.target.checked) setHideLinkedToSelected(false);
+                            if (e.target.checked) {
+                              setHideLinkedToSelected(false);
+                              setShowOnlyUnlinkedGeral(false);
+                              setShowOnlyUnmapped(false);
+                            }
                           }} />
-                          <span>Apenas desta Dupla</span>
+                          <span>Somente desta Dupla</span>
                         </label>
 
                         <label className="filter-checkbox-modern">
-                          <input type="checkbox" checked={showOnlyUnmapped} onChange={e => setShowOnlyUnmapped(e.target.checked)} />
-                          <span>Sem Coordenadas</span>
+                          <input type="checkbox" checked={showOnlyUnlinkedGeral} onChange={e => {
+                            setShowOnlyUnlinkedGeral(e.target.checked);
+                            if (e.target.checked) {
+                              setHideLinkedToSelected(false);
+                              setShowOnlyLinkedToSelected(false);
+                              setShowOnlyUnmapped(false);
+                            }
+                          }} />
+                          <span>Apenas Sem Grupo</span>
+                        </label>
+
+                        <label className="filter-checkbox-modern">
+                          <input type="checkbox" checked={showOnlyUnmapped} onChange={e => {
+                            setShowOnlyUnmapped(e.target.checked);
+                            if (e.target.checked) {
+                              setHideLinkedToSelected(false);
+                              setShowOnlyLinkedToSelected(false);
+                              setShowOnlyUnlinkedGeral(false);
+                            }
+                          }} />
+                          <span>Apenas Sem Geolocalização</span>
                         </label>
                       </div>
                     </div>
@@ -819,6 +1010,19 @@ export function CoordenadorVisitacaoPage() {
                               </div>
                             </div>
                             <div className="item-link-card-actions">
+                              {(() => {
+                                const p = participantes.find(p => p.id === item.id);
+                                return p && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleEditAddress(p); }}
+                                    className="btn-secondary btn-icon"
+                                    style={{ width: '42px', height: '42px', padding: 0, color: 'var(--primary-color)' }}
+                                    title="Editar Endereço"
+                                  >
+                                    <Edit2 size={18} />
+                                  </button>
+                                );
+                              })()}
                               {item.status === 'available' && (
                                 <button onClick={() => handleVincular(item.id)} disabled={isLoading || !selectedGrupoId} className="btn-primary-sm btn-icon">
                                   <Link2 size={18} />
@@ -829,11 +1033,11 @@ export function CoordenadorVisitacaoPage() {
                                   <Link2OffIcon size={18} />
                                 </button>
                               )}
-                              {item.status === 'in_other_group' && (
-                                <div className="busy-badge">
-                                  <Lock size={16} />
-                                </div>
-                              )}
+                               {item.status === 'in_other_group' && (
+                                 <div className="busy-badge">
+                                   <Lock size={16} />
+                                 </div>
+                               )}
                             </div>
                           </div>
                         ))}
@@ -958,6 +1162,101 @@ export function CoordenadorVisitacaoPage() {
           </div>
         </div>
       )}
+
+      {/* ── Modal de Edição de Endereço ── */}
+      <Modal
+        isOpen={!!editingAddressPessoa}
+        onClose={() => !isLoading && setEditingAddressPessoa(null)}
+        title={`Editar Endereço: ${editingAddressPessoa?.pessoas?.nome_completo}`}
+        maxWidth="600px"
+      >
+        <div className="flex-col gap-4">
+          <FormRow>
+            <FormField
+              label="Rua / Logradouro"
+              value={addressForm.endereco}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, endereco: e.target.value })}
+              placeholder="Ex: Rua Major Claudiano"
+              colSpan={9}
+              required
+            />
+            <FormField
+              label="Número"
+              value={addressForm.numero}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, numero: e.target.value })}
+              placeholder="Ex: 123"
+              colSpan={3}
+            />
+          </FormRow>
+
+          <FormRow>
+            <FormField
+              label="Complemento"
+              value={addressForm.complemento}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, complemento: e.target.value })}
+              placeholder="Ex: Apt 12, Bloco B, Chácara Sto Antonio..."
+              colSpan={12}
+            />
+          </FormRow>
+
+          <FormRow>
+            <FormField
+              label="Bairro"
+              value={addressForm.bairro}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, bairro: e.target.value })}
+              placeholder="Ex: Centro"
+              colSpan={6}
+            />
+            <FormField
+              label="CEP"
+              value={addressForm.cep}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, cep: formatCEP(e.target.value) })}
+              onBlur={handleCEPBlur}
+              placeholder="Ex: 14400-000"
+              maxLength={9}
+              colSpan={6}
+            />
+          </FormRow>
+
+          <FormRow>
+            <FormField
+              label="Cidade"
+              value={addressForm.cidade}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, cidade: e.target.value })}
+              colSpan={9}
+            />
+            <FormField
+              label="Estado"
+              value={addressForm.estado}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, estado: e.target.value.toUpperCase() })}
+              maxLength={2}
+              colSpan={3}
+            />
+          </FormRow>
+
+          <p style={{ fontSize: '0.75rem', opacity: 0.6, fontStyle: 'italic' }}>
+            * Ao salvar, o sistema tentará atualizar automaticamente a geolocalização (latitude/longitude) no mapa.
+          </p>
+
+          <div className="form-actions" style={{ marginTop: '1rem', borderTop: 'none', paddingTop: 0 }}>
+            <button
+              onClick={() => setEditingAddressPessoa(null)}
+              className="btn-secondary"
+              disabled={isLoading}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSaveAddress}
+              disabled={isLoading || !addressForm.endereco || !addressForm.cidade}
+              className="btn-primary"
+              style={{ minWidth: '140px' }}
+            >
+              {isLoading ? <Loader size={18} className="animate-spin" /> : 'Salvar e Geolocalizar'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

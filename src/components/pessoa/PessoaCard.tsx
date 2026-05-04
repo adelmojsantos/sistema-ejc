@@ -36,6 +36,7 @@ function formatAddress(p: Pessoa) {
 
     let fullAddress = p.endereco || '';
     if (p.numero) fullAddress += `, ${p.numero}`;
+    if (p.complemento) fullAddress += ` - ${p.complemento}`;
     if (p.bairro) fullAddress += ` - ${p.bairro}`;
     if (p.cidade) fullAddress += `, ${p.cidade}`;
 
