@@ -1,4 +1,4 @@
-import { createClient } from 'supabase';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 type UserRole = 'admin' | 'secretaria' | 'visitacao' | 'coordenador' | 'viewer';
 
@@ -17,7 +17,6 @@ function jsonResponse(status: number, body: unknown) {
     }
   });
 }
-
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -38,10 +37,13 @@ Deno.serve(async (request) => {
     }
 
     const body = await request.json();
-    const action = body?.action as string | undefined;
+    console.log(`[admin-users] Received request:`, body);
+    
+    const rawAction = body?.action as string | undefined;
+    const action = rawAction?.trim().toLowerCase();
 
     if (!action) {
-      return jsonResponse(400, { error: 'Missing action' });
+      return jsonResponse(400, { error: 'Ação não informada (Missing action)' });
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -55,7 +57,6 @@ Deno.serve(async (request) => {
         return jsonResponse(400, { error: 'email is required' });
       }
 
-      // Check if user exists in profiles
       const { data: profile, error: profileError } = await adminClient
         .from('profiles')
         .select('id, email')
@@ -63,13 +64,9 @@ Deno.serve(async (request) => {
         .maybeSingle();
 
       if (profileError || !profile) {
-        // We return success anyway to avoid email enumeration, 
-        // but the user specifically asked to "verify if email exists".
-        // In this internal/controlled context, we can return error if not found.
         return jsonResponse(404, { error: 'Usuário não encontrado com este e-mail.' });
       }
 
-      // Reset password to email
       const temporaryPassword = profile.email;
       const { error: updateError } = await adminClient.auth.admin.updateUserById(profile.id, {
         password: temporaryPassword
@@ -133,7 +130,6 @@ Deno.serve(async (request) => {
         return jsonResponse(400, { error: 'email and role are required' });
       }
 
-      // Using email as temporary password
       const temporaryPassword = email;
       const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
         email,
@@ -191,7 +187,6 @@ Deno.serve(async (request) => {
         return jsonResponse(400, { error: 'userId is required' });
       }
 
-      // Fetch user email to use as password
       const { data: profile, error: fetchError } = await adminClient
         .from('profiles')
         .select('email')
@@ -234,7 +229,6 @@ Deno.serve(async (request) => {
         return jsonResponse(400, { error: 'userId is required' });
       }
 
-      // Deleta o usuário da auth (cascade para profiles se configurado, ou podemos deletar explicitamente se precisar, mas auth.admin.deleteUser geralmente já resolve se as foreign keys forem CASCADE).
       const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
       if (deleteError) {
         return jsonResponse(400, { error: deleteError.message });
@@ -243,10 +237,9 @@ Deno.serve(async (request) => {
       return jsonResponse(200, { success: true });
     }
 
-    return jsonResponse(400, { error: 'Unsupported action' });
+    return jsonResponse(400, { error: `Ação não suportada ou não reconhecida: "${action}"` });
   } catch (error) {
-    console.error(error);
-    return jsonResponse(500, { error: 'Unexpected error' });
+    console.error(`[admin-users] Unexpected error:`, error);
+    return jsonResponse(500, { error: 'Unexpected error', details: error?.message });
   }
 });
-
