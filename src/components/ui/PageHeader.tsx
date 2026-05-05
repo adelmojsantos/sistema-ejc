@@ -11,13 +11,13 @@ interface PageHeaderProps {
   tabs?: ReactNode;
 }
 
-export function PageHeader({ 
-  title, 
-  subtitle, 
-  onBack, 
-  backPath, 
-  actions, 
-  tabs 
+export function PageHeader({
+  title,
+  subtitle,
+  onBack,
+  backPath,
+  actions,
+  tabs
 }: PageHeaderProps) {
   const navigate = useNavigate();
 
@@ -35,15 +35,15 @@ export function PageHeader({
     <div className="page-header-standard">
       <div className="page-header-top">
         <div className="page-header-left">
-          <button 
-            onClick={handleBack} 
+          <button
+            onClick={handleBack}
             className="page-header-back-btn"
             aria-label="Voltar"
             title="Voltar"
           >
             <ChevronLeft size={24} />
           </button>
-          
+
           <div className="page-header-titles">
             {subtitle && <span className="page-header-subtitle">{subtitle}</span>}
             <h1 className="page-header-title">{title}</h1>

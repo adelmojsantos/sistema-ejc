@@ -17,12 +17,15 @@ import { ExportConfigFormPage } from './pages/admin/ExportConfigFormPage';
 import { BibliotecaPage } from './pages/admin/BibliotecaPage';
 import { Cadastros } from './pages/Cadastros';
 import { CirculosPage } from './pages/cadastros/CirculosPage';
+import { CirculosPortalPage } from './pages/circulos/CirculosPortalPage';
 import { EncontroParticipantesPage } from './pages/cadastros/EncontroParticipantesPage';
 import { EncontrosPage } from './pages/cadastros/EncontrosPage';
 import { EquipesPage } from './pages/cadastros/EquipesPage';
 import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
+import { ResumoPalestrasPage } from './pages/circulos/ResumoPalestrasPage';
 import { MontagemPage } from './pages/cadastros/MontagemPage';
 import { PessoasPage } from './pages/cadastros/PessoasPage';
+import { PalestrasPage } from './pages/cadastros/PalestrasPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
 import { RecepcaoAdminPage } from './pages/atividades/RecepcaoAdminPage';
@@ -208,11 +211,47 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           } />
 
-          <Route path="/montagem-circulos" element={
-            <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
-              <MontagemCirculos />
-            </ProtectedRoute>
-          } />
+          <Route
+            path="/circulos"
+            element={
+              <ProtectedRoute 
+                requiredPermissions={[
+                  'modulo_circulos', 
+                  'modulo_circulos_cadastros', 
+                  'modulo_circulos_coordenador', 
+                  'modulo_circulos_mediador', 
+                  'modulo_admin'
+                ]}
+              >
+                <CirculosPortalPage />
+              </ProtectedRoute>
+            }
+          >
+            <Route 
+              path="cadastros" 
+              element={
+                <ProtectedRoute requiredPermissions={['modulo_circulos_cadastros', 'modulo_admin']}>
+                  <CirculosPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="montagem" 
+              element={
+                <ProtectedRoute requiredPermissions={['modulo_circulos_coordenador', 'modulo_admin']}>
+                  <MontagemCirculos />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="resumo-palestras" 
+              element={
+                <ProtectedRoute requiredPermissions={['modulo_circulos_coordenador', 'modulo_admin']}>
+                  <ResumoPalestrasPage />
+                </ProtectedRoute>
+              } 
+            />
+          </Route>
 
           <Route path="/coordenador/minha-equipe" element={
             <ProtectedRoute requiredPermissions={['modulo_coordenador', 'modulo_admin']}>
@@ -250,6 +289,7 @@ function AnimatedRoutes() {
             <Route path="equipes" element={<EquipesPage />} />
             <Route path="circulos" element={<CirculosPage />} />
             <Route path="montagem" element={<MontagemPage />} />
+            <Route path="palestras" element={<PalestrasPage />} />
           </Route>
         </Route>
 

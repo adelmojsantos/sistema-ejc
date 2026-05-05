@@ -1,8 +1,8 @@
-import { Calendar, CircleDot, FileText, UserPlus, Users, Users2Icon, Shield, ListChecks, MapPin, Folder, ShoppingBag } from 'lucide-react';
+import type { Variants } from 'framer-motion';
+import { motion } from 'framer-motion';
+import { Calendar, FileText, Folder, ListChecks, MapPin, Shield, ShoppingBag, UserPlus, Users, Users2Icon, UsersRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import type { Variants } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 
 interface DashboardAction {
@@ -13,8 +13,6 @@ interface DashboardAction {
   accent: 'primary' | 'success' | 'violet' | 'amber';
   featured?: boolean;
 }
-
-
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -68,14 +66,24 @@ export function Home() {
     });
   }
 
-  if (hasPermission('modulo_cadastros') || hasPermission('modulo_admin')) {
+  const hasCirculosAccess =
+    hasPermission('modulo_circulos') ||
+    hasPermission('modulo_circulos_cadastros') ||
+    hasPermission('modulo_circulos_coordenador') ||
+    hasPermission('modulo_circulos_mediador') ||
+    hasPermission('modulo_admin');
+
+  if (hasCirculosAccess) {
     dashboardActions.push({
       title: 'Círculos',
       description: 'Divisão dos participantes em grupos de estudo e partilha.',
-      path: '/montagem-circulos',
-      icon: <CircleDot size={36} />,
+      path: '/circulos',
+      icon: <UsersRound size={36} />,
       accent: 'violet'
     });
+  }
+
+  if (hasPermission('modulo_cadastros') || hasPermission('modulo_admin')) {
     dashboardActions.push({
       title: 'Cadastros',
       description: 'Cadastro de jovens, tios e membros das equipes.',

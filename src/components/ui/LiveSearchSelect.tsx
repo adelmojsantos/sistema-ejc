@@ -107,7 +107,11 @@ export function LiveSearchSelect<T>({
         };
     }, []);
 
-    const selectedItem = options.find(opt => getOptionValue(opt) === value) || initialOptions.find(opt => getOptionValue(opt) === value);
+    const safeOptions = Array.isArray(options) ? options : [];
+    const safeInitialOptions = Array.isArray(initialOptions) ? initialOptions : [];
+
+    const selectedItem = safeOptions.find(opt => getOptionValue(opt) === value) || 
+                         safeInitialOptions.find(opt => getOptionValue(opt) === value);
     const displayValue = selectedItem ? getOptionLabel(selectedItem) : '';
 
     return (

@@ -597,8 +597,18 @@ input[type="number"] {
     gap: 0;
   }
 
-  .col-1, .col-2, .col-3, .col-4, .col-5, .col-6, 
-  .col-7, .col-8, .col-9, .col-10, .col-11, .col-12 {
+  .col-1,
+  .col-2,
+  .col-3,
+  .col-4,
+  .col-5,
+  .col-6,
+  .col-7,
+  .col-8,
+  .col-9,
+  .col-10,
+  .col-11,
+  .col-12 {
     grid-column: span 12 / span 12 !important;
     width: 100% !important;
   }
@@ -705,15 +715,22 @@ input[type="number"] {
 }
 
 @keyframes modal-appear {
-  from { opacity: 0; transform: scale(0.95) translateY(10px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 @media (max-width: 480px) {
   .modal-overlay {
     padding: 0.5rem;
   }
-  
+
   .modal-content {
     max-height: 95vh;
     border-radius: 12px;
@@ -5270,3 +5287,316 @@ tbody tr:hover {
     padding: 0 0 2.5rem;
   }
 }
+
+/* =====================================================
+   Montagem Círculos — mc-*
+   Mobile-first. Escala progressivamente.
+   ===================================================== */
+
+.mc-circles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+/* Accordion Card */
+.mc-accordion-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  /* SEM overflow:hidden — causaria clip no dropdown do LiveSearch */
+  position: relative;
+  transition: box-shadow 0.25s var(--ease-smooth), border-color 0.25s var(--ease-smooth);
+}
+
+.mc-accordion-card--open {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+  z-index: 10;
+  /* garante que o dropdown fique acima dos cards abaixo */
+}
+
+/* Card Header — aplica border-radius superior para compensar a remoção do overflow:hidden no card */
+.mc-accordion-card__header {
+  width: 100%;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-weight: 600;
+  transition: background 0.2s;
+  border-radius: 14px;
+  /* mantém o arredondamento visível quando fechado */
+}
+
+.mc-accordion-card__header:hover {
+  background: var(--secondary-bg);
+  border-radius: 14px;
+}
+
+.mc-accordion-card--open .mc-accordion-card__header {
+  background: var(--primary-light);
+  border-radius: 14px 14px 0 0;
+  /* quando aberto, só arredonda o topo */
+}
+
+.mc-accordion-card__header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.mc-accordion-card__name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-accordion-card__header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Circle icon dot */
+.mc-circulo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  color: var(--muted-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s;
+}
+
+.mc-circulo-icon--active {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+/* Chevron animation */
+.mc-accordion-chevron {
+  transition: transform 0.25s var(--ease-smooth);
+  color: var(--muted-text);
+  flex-shrink: 0;
+}
+
+/* Badges */
+.mc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mc-badge--mediator {
+  background: var(--primary-light);
+  color: var(--primary-color);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+}
+
+.mc-badge--participant {
+  background: var(--success-bg);
+  color: var(--success-border);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+/* Accordion Content — aparece com fade quando isOpen=true no React */
+.mc-accordion-card__content {
+  padding: 1rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  animation: mc-content-appear 0.2s var(--ease-smooth);
+  /* overflow: visible por padrão — dropdown do LiveSearch não é clipado */
+}
+
+/* Section label */
+.mc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.mc-section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted-text);
+}
+
+/* Mediator slots — 1 col mobile, 2 cols ≥ 480px */
+.mc-mediator-slots {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .mc-mediator-slots {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mc-mediator-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+@media (max-width: 639px) {
+  .mc-mediator-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+.mc-mediator-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.mc-slot-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted-text);
+}
+
+/* Chips */
+.mc-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.mc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.6rem 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  max-width: 100%;
+}
+
+.mc-chip--mediator {
+  background: var(--primary-light);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.mc-chip--participant {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: var(--success-text);
+}
+
+.mc-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.mc-chip__remove:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+  transform: none;
+}
+
+/* Participants chips grid */
+.mc-participants-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+/* Footer / danger actions */
+.mc-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  margin-top: 0.5rem;
+}
+
+/* New circle inline form */
+.mc-new-circulo-form {
+  border-left: 4px solid var(--accent-color);
+  animation: mc-fade-in 0.2s var(--ease-smooth);
+}
+
+/* Add participant search section */
+.mc-add-participant {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+@keyframes mc-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mc-content-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -174,5 +174,91 @@ export const inscricaoService = {
 
         if (error) throw error;
         return data && data.length > 0;
+    },
+
+    /**
+     * Busca paginada de encontreiros de uma equipe específica por nome.
+     * Server-side em dois passos para evitar carregar todos de uma vez.
+     * Usado na seleção de mediadores de círculo.
+     */
+    async buscarEncontreirosDaEquipePorNome(
+        encontroId: string,
+        equipeId: string,
+        busca: string = '',
+        pagina: number = 0,
+        limite: number = 10
+    ): Promise<InscricaoEnriched[]> {
+        let pessoaIds: string[] | null = null;
+
+        if (busca.trim()) {
+            const { data: pessoas, error: pessoasError } = await supabase
+                .from('pessoas')
+                .select('id')
+                .ilike('nome_completo', `%${busca}%`);
+
+            if (pessoasError) throw pessoasError;
+            pessoaIds = (pessoas || []).map((p: { id: string }) => p.id);
+            if (pessoaIds.length === 0) return [];
+        }
+
+        let query = supabase
+            .from(TABLE)
+            .select('id, pessoa_id, equipe_id, pessoas(nome_completo)')
+            .eq('encontro_id', encontroId)
+            .eq('participante', false)
+            .eq('equipe_id', equipeId);
+
+        if (pessoaIds !== null) {
+            query = query.in('pessoa_id', pessoaIds);
+        }
+
+        const from = pagina * limite;
+        const to = from + limite - 1;
+        const { data, error } = await query.range(from, to);
+
+        if (error) throw error;
+        return (data || []) as unknown as InscricaoEnriched[];
+    },
+
+    /**
+     * Busca paginada de participantes (jovens, participante=true) por nome.
+     * Server-side em dois passos. Usado na seleção de encontristas para o círculo.
+     */
+    async buscarParticipantesPorNome(
+        encontroId: string,
+        busca: string = '',
+        pagina: number = 0,
+        limite: number = 10
+    ): Promise<InscricaoEnriched[]> {
+        let pessoaIds: string[] | null = null;
+
+        if (busca.trim()) {
+            const { data: pessoas, error: pessoasError } = await supabase
+                .from('pessoas')
+                .select('id')
+                .ilike('nome_completo', `%${busca}%`);
+
+            if (pessoasError) throw pessoasError;
+            pessoaIds = (pessoas || []).map((p: { id: string }) => p.id);
+            if (pessoaIds.length === 0) return [];
+        }
+
+        let query = supabase
+            .from(TABLE)
+            .select('id, pessoa_id, pessoas(nome_completo)')
+            .eq('encontro_id', encontroId)
+            .eq('participante', true);
+
+        if (pessoaIds !== null) {
+            query = query.in('pessoa_id', pessoaIds);
+        }
+
+        const from = pagina * limite;
+        const to = from + limite - 1;
+        const { data, error } = await query.range(from, to);
+
+        if (error) throw error;
+        return (data || []) as unknown as InscricaoEnriched[];
     }
 };
+

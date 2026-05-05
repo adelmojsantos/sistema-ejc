@@ -306,19 +306,19 @@ export function RecreacaoAdminPage() {
                   </div>
 
                   {reg.observacoes && (
-                    <div 
+                    <div
                       onClick={() => setObsToShow(reg.observacoes || null)}
-                      style={{ 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: '2px', 
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px',
                         maxWidth: '250px',
                         cursor: 'pointer',
                         padding: '4px 8px',
                         borderRadius: '6px',
                         background: 'rgba(var(--primary-rgb), 0.05)',
                         transition: 'all 0.2s'
-                      }} 
+                      }}
                       className="obs-hover"
                     >
                       <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.4, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>

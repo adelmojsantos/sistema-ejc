@@ -14,7 +14,8 @@ import {
   ChevronRight,
   X,
   Folder,
-  ShoppingBag
+  ShoppingBag,
+  UsersRound
 } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
@@ -47,6 +48,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { to: '/secretaria', label: 'Secretaria', icon: FileText },
       { to: '/cadastros', label: 'Cadastros', icon: Calendar },
     );
+  }
+
+  const hasCirculosAccess = 
+    hasPermission('modulo_circulos') || 
+    hasPermission('modulo_circulos_cadastros') || 
+    hasPermission('modulo_circulos_coordenador') || 
+    hasPermission('modulo_circulos_mediador') || 
+    hasPermission('modulo_admin');
+    
+  if (hasCirculosAccess) {
+    menuItems.push({ to: '/circulos', label: 'Círculos', icon: UsersRound });
   }
 
   if (hasPermission('modulo_admin')) {

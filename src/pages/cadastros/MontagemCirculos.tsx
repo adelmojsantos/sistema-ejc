@@ -1,461 +1,735 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import {
+  ChevronLeft, ChevronDown, Loader,
+  Users, Shield, UserCircle, Eraser, AlertCircle,
+  X,
+  UserPlus, Dices, CheckSquare, Square
+} from 'lucide-react';
+
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
 import { circuloService } from '../../services/circuloService';
 import { circuloParticipacaoService } from '../../services/circuloParticipacaoService';
 import { inscricaoService } from '../../services/inscricaoService';
-import type { InscricaoEnriched } from '../../types/inscricao';
 import { normalizeString } from '../../utils/stringUtils';
+
 import type { Encontro } from '../../types/encontro';
 import type { Circulo } from '../../types/circulo';
+import type { InscricaoEnriched } from '../../types/inscricao';
 import type { CirculoParticipacaoEnriched } from '../../types/circuloParticipacao';
-import { UserPlus, Trash2, Plus, ChevronLeft, Users, Loader, Search, X, Shield, Info } from 'lucide-react';
+
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useEquipes } from '../../contexts/EquipeContext';
 
+/* ------------------------------------------------------------------ */
+
+interface MediadorSlot {
+  value: string;   // participacao ID
+  label: string;   // nome da pessoa
+}
+
+/* ------------------------------------------------------------------ */
+
 export function MontagemCirculos() {
   const navigate = useNavigate();
-  const { encontros } = useEncontros();
+  const { encontros, encontroAtivo } = useEncontros();
   const { equipes } = useEquipes();
 
-  // Data States
+  // ── Data ──────────────────────────────────────────────────────────
   const [circulos, setCirculos] = useState<Circulo[]>([]);
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
-  const [selectedCirculoId, setSelectedCirculoId] = useState<string>('');
-  const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]); // All people (participante: true)
-  const [equipeCirculo, setEquipeCirculo] = useState<InscricaoEnriched[]>([]); // People from the circle team
-  const [vinculos, setVinculos] = useState<CirculoParticipacaoEnriched[]>([]); // Relationships for the meeting/circles
+  const [vinculos, setVinculos] = useState<CirculoParticipacaoEnriched[]>([]);
 
-  // Selection states for forming pairs (Casais/Mediadores)
-  const [selectedPessoa1, setSelectedPessoa1] = useState<string>('');
-  const [selectedPessoa2, setSelectedPessoa2] = useState<string>('');
-  const [searchParticipant, setSearchParticipant] = useState('');
+  // ── UI ───────────────────────────────────────────────────────────
+  const [isLoadingCirculos, setIsLoadingCirculos] = useState(true);
+  const [isFetchingVinculos, setIsFetchingVinculos] = useState(false);
+  const [openCirculoId, setOpenCirculoId] = useState<number | null>(null);
 
-  // UI States
-  const [isFetching, setIsFetching] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  // Mediadores (por círculo aberto — reset ao mudar)
+  const [mediador1, setMediador1] = useState<MediadorSlot | null>(null);
+  const [mediador2, setMediador2] = useState<MediadorSlot | null>(null);
+  const [isSavingMediadores, setIsSavingMediadores] = useState(false);
 
-  // Initial load — apenas círculos (encontros e equipes vêm do contexto)
+  // Sorteio Aleatório
+  const [showLotteryModal, setShowLotteryModal] = useState(false);
+  const [selectedLotteryCirculos, setSelectedLotteryCirculos] = useState<number[]>([]);
+  const [isProcessingLottery, setIsProcessingLottery] = useState(false);
+
+  // Operações pontuais (add/remove participante)
+  const [isOperating, setIsOperating] = useState(false);
+
+  // ── Equipe círculo: busca inteligente e prioritária ──────────────
+  const equipeCirculoId = useMemo(() => {
+    if (!equipes.length) return null;
+
+    // 1. Prioridade Máxima: Nome exato (ex: "Círculos" ou "Circulo")
+    const exactMatch = equipes.find(e => {
+      const n = normalizeString(e.nome || '');
+      return n === 'circulos' || n === 'circulo';
+    });
+    if (exactMatch) return exactMatch.id;
+
+    // 2. Segunda Prioridade: Começa com (ex: "Círculos - Equipe")
+    const startsWithMatch = equipes.find(e =>
+      normalizeString(e.nome || '').startsWith('circulo')
+    );
+    if (startsWithMatch) return startsWithMatch.id;
+
+    // 3. Fallback: Contém a palavra em qualquer lugar
+    return equipes.find(e =>
+      normalizeString(e.nome || '').includes('circulo')
+    )?.id ?? null;
+  }, [equipes]);
+
+  // ── Seleciona encontro ativo por padrão ───────────────────────────
   useEffect(() => {
-    async function loadBaseData() {
-      try {
-        const cs = await circuloService.listar();
-        setCirculos(cs);
-        if (cs.length > 0) setSelectedCirculoId(cs[0].id.toString());
-      } catch (_error) {
-        console.error('Error loading circulos:', _error);
-      }
-    }
-    loadBaseData();
-  }, []);
-
-  // Seleciona o encontro mais recente quando o contexto carregar
-  useEffect(() => {
-    if (encontros.length > 0 && !selectedEncontroId) {
+    if (encontroAtivo && !selectedEncontroId) {
+      setSelectedEncontroId(encontroAtivo.id);
+    } else if (encontros.length > 0 && !selectedEncontroId) {
+      // Fallback para o último se nenhum estiver ativo
       setSelectedEncontroId(encontros[encontros.length - 1].id);
     }
-  }, [encontros, selectedEncontroId]);
+  }, [encontroAtivo, encontros, selectedEncontroId]);
 
-  const loadData = useCallback(async () => {
+  // ── Carrega círculos globais (uma única vez) ──────────────────────
+  useEffect(() => {
+    async function loadCirculos() {
+      setIsLoadingCirculos(true);
+      try {
+        setCirculos(await circuloService.listar());
+      } catch {
+        toast.error('Erro ao carregar círculos.');
+      } finally {
+        setIsLoadingCirculos(false);
+      }
+    }
+    loadCirculos();
+  }, []);
+
+  // ── Carrega/recarrega vínculos do encontro ────────────────────────
+  const reloadVinculos = useCallback(async () => {
     if (!selectedEncontroId) return;
-    setIsFetching(true);
+    setIsFetchingVinculos(true);
     try {
-      // Filtro server-side: busca apenas participantes (jovens), não encontreiros
-      const allParticipantes = await inscricaoService.listarParticipantesPorEncontro(selectedEncontroId);
-      setParticipantes(allParticipantes);
+      const v = await circuloParticipacaoService.listarPorEncontro(selectedEncontroId);
+      setVinculos(v ?? []);
+    } catch {
+      toast.error('Erro ao carregar vínculos.');
+    } finally {
+      setIsFetchingVinculos(false);
+    }
+  }, [selectedEncontroId]);
 
-      // Usa equipes do contexto (já cacheado) para encontrar a equipe do Círculo
-      const circuloTeam = equipes.find(e => e.nome?.toLowerCase().includes('círculo') || e.nome?.toLowerCase().includes('circulo'));
+  useEffect(() => { reloadVinculos(); }, [reloadVinculos]);
 
-      if (circuloTeam) {
-        // Busca encontreiros apenas da equipe círculo
-        const encontreirosCirculo = await inscricaoService.listarEncontreirosPorEncontro(selectedEncontroId);
-        setEquipeCirculo(encontreirosCirculo.filter(i => i.equipe_id === circuloTeam.id));
-      } else {
-        // Fallback: todos os encontreiros
-        const encontreiros = await inscricaoService.listarEncontreirosPorEncontro(selectedEncontroId);
-        setEquipeCirculo(encontreiros);
+  // Ao carregar círculos, seleciona todos para o sorteio por padrão
+  useEffect(() => {
+    if (circulos.length > 0) {
+      setSelectedLotteryCirculos(circulos.map(c => c.id));
+    }
+  }, [circulos]);
+
+  // Reset mediadores ao trocar o círculo aberto
+  useEffect(() => {
+    setMediador1(null);
+    setMediador2(null);
+  }, [openCirculoId]);
+
+  // ── Derivados ─────────────────────────────────────────────────────
+  /** IDs de participacao já vinculados a qualquer círculo */
+  const occupiedIds = useMemo(
+    () => new Set(vinculos.map(v => v.participacao)),
+    [vinculos]
+  );
+
+  const mediadoresPorCirculo = useMemo(() => {
+    const map = new Map<number, CirculoParticipacaoEnriched[]>();
+    vinculos.filter(v => v.mediador).forEach(v => {
+      map.set(v.circulo_id, [...(map.get(v.circulo_id) ?? []), v]);
+    });
+    return map;
+  }, [vinculos]);
+
+  const participantesPorCirculo = useMemo(() => {
+    const map = new Map<number, CirculoParticipacaoEnriched[]>();
+    vinculos.filter(v => !v.mediador).forEach(v => {
+      map.set(v.circulo_id, [...(map.get(v.circulo_id) ?? []), v]);
+    });
+    return map;
+  }, [vinculos]);
+
+  // ── Handlers ──────────────────────────────────────────────────────
+
+  const handleDefinirMediadores = async (circuloId: number) => {
+    if (!mediador1 || !mediador2) return;
+    if (mediador1.value === mediador2.value) {
+      toast.error('Selecione pessoas diferentes para os dois mediadores.');
+      return;
+    }
+    if (occupiedIds.has(mediador1.value) || occupiedIds.has(mediador2.value)) {
+      toast.error('Um dos selecionados já está vinculado a um círculo.');
+      return;
+    }
+    setIsSavingMediadores(true);
+    try {
+      await Promise.all([
+        circuloParticipacaoService.vincular(mediador1.value, circuloId, true),
+        circuloParticipacaoService.vincular(mediador2.value, circuloId, true),
+      ]);
+      setMediador1(null);
+      setMediador2(null);
+      await reloadVinculos();
+      toast.success('Mediadores definidos!');
+    } catch {
+      toast.error('Erro ao definir mediadores.');
+    } finally {
+      setIsSavingMediadores(false);
+    }
+  };
+
+  const handleAddParticipante = async (participacaoId: string, circuloId: number) => {
+    if (occupiedIds.has(participacaoId)) {
+      toast.error('Este encontrista já está vinculado a um círculo.');
+      return;
+    }
+    setIsOperating(true);
+    try {
+      await circuloParticipacaoService.vincular(participacaoId, circuloId, false);
+      await reloadVinculos();
+      toast.success('Encontrista adicionado!');
+    } catch {
+      toast.error('Erro ao adicionar encontrista.');
+    } finally {
+      setIsOperating(false);
+    }
+  };
+
+  const handleDesvincular = async (vinculoId: string) => {
+    setIsOperating(true);
+    try {
+      await circuloParticipacaoService.desvincular(vinculoId);
+      await reloadVinculos();
+      toast.success('Removido com sucesso!');
+    } catch {
+      toast.error('Erro ao remover.');
+    } finally {
+      setIsOperating(false);
+    }
+  };
+
+  const handleLimparCirculo = async (circuloId: number) => {
+    if (!selectedEncontroId) return;
+    setIsOperating(true);
+    try {
+      await circuloParticipacaoService.removerPorCirculoEEncontro(circuloId, selectedEncontroId);
+      await reloadVinculos();
+      toast.success('Círculo limpo neste encontro.');
+    } catch {
+      toast.error('Erro ao limpar o círculo.');
+    } finally {
+      setIsOperating(false);
+    }
+  };
+
+  const handleRandomAssignment = async () => {
+    if (!selectedEncontroId || selectedLotteryCirculos.length === 0) return;
+
+    setIsProcessingLottery(true);
+    try {
+      // 1. Buscar todos os participantes do encontro
+      const allParticipants = await inscricaoService.listarParticipantesPorEncontro(selectedEncontroId);
+
+      // 2. Filtrar apenas os que não estão vinculados
+      const available = allParticipants.filter(p => !occupiedIds.has(p.id));
+
+      if (available.length === 0) {
+        toast.error('Todos os participantes já estão vinculados!');
+        return;
       }
 
-      // Get all circle linkings for this meeting
-      const vData = await circuloParticipacaoService.listarPorEncontro(selectedEncontroId);
-      setVinculos(vData || []);
-    } catch (_error) {
-      console.error('Error loading meeting data:', _error);
-    } finally {
-      setIsFetching(false);
-    }
-  }, [selectedEncontroId, equipes]);
+      // 3. Embaralhar (Fisher-Yates)
+      const shuffled = [...available];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+      // 4. Distribuir entre os círculos selecionados
+      const assignments: any[] = [];
+      const numCircles = selectedLotteryCirculos.length;
 
-  const handleVincular = async (participacaoId: string) => {
-    if (!selectedCirculoId) return;
-
-    // Constraint: Can't be in more than one circle
-    const existingVinculo = vinculos.find(v => v.participacao === participacaoId);
-    if (existingVinculo) {
-      toast.error('Esta pessoa já está vinculada a um círculo.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await circuloParticipacaoService.vincular(participacaoId, parseInt(selectedCirculoId), false);
-      await loadData();
-      toast.success('Pessoa vinculada com sucesso!');
-    } catch {
-      toast.error('Erro ao vincular ao círculo.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCreateCasal = async () => {
-    if (!selectedCirculoId || !selectedPessoa1 || !selectedPessoa2) return;
-
-    const vinculadosIds = new Set(vinculos.map(v => v.participacao));
-
-    // Constraint: Only one couple per circle
-    const mediadoresNoCirculo = vinculos.filter(v => v.circulo_id.toString() === selectedCirculoId && v.mediador);
-    if (mediadoresNoCirculo.length >= 2) {
-      toast.error('Este círculo já possui um casal mediador.');
-      return;
-    }
-
-    // Constraint: Can't be in more than one circle
-    if (vinculadosIds.has(selectedPessoa1) || vinculadosIds.has(selectedPessoa2)) {
-      toast.error('Uma das pessoas selecionadas já está vinculada a um círculo.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      // Link both people to the circle as mediadores
-      await Promise.all([
-        circuloParticipacaoService.vincular(selectedPessoa1, parseInt(selectedCirculoId), true),
-        circuloParticipacaoService.vincular(selectedPessoa2, parseInt(selectedCirculoId), true)
-      ]);
-      setSelectedPessoa1('');
-      setSelectedPessoa2('');
-      await loadData();
-      toast.success('Casal mediador vinculado com sucesso!');
-    } catch {
-      toast.error('Erro ao vincular casal ao círculo.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleDesvincular = async (id: string) => {
-    setIsLoading(true);
-    try {
-      await circuloParticipacaoService.desvincular(id);
-      await loadData();
-      toast.success('Desvinculado com sucesso!');
-    } catch {
-      toast.error('Erro ao desvincular.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Derived helpers
-  const mediadoresNoCirculo = useMemo(() =>
-    vinculos.filter(v => v.circulo_id.toString() === selectedCirculoId && v.mediador),
-    [vinculos, selectedCirculoId]);
-
-  // Unified Search Results
-  const searchResults = useMemo(() => {
-    const q = normalizeString(searchParticipant);
-
-    // If no search, show only current circle participants (excluding mediators)
-    if (!q) {
-      return vinculos
-        .filter(v => v.circulo_id.toString() === selectedCirculoId && !v.mediador)
-        .map(v => ({
-          id: v.participacao,
-          vinculoId: v.id,
-          nome: v.participacoes?.pessoas?.nome_completo || 'Sem Nome',
-          status: 'in_this_circle' as const,
-          circuloNome: null
-        }));
-    }
-
-    // Search through all meeting participants
-    return participantes
-      .filter(p => normalizeString(p.pessoas?.nome_completo || '').includes(q))
-      .map(p => {
-        const vinculo = vinculos.find(v => v.participacao === p.id);
-
-        if (!vinculo) {
-          return {
-            id: p.id,
-            vinculoId: null,
-            nome: p.pessoas?.nome_completo,
-            status: 'available' as const,
-            circuloNome: null
-          };
-        }
-
-        if (vinculo.circulo_id.toString() === selectedCirculoId) {
-          return {
-            id: p.id,
-            vinculoId: vinculo.id,
-            nome: p.pessoas?.nome_completo,
-            status: vinculo.mediador ? ('mediator_here' as const) : ('in_this_circle' as const),
-            circuloNome: null
-          };
-        }
-
-        return {
-          id: p.id,
-          vinculoId: vinculo.id,
-          nome: p.pessoas?.nome_completo,
-          status: 'in_other_circle' as const,
-          circuloNome: vinculo.circulos?.nome || 'Outro Círculo'
-        };
+      shuffled.forEach((p, index) => {
+        const circuloId = selectedLotteryCirculos[index % numCircles];
+        assignments.push({
+          participacao: p.id,
+          circulo_id: circuloId,
+          mediador: false
+        });
       });
-  }, [participantes, vinculos, selectedCirculoId, searchParticipant]);
 
-  // Team members NOT linked to any circle
-  const equipeDisponivel = useMemo(() => {
-    const vinculadosIds = new Set(vinculos.map(v => v.participacao));
-    return equipeCirculo.filter(p => !vinculadosIds.has(p.id));
-  }, [equipeCirculo, vinculos]);
+      // 5. Salvar em massa
+      await circuloParticipacaoService.vincularMuitos(assignments);
 
+      toast.success(`${assignments.length} participantes distribuídos aleatoriamente!`);
+      setShowLotteryModal(false);
+      reloadVinculos();
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao realizar atribuição aleatória aos círculos.');
+    } finally {
+      setIsProcessingLottery(false);
+    }
+  };
+
+  const toggleCirculo = (id: number) =>
+    setOpenCirculoId(prev => (prev === id ? null : id));
+
+  // ── Render helpers ────────────────────────────────────────────────
+  const renderOccupiedBadge = (id: string, currentMediadorValue?: string) => {
+    if (id === currentMediadorValue)
+      return <span style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: 700, marginLeft: '0.5rem', flexShrink: 0 }}>Já selecionado</span>;
+    if (occupiedIds.has(id))
+      return <span style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: 700, marginLeft: '0.5rem', flexShrink: 0 }}>Já vinculado</span>;
+    return null;
+  };
+
+  // ── JSX ───────────────────────────────────────────────────────────
   return (
     <div className="app-shell">
-      <main className="main-content container flex-1" style={{ paddingBottom: '4rem' }}>
-        {isFetching && encontros.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', opacity: 0.6 }}>
-            <Loader size={48} className="animate-spin" style={{ color: 'var(--primary-color)', marginBottom: '1rem' }} />
-            <p style={{ fontWeight: 500 }}>Carregando dados da montagem...</p>
+      <main className="main-content container" style={{ paddingBottom: '4rem' }}>
+
+        {/* ── Header ── */}
+        <div className="page-header" style={{
+          marginBottom: '1.5rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button
+              onClick={() => navigate('/circulos')}
+              className="icon-btn"
+              aria-label="Voltar"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '1.35rem' }}>Montagem — Círculos</h1>
+              {isFetchingVinculos && (
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <Loader size={12} className="animate-spin" /> Atualizando...
+                </span>
+              )}
+            </div>
           </div>
-        ) : (
-          <>
-            <div className="page-header" style={{ marginBottom: '2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <button onClick={() => navigate('/cadastros')} className="icon-btn"><ChevronLeft size={20} /></button>
-                <div>
-                  <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Montagem Círculos</h1>
-                  <div style={{ width: '300px' }}>
-                    <LiveSearchSelect<Encontro>
-                      value={selectedEncontroId}
-                      onChange={(val) => setSelectedEncontroId(val)}
-                      fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-                      getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
-                      getOptionValue={(e) => String(e.id)}
-                      placeholder="Selecione um Encontro..."
-                      initialOptions={encontros}
-                      className="montagem-header-select"
-                    />
-                  </div>
-                </div>
-              </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ minWidth: '220px', maxWidth: '300px', flex: '1' }}>
+              <LiveSearchSelect<Encontro>
+                value={selectedEncontroId}
+                onChange={(val) => { setSelectedEncontroId(val); setOpenCirculoId(null); }}
+                fetchData={async (search, page) => encontroService.buscarComPaginacao(search, page)}
+                getOptionLabel={(e) => `${e.nome}${e.ativo ? ' (Ativo)' : ''}`}
+                getOptionValue={(e) => String(e.id)}
+                placeholder="Selecione um Encontro..."
+                initialOptions={encontros}
+              />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '2rem' }}>
-              {/* Sidebar: Círculos */}
-              <aside>
-                <div className="card" style={{ padding: '0.5rem' }}>
-                  <h3 style={{ padding: '1rem', margin: 0, fontSize: '1rem', borderBottom: '1px solid var(--border-color)' }}>
-                    <Users size={16} style={{ marginRight: '0.5rem' }} /> Círculos
-                  </h3>
-                  <div style={{ padding: '0.5rem' }}>
-                    {circulos.map(c => (
-                      <div
-                        key={c.id}
-                        onClick={() => {
-                          setSelectedCirculoId(c.id.toString());
-                          setSearchParticipant('');
-                        }}
-                        style={{
-                          padding: '0.75rem 1rem',
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          background: selectedCirculoId === c.id.toString() ? 'var(--primary-color)' : 'transparent',
-                          color: selectedCirculoId === c.id.toString() ? 'white' : 'inherit',
-                          marginBottom: '0.25rem',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{c.nome}</span>
-                        <span style={{
-                          fontSize: '0.75rem',
-                          background: selectedCirculoId === c.id.toString() ? 'rgba(255,255,255,0.2)' : 'var(--secondary-bg)',
-                          padding: '2px 8px',
-                          borderRadius: '10px'
-                        }}>
-                          {vinculos.filter(v => v.circulo_id === c.id && !v.mediador).length}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </aside>
+            {selectedEncontroId && (
+              <button
+                onClick={() => setShowLotteryModal(true)}
+                className="btn-secondary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  height: '44px',
+                  padding: '0 1rem'
+                }}
+                title="Atribuição Aleatória aos Círculos"
+              >
+                <Dices size={20} />
+                <span className="hide-mobile">Atribuição Aleatória</span>
+              </button>
+            )}
+          </div>
+        </div>
 
-              {/* Main Content */}
-              <div className="flex flex-col gap-6">
-                {/* Form Casal (Mediadores) */}
-                <div className="card" style={{ borderLeft: '4px solid var(--primary-color)' }}>
-                  <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)' }}>
-                    <h3 style={{ margin: 0 }}>Mediadores</h3>
-                    {/* <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>Cada círculo deve ter 2 mediadores.</p> */}
-                  </div>
+        {/* ── Modal de Sorteio ── */}
+        {showLotteryModal && (
+          <div className="card fade-in" style={{
+            marginBottom: '1.5rem',
+            padding: '1.25rem',
+            border: '1px solid var(--primary-color)',
+            backgroundColor: 'var(--card-bg)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Dices className="text-primary" /> Distribuição Aleatória
+              </h3>
+              <button className="icon-btn" onClick={() => setShowLotteryModal(false)}><X size={20} /></button>
+            </div>
 
-                  {mediadoresNoCirculo.length >= 2 ? (
-                    <div style={{ padding: '1.5rem', display: 'flex', gap: '1rem' }}>
-                      {mediadoresNoCirculo.map(v => (
-                        <div key={v.id} style={{
-                          flex: 1, padding: '1rem', borderRadius: '12px', background: 'var(--secondary-bg)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid var(--primary-color)'
-                        }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <Shield size={18} color="var(--primary-color)" />
-                            <span style={{ fontWeight: 600 }}>{v.participacoes?.pessoas?.nome_completo}</span>
-                          </div>
-                          <button onClick={() => handleDesvincular(v.id)} className="icon-btn text-danger" title="Remover Mediador"><Trash2 size={16} /></button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ padding: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '1rem', alignItems: 'end' }}>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label>Pessoa 1</label>
-                        <select
-                          className="form-input"
-                          value={selectedPessoa1}
-                          onChange={e => setSelectedPessoa1(e.target.value)}
-                        >
-                          <option value="">Selecione...</option>
-                          {equipeDisponivel.filter(p => p.id !== selectedPessoa2).map(p => (
-                            <option key={p.id} value={p.id}>{p.pessoas?.nome_completo}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="form-group" style={{ marginBottom: 0 }}>
-                        <label>Pessoa 2</label>
-                        <select
-                          className="form-input"
-                          value={selectedPessoa2}
-                          onChange={e => setSelectedPessoa2(e.target.value)}
-                        >
-                          <option value="">Selecione...</option>
-                          {equipeDisponivel.filter(p => p.id !== selectedPessoa1).map(p => (
-                            <option key={p.id} value={p.id}>{p.pessoas?.nome_completo}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <button
-                        onClick={handleCreateCasal}
-                        disabled={isLoading || !selectedPessoa1 || !selectedPessoa2}
-                        className="btn-primary"
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', height: '42px' }}
-                      >
-                        {isLoading ? <Loader size={18} className="animate-spin" /> : <UserPlus size={18} />}
-                        Vincular Mediadores
-                      </button>
-                    </div>
-                  )}
-                </div>
+            <p style={{ fontSize: '0.9rem', marginBottom: '1rem', color: 'var(--muted-text)' }}>
+              Selecione quais círculos participarão da distribuição aleatória. Os participantes não vinculados serão divididos igualmente entre eles.
+            </p>
 
-                {/* Unified Participants Management */}
-                <div className="card">
-                  <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ width: '100%' }}>
-                      <h3 style={{ margin: 0 }}>Encontristas</h3>
-                      <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>Gerenciar encontristas vinculados ao círculo.</p>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+              gap: '0.75rem',
+              marginBottom: '1.5rem',
+              maxHeight: '300px',
+              overflowY: 'auto',
+              padding: '0.5rem'
+            }}>
+              {circulos.map(c => {
+                const isSelected = selectedLotteryCirculos.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      setSelectedLotteryCirculos(prev =>
+                        isSelected ? prev.filter(id => id !== c.id) : [...prev, c.id]
+                      );
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.85rem',
+                      padding: '0.85rem',
+                      borderRadius: '12px',
+                      border: '2px solid',
+                      borderColor: isSelected ? 'var(--success-border)' : 'var(--border-color)',
+                      backgroundColor: isSelected ? 'var(--success-bg)' : 'var(--card-bg)',
+                      textAlign: 'left',
+                      transition: 'all 0.2s ease',
+                      height: '100%',
+                      minHeight: '64px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', color: isSelected ? 'var(--success-border)' : 'inherit' }}>
+                      {isSelected ? <CheckSquare size={22} /> : <Square size={22} style={{ opacity: 0.5 }} />}
                     </div>
-                    <div className="search-bar" style={{ marginBottom: 0, width: '100%' }}>
-                      <Search size={16} style={{ opacity: 0.5 }} />
-                      <input
-                        className="search-input"
-                        placeholder="Buscar para adicionar..."
-                        value={searchParticipant}
-                        onChange={e => setSearchParticipant(e.target.value)}
-                        style={{ fontSize: '0.85rem', padding: '0.4rem 0.6rem' }}
+                    <span style={{
+                      fontWeight: isSelected ? 600 : 500,
+                      fontSize: '0.92rem',
+                      lineHeight: '1.2',
+                      color: isSelected ? 'var(--success-border)' : 'inherit'
+                    }}>
+                      {c.nome}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button className="btn-ghost" onClick={() => setShowLotteryModal(false)}>Cancelar</button>
+              <button
+                className="btn-primary"
+                disabled={selectedLotteryCirculos.length === 0 || isProcessingLottery}
+                onClick={handleRandomAssignment}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                {isProcessingLottery ? <Loader className="animate-spin" size={18} /> : <Dices size={18} />}
+                Realizar Distribuição
+              </button>
+            </div>
+          </div>
+        )}
+
+
+        {/* ── Loading inicial ── */}
+        {isLoadingCirculos && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', gap: '1rem', opacity: 0.6 }}>
+            <Loader size={32} className="animate-spin" style={{ color: 'var(--primary-color)' }} />
+            <span style={{ fontWeight: 500 }}>Carregando círculos...</span>
+          </div>
+        )}
+
+        {/* ── Sem encontro selecionado ── */}
+        {!isLoadingCirculos && !selectedEncontroId && (
+          <div className="empty-state">
+            <AlertCircle size={40} style={{ opacity: 0.4 }} />
+            <p>Selecione um encontro para gerenciar os círculos.</p>
+          </div>
+        )}
+
+        {/* ── Lista vazia ── */}
+        {!isLoadingCirculos && selectedEncontroId && circulos.length === 0 && (
+          <div className="empty-state">
+            <Users size={40} style={{ opacity: 0.3 }} />
+            <p>Nenhum círculo cadastrado globalmente.</p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--muted-text)' }}>Cadastre os círculos na aba "Cadastros" do módulo.</p>
+          </div>
+        )}
+
+        {/* ── Accordion list ── */}
+        {!isLoadingCirculos && selectedEncontroId && circulos.length > 0 && (
+          <div className="mc-circles-list">
+            {circulos.map(circulo => {
+              const mediadores = mediadoresPorCirculo.get(circulo.id) ?? [];
+              const participantes = participantesPorCirculo.get(circulo.id) ?? [];
+              const isOpen = openCirculoId === circulo.id;
+              const hasMediadores = mediadores.length >= 2;
+
+              return (
+                <article
+                  key={circulo.id}
+                  className={`mc-accordion-card${isOpen ? ' mc-accordion-card--open' : ''}`}
+                >
+                  {/* ── Card Header ── */}
+                  <button
+                    className="mc-accordion-card__header"
+                    onClick={() => toggleCirculo(circulo.id)}
+                    aria-expanded={isOpen}
+                    aria-controls={`mc-body-${circulo.id}`}
+                  >
+                    <div className="mc-accordion-card__header-left">
+                      <div className={`mc-circulo-icon${hasMediadores ? ' mc-circulo-icon--active' : ''}`}>
+                        <Users size={15} />
+                      </div>
+                      <span className="mc-accordion-card__name">{circulo.nome}</span>
+                    </div>
+                    <div className="mc-accordion-card__header-right">
+                      <span className="mc-badge mc-badge--mediator" title="Mediadores">
+                        <Shield size={11} />
+                        {mediadores.length}/2
+                      </span>
+                      <span className="mc-badge mc-badge--participant" title="Encontristas">
+                        <UserCircle size={11} />
+                        {participantes.length}
+                      </span>
+                      <ChevronDown
+                        size={17}
+                        className="mc-accordion-chevron"
+                        style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }}
                       />
-                      {searchParticipant && <button onClick={() => setSearchParticipant('')} style={{ background: 'none', border: 'none', opacity: 0.5, cursor: 'pointer' }}><X size={14} /></button>}
                     </div>
-                  </div>
+                  </button>
 
-                  <div style={{ padding: '1rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-                      {searchResults.map(item => (
-                        <div key={item.id} style={{
-                          padding: '0.75rem 1rem',
-                          borderRadius: '12px',
-                          border: '1px solid var(--border-color)',
-                          background: item.status === 'in_this_circle' ? 'var(--secondary-bg)' : 'transparent',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          opacity: item.status === 'in_other_circle' || item.status === 'mediator_here' ? 0.7 : 1
-                        }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
-                            <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{item.nome}</span>
-                            {item.status === 'in_other_circle' && (
-                              <span style={{ fontSize: '0.7rem', color: '#f59e0b', fontWeight: 500 }}>Em {item.circuloNome}</span>
-                            )}
-                            {item.status === 'mediator_here' && (
-                              <span style={{ fontSize: '0.7rem', color: 'var(--primary-color)', fontWeight: 500 }}>Mediador</span>
-                            )}
+                  {/* ── Card Body: renderização condicional — elimina content bleeding */}
+                  {isOpen && (
+                    <div
+                      className="mc-accordion-card__content"
+                      id={`mc-body-${circulo.id}`}
+                      role="region"
+                    >
+
+                      {/* ── MEDIADORES ── */}
+                      <section className="mc-section" aria-labelledby={`mc-med-${circulo.id}`}>
+                        <p className="mc-section-label" id={`mc-med-${circulo.id}`}>
+                          <Shield size={12} />
+                          Mediadores
+                        </p>
+
+                        {hasMediadores ? (
+                          /* 2 mediadores definidos — mostrar chips */
+                          <div className="mc-chips-row">
+                            {mediadores.map(v => (
+                              <span key={v.id} className="mc-chip mc-chip--mediator">
+                                <Shield size={12} />
+                                {v.participacoes?.pessoas?.nome_completo ?? '—'}
+                                <button
+                                  className="mc-chip__remove"
+                                  onClick={() => handleDesvincular(v.id)}
+                                  disabled={isOperating}
+                                  title="Remover mediador"
+                                  aria-label={`Remover ${v.participacoes?.pessoas?.nome_completo}`}
+                                >
+                                  <X size={11} />
+                                </button>
+                              </span>
+                            ))}
                           </div>
-
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            {item.status === 'available' && (
-                              <button
-                                onClick={() => handleVincular(item.id)}
-                                disabled={isLoading}
-                                className="icon-btn"
-                                style={{ color: 'var(--primary-color)' }}
-                                title="Adicionar ao Círculo"
-                              >
-                                <Plus size={18} />
-                              </button>
-                            )}
-
-                            {item.status === 'in_this_circle' && item.vinculoId && (
-                              <button
-                                onClick={() => handleDesvincular(item.vinculoId!)}
-                                disabled={isLoading}
-                                className="icon-btn text-danger"
-                                title="Remover do Círculo"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-
-                            {item.status === 'in_other_circle' && (
-                              <div title="Já vinculado a outro círculo">
-                                <Info size={16} opacity={0.5} />
+                        ) : (
+                          /* Seleção dos 2 mediadores */
+                          <>
+                            <div className="mc-mediator-slots">
+                              <div className="mc-mediator-slot">
+                                <label className="mc-slot-label" htmlFor={`med1-${circulo.id}`}>
+                                  Mediador 1
+                                </label>
+                                <LiveSearchSelect<InscricaoEnriched>
+                                  value={mediador1?.value ?? ''}
+                                  onChange={(val, item) => {
+                                    if (!val) { setMediador1(null); return; }
+                                    if (occupiedIds.has(val)) {
+                                      toast.error('Esta pessoa já está vinculada a um círculo.');
+                                      return;
+                                    }
+                                    if (val === mediador2?.value) {
+                                      toast.error('Já selecionado como Mediador 2.');
+                                      return;
+                                    }
+                                    setMediador1(item ? { value: val, label: item.pessoas?.nome_completo ?? val } : null);
+                                  }}
+                                  fetchData={(busca, pag) =>
+                                    equipeCirculoId
+                                      ? inscricaoService.buscarEncontreirosDaEquipePorNome(selectedEncontroId, equipeCirculoId, busca, pag, 10)
+                                      : Promise.resolve([])
+                                  }
+                                  getOptionLabel={item => item.pessoas?.nome_completo ?? '—'}
+                                  getOptionValue={item => item.id}
+                                  renderOption={item => (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                      <span>{item.pessoas?.nome_completo}</span>
+                                      {renderOccupiedBadge(item.id, mediador2?.value)}
+                                    </div>
+                                  )}
+                                  placeholder={equipeCirculoId ? 'Buscar mediador...' : 'Equipe círculo não encontrada'}
+                                  disabled={!equipeCirculoId || isSavingMediadores}
+                                />
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
 
-                      {searchResults.length === 0 && (
-                        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', opacity: 0.5 }}>
-                          <Users size={32} style={{ margin: '0 auto 1rem', display: 'block' }} />
-                          {searchParticipant ? 'Nenhum resultado para esta busca.' : 'Este círculo ainda não tem encontristas vinculados.'}
+                              <div className="mc-mediator-slot">
+                                <label className="mc-slot-label" htmlFor={`med2-${circulo.id}`}>
+                                  Mediador 2
+                                </label>
+                                <LiveSearchSelect<InscricaoEnriched>
+                                  value={mediador2?.value ?? ''}
+                                  onChange={(val, item) => {
+                                    if (!val) { setMediador2(null); return; }
+                                    if (occupiedIds.has(val)) {
+                                      toast.error('Esta pessoa já está vinculada a um círculo.');
+                                      return;
+                                    }
+                                    if (val === mediador1?.value) {
+                                      toast.error('Já selecionado como Mediador 1.');
+                                      return;
+                                    }
+                                    setMediador2(item ? { value: val, label: item.pessoas?.nome_completo ?? val } : null);
+                                  }}
+                                  fetchData={(busca, pag) =>
+                                    equipeCirculoId
+                                      ? inscricaoService.buscarEncontreirosDaEquipePorNome(selectedEncontroId, equipeCirculoId, busca, pag, 10)
+                                      : Promise.resolve([])
+                                  }
+                                  getOptionLabel={item => item.pessoas?.nome_completo ?? '—'}
+                                  getOptionValue={item => item.id}
+                                  renderOption={item => (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                      <span>{item.pessoas?.nome_completo}</span>
+                                      {renderOccupiedBadge(item.id, mediador1?.value)}
+                                    </div>
+                                  )}
+                                  placeholder={equipeCirculoId ? 'Buscar mediador...' : 'Equipe círculo não encontrada'}
+                                  disabled={!equipeCirculoId || isSavingMediadores}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="mc-mediator-actions">
+                              <button
+                                onClick={() => handleDefinirMediadores(circulo.id)}
+                                disabled={!mediador1 || !mediador2 || isSavingMediadores}
+                                className="btn-primary"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', height: '40px' }}
+                              >
+                                {isSavingMediadores
+                                  ? <><Loader size={15} className="animate-spin" /> Salvando...</>
+                                  : <><UserPlus size={15} /> Definir Mediadores</>
+                                }
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </section>
+
+                      {/* ── ENCONTRISTAS ── */}
+                      <section className="mc-section" aria-labelledby={`mc-part-${circulo.id}`}>
+                        <p className="mc-section-label" id={`mc-part-${circulo.id}`}>
+                          <UserCircle size={12} />
+                          Encontristas
+                        </p>
+
+                        {/* Search (sempre visível) */}
+                        <div className="mc-add-participant">
+                          <LiveSearchSelect<InscricaoEnriched>
+                            value=""
+                            onChange={(val) => {
+                              if (!val) return;
+                              handleAddParticipante(val, circulo.id);
+                            }}
+                            fetchData={(busca, pag) =>
+                              inscricaoService.buscarParticipantesPorNome(selectedEncontroId, busca, pag, 10)
+                            }
+                            getOptionLabel={item => item.pessoas?.nome_completo ?? '—'}
+                            getOptionValue={item => item.id}
+                            renderOption={item => {
+                              const isOccupied = occupiedIds.has(item.id);
+                              const isHere = participantes.some(p => p.participacao === item.id);
+                              return (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', opacity: (isOccupied && !isHere) ? 0.6 : 1 }}>
+                                  <span>{item.pessoas?.nome_completo}</span>
+                                  {isHere && <span style={{ fontSize: '0.7rem', color: 'var(--primary-color)', fontWeight: 700, marginLeft: '0.5rem', flexShrink: 0 }}>Neste círculo</span>}
+                                  {isOccupied && !isHere && <span style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: 700, marginLeft: '0.5rem', flexShrink: 0 }}>Outro círculo</span>}
+                                </div>
+                              );
+                            }}
+                            placeholder="Buscar e adicionar encontrista..."
+                            disabled={isOperating}
+                          />
+                        </div>
+
+                        {/* Chips dos participantes já vinculados */}
+                        {participantes.length > 0 && (
+                          <div className="mc-participants-chips">
+                            {participantes.map(v => (
+                              <span key={v.id} className="mc-chip mc-chip--participant">
+                                {v.participacoes?.pessoas?.nome_completo ?? '—'}
+                                <button
+                                  className="mc-chip__remove"
+                                  onClick={() => handleDesvincular(v.id)}
+                                  disabled={isOperating}
+                                  title="Remover do círculo"
+                                  aria-label={`Remover ${v.participacoes?.pessoas?.nome_completo}`}
+                                >
+                                  <X size={11} />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {participantes.length === 0 && (
+                          <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--muted-text)', fontStyle: 'italic' }}>
+                            Nenhum encontrista vinculado a este círculo ainda.
+                          </p>
+                        )}
+                      </section>
+
+                      {/* ── Footer — Limpar ── */}
+                      {(mediadores.length > 0 || participantes.length > 0) && (
+                        <div className="mc-card-footer">
+                          <button
+                            onClick={() => handleLimparCirculo(circulo.id)}
+                            disabled={isOperating}
+                            className="btn-danger"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem' }}
+                            title={`Remover todos os vínculos deste círculo no encontro atual`}
+                          >
+                            <Eraser size={14} />
+                            Limpar círculo neste encontro
+                          </button>
                         </div>
                       )}
+
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </>
+                  )}
+                </article>
+              );
+            })}
+          </div>
         )}
+
       </main>
     </div>
   );
