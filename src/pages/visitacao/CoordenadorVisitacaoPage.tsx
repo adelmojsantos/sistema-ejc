@@ -1052,6 +1052,8 @@ export function CoordenadorVisitacaoPage() {
                     selectedGrupoId={selectedGrupoId}
                     onVincular={handleVincular}
                     onDesvincular={handleDesvincular}
+                    onEditAddress={handleEditAddress}
+                    onRefresh={loadData}
                     onShowUnmappedClick={() => {
                       setShowOnlyUnmapped(true);
                       setVincularSubTab('lista');
