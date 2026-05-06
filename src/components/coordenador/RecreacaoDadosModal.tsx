@@ -66,6 +66,8 @@ export function RecreacaoDadosModal({
         setChildren([]);
         setShowForm(false);
       }
+    } else if (!isOpen) {
+      resetForm();
     }
   }, [isOpen, currentParticipacaoId]);
 
@@ -91,7 +93,7 @@ export function RecreacaoDadosModal({
     if (!currentParticipacaoId) return;
     setLoading(true);
     try {
-      const data = await recreacaoService.listarPorParticipacao(currentParticipacaoId);
+      const data = await recreacaoService.listarPorResponsavel(currentParticipacaoId);
       setChildren(data);
     } catch (error) {
       console.error('Erro ao carregar crianças:', error);
@@ -107,13 +109,13 @@ export function RecreacaoDadosModal({
     if (picked) setCurrentParticipant(picked);
   };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-        }
-    };
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+    }
+  };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentParticipacaoId) return;
     setSaving(true);
@@ -246,21 +248,33 @@ export function RecreacaoDadosModal({
                   alignItems: 'center'
                 }}>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{child.nome_crianca} ({child.idade} anos)</div>
-                    {child.outro_responsavel && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{child.nome_crianca} ({child.idade} anos)</div>
+                    </div>
+
+                    {child.participacao_id !== currentParticipacaoId && (
                       <div style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: '2px' }}>
-                        Resp: {child.outro_responsavel.pessoas?.nome_completo} ({child.outro_responsavel.equipes?.nome})
+                        Resp. Primário: <strong>{child.participacoes?.pessoas?.nome_completo}</strong> ({child.participacoes?.equipes?.nome})
+                      </div>
+                    )}
+
+                    {child.outro_responsavel && child.participacao_id === currentParticipacaoId && (
+                      <div style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: '2px' }}>
+                        2º Resp: {child.outro_responsavel.pessoas?.nome_completo} ({child.outro_responsavel.equipes?.nome})
                       </div>
                     )}
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button onClick={() => handleEdit(child)} className="icon-btn" title="Editar" style={{ padding: '0.4rem' }}>
-                      <Pencil size={14} />
-                    </button>
-                    <button onClick={() => handleDelete(child.id)} className="icon-btn icon-btn-danger" title="Excluir" style={{ padding: '0.4rem' }}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+
+                  {child.participacao_id === currentParticipacaoId && (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button onClick={() => handleEdit(child)} className="icon-btn" title="Editar" style={{ padding: '0.4rem' }}>
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => handleDelete(child.id)} className="icon-btn icon-btn-danger" title="Excluir" style={{ padding: '0.4rem' }}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -289,7 +303,18 @@ export function RecreacaoDadosModal({
               type="number"
               required
               min={0}
-              max={17}
+              max={7}
+              onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('A idade máxima é 7 anos e 11 meses')}
+              onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
+              onBlur={e => {
+                const val = parseInt((e.target as HTMLInputElement).value);
+                if (val > 7) {
+                  toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.', {
+                    icon: '🧒',
+                    duration: 5000
+                  });
+                }
+              }}
               value={formData.idade.toString()}
               onChange={e => setFormData({ ...formData, idade: parseInt(e.target.value) || 0 })}
             />
@@ -345,7 +370,7 @@ export function RecreacaoDadosModal({
           />
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-            <button type="button" onClick={() => setShowForm(false)} className="btn-secondary">
+            <button type="button" onClick={resetForm} className="btn-secondary">
               Voltar
             </button>
             <button type="submit" disabled={saving} className="btn-primary" style={{ minWidth: '120px' }}>

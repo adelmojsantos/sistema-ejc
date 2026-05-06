@@ -63,13 +63,29 @@ export function RecepcaoDadosModal({
         veiculo_cor: '',
         veiculo_placa: '',
       });
+    } else if (!isOpen) {
+      setRecordId(null);
+      setFormData({
+        veiculo_tipo: 'carro',
+        veiculo_modelo: '',
+        veiculo_cor: '',
+        veiculo_placa: '',
+      });
     }
   }, [isOpen, currentParticipacaoId]);
 
   const loadDados = async () => {
     setLoading(true);
     try {
+      // Carregar dados do veículo
       const dados = await recepcaoService.obterPorParticipacao(currentParticipacaoId);
+      
+      // Carregar dados do participante se não tivermos as informações básicas
+      if (!initialParticipanteNome || !initialEquipeNome) {
+        const info = await inscricaoService.obterPorId(currentParticipacaoId);
+        if (info) setCurrentParticipant(info);
+      }
+
       if (dados) {
         setRecordId(dados.id);
         setFormData({
@@ -80,7 +96,6 @@ export function RecepcaoDadosModal({
         });
       } else {
         setRecordId(null);
-        // Default values for new registrations
         setFormData({
           veiculo_tipo: 'carro',
           veiculo_modelo: '',
@@ -90,7 +105,7 @@ export function RecepcaoDadosModal({
       }
     } catch (error) {
       console.error('Erro ao carregar dados da recepção:', error);
-      toast.error('Não foi possível carregar os dados do veículo. Verifique sua conexão ou permissões.');
+      toast.error('Não foi possível carregar os dados do veículo.');
     } finally {
       setLoading(false);
     }

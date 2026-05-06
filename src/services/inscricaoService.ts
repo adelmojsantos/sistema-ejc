@@ -14,6 +14,17 @@ export const inscricaoService = {
         return data;
     },
 
+    async obterPorId(id: string): Promise<InscricaoEnriched | null> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('*, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome)')
+            .eq('id', id)
+            .single();
+
+        if (error) throw error;
+        return data as InscricaoEnriched;
+    },
+
     async listarPorEncontro(encontroId: string): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
@@ -77,7 +88,7 @@ export const inscricaoService = {
     async listarPorEquipeEEncontro(equipeId: string, encontroId: string): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('*, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome), recepcao_dados(*), recreacao_dados!recreacao_dados_participacao_id_fkey(*)')
+            .select('*, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome), recepcao_dados(*), recreacao_dados!recreacao_dados_participacao_id_fkey(*), recreacao_dados_secundario:recreacao_dados!recreacao_dados_outro_responsavel_id_fkey(*)')
             .eq('encontro_id', encontroId)
             .eq('equipe_id', equipeId);
 

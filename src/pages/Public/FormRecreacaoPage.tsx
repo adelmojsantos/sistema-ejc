@@ -5,7 +5,8 @@ import { recreacaoService } from '../../services/recreacaoService';
 import { equipeService } from '../../services/equipeService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { FormField } from '../../components/ui/FormField';
-import { Loader, Baby, CheckCircle, LogOut, Plus, Trash2, Pencil, Users } from 'lucide-react';
+import { Loader, Baby, Car, CheckCircle, LogOut, Plus, Trash2, Pencil, Users } from 'lucide-react';
+import logoEjc from '../../assets/logo-ejc.svg';
 import { toast } from 'react-hot-toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import type { RecreacaoDados, RecreacaoDadosFormData } from '../../types/recreacao';
@@ -65,7 +66,7 @@ export default function FormRecreacaoPage() {
   const loadData = async () => {
     if (session?.participacao_id) {
       try {
-        const data = await recreacaoService.listarPorParticipacao(session.participacao_id);
+        const data = await recreacaoService.listarPorResponsavel(session.participacao_id);
         setChildren(data);
       } catch (error) {
         console.error('Erro ao carregar crianças:', error);
@@ -121,7 +122,7 @@ export default function FormRecreacaoPage() {
     setShowForm(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDeleteClick = (id: string) => {
     setIdToDelete(id);
   };
 
@@ -251,16 +252,96 @@ export default function FormRecreacaoPage() {
         top: 0,
         zIndex: 10
       }}>
-        <div>
-          <h2 style={{ fontSize: '1rem', margin: 0 }}>Recreação Infantil</h2>
-          <p style={{ fontSize: '0.75rem', opacity: 0.5, margin: 0 }}>{session?.participacoes?.pessoas?.nome_completo} ({session?.participacoes?.equipes?.nome})</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <img src={logoEjc} alt="Logo" className="public-logo-img" style={{ height: '32px', width: 'auto' }} />
+          <div>
+            <h2 style={{ fontSize: '1rem', margin: 0 }}>Recreação Infantil</h2>
+            <p style={{ fontSize: '0.75rem', opacity: 0.5, margin: 0 }}>{session?.participacoes?.equipes?.nome}</p>
+          </div>
         </div>
         <button onClick={logout} className="icon-btn" title="Sair">
           <LogOut size={18} />
         </button>
       </div>
 
+      {/* Navigation Tabs - Pill Style */}
+      <div style={{
+        background: 'var(--card-bg)',
+        borderBottom: '1px solid var(--border-color)',
+        display: 'flex',
+        justifyContent: 'center',
+        padding: '0.75rem 1rem'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          backgroundColor: 'rgba(var(--primary-rgb), 0.05)', 
+          padding: '4px',
+          borderRadius: '12px',
+          gap: '4px',
+          border: '1px solid var(--border-color)',
+          width: '100%',
+          maxWidth: '500px'
+        }}>
+          <button 
+            onClick={() => navigate('/formulario/recepcao')}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.5rem',
+              borderRadius: '10px',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-color)',
+              opacity: 0.7,
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Car size={16} />
+            Recepção
+          </button>
+          <button 
+            onClick={() => navigate('/formulario/recreacao')}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.5rem',
+              borderRadius: '10px',
+              border: 'none',
+              background: 'var(--primary-color)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 4px 12px rgba(var(--primary-rgb), 0.2)'
+            }}
+          >
+            <Baby size={16} />
+            Recreação
+          </button>
+        </div>
+      </div>
+
       <div className="container" style={{ maxWidth: '600px', marginTop: '2rem' }}>
+        <div style={{ 
+          padding: '1rem', 
+          backgroundColor: 'rgba(var(--primary-rgb, 0, 0, 254), 0.04)', 
+          borderRadius: '8px', 
+          border: '1px solid var(--border-color)',
+          marginBottom: '1rem',
+          textAlign: 'center'
+        }}>
+          <p style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Olá, {session?.participacoes?.pessoas?.nome_completo}!</p>
+        </div>
         {!showForm ? (
           <>
             <div className="card">
@@ -297,12 +378,46 @@ export default function FormRecreacaoPage() {
                       alignItems: 'flex-start'
                     }}>
                       <div>
-                        <h3 style={{ fontSize: '1rem', margin: '0 0 0.25rem 0' }}>{child.nome_crianca}</h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.25rem' }}>
+                          <h3 style={{ fontSize: '1rem', margin: 0 }}>{child.nome_crianca}</h3>
+                          {child.participacao_id !== session?.participacao_id && (
+                            <span style={{ 
+                              fontSize: '0.7rem', 
+                              backgroundColor: 'rgba(var(--primary-rgb), 0.1)',
+                              color: 'var(--primary-color)',
+                              padding: '2px 8px',
+                              borderRadius: '99px',
+                              fontWeight: 600
+                            }}>
+                              Somente Leitura
+                            </span>
+                          )}
+                        </div>
                         <p style={{ fontSize: '0.875rem', opacity: 0.6, margin: 0 }}>{child.idade} anos</p>
-                        {child.outro_responsavel && (
+                        
+                        {child.participacao_id !== session?.participacao_id && (
                           <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                             <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>
-                              Outro Resp: <strong>{child.outro_responsavel.pessoas?.nome_completo}</strong>
+                              Resp. Primário: <strong>{child.participacoes?.pessoas?.nome_completo}</strong>
+                            </span>
+                            <span style={{ 
+                              fontSize: '0.7rem', 
+                              backgroundColor: 'var(--secondary-bg)',
+                              color: 'var(--muted-text)',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              fontWeight: 600,
+                              border: '1px solid var(--border-color)'
+                            }}>
+                              {child.participacoes?.equipes?.nome}
+                            </span>
+                          </div>
+                        )}
+
+                        {child.outro_responsavel && child.participacao_id === session?.participacao_id && (
+                          <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                            <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>
+                              2º Responsável: <strong>{child.outro_responsavel.pessoas?.nome_completo}</strong>
                             </span>
                             <span style={{ 
                               fontSize: '0.7rem', 
@@ -317,14 +432,27 @@ export default function FormRecreacaoPage() {
                           </div>
                         )}
                       </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => handleEdit(child)} className="icon-btn" title="Editar">
-                          <Pencil size={14} />
-                        </button>
-                        <button onClick={() => handleDelete(child.id)} className="icon-btn icon-btn-danger" title="Excluir">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+
+                      {child.participacao_id === session?.participacao_id && (
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button 
+                            onClick={() => handleEdit(child)}
+                            className="icon-btn"
+                            title="Editar"
+                            style={{ color: 'var(--primary-color)' }}
+                          >
+                            <Pencil size={18} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteClick(child.id)}
+                            className="icon-btn"
+                            title="Excluir"
+                            style={{ color: '#ef4444' }}
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                   <div style={{ marginTop: '1rem' }}>
@@ -361,7 +489,18 @@ export default function FormRecreacaoPage() {
                 type="number"
                 required
                 min={0}
-                max={17}
+                max={7}
+                onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('A idade máxima é 7 anos e 11 meses')}
+                onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
+                onBlur={e => {
+                  const val = parseInt((e.target as HTMLInputElement).value);
+                  if (val > 7) {
+                    toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.', {
+                      icon: '🧒',
+                      duration: 5000
+                    });
+                  }
+                }}
                 value={formData.idade.toString()}
                 onChange={e => setFormData({ ...formData, idade: parseInt(e.target.value) || 0 })}
               />

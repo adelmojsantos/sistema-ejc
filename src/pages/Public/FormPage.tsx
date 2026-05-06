@@ -4,7 +4,8 @@ import { useExternalAccess } from '../../hooks/useExternalAccess';
 import { recepcaoService } from '../../services/recepcaoService';
 import { FormField } from '../../components/ui/FormField';
 import { RadioGroup } from '../../components/ui/RadioGroup';
-import { Loader, Car, CheckCircle, LogOut, Trash2 } from 'lucide-react';
+import { Loader, Car, Baby, CheckCircle, LogOut, Trash2 } from 'lucide-react';
+import logoEjc from '../../assets/logo-ejc.svg';
 import { toast } from 'react-hot-toast';
 import type { RecepcaoDadosFormData } from '../../types/recepcao';
 import { cleanPlate, formatPlate } from '../../utils/plateUtils';
@@ -211,13 +212,83 @@ export default function FormPage() {
         top: 0,
         zIndex: 10
       }}>
-        <div>
-          <h2 style={{ fontSize: '1rem', margin: 0 }}>Dados da Recepção</h2>
-          <p style={{ fontSize: '0.75rem', opacity: 0.5, margin: 0 }}>{session?.participacoes?.pessoas?.nome_completo}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <img src={logoEjc} alt="Logo" className="public-logo-img" style={{ height: '32px', width: 'auto' }} />
+          <div>
+            <h2 style={{ fontSize: '1rem', margin: 0 }}>Dados da Recepção</h2>
+            <p style={{ fontSize: '0.75rem', opacity: 0.5, margin: 0 }}>{session?.participacoes?.equipes?.nome}</p>
+          </div>
         </div>
         <button onClick={logout} className="icon-btn" title="Sair">
           <LogOut size={18} />
         </button>
+      </div>
+
+      {/* Navigation Tabs - Pill Style */}
+      <div style={{
+        background: 'var(--card-bg)',
+        borderBottom: '1px solid var(--border-color)',
+        display: 'flex',
+        justifyContent: 'center',
+        padding: '0.75rem 1rem'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          backgroundColor: 'rgba(var(--primary-rgb), 0.05)', 
+          padding: '4px',
+          borderRadius: '12px',
+          gap: '4px',
+          border: '1px solid var(--border-color)',
+          width: '100%',
+          maxWidth: '500px'
+        }}>
+          <button 
+            onClick={() => navigate('/formulario/recepcao')}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.5rem',
+              borderRadius: '10px',
+              border: 'none',
+              background: 'var(--primary-color)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 4px 12px rgba(var(--primary-rgb), 0.2)'
+            }}
+          >
+            <Car size={16} />
+            Recepção
+          </button>
+          <button 
+            onClick={() => navigate('/formulario/recreacao')}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.5rem',
+              borderRadius: '10px',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-color)',
+              opacity: 0.7,
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Baby size={16} />
+            Recreação
+          </button>
+        </div>
       </div>
 
       <div className="container" style={{ maxWidth: '600px', marginTop: '2rem' }}>
@@ -233,10 +304,10 @@ export default function FormPage() {
               backgroundColor: 'rgba(var(--primary-rgb, 0, 0, 254), 0.04)', 
               borderRadius: '8px', 
               border: '1px solid var(--border-color)',
-              marginBottom: '0.5rem'
+              marginBottom: '0.5rem',
+              textAlign: 'center'
             }}>
-              <p style={{ fontSize: '0.875rem', margin: '0 0 0.5rem 0', opacity: 0.6 }}>Você está preenchendo para a equipe:</p>
-              <p style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>{session?.participacoes?.equipes?.nome}</p>
+              <p style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Olá, {session?.participacoes?.pessoas?.nome_completo}!</p>
             </div>
 
             <RadioGroup

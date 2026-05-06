@@ -5599,4 +5599,13 @@ tbody tr:hover {
     opacity: 1;
     transform: translateY(0);
   }
-}
+}
+
+/* Public Forms Logo */
+.public-logo-img {
+  transition: filter 0.3s ease;
+}
+
+.dark .public-logo-img {
+  filter: brightness(0) invert(1) !important;
+}

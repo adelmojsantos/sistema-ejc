@@ -21,8 +21,12 @@ import {
   UserX,
   Upload,
   Eye,
-  Shirt as ShirtIcon
+  Shirt as ShirtIcon,
+  Baby,
+  Car
 } from 'lucide-react';
+import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
+import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -54,6 +58,7 @@ interface EquipeMember {
   pessoas: Pessoa;
   recepcao_dados: RecepcaoDados | null;
   recreacao_dados: RecreacaoDados[];
+  recreacao_dados_secundario?: RecreacaoDados[];
 }
 
 function formatTelefone(tel: string | null | undefined) {
@@ -102,6 +107,11 @@ export function CoordenadorMinhaEquipePage() {
     tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
     qrCodeUrl: string | null;
   }>({ chave: null, tipo: null, qrCodeUrl: null });
+
+  const [recepcaoParticipacaoId, setRecepcaoParticipacaoId] = useState<string | null>(null);
+  const [recepcaoParticipanteNome, setRecepcaoParticipanteNome] = useState('');
+  const [recreacaoParticipacaoId, setRecreacaoParticipacaoId] = useState<string | null>(null);
+  const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState('');
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -160,7 +170,7 @@ export function CoordenadorMinhaEquipePage() {
         .select('valor_taxa, pix_taxa_chave, pix_taxa_tipo, pix_taxa_qrcode_url, pix_camisetas_chave, pix_camisetas_tipo, pix_camisetas_qrcode_url')
         .eq('id', userParticipacao.encontro_id)
         .single();
-        
+
       if (encData) {
         setValorTaxa(encData.valor_taxa || 0);
         setPixTaxa({
@@ -233,12 +243,12 @@ export function CoordenadorMinhaEquipePage() {
     try {
       const url = await equipeService.uploadComprovante(userParticipacao.equipe_id, userParticipacao.encontro_id, file, tipo);
       await equipeService.atualizarComprovante(userParticipacao.equipe_id, userParticipacao.encontro_id, url, user.id, tipo);
-      
+
       if (tipo === 'taxas') setComprovanteUrl(url);
       else setComprovanteCamisetasUrl(url);
 
       toast.success(`Comprovante de ${tipo} enviado com sucesso!`);
-      
+
       // Atualiza o estado da confirmação se necessário
       const conf = await equipeService.obterConfirmacao(userParticipacao.equipe_id, userParticipacao.encontro_id);
       if (conf) setTeamConfirmation(conf);
@@ -809,10 +819,10 @@ export function CoordenadorMinhaEquipePage() {
 
 
           <div style={{ margin: '0.25rem 0' }}>
-            <PixPaymentInfo 
-              chave={pixTaxa.chave} 
-              tipo={pixTaxa.tipo} 
-              qrCodeUrl={pixTaxa.qrCodeUrl} 
+            <PixPaymentInfo
+              chave={pixTaxa.chave}
+              tipo={pixTaxa.tipo}
+              qrCodeUrl={pixTaxa.qrCodeUrl}
               variant="compact"
             />
           </div>
@@ -865,10 +875,10 @@ export function CoordenadorMinhaEquipePage() {
 
 
           <div style={{ margin: '0.25rem 0' }}>
-            <PixPaymentInfo 
-              chave={pixCamisetas.chave} 
-              tipo={pixCamisetas.tipo} 
-              qrCodeUrl={pixCamisetas.qrCodeUrl} 
+            <PixPaymentInfo
+              chave={pixCamisetas.chave}
+              tipo={pixCamisetas.tipo}
+              qrCodeUrl={pixCamisetas.qrCodeUrl}
               variant="compact"
             />
           </div>
@@ -1284,6 +1294,142 @@ export function CoordenadorMinhaEquipePage() {
                     )}
                   </div>
 
+                  {/* Recepção Section */}
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: 'rgba(var(--primary-rgb), 0.02)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    minHeight: '150px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
+                        Recepção
+                      </div>
+                      <button
+                        onClick={() => {
+                          setRecepcaoParticipacaoId(m.id);
+                          setRecepcaoParticipanteNome(p.nome_completo || '');
+                        }}
+                        className="btn-text"
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          fontSize: '0.6rem',
+                          fontWeight: 600,
+                          color: 'var(--primary-color)',
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Car size={16} />
+                          {m.recepcao_dados ? (
+                            'EDITAR'
+                          ) : (
+                            'CADASTRAR'
+                          )}
+                        </div>
+                      </button>
+                    </div>
+
+                    {!m.recepcao_dados ? (
+                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
+                        Não cadastrado
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Veículo</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Cor</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Placa</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                              <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{m.recepcao_dados.veiculo_modelo}</td>
+                              <td style={{ padding: '0.4rem 0.25rem' }}>{m.recepcao_dados.veiculo_cor}</td>
+                              <td style={{ padding: '0.4rem 0.25rem' }}>{m.recepcao_dados.veiculo_placa}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Recreação Section */}
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: 'rgba(var(--primary-rgb), 0.02)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-color)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    minHeight: '150px'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
+                        Recreação
+                      </div>
+                      <button
+                        onClick={() => {
+                          setRecreacaoParticipacaoId(m.id);
+                          setRecreacaoParticipanteNome(p.nome_completo || '');
+                        }}
+                        className="btn-text"
+                        style={{
+                          padding: '0.25rem 0.5rem',
+                          fontSize: '0.6rem',
+                          fontWeight: 600,
+                          color: 'var(--primary-color)',
+                          letterSpacing: '0.05em',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Baby size={16} />
+                          {m.recreacao_dados && m.recreacao_dados.length > 0 ? (
+                            'GERENCIAR'
+                          ) : (
+                            'CADASTRAR'
+                          )}
+                        </div>
+                      </button>
+                    </div>
+
+                    {(!m.recreacao_dados || m.recreacao_dados.length === 0) && (!m.recreacao_dados_secundario || m.recreacao_dados_secundario.length === 0) ? (
+                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
+                        Não cadastrado
+                      </div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', fontSize: '0.7rem', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.6rem' }}>Criança</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.6rem' }}>Idade</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {[...(m.recreacao_dados || []), ...(m.recreacao_dados_secundario || [])].map(c => (
+                              <tr key={c.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                                <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    {c.nome_crianca}
+                                  </div>
+                                </td>
+                                <td style={{ padding: '0.4rem 0.25rem' }}>{c.idade}a</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
 
                 </div>
               </div>
@@ -1313,6 +1459,28 @@ export function CoordenadorMinhaEquipePage() {
         onCancel={() => setShowFinalizeModal(false)}
         confirmText="Finalizar Equipe"
         isLoading={isFinalizingTeam}
+      />
+
+      <RecepcaoDadosModal
+        isOpen={!!recepcaoParticipacaoId}
+        onClose={() => {
+          setRecepcaoParticipacaoId(null);
+          loadMembers();
+        }}
+        participacaoId={recepcaoParticipacaoId || ''}
+        participanteNome={recepcaoParticipanteNome}
+        equipeNome={equipeNome}
+      />
+
+      <RecreacaoDadosModal
+        isOpen={!!recreacaoParticipacaoId}
+        onClose={() => {
+          setRecreacaoParticipacaoId(null);
+          loadMembers();
+        }}
+        participacaoId={recreacaoParticipacaoId || ''}
+        participanteNome={recreacaoParticipanteNome}
+        encontroId={userParticipacao?.encontro_id || ''}
       />
     </>
   );

@@ -1,31 +1,30 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useDebounce } from '../../hooks/useDebounce';
-import { useNavigate } from 'react-router-dom';
 import {
   Baby,
-  Search,
-  Plus,
   ChevronLeft,
-  Loader,
-  X,
-  Users,
   Heart,
   Info,
+  Loader,
+  Plus,
+  Search,
+  X
 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import { useDebounce } from '../../hooks/useDebounce';
 
 import { Modal } from '../../components/ui/Modal';
 
-import { recreacaoService } from '../../services/recreacaoService';
-import { encontroService } from '../../services/encontroService';
-import { useAuth } from '../../hooks/useAuth';
-import { useLoading } from '../../contexts/LoadingContext';
-import { useEncontros } from '../../contexts/EncontroContext';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import { Gear, WhatsappLogo } from 'phosphor-react';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
+import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import { useEncontros } from '../../contexts/EncontroContext';
+import { useLoading } from '../../contexts/LoadingContext';
+import { useAuth } from '../../hooks/useAuth';
+import { encontroService } from '../../services/encontroService';
+import { recreacaoService } from '../../services/recreacaoService';
 import type { Encontro } from '../../types/encontro';
 import type { RecreacaoDados } from '../../types/recreacao';
-import { WhatsappLogo } from 'phosphor-react';
 
 export function RecreacaoAdminPage() {
   const navigate = useNavigate();
@@ -91,16 +90,19 @@ export function RecreacaoAdminPage() {
 
   const filteredRegistros = useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
-    if (!term) return registros;
-
-    return registros.filter(r => {
+    
+    const filtered = term ? registros.filter(r => {
       const kidName = r.nome_crianca?.toLowerCase() || '';
       const resp1 = r.participacoes?.pessoas?.nome_completo?.toLowerCase() || '';
       const resp2 = r.outro_responsavel?.pessoas?.nome_completo?.toLowerCase() || '';
       const equipe1 = r.participacoes?.equipes?.nome?.toLowerCase() || '';
 
       return kidName.includes(term) || resp1.includes(term) || resp2.includes(term) || equipe1.includes(term);
-    });
+    }) : registros;
+
+    return [...filtered].sort((a, b) => 
+      (a.nome_crianca || '').localeCompare(b.nome_crianca || '')
+    );
   }, [registros, debouncedSearch]);
 
   return (
@@ -196,108 +198,128 @@ export function RecreacaoAdminPage() {
           gap: '1rem'
         }}>
           {filteredRegistros.map((reg) => (
-            <div key={reg.id} className="card animate-fade-in hover-card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div key={reg.id} className="card animate-fade-in hover-card" style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
+              <div style={{
+                position: 'absolute',
+                top: '0',
+                right: '0',
+                backgroundColor: 'var(--primary-color)',
+                color: 'white',
+                padding: '0.2rem 0.75rem',
+                fontSize: '0.7rem',
+                fontWeight: 800,
+                borderBottomLeftRadius: '10px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                zIndex: 5,
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+              }}>
+                {reg.idade} {reg.idade <= 1 ? 'ANO' : 'ANOS'}
+              </div>
               <div style={{
                 padding: '1rem 1.25rem',
                 display: 'flex',
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '1.5rem'
+                flexDirection: 'column',
+                gap: '1rem'
               }} className="admin-card-content">
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', minWidth: '220px', flex: '1' }}>
+                {/* Linha 1: Nome da Criança */}
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                   <div style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '12px',
-                    backgroundColor: 'rgba(var(--primary-rgb), 0.1)',
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--primary-color)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: 'var(--primary-color)',
+                    color: 'white',
                     flexShrink: 0
                   }}>
-                    <Baby size={24} />
+                    <Baby size={18} />
                   </div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>{reg.nome_crianca}</h3>
-                    <span className="badge-age">{reg.idade} anos</span>
-                  </div>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '1.15rem',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    color: 'var(--text-color)'
+                  }}>{reg.nome_crianca}</h3>
                 </div>
 
-                <div style={{
-                  display: 'flex',
-                  gap: '2.5rem',
+                {/* Linha 2: Grid de Responsáveis, Obs e Botão */}
+                <div className="card-main-row" style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(300px, 2fr) minmax(200px, 1.2fr) 120px',
                   alignItems: 'center',
-                  flex: '3',
-                  justifyContent: 'flex-start',
-                  flexWrap: 'wrap'
+                  gap: '2rem'
                 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1', minWidth: '350px' }}>
-                    <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.4, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Heart size={14} /> Responsáveis
+                  {/* Grupo Responsáveis */}
+                  <div className="responsibles-section" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Heart size={12} fill="currentColor" /> Responsáveis
                     </div>
-                    <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                    <div className="responsibles-row" style={{
+                      display: 'flex',
+                      gap: '2rem',
+                      alignItems: 'flex-start'
+                    }}>
                       {/* Primeiro Responsável */}
-                      <div>
-                        <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{reg.participacoes?.pessoas?.nome_completo}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '2px' }}>
-                          <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{reg.participacoes?.equipes?.nome || 'Sem Equipe'}</div>
+                      <div className="resp-item" style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div className="resp-name" style={{ fontSize: '0.85rem', fontWeight: 700 }}>{reg.participacoes?.pessoas?.nome_completo}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>({reg.participacoes?.equipes?.nome || 'Sem Equipe'})</div>
                           {reg.participacoes?.pessoas?.telefone && (
-                            <>
-                              <span style={{ opacity: 0.2 }}>•</span>
-                              <a
-                                href={`https://wa.me/55${reg.participacoes.pessoas.telefone.replace(/\D/g, '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  fontSize: '0.75rem',
-                                  color: '#10b981',
-                                  fontWeight: 600,
-                                  textDecoration: 'none'
-                                }}
-                                className="hover:underline"
-                              >
-                                <WhatsappLogo size={10} />
-                                {reg.participacoes.pessoas.telefone}
-                              </a>
-                            </>
+                            <a
+                              href={`https://wa.me/55${reg.participacoes.pessoas.telefone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                fontSize: '0.75rem',
+                                color: '#10b981',
+                                fontWeight: 700,
+                                textDecoration: 'none'
+                              }}
+                            >
+                              <WhatsappLogo size={12} weight="fill" />
+                              {reg.participacoes.pessoas.telefone}
+                            </a>
                           )}
                         </div>
                       </div>
 
                       {/* Segundo Responsável */}
                       {reg.outro_responsavel && (
-                        <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '1.5rem' }}>
-                          <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{reg.outro_responsavel.pessoas?.nome_completo}</div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '2px' }}>
-                            <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{reg.outro_responsavel.equipes?.nome}</div>
+                        <div className="resp-item second-resp" style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '2px',
+                          borderLeft: '1px solid var(--border-color)',
+                          paddingLeft: '1.5rem'
+                        }}>
+                          <div className="resp-name" style={{ fontSize: '0.85rem', fontWeight: 700 }}>{reg.outro_responsavel.pessoas?.nome_completo}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>({reg.outro_responsavel.equipes?.nome})</div>
                             {reg.outro_responsavel.pessoas?.telefone && (
-                              <>
-                                <span style={{ opacity: 0.2 }}>•</span>
-                                <a
-                                  href={`https://wa.me/55${reg.outro_responsavel.pessoas.telefone.replace(/\D/g, '')}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    fontSize: '0.75rem',
-                                    color: '#10b981',
-                                    fontWeight: 600,
-                                    textDecoration: 'none'
-                                  }}
-                                  className="hover:underline"
-                                >
-                                  <WhatsappLogo size={10} />
-                                  {reg.outro_responsavel.pessoas.telefone}
-                                </a>
-                              </>
+                              <a
+                                href={`https://wa.me/55${reg.outro_responsavel.pessoas.telefone.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '3px',
+                                  fontSize: '0.75rem',
+                                  color: '#10b981',
+                                  fontWeight: 700,
+                                  textDecoration: 'none'
+                                }}
+                              >
+                                <WhatsappLogo size={12} weight="fill" />
+                                {reg.outro_responsavel.pessoas.telefone}
+                              </a>
                             )}
                           </div>
                         </div>
@@ -305,36 +327,59 @@ export function RecreacaoAdminPage() {
                     </div>
                   </div>
 
-                  {reg.observacoes && (
-                    <div
-                      onClick={() => setObsToShow(reg.observacoes || null)}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '2px',
-                        maxWidth: '250px',
-                        cursor: 'pointer',
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                        background: 'rgba(var(--primary-rgb), 0.05)',
-                        transition: 'all 0.2s'
-                      }}
-                      className="obs-hover"
-                    >
-                      <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.4, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Info size={10} /> Observações
+                  {/* Grupo Observações */}
+                  <div className="obs-container">
+                    {reg.observacoes && (
+                      <div
+                        className="obs-section"
+                        onClick={() => setObsToShow(reg.observacoes || null)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <div style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Info size={12} fill="currentColor" /> Observações
+                        </div>
+                        <div style={{
+                          fontSize: '0.75rem',
+                          opacity: 0.7,
+                          backgroundColor: 'rgba(var(--primary-rgb), 0.05)',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: '1px dashed rgba(var(--primary-rgb), 0.2)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}>
+                          {reg.observacoes}
+                        </div>
                       </div>
-                      <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.7, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {reg.observacoes}
-                      </p>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem', marginLeft: 'auto' }} className="admin-card-actions">
-                  <button onClick={() => handleEdit(reg)} className="btn-primary flex items-center gap-2" title="Gerenciar" style={{ padding: '0.6rem' }}>
-                    <Users size={18} /> Gerenciar
-                  </button>
+                  <div className="admin-card-actions" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={() => handleEdit(reg)}
+                      className="btn-success flex items-center justify-center gap-2"
+                      style={{
+                        padding: '0.5rem 1rem',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        width: '100%',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'opacity 0.2s'
+                      }}
+                    >
+                      <Gear size={16} /> Gerenciar
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -407,16 +452,43 @@ export function RecreacaoAdminPage() {
         }
         @media (max-width: 768px) {
           .admin-card-content {
+            gap: 0.75rem !important;
+          }
+          .card-main-row {
+            display: flex !important;
             flex-direction: column !important;
-            align-items: flex-start !important;
-            gap: 1rem !important;
+            align-items: stretch !important;
+            gap: 0.75rem !important;
+          }
+          .card-info-group {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 0.75rem !important;
+          }
+          .responsibles-row {
+            overflow-x: auto;
+            padding-bottom: 4px;
+            gap: 1.5rem !important;
+          }
+          .responsibles-row::-webkit-scrollbar {
+            display: none;
+          }
+          .responsibles-row > div.second-resp {
+            border-left: 1px solid var(--border-color) !important;
+            padding-left: 1.5rem !important;
+          }
+          .responsibles-row > div {
+            min-width: fit-content;
           }
           .admin-card-actions {
-            margin-left: 0 !important;
             width: 100%;
-            justify-content: flex-end;
-            border-top: 1px solid var(--border-color);
-            padding-top: 0.75rem;
+            margin-top: 0.25rem;
+          }
+          .admin-card-actions button {
+            width: 100%;
+          }
+          .obs-section {
+            max-width: 100% !important;
           }
         }
       `}</style>

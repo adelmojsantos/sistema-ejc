@@ -26,6 +26,7 @@ export interface InscricaoEnriched extends Inscricao {
   };
   recepcao_dados?: RecepcaoDados | null;
   recreacao_dados?: RecreacaoDados[];
+  recreacao_dados_secundario?: RecreacaoDados[];
 }
 
 export type InscricaoFormData = Omit<Inscricao, 'id' | 'data_inscricao'>;

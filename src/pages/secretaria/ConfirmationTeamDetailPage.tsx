@@ -628,7 +628,7 @@ export function ConfirmationTeamDetailPage() {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <Baby size={16} />
-                          {p.recreacao_dados && p.recreacao_dados.length > 0 ? (
+                          {(p.recreacao_dados && p.recreacao_dados.length > 0) || (p.recreacao_dados_secundario && p.recreacao_dados_secundario.length > 0) ? (
                             'GERENCIAR'
                           ) : (
                             'CADASTRAR'
@@ -637,7 +637,7 @@ export function ConfirmationTeamDetailPage() {
                       </button>
                     </div>
 
-                    {!p.recreacao_dados || p.recreacao_dados.length === 0 ? (
+                    {(!p.recreacao_dados || p.recreacao_dados.length === 0) && (!p.recreacao_dados_secundario || p.recreacao_dados_secundario.length === 0) ? (
                       <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
                         Não cadastrado
                       </div>
@@ -651,9 +651,13 @@ export function ConfirmationTeamDetailPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {p.recreacao_dados.map((c: RecreacaoDados) => (
+                            {[...(p.recreacao_dados || []), ...(p.recreacao_dados_secundario || [])].map((c: RecreacaoDados) => (
                               <tr key={c.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                                <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{c.nome_crianca}</td>
+                                <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    {c.nome_crianca}
+                                  </div>
+                                </td>
                                 <td style={{ padding: '0.4rem 0.25rem' }}>{c.idade}a</td>
                               </tr>
                             ))}

@@ -1,13 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useExternalAccess } from '../../hooks/useExternalAccess';
-import { equipeService } from '../../services/equipeService';
-import { encontroService } from '../../services/encontroService';
+import { Loader } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import logoEjc from '../../assets/logo-ejc.svg';
 import { FormField } from '../../components/ui/FormField';
-import { RadioGroup } from '../../components/ui/RadioGroup';
-import { Loader, UserCheck } from 'lucide-react';
-import type { Equipe } from '../../types/equipe';
+import { useExternalAccess } from '../../hooks/useExternalAccess';
+import { encontroService } from '../../services/encontroService';
+import { equipeService } from '../../services/equipeService';
 import type { Encontro } from '../../types/encontro';
+import type { Equipe } from '../../types/equipe';
 
 export default function FormAccess() {
   const [searchParams] = useSearchParams();
@@ -24,14 +24,13 @@ export default function FormAccess() {
     equipe_id: '',
     nome: '',
     telefone_fim: '',
-    form_type: 'recepcao'
   });
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate(`/formulario/${formData.form_type}`);
+      navigate(`/formulario/recepcao`);
     }
-  }, [isAuthenticated, navigate, formData.form_type]);
+  }, [isAuthenticated, navigate]);
 
   useEffect(() => {
     async function loadData() {
@@ -98,13 +97,8 @@ export default function FormAccess() {
     }}>
       <div className="card" style={{ maxWidth: '500px', width: '100%', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{
-            width: '64px', height: '64px', borderRadius: '50%',
-            backgroundColor: 'rgba(var(--primary-rgb, 0, 0, 254), 0.1)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--primary-color)', margin: '0 auto 1rem auto'
-          }}>
-            <UserCheck size={32} />
+          <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+            <img src={logoEjc} alt="Logo" className="public-logo-img" style={{ height: '80px', width: 'auto', marginBottom: '1rem' }} />
           </div>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Identificação</h1>
           <p style={{ opacity: 0.6, fontSize: '0.875rem' }}>
@@ -114,23 +108,6 @@ export default function FormAccess() {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <div style={{
-            backgroundColor: 'rgba(var(--primary-rgb), 0.05)',
-            padding: '1rem',
-            borderRadius: '8px',
-            border: '1px solid var(--border-color)',
-            marginBottom: '0.5rem'
-          }}>
-            <RadioGroup
-              label="O que deseja preencher?"
-              options={[
-                { label: 'Recepção (Veículo)', value: 'recepcao' },
-                { label: 'Recreação (Filhos)', value: 'recreacao' },
-              ]}
-              value={formData.form_type}
-              onChange={val => setFormData({ ...formData, form_type: val as string })}
-            />
-          </div>
 
           <div className="form-group">
             <label className="form-label">Equipe</label>
