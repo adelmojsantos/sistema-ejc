@@ -5609,3 +5609,4 @@ tbody tr:hover {
 .dark .public-logo-img {
   filter: brightness(0) invert(1) !important;
 }
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

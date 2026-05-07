@@ -21,7 +21,14 @@ import {
   Car,
   Baby,
   Trash2,
+  Download,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { exportConfigService } from '../../services/exportConfigService';
 import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
 import { recepcaoService } from '../../services/recepcaoService';
@@ -76,6 +83,8 @@ export function ConfirmationTeamDetailPage() {
   const [recepcaoParticipanteNome, setRecepcaoParticipanteNome] = useState<string>('');
   const [recreacaoParticipacaoId, setRecreacaoParticipacaoId] = useState<string | null>(null);
   const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState<string>('');
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Resolve encontroId caso acesso direto pela URL (sem route state), usando o contexto
   const { encontroAtivo } = useEncontros();
@@ -247,6 +256,113 @@ export function ConfirmationTeamDetailPage() {
     }
   };
 
+  // ─── Exportação ──────────────────────────────────────────────────
+  const getExportData = () => {
+    return filteredParts.map((p, index) => {
+      return {
+        '#': index + 1,
+        'Nome Completo': p.pessoas.nome_completo,
+        'Função': p.coordenador ? 'Coordenador' : 'Integrante',
+        'Nascimento': p.pessoas.data_nascimento ? new Date(p.pessoas.data_nascimento).toLocaleDateString('pt-BR') : '—',
+        'Email': p.pessoas.email || '—',
+        'Telefone': formatTelefone(p.pessoas.telefone),
+        'Endereço': p.pessoas.endereco || '—',
+        'Número': p.pessoas.numero || '—',
+        'Bairro': p.pessoas.bairro || '—',
+        'Cidade': p.pessoas.cidade || '—',
+        'CEP': p.pessoas.cep || '—'
+      };
+    });
+  };
+
+  const handleExportPDF = async () => {
+    if (!encontroId) return;
+    setIsExporting(true);
+    try {
+      const config = await exportConfigService.obter(encontroId);
+      const data = getExportData();
+      const doc = new jsPDF('l', 'mm', 'a4');
+
+      if (config?.imagem_esq_base64) doc.addImage(config.imagem_esq_base64, 'PNG', 10, 5, 20, 20);
+      if (config?.imagem_dir_base64) doc.addImage(config.imagem_dir_base64, 'PNG', 265, 5, 20, 20);
+
+      doc.setFontSize(16);
+      doc.setTextColor(40);
+      doc.text(config?.titulo || 'Sistema EJC', 148, 12, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text(config?.subtitulo || 'Relatório de Equipe', 148, 18, { align: 'center' });
+      
+      doc.setFontSize(12);
+      doc.text(`Equipe: ${equipeNome}`, 14, 30);
+      doc.setFontSize(10);
+      doc.text(`Encontro: ${encontroAtivo?.nome || '—'}`, 14, 36);
+
+      autoTable(doc, {
+        head: [['#', 'Nome Completo', 'Função', 'Nasc.', 'Email', 'Telefone', 'Endereço', 'Nº', 'Bairro', 'Cidade', 'CEP']],
+        body: data.map(d => [
+          d['#'], 
+          d['Nome Completo'], 
+          d['Função'],
+          d['Nascimento'], 
+          d['Email'],
+          d['Telefone'], 
+          d['Endereço'], 
+          d['Número'],
+          d['Bairro'], 
+          d['Cidade'],
+          d['CEP']
+        ]),
+        startY: 42,
+        styles: { fontSize: 6.5, cellPadding: 1.2 },
+        columnStyles: {
+          1: { cellWidth: 40 }, // Nome
+          2: { cellWidth: 18 }, // Função
+          4: { cellWidth: 32 }, // Email
+          6: { cellWidth: 42 }, // Endereço
+          7: { cellWidth: 10 }, // Número
+          8: { cellWidth: 28 }, // Bairro
+          9: { cellWidth: 28 }, // Cidade
+          10: { cellWidth: 20 }, // CEP
+        }
+      });
+
+      doc.save(`equipe_${equipeNome.toLowerCase().replace(/\s+/g, '_')}.pdf`);
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro PDF:', error);
+      toast.error('Erro ao gerar PDF.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const data = getExportData();
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Integrantes');
+      
+      // Auto-ajuste de colunas
+      const maxWidths = Object.keys(data[0] || {}).map(key => {
+        return Math.max(
+          key.length,
+          ...data.map((row: any) => String(row[key]).length)
+        );
+      });
+      worksheet['!cols'] = maxWidths.map(w => ({ wch: w + 2 }));
+
+      XLSX.writeFile(workbook, `equipe_${equipeNome.toLowerCase().replace(/\s+/g, '_')}.xlsx`);
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro Excel:', error);
+      toast.error('Erro ao gerar planilha.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // ─── Tela de edição ─────────────────────────────────────────────
   if (editingPessoa) {
     return (
@@ -298,7 +414,139 @@ export function ConfirmationTeamDetailPage() {
         </div>
 
         {!isLoading && !isTeamConfirmed && (
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            {/* Menu de Exportação Moderno */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="btn-primary"
+                style={{ 
+                  fontSize: '0.875rem', 
+                  padding: '0.6rem 1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  border: 'none',
+                  boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
+                  transition: 'all 0.2s ease',
+                  fontWeight: 600
+                }}
+                disabled={filteredParts.length === 0 || isExporting}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                {isExporting ? <Loader size={18} className="animate-spin" /> : <Download size={18} />}
+                <span>Exportar</span>
+              </button>
+
+              {showExportMenu && (
+                <>
+                  <div 
+                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} 
+                    onClick={() => setShowExportMenu(false)} 
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    right: 0,
+                    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '16px',
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                    padding: '0.75rem',
+                    minWidth: '260px',
+                    zIndex: 101,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    animation: 'slideUp 0.2s ease-out'
+                  }}>
+                    <div style={{ 
+                      fontSize: '0.65rem', 
+                      fontWeight: 800, 
+                      color: 'rgba(255,255,255,0.4)', 
+                      padding: '0.5rem 0.75rem', 
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Exportar Como
+                    </div>
+
+                    <button
+                      onClick={handleExportPDF}
+                      disabled={isExporting}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '0.75rem',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                        width: '100%'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <div style={{ 
+                        width: '40px', height: '40px', borderRadius: '10px', 
+                        backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <FileText size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>PDF</div>
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Documento formatado</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={handleExportExcel}
+                      disabled={isExporting}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '0.75rem',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                        width: '100%'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <div style={{ 
+                        width: '40px', height: '40px', borderRadius: '10px', 
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <FileSpreadsheet size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Excel</div>
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Planilha editável</div>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
             <button
               onClick={() => {
                 if (!allConfirmed) {
@@ -324,12 +572,146 @@ export function ConfirmationTeamDetailPage() {
         )}
 
         {!isLoading && isTeamConfirmed && (
-          <span style={{
-            padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700,
-            backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)'
-          }}>
-            ✓ EQUIPE FINALIZADA
-          </span>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            {/* Menu de Exportação Moderno */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="btn-primary"
+                style={{ 
+                  fontSize: '0.875rem', 
+                  padding: '0.6rem 1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                  border: 'none',
+                  boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
+                  transition: 'all 0.2s ease',
+                  fontWeight: 600
+                }}
+                disabled={filteredParts.length === 0 || isExporting}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                {isExporting ? <Loader size={18} className="animate-spin" /> : <Download size={18} />}
+                <span>Exportar</span>
+              </button>
+
+              {showExportMenu && (
+                <>
+                  <div 
+                    style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} 
+                    onClick={() => setShowExportMenu(false)} 
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    right: 0,
+                    backgroundColor: 'rgba(30, 41, 59, 0.95)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '16px',
+                    boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                    padding: '0.75rem',
+                    minWidth: '260px',
+                    zIndex: 101,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    animation: 'slideUp 0.2s ease-out'
+                  }}>
+                    <div style={{ 
+                      fontSize: '0.65rem', 
+                      fontWeight: 800, 
+                      color: 'rgba(255,255,255,0.4)', 
+                      padding: '0.5rem 0.75rem', 
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      Exportar Como
+                    </div>
+
+                    <button
+                      onClick={handleExportPDF}
+                      disabled={isExporting}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '0.75rem',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                        width: '100%'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <div style={{ 
+                        width: '40px', height: '40px', borderRadius: '10px', 
+                        backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <FileText size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>PDF</div>
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Documento formatado</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={handleExportExcel}
+                      disabled={isExporting}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '0.75rem',
+                        borderRadius: '12px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                        width: '100%'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <div style={{ 
+                        width: '40px', height: '40px', borderRadius: '10px', 
+                        backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0
+                      }}>
+                        <FileSpreadsheet size={20} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Excel</div>
+                        <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Planilha editável</div>
+                      </div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <span style={{
+              padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700,
+              backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)'
+            }}>
+              ✓ EQUIPE FINALIZADA
+            </span>
+          </div>
         )}
       </div>
 

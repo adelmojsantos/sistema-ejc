@@ -187,11 +187,26 @@ export default function FormPage() {
             Seus dados de recepção foram registrados com sucesso. Obrigado pela colaboração!
           </p>
           <button 
-            onClick={() => { logout(); navigate('/'); }} 
-            className="btn-secondary"
-            style={{ width: '100%' }}
+            onClick={() => setIsSuccess(false)} 
+            className="btn-primary"
+            style={{ width: '100%', marginBottom: '0.75rem' }}
           >
-            Sair
+            Voltar para Início
+          </button>
+          <button 
+            onClick={() => navigate('/formulario/recreacao')} 
+            className="btn-secondary"
+            style={{ width: '100%', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+          >
+            <Baby size={18} />
+            Preencher Recreação
+          </button>
+          <button 
+            onClick={() => { logout(); navigate('/'); }} 
+            className="btn-text"
+            style={{ width: '100%', opacity: 0.6 }}
+          >
+            Sair e Finalizar
           </button>
         </div>
       </div>

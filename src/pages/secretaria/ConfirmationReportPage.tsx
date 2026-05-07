@@ -18,8 +18,15 @@ import {
   Eye,
   X,
   Loader,
-  RefreshCw
+  RefreshCw,
+  Download,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+import { exportConfigService } from '../../services/exportConfigService';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 
@@ -51,6 +58,8 @@ export function ConfirmationReportPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Seleciona o encontro ativo automaticamente via contexto
   useEffect(() => {
@@ -129,6 +138,89 @@ export function ConfirmationReportPage() {
     }
   };
 
+  // ─── Exportação ──────────────────────────────────────────────────
+  const getExportData = () => {
+    return displayedTeams.map((s, index) => ({
+      '#': index + 1,
+      'Equipe': s.equipe_nome,
+      'Coordenadores': s.coordenadores.map(c => c.nome).join(', ') || '—',
+      'Confirmados': `${s.membros_confirmados}/${s.total_membros}`,
+      'Progresso': `${Math.round(s.progresso)}%`,
+      'Status': s.confirmado ? 'FINALIZADA' : (s.progresso > 0 ? 'EM ANDAMENTO' : 'PENDENTE'),
+      'Confirmado Em': s.confirmado ? formatDate(s.confirmado_em) : '—',
+      'Confirmado Por': s.confirmado_por_nome || '—'
+    }));
+  };
+
+  const handleExportPDF = async () => {
+    if (!selectedEncontroId) return;
+    setIsExporting(true);
+    try {
+      const config = await exportConfigService.obter(selectedEncontroId);
+      const data = getExportData();
+      const doc = new jsPDF('l', 'mm', 'a4');
+
+      if (config?.imagem_esq_base64) doc.addImage(config.imagem_esq_base64, 'PNG', 10, 5, 20, 20);
+      if (config?.imagem_dir_base64) doc.addImage(config.imagem_dir_base64, 'PNG', 265, 5, 20, 20);
+
+      doc.setFontSize(16);
+      doc.text(config?.titulo || 'Sistema EJC', 148, 12, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text(config?.subtitulo || 'Resumo de Confirmação por Equipe', 148, 18, { align: 'center' });
+      
+      const encontro = encontros.find(e => e.id === selectedEncontroId);
+      doc.setFontSize(12);
+      doc.text(`Encontro: ${encontro?.nome || '—'}`, 14, 30);
+
+      autoTable(doc, {
+        head: [['#', 'Equipe', 'Coordenadores', 'Membros', 'Progresso', 'Status', 'Finalizado em']],
+        body: data.map(d => [
+          d['#'], d['Equipe'], d['Coordenadores'], d['Confirmados'], d['Progresso'], d['Status'], d['Confirmado Em']
+        ]),
+        startY: 38,
+        styles: { fontSize: 8 },
+        columnStyles: {
+          2: { cellWidth: 70 }, // Coordenadores
+        }
+      });
+
+      doc.save(`resumo_equipes_${encontro?.nome.toLowerCase().replace(/\s+/g, '_') || 'ejc'}.pdf`);
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro PDF:', error);
+      toast.error('Erro ao gerar PDF.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const data = getExportData();
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Resumo Equipes');
+      
+      const maxWidths = Object.keys(data[0] || {}).map(key => {
+        return Math.max(
+          key.length,
+          ...data.map((row: any) => String(row[key]).length)
+        );
+      });
+      worksheet['!cols'] = maxWidths.map(w => ({ wch: w + 2 }));
+
+      const encontro = encontros.find(e => e.id === selectedEncontroId);
+      XLSX.writeFile(workbook, `resumo_equipes_${encontro?.nome.toLowerCase().replace(/\s+/g, '_') || 'ejc'}.xlsx`);
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro Excel:', error);
+      toast.error('Erro ao gerar planilha.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <>
       <div className="fade-in">
@@ -139,8 +231,139 @@ export function ConfirmationReportPage() {
             </button>
             <div>
               <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Secretaria</p>
-              <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Confirmação de Dados por Equipe</h1>
+              <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Dados Equipes</h1>
             </div>
+          </div>
+
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="btn-primary"
+              style={{ 
+                fontSize: '0.875rem', 
+                padding: '0.6rem 1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                border: 'none',
+                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
+                transition: 'all 0.2s ease',
+                fontWeight: 600
+              }}
+              disabled={displayedTeams.length === 0 || isExporting}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              {isExporting ? <Loader size={18} className="animate-spin" /> : <Download size={18} />}
+              <span>Exportar Resumo</span>
+            </button>
+
+            {showExportMenu && (
+              <>
+                <div 
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} 
+                  onClick={() => setShowExportMenu(false)} 
+                />
+                <div style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  backgroundColor: 'rgba(30, 41, 59, 0.95)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '16px',
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                  padding: '0.75rem',
+                  minWidth: '260px',
+                  zIndex: 101,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  animation: 'slideUp 0.2s ease-out'
+                }}>
+                  <div style={{ 
+                    fontSize: '0.65rem', 
+                    fontWeight: 800, 
+                    color: 'rgba(255,255,255,0.4)', 
+                    padding: '0.5rem 0.75rem', 
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em'
+                  }}>
+                    Exportar Como
+                  </div>
+
+                  <button
+                    onClick={handleExportPDF}
+                    disabled={isExporting}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '0.75rem',
+                      borderRadius: '12px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.2s',
+                      width: '100%'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <div style={{ 
+                      width: '40px', height: '40px', borderRadius: '10px', 
+                      backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <FileText size={20} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>PDF</div>
+                      <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Documento formatado</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={handleExportExcel}
+                    disabled={isExporting}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '0.75rem',
+                      borderRadius: '12px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.2s',
+                      width: '100%'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <div style={{ 
+                      width: '40px', height: '40px', borderRadius: '10px', 
+                      backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <FileSpreadsheet size={20} />
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>Excel</div>
+                      <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Planilha editável</div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

@@ -227,11 +227,26 @@ export default function FormRecreacaoPage() {
             Os dados de recreação foram registrados com sucesso.
           </p>
           <button 
-            onClick={() => { logout(); navigate('/'); }} 
-            className="btn-secondary"
-            style={{ width: '100%' }}
+            onClick={() => setIsSuccess(false)} 
+            className="btn-primary"
+            style={{ width: '100%', marginBottom: '0.75rem' }}
           >
-            Sair
+            Gerenciar Crianças
+          </button>
+          <button 
+            onClick={() => navigate('/formulario/recepcao')} 
+            className="btn-secondary"
+            style={{ width: '100%', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+          >
+            <Car size={18} />
+            Preencher Recepção
+          </button>
+          <button 
+            onClick={() => { logout(); navigate('/'); }} 
+            className="btn-text"
+            style={{ width: '100%', opacity: 0.6 }}
+          >
+            Sair e Finalizar
           </button>
         </div>
       </div>
