@@ -227,7 +227,7 @@ export function ConfiguracaoCamisetasPage() {
                     >
                       <td style={{ padding: '1rem', fontWeight: 600 }}>{m.nome}</td>
                       <td style={{ padding: '1rem', fontWeight: 500 }}>
-                        {m.valor ? m.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'R$ 0,00'}
+                        {m.valor && m.valor > 0 ? m.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a confirmar'}
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>

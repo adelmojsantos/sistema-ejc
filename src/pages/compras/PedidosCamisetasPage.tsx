@@ -380,9 +380,9 @@ export function PedidosCamisetasPage() {
                       ))}
                   </div>
                   <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px dashed var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Valor Unit.: {m.valor_unitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                    <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Valor Unit.: {m.valor_unitario > 0 ? m.valor_unitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a confirmar'}</span>
                     <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary-color)' }}>
-                      Total: {m.valor_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      Total: {m.valor_total > 0 ? m.valor_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a confirmar'}
                     </span>
                   </div>
                 </div>
@@ -424,7 +424,10 @@ export function PedidosCamisetasPage() {
             <h3 style={{ fontSize: '0.75rem', margin: '0 0 0.15rem 0', fontWeight: 700, textTransform: 'uppercase' }}>TODAS</h3>
             <p style={{ fontSize: '0.65rem', margin: '0 0 0.25rem 0', opacity: 0.6 }}>{relatorioEquipes.reduce((acc, curr) => acc + curr.total_pedidos, 0)} {relatorioEquipes.reduce((acc, curr) => acc + curr.total_pedidos, 0) === 1 ? 'pessoa' : 'pessoas'}</p>
             <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary-color)' }}>
-              {relatorioEquipes.reduce((acc, curr) => acc + curr.total_valor, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              {(() => {
+                const total = relatorioEquipes.reduce((acc, curr) => acc + curr.total_valor, 0);
+                return total > 0 ? total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a confirmar';
+              })()}
             </span>
           </div>
 
@@ -479,7 +482,7 @@ export function PedidosCamisetasPage() {
               <h3 style={{ fontSize: '0.8rem', margin: '0 0 0.25rem 0', lineHeight: '1.2' }}>{r.equipe_nome}</h3>
               <p style={{ fontSize: '0.65rem', margin: '0 0 0.25rem 0', opacity: 0.6 }}>{r.total_pedidos} {r.total_pedidos === 1 ? 'pessoa' : 'pessoas'}</p>
               <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-color)' }}>
-                {r.total_valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                {r.total_valor > 0 ? r.total_valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a confirmar'}
               </span>
             </div>
           ))}
@@ -560,7 +563,7 @@ export function PedidosCamisetasPage() {
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', fontWeight: 700 }}>Total do Pedido</div>
                       <div style={{ fontSize: '1.2rem', fontWeight: 900, color: 'var(--primary-color)' }}>
-                        {group.total_valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        {group.total_valor > 0 ? group.total_valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a confirmar'}
                       </div>
                     </div>
                   </div>
@@ -646,7 +649,7 @@ export function PedidosCamisetasPage() {
                         }}>
                           <span style={{ fontSize: '0.7rem', opacity: 0.6, fontWeight: 700 }}>Subtotal {model.model_nome}</span>
                           <span style={{ fontSize: '0.9rem', fontWeight: 800 }}>
-                            {model.total_valor_modelo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            {model.total_valor_modelo > 0 ? model.total_valor_modelo.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a confirmar'}
                           </span>
                         </div>
                       </div>

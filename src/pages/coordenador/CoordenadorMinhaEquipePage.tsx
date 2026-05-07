@@ -23,10 +23,13 @@ import {
   Eye,
   Shirt as ShirtIcon,
   Baby,
-  Car
+  Car,
+  MinusCircle,
+  PlusCircle
 } from 'lucide-react';
 import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
+import { BulkShirtOrderModal } from '../../components/coordenador/BulkShirtOrderModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -47,6 +50,7 @@ import type { RecepcaoDados } from '../../types/recepcao';
 import type { RecreacaoDados } from '../../types/recreacao';
 import { formatBRL } from '../../utils/currencyUtils';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
+import { Minus, Plus } from 'phosphor-react';
 
 interface EquipeMember {
   id: string;
@@ -95,6 +99,7 @@ export function CoordenadorMinhaEquipePage() {
   const [isFinalizingTeam, setIsFinalizingTeam] = useState(false);
   const [isUploadingProof, setIsUploadingProof] = useState<string | null>(null); // 'taxas' | 'camisetas' | null
   const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
+  const [showBulkShirtModal, setShowBulkShirtModal] = useState(false);
   const [comprovanteCamisetasUrl, setComprovanteCamisetasUrl] = useState<string | null>(null);
   const [pixTaxa, setPixTaxa] = useState<{
     chave: string | null;
@@ -363,6 +368,10 @@ export function CoordenadorMinhaEquipePage() {
       toast.error('Selecione um modelo de camiseta.');
       return;
     }
+    if (!newShirtData.quantidade || newShirtData.quantidade < 1) {
+      toast.error('A quantidade deve ser pelo menos 1.');
+      return;
+    }
     setIsSaving(true);
     try {
       await camisetaService.criarPedido({
@@ -614,6 +623,22 @@ export function CoordenadorMinhaEquipePage() {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
+          {userParticipacao?.coordenador && (
+            <button
+              onClick={() => setShowBulkShirtModal(true)}
+              className="btn-primary flex items-center gap-2"
+              style={{
+                fontSize: '0.85rem',
+                padding: '0.5rem 1rem',
+                backgroundColor: 'var(--primary-color)',
+                borderColor: 'var(--primary-color)',
+              }}
+            >
+              <ShirtIcon size={16} />
+              <span>Pedir camiseta</span>
+            </button>
+          )}
+
           {userParticipacao?.coordenador && !userParticipacao.dados_confirmados && (
             <button
               onClick={handleConfirmData}
@@ -811,9 +836,15 @@ export function CoordenadorMinhaEquipePage() {
             </div>
             <div style={{ flex: 1 }}>
               <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Taxas da Equipe</h3>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', opacity: 0.7 }}>
-                {comprovanteUrl ? 'Documento enviado!' : 'Envie o comprovante das taxas.'}
-              </p>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.2rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                  {members.length} {members.length === 1 ? 'pessoa' : 'pessoas'}
+                </span>
+                <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                  {formatBRL(members.length * valorTaxa)}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -867,9 +898,25 @@ export function CoordenadorMinhaEquipePage() {
             </div>
             <div style={{ flex: 1 }}>
               <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Camisetas da Equipe</h3>
-              <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', opacity: 0.7 }}>
-                {comprovanteCamisetasUrl ? 'Documento enviado!' : 'Envie o comprovante das camisetas.'}
-              </p>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.2rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                  {(() => {
+                    const memberIds = new Set(members.map(m => m.id));
+                    const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
+                    const total = teamPedidos.reduce((acc, curr) => acc + (curr.quantidade || 1), 0);
+                    return `${total} ${total === 1 ? 'camiseta' : 'camisetas'}`;
+                  })()}
+                </span>
+                <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                  {(() => {
+                    const memberIds = new Set(members.map(m => m.id));
+                    const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
+                    const total = teamPedidos.reduce((acc, curr) => acc + ((curr.camiseta_modelos?.valor || 0) * (curr.quantidade || 1)), 0);
+                    return total > 0 ? formatBRL(total) : 'Valor a confirmar';
+                  })()}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -1228,38 +1275,136 @@ export function CoordenadorMinhaEquipePage() {
                         backgroundColor: 'rgba(0,0,0,0.03)',
                         borderRadius: '10px'
                       }}>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <select
-                            value={newShirtData.modelo_id}
-                            onChange={e => {
-                              const newModelId = e.target.value;
-                              const availableSizes = tamanhosCamiseta.filter(t => !t.modelo_id || t.modelo_id === newModelId);
-                              const newSize = availableSizes.some(t => t.sigla === newShirtData.tamanho) ? newShirtData.tamanho : (availableSizes[0]?.sigla || '');
-                              setNewShirtData({ ...newShirtData, modelo_id: newModelId, tamanho: newSize });
-                            }}
-                            className="form-input"
-                            style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem' }}
-                          >
-                            {modelosCamiseta.map(mod => (
-                              <option key={mod.id} value={mod.id}>{mod.nome}</option>
-                            ))}
-                          </select>
-                          <select
-                            value={newShirtData.tamanho}
-                            onChange={e => setNewShirtData({ ...newShirtData, tamanho: e.target.value })}
-                            className="form-input"
-                            style={{ width: '60px', padding: '0.4rem', fontSize: '0.8rem' }}
-                          >
-                            {tamanhosCamiseta
-                              .filter(t => !t.modelo_id || t.modelo_id === newShirtData.modelo_id)
-                              .map(t => (
-                                <option key={t.id} value={t.sigla}>{t.sigla}</option>
+                        <div style={{
+                          display: 'flex',
+                          gap: '0.75rem',
+                          alignItems: 'flex-end',
+                          flexWrap: 'nowrap',
+                          marginBottom: '1rem'
+                        }}>
+                          <div style={{ flex: '2', minWidth: '0' }}>
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.3rem', display: 'block' }}>Modelo</label>
+                            <select
+                              value={newShirtData.modelo_id}
+                              onChange={e => {
+                                const newModelId = e.target.value;
+                                const availableSizes = tamanhosCamiseta.filter(t => !t.modelo_id || t.modelo_id === newModelId);
+                                const newSize = availableSizes.some(t => t.sigla === newShirtData.tamanho) ? newShirtData.tamanho : (availableSizes[0]?.sigla || '');
+                                setNewShirtData({ ...newShirtData, modelo_id: newModelId, tamanho: newSize });
+                              }}
+                              className="form-input"
+                              style={{ width: '100%', padding: '0.5rem', fontSize: '0.8rem', height: '44px' }}
+                            >
+                              {modelosCamiseta.map(mod => (
+                                <option key={mod.id} value={mod.id}>{mod.nome}</option>
                               ))}
-                          </select>
+                            </select>
+                          </div>
+
+                          <div style={{ flex: 1, flexShrink: 1 }}>
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.3rem', display: 'block', textAlign: 'left' }}>Tam</label>
+                            <select
+                              value={newShirtData.tamanho}
+                              onChange={e => setNewShirtData({ ...newShirtData, tamanho: e.target.value })}
+                              className="form-input"
+                              style={{ width: '100%', padding: '0.5rem', fontSize: '0.8rem', textAlign: 'left', height: '44px' }}
+                            >
+                              {tamanhosCamiseta
+                                .filter(t => !t.modelo_id || t.modelo_id === newShirtData.modelo_id)
+                                .map(t => (
+                                  <option key={t.id} value={t.sigla}>{t.sigla}</option>
+                                ))}
+                            </select>
+                          </div>
+
+                          <div style={{ flex: 1, flexShrink: 1 }}>
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.3rem', display: 'block', textAlign: 'left' }}>Qtd</label>
+                            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden', height: '44px', padding: '2px' }}>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setNewShirtData(prev => ({ ...prev, quantidade: Math.max(0, prev.quantidade - 1) })); }}
+                                style={{
+                                  minWidth: '40px', height: '100%', border: 'none', background: 'none',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  cursor: 'pointer', color: 'var(--primary-color)',
+                                  transition: 'all 0.2s',
+                                  flexShrink: 1,
+                                  padding: 0,
+                                  outline: 'none',
+                                }}
+                                disabled={newShirtData.quantidade === 1}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                <Minus size={16} strokeWidth={1.5} color='var(--text-color)' />
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                value={newShirtData.quantidade || ''}
+                                onChange={e => setNewShirtData({ ...newShirtData, quantidade: parseInt(e.target.value) })}
+                                className="form-input no-spinner"
+                                style={{
+                                  flex: 1, padding: '0', border: 'none', background: 'transparent',
+                                  fontSize: '0.9rem', textAlign: 'center', fontWeight: 500,
+                                  color: 'var(--text-color)',
+                                  appearance: 'none', margin: 0,
+                                  boxShadow: 'none',
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setNewShirtData(prev => ({ ...prev, quantidade: prev.quantidade + 1 })); }}
+                                style={{
+                                  minWidth: '40px', height: '100%', border: 'none', background: 'none',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  cursor: 'pointer', color: 'var(--primary-color)',
+                                  transition: 'all 0.2s',
+                                  flexShrink: 1,
+                                  padding: 0,
+                                  outline: 'none',
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                <Plus size={16} strokeWidth={1.5} color='var(--text-color)' />
+                              </button>
+                            </div>
+                          </div>
                         </div>
+
+                        {/* Price Info */}
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.65rem 0.85rem',
+                          backgroundColor: 'rgba(var(--primary-rgb), 0.05)',
+                          borderRadius: '10px',
+                          border: '1px dashed var(--border-color)',
+                          marginBottom: '0.75rem'
+                        }}>
+                          {(() => {
+                            const model = modelosCamiseta.find(m => m.id === newShirtData.modelo_id);
+                            const unitPrice = model?.valor || 0;
+                            const totalPrice = unitPrice * newShirtData.quantidade;
+
+                            return (
+                              <>
+                                <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
+                                  Unit.: <span style={{ fontWeight: 700 }}>{unitPrice > 0 ? formatBRL(unitPrice) : 'Valor a confirmar'}</span>
+                                </div>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--primary-color)' }}>
+                                  Total: {unitPrice > 0 ? formatBRL(totalPrice) : 'Valor a confirmar'}
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+
                         <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
                           <button onClick={() => setAddingShirtToMemberId(null)} className="btn-text" style={{ fontSize: '0.75rem' }}>Canc.</button>
-                          <button onClick={() => handleAddShirt(m.id)} disabled={isSaving} className="btn-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.75rem' }}>Salvar</button>
+                          <button onClick={() => handleAddShirt(m.id)} disabled={isSaving} className="btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}>Salvar</button>
                         </div>
                       </div>
                     ) : memberOrders.length === 0 ? (
@@ -1273,7 +1418,8 @@ export function CoordenadorMinhaEquipePage() {
                             <tr style={{ textAlign: 'left', opacity: 0.5 }}>
                               <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Mod</th>
                               <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>T</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Q</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'center' }}>Q</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'right' }}>Valor</th>
                               <th style={{ width: '20px' }}></th>
                             </tr>
                           </thead>
@@ -1282,7 +1428,13 @@ export function CoordenadorMinhaEquipePage() {
                               <tr key={order.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                                 <td style={{ padding: '0.4rem 0.25rem' }}>{order.camiseta_modelos?.nome}</td>
                                 <td style={{ padding: '0.4rem 0.25rem' }}>{order.tamanho}</td>
-                                <td style={{ padding: '0.4rem 0.25rem' }}>{order.quantidade}</td>
+                                <td style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>{order.quantidade}</td>
+                                <td style={{ padding: '0.4rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>
+                                  {(() => {
+                                    const val = (order.camiseta_modelos?.valor || 0) * (order.quantidade || 1);
+                                    return val > 0 ? formatBRL(val) : '—';
+                                  })()}
+                                </td>
                                 <td style={{ padding: '0.25rem', textAlign: 'right' }}>
                                   <button onClick={() => handleDeleteShirt(order.id)} style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.4, cursor: 'pointer' }}><X size={12} /></button>
                                 </td>
@@ -1439,6 +1591,15 @@ export function CoordenadorMinhaEquipePage() {
       )}
 
 
+
+      <BulkShirtOrderModal
+        isOpen={showBulkShirtModal}
+        onClose={() => setShowBulkShirtModal(false)}
+        members={members}
+        modelos={modelosCamiseta}
+        tamanhos={tamanhosCamiseta}
+        onSuccess={loadPedidos}
+      />
 
       <ConfirmDialog
         isOpen={!!deleteTarget}

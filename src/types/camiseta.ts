@@ -38,6 +38,7 @@ export interface CamisetaPedido {
     camiseta_modelos?: {
         id: string;
         nome: string;
+        valor: number;
     };
 }
 
