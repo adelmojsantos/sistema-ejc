@@ -24,12 +24,12 @@ import {
   Shirt as ShirtIcon,
   Baby,
   Car,
-  MinusCircle,
-  PlusCircle
+  LayoutGrid
 } from 'lucide-react';
 import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
 import { BulkShirtOrderModal } from '../../components/coordenador/BulkShirtOrderModal';
+import { TeamShirtSummaryModal } from '../../components/coordenador/TeamShirtSummaryModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -100,12 +100,44 @@ export function CoordenadorMinhaEquipePage() {
   const [isUploadingProof, setIsUploadingProof] = useState<string | null>(null); // 'taxas' | 'camisetas' | null
   const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
   const [showBulkShirtModal, setShowBulkShirtModal] = useState(false);
+  const [showShirtSummaryModal, setShowShirtSummaryModal] = useState(false);
   const [comprovanteCamisetasUrl, setComprovanteCamisetasUrl] = useState<string | null>(null);
   const [pixTaxa, setPixTaxa] = useState<{
     chave: string | null;
     tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
     qrCodeUrl: string | null;
   }>({ chave: null, tipo: null, qrCodeUrl: null });
+
+  const teamShirtSummary = useMemo(() => {
+    const memberIds = new Set(members.map(m => m.id));
+    const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
+    
+    const summaryMap = new Map<string, any>();
+    
+    teamPedidos.forEach(p => {
+      const modId = p.modelo_id;
+      if (!summaryMap.has(modId)) {
+        const modeloEncontro = modelosCamiseta.find(m => m.id === modId);
+        summaryMap.set(modId, {
+          modelo_id: modId,
+          modelo_nome: p.camiseta_modelos?.nome || 'Desconhecido',
+          tamanhos: {},
+          total: 0,
+          valor_unitario: modeloEncontro?.valor || 0,
+          valor_total: 0
+        });
+      }
+      
+      const modSummary = summaryMap.get(modId)!;
+      const tam = p.tamanho;
+      modSummary.tamanhos[tam] = (modSummary.tamanhos[tam] || 0) + (p.quantidade || 1);
+      modSummary.total += (p.quantidade || 1);
+      const modeloEncontro = modelosCamiseta.find(m => m.id === modId);
+      modSummary.valor_total += (modeloEncontro?.valor || 0) * (p.quantidade || 1);
+    });
+    
+    return Array.from(summaryMap.values());
+  }, [members, pedidosCamisetas]);
 
   const [pixCamisetas, setPixCamisetas] = useState<{
     chave: string | null;
@@ -838,11 +870,11 @@ export function CoordenadorMinhaEquipePage() {
               <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Taxas da Equipe</h3>
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.2rem', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-                  {members.length} {members.length === 1 ? 'pessoa' : 'pessoas'}
+                  {members.filter(m => m.pago_taxa).length}/{members.length} pagas
                 </span>
                 <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
                 <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }}>
-                  {formatBRL(members.length * valorTaxa)}
+                  {formatBRL(members.filter(m => m.pago_taxa).length * valorTaxa)}/{formatBRL(members.length * valorTaxa)}
                 </span>
               </div>
             </div>
@@ -912,10 +944,21 @@ export function CoordenadorMinhaEquipePage() {
                   {(() => {
                     const memberIds = new Set(members.map(m => m.id));
                     const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
-                    const total = teamPedidos.reduce((acc, curr) => acc + ((curr.camiseta_modelos?.valor || 0) * (curr.quantidade || 1)), 0);
-                    return total > 0 ? formatBRL(total) : 'Valor a confirmar';
+                    const total = teamPedidos.reduce((acc, curr) => {
+                      const modeloEncontro = modelosCamiseta.find(m => m.id === curr.modelo_id);
+                      return acc + ((modeloEncontro?.valor || 0) * (curr.quantidade || 1));
+                    }, 0);
+                    return formatBRL(total);
                   })()}
                 </span>
+                <button 
+                  onClick={() => setShowShirtSummaryModal(true)}
+                  className="btn-text" 
+                  style={{ fontSize: '0.75rem', padding: '2px 8px', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <LayoutGrid size={14} />
+                  <span>Resumo</span>
+                </button>
               </div>
             </div>
           </div>
@@ -1431,8 +1474,9 @@ export function CoordenadorMinhaEquipePage() {
                                 <td style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>{order.quantidade}</td>
                                 <td style={{ padding: '0.4rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>
                                   {(() => {
-                                    const val = (order.camiseta_modelos?.valor || 0) * (order.quantidade || 1);
-                                    return val > 0 ? formatBRL(val) : '—';
+                                    const modeloEncontro = modelosCamiseta.find(m => m.id === order.modelo_id);
+                                    const val = (modeloEncontro?.valor || 0) * (order.quantidade || 1);
+                                    return formatBRL(val);
                                   })()}
                                 </td>
                                 <td style={{ padding: '0.25rem', textAlign: 'right' }}>
@@ -1599,6 +1643,13 @@ export function CoordenadorMinhaEquipePage() {
         modelos={modelosCamiseta}
         tamanhos={tamanhosCamiseta}
         onSuccess={loadPedidos}
+      />
+
+      <TeamShirtSummaryModal
+        isOpen={showShirtSummaryModal}
+        onClose={() => setShowShirtSummaryModal(false)}
+        resumo={teamShirtSummary}
+        equipeNome={equipeNome}
       />
 
       <ConfirmDialog
