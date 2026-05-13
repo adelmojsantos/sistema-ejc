@@ -142,8 +142,8 @@ export function EncontroQuadranteConfigPage() {
         const loadingToast = toast.loading('Gerando quadrante PDF...');
 
         try {
-            // Obter os dados completos do quadrante via service
-            const data = await quadranteService.obterDados(encontro.quadrante_token);
+            // ignorarAtivo=true pois admin pode gerar PDF mesmo antes de publicar
+            const data = await quadranteService.obterDados(encontro.quadrante_token, true);
 
             // @ts-ignore
             await quadrantePdfService.generateYearbook(
@@ -153,7 +153,7 @@ export function EncontroQuadranteConfigPage() {
             toast.success('Quadrante PDF gerado com sucesso!', { id: loadingToast });
         } catch (error) {
             console.error('Erro ao gerar PDF:', error);
-            toast.error('Erro ao gerar o PDF. Verifique se o quadrante está ativo.', { id: loadingToast });
+            toast.error('Erro ao gerar o PDF do Quadrante.', { id: loadingToast });
         } finally {
             setExporting(false);
         }
@@ -208,6 +208,24 @@ export function EncontroQuadranteConfigPage() {
                 title="Configuração do Quadrante"
                 subtitle={`Encontro: ${encontro.nome}`}
                 onBack={() => navigate('/cadastros/encontros')}
+                actions={
+                    <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        padding: '0.35rem 0.85rem',
+                        borderRadius: '20px',
+                        fontSize: '0.75rem',
+                        fontWeight: 800,
+                        letterSpacing: '0.05em',
+                        background: ativo ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                        color: ativo ? '#10b981' : '#ef4444',
+                        border: `1px solid ${ativo ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                    }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'currentColor', display: 'inline-block', boxShadow: ativo ? '0 0 6px currentColor' : 'none' }} />
+                        {ativo ? 'PUBLICADO' : 'NÃO PUBLICADO'}
+                    </span>
+                }
             />
 
             {/* Abas de Navegação */}

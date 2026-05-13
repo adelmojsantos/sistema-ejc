@@ -38,16 +38,23 @@ export const quadranteService = {
     },
 
     /**
-     * Obtém os dados resumidos para exibição no Quadrante público
+     * Obtém os dados resumidos para exibição no Quadrante público.
+     * @param ignorarAtivo - Se true, retorna dados mesmo que o quadrante não esteja publicado
+     *                       (usar apenas para usuários logados — admin/secretaria)
      */
-    async obterDados(token: string): Promise<QuadranteData[]> {
+    async obterDados(token: string, ignorarAtivo = false): Promise<QuadranteData[]> {
         // Primeiro pegamos o encontro_id pelo token
-        const { data: encontro, error: eError } = await supabase
+        let query = supabase
             .from('encontros')
             .select('id')
-            .eq('quadrante_token', token)
-            .eq('quadrante_ativo', true)
-            .single();
+            .eq('quadrante_token', token);
+
+        // Apenas o público geral precisa do filtro de ativo
+        if (!ignorarAtivo) {
+            query = query.eq('quadrante_ativo', true);
+        }
+
+        const { data: encontro, error: eError } = await query.single();
 
         if (eError || !encontro) return [];
 

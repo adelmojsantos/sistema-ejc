@@ -165,12 +165,17 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
             {/* Ações */}
             <div className="pessoa-row-actions">
                 <button 
-                    className="icon-btn" 
+                    className="icon-btn quadrante-btn" 
                     onClick={() => navigate(`/cadastros/encontros/${encontro.id}/quadrante`)} 
                     title="Configurar Quadrante"
-                    style={{ color: 'var(--primary-color)' }}
                 >
-                    <LayoutGrid size={16} />
+                    <LayoutGrid size={15} />
+                    <span>Quadrante</span>
+                    {encontro.quadrante_ativo ? (
+                        <span className="quadrante-status-dot active" />
+                    ) : (
+                        <span className="quadrante-status-dot inactive" />
+                    )}
                 </button>
                 <button className="icon-btn" onClick={() => onEdit(encontro)} title="Editar">
                     <Pencil size={16} />
@@ -209,6 +214,11 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
                 .mini-link-btn.copied { background: #10b981 !important; color: white !important; border-color: #10b981; }
                 .mini-link-btn svg { display: block; flex-shrink: 0; transition: transform 0.2s ease; }
                 .icon-check-anim { animation: check-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+                .quadrante-btn { display: flex !important; align-items: center; gap: 5px; padding: 0.35rem 0.75rem !important; border-radius: 8px !important; background: rgba(59,130,246,0.08) !important; border: 1px solid rgba(59,130,246,0.2) !important; color: var(--primary-color) !important; font-size: 0.75rem !important; font-weight: 700 !important; white-space: nowrap; width: auto !important; }
+                .quadrante-btn:hover { background: var(--primary-color) !important; color: white !important; border-color: var(--primary-color) !important; }
+                .quadrante-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+                .quadrante-status-dot.active { background: #10b981; box-shadow: 0 0 5px #10b981; }
+                .quadrante-status-dot.inactive { background: #94a3b8; }
 
                 @keyframes check-pop {
                     0% { transform: scale(0.5) rotate(-20deg); opacity: 0; }

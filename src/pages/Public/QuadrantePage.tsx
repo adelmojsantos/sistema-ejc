@@ -81,7 +81,7 @@ export function QuadrantePage() {
     const [search] = useState('');
     const [encontro, setEncontro] = useState<EncontroInfo | null>(null);
     const [palestras, setPalestras] = useState<Palestra[]>([]);
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
     const [scrolled, setScrolled] = useState(false);
     const [activeSection, setActiveSection] = useState<string>('');
     const [exporting, setExporting] = useState(false);
@@ -152,7 +152,7 @@ export function QuadrantePage() {
                 setEncontro(eData);
 
                 const [quadranteData, palestrasData] = await Promise.all([
-                    quadranteService.obterDados(token),
+                    quadranteService.obterDados(token, isAdmin),
                     palestraService.listarPorEncontro(eData.id)
                 ]);
                 
@@ -533,51 +533,52 @@ export function QuadrantePage() {
                     </section>
                 ))}
 
+                {/* Palestras Section — MOVED INSIDE main */}
+                <section id="palestras" className="content-palestras-section" data-section-name="Palestras">
+                    <div className="section-header center">
+                        <Mic2 size={32} />
+                        <h2>Palestras do Encontro</h2>
+                        <div className="divider mx-auto"></div>
+                    </div>
+
+                    <div className="palestras-grid">
+                        {palestras.map((p, pIdx) => (
+                            <motion.div 
+                                key={p.id} 
+                                className="palestra-card"
+                                initial={{ opacity: 0, y: 30 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: pIdx * 0.1 }}
+                            >
+                                <div className="palestra-speaker">
+                                    <div className="speaker-avatar">
+                                        {p.palestrante_foto_url ? (
+                                            <img src={p.palestrante_foto_url} alt={p.palestrante_nome || ''} />
+                                        ) : (
+                                            <User size={40} />
+                                        )}
+                                    </div>
+                                    <div className="speaker-info">
+                                        <h3>{p.titulo}</h3>
+                                        <span className="p-nome">{p.palestrante_nome}</span>
+                                    </div>
+                                </div>
+                                <div className="palestra-body">
+                                    <p>{p.resumo || 'Resumo não disponível para esta palestra.'}</p>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                    {palestras.length === 0 && (
+                        <div className="opacity-40 text-center py-10">Nenhuma palestra registrada para este encontro.</div>
+                    )}
+                </section>
+
                 <footer className="spa-footer">
                     <p>© {new Date().getFullYear()} EJC • Capelinha</p>
                 </footer>
             </main>
-
-            <section id="palestras" className="content-palestras-section" data-section-name="Palestras">
-                <div className="section-header center">
-                    <Mic2 size={32} />
-                    <h2>Palestras do Encontro</h2>
-                    <div className="divider mx-auto"></div>
-                </div>
-
-                <div className="palestras-grid">
-                    {palestras.map((p, pIdx) => (
-                        <motion.div 
-                            key={p.id} 
-                            className="palestra-card"
-                            initial={{ opacity: 0, y: 30 }}
-                            whileInView={{ opacity: 1, y: 0 }}
-                            viewport={{ once: true }}
-                            transition={{ delay: pIdx * 0.1 }}
-                        >
-                            <div className="palestra-speaker">
-                                <div className="speaker-avatar">
-                                    {p.palestrante_foto_url ? (
-                                        <img src={p.palestrante_foto_url} alt={p.palestrante_nome || ''} />
-                                    ) : (
-                                        <User size={40} />
-                                    )}
-                                </div>
-                                <div className="speaker-info">
-                                    <h3>{p.titulo}</h3>
-                                    <span className="p-nome">{p.palestrante_nome}</span>
-                                </div>
-                            </div>
-                            <div className="palestra-body">
-                                <p>{p.resumo || 'Resumo não disponível para esta palestra.'}</p>
-                            </div>
-                        </motion.div>
-                    ))}
-                </div>
-                {palestras.length === 0 && (
-                    <div className="opacity-40 text-center py-10">Nenhuma palestra registrada para este encontro.</div>
-                )}
-            </section>
 
             {/* Sidebar Overlay for Mobile */}
             <AnimatePresence>
@@ -802,9 +803,23 @@ export function QuadrantePage() {
                     flex: 1;
                     margin-left: 0;
                     padding: 0;
-                    padding-top: 64px; /* Adicionado padding para o header colapsado */
+                    padding-top: 64px;
                     scroll-behavior: smooth;
                     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+
+                /* Desktop: sidebar visible by default, push content */
+                @media (min-width: 1025px) {
+                    .spa-sidebar {
+                        transform: translateX(0) !important;
+                    }
+                    .spa-main-content {
+                        margin-left: 280px;
+                        padding-top: 0;
+                    }
+                    .mobile-header {
+                        left: 280px;
+                    }
                 }
 
                 .spa-main-content.sidebar-open {
