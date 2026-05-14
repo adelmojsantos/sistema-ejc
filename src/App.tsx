@@ -6,23 +6,32 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { PageTransition } from './components/ui/PageTransition';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { EncontroProvider } from './contexts/EncontroContext';
+import { EquipeProvider } from './contexts/EquipeContext';
 import { useAuth } from './hooks/useAuth';
 import { UsersAdminPage } from './pages/admin/UsersAdminPage';
 import { ImportarDadosPage } from './pages/admin/ImportarDadosPage';
 import { AccessAdminPage } from './pages/admin/AccessAdminPage';
 import { ExportConfigListPage } from './pages/admin/ExportConfigListPage';
 import { ExportConfigFormPage } from './pages/admin/ExportConfigFormPage';
+import { BibliotecaPage } from './pages/admin/BibliotecaPage';
 import { Cadastros } from './pages/Cadastros';
 import { CirculosPage } from './pages/cadastros/CirculosPage';
+import { CirculosPortalPage } from './pages/circulos/CirculosPortalPage';
 import { EncontroParticipantesPage } from './pages/cadastros/EncontroParticipantesPage';
 import { EncontrosPage } from './pages/cadastros/EncontrosPage';
 import { EquipesPage } from './pages/cadastros/EquipesPage';
 import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
+import { ResumoPalestrasPage } from './pages/circulos/ResumoPalestrasPage';
 import { MontagemPage } from './pages/cadastros/MontagemPage';
 import { PessoasPage } from './pages/cadastros/PessoasPage';
+<<<<<<< HEAD
 import { PalestrasGestaoPage } from './pages/cadastros/PalestrasGestaoPage';
 import { PalestrasResumoPage } from './pages/cadastros/PalestrasResumoPage';
 import { PalestrasModulePage } from './pages/atividades/PalestrasModulePage';
+=======
+import { PalestrasPage } from './pages/cadastros/PalestrasPage';
+>>>>>>> master
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
 import { RecepcaoAdminPage } from './pages/atividades/RecepcaoAdminPage';
@@ -36,6 +45,7 @@ import { Login } from './pages/Login';
 import { PrivacidadePage } from './pages/PrivacidadePage';
 import { Secretaria } from './pages/Secretaria';
 import { ConfirmationReportPage } from './pages/secretaria/ConfirmationReportPage';
+import { ConfirmationTeamDetailPage } from './pages/secretaria/ConfirmationTeamDetailPage';
 import { VisitacaoMeusParticipantesPage } from './pages/visitacao/VisitacaoMeusParticipantesPage';
 import { CoordenadorVisitacaoPage } from './pages/visitacao/CoordenadorVisitacaoPage';
 import { VisitacaoManutencaoPage } from './pages/visitacao/VisitacaoManutencaoPage';
@@ -44,6 +54,10 @@ import { SecretariaParticipantesPage } from './pages/secretaria/SecretariaPartic
 import { SecretariaEncontreirosPage } from './pages/secretaria/SecretariaEncontreirosPage';
 import { GerenciarListaEsperaPage } from './pages/secretaria/GerenciarListaEsperaPage';
 import { SecretariaFotosPage } from './pages/secretaria/SecretariaFotosPage';
+import { ComprasPage } from './pages/compras/ComprasPage';
+import { TaxasPage } from './pages/compras/TaxasPage';
+import { PedidosCamisetasPage } from './pages/compras/PedidosCamisetasPage';
+import { ConfiguracaoCamisetasPage } from './pages/compras/ConfiguracaoCamisetasPage';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { useEffect } from 'react';
 import { useLoading } from './contexts/LoadingContext';
@@ -55,6 +69,7 @@ import FormRecreacaoPage from './pages/Public/FormRecreacaoPage';
 import { EncontroQuadranteConfigPage } from './pages/cadastros/EncontroQuadranteConfigPage';
 import { QuadranteAuthPage } from './pages/Public/QuadranteAuthPage';
 import { QuadrantePage } from './pages/Public/QuadrantePage';
+import SharedLibraryPage from './pages/shared/SharedLibraryPage';
 
 
 export function PlaceholderPage({ title }: { title: string }) {
@@ -110,7 +125,7 @@ function AnimatedRoutes() {
           } />
 
           <Route path="/inscricao" element={<InscricaoPage />} />
-          
+
           <Route path="/inscricao/participantes" element={
             <ProtectedRoute requiredPermissions={['modulo_inscricao', 'modulo_secretaria', 'modulo_admin']}>
               <SecretariaParticipantesPage />
@@ -129,6 +144,12 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           } />
 
+          <Route path="/admin/biblioteca" element={
+            <ProtectedRoute requiredPermissions={['modulo_biblioteca', 'modulo_admin']}>
+              <PageTransition><BibliotecaPage /></PageTransition>
+            </ProtectedRoute>
+          } />
+
           <Route path="/admin/importar" element={
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
               <ImportarDadosPage />
@@ -140,13 +161,13 @@ function AnimatedRoutes() {
               <ExportConfigListPage />
             </ProtectedRoute>
           } />
-          
+
           <Route path="/admin/configuracoes-exportacao/novo" element={
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
               <ExportConfigFormPage />
             </ProtectedRoute>
           } />
-          
+
           <Route path="/admin/configuracoes-exportacao/:id" element={
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
               <ExportConfigFormPage />
@@ -159,6 +180,7 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           }>
             <Route path="confirmacoes" element={<ConfirmationReportPage />} />
+            <Route path="confirmacoes/:equipe_id" element={<ConfirmationTeamDetailPage />} />
             <Route path="participantes" element={<SecretariaParticipantesPage />} />
             <Route path="encontreiros" element={<SecretariaEncontreirosPage />} />
             <Route path="atividades/recepcao" element={<RecepcaoAdminPage />} />
@@ -192,11 +214,53 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           } />
 
-          <Route path="/montagem-circulos" element={
-            <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
-              <MontagemCirculos />
+          <Route path="/biblioteca/compartilhada" element={
+            <ProtectedRoute>
+              <PageTransition><SharedLibraryPage /></PageTransition>
             </ProtectedRoute>
           } />
+
+          <Route
+            path="/circulos"
+            element={
+              <ProtectedRoute 
+                requiredPermissions={[
+                  'modulo_circulos', 
+                  'modulo_circulos_cadastros', 
+                  'modulo_circulos_coordenador', 
+                  'modulo_circulos_mediador', 
+                  'modulo_admin'
+                ]}
+              >
+                <CirculosPortalPage />
+              </ProtectedRoute>
+            }
+          >
+            <Route 
+              path="cadastros" 
+              element={
+                <ProtectedRoute requiredPermissions={['modulo_circulos_cadastros', 'modulo_admin']}>
+                  <CirculosPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="montagem" 
+              element={
+                <ProtectedRoute requiredPermissions={['modulo_circulos_coordenador', 'modulo_admin']}>
+                  <MontagemCirculos />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="resumo-palestras" 
+              element={
+                <ProtectedRoute requiredPermissions={['modulo_circulos_coordenador', 'modulo_admin']}>
+                  <ResumoPalestrasPage />
+                </ProtectedRoute>
+              } 
+            />
+          </Route>
 
           <Route path="/coordenador/minha-equipe" element={
             <ProtectedRoute requiredPermissions={['modulo_coordenador', 'modulo_admin']}>
@@ -216,6 +280,12 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           } />
 
+          <Route path="/compras" element={<ComprasPage />}>
+            <Route path="taxas" element={<PageTransition><TaxasPage /></PageTransition>} />
+            <Route path="camisetas" element={<PageTransition><PedidosCamisetasPage /></PageTransition>} />
+            <Route path="configuracao" element={<PageTransition><ConfiguracaoCamisetasPage /></PageTransition>} />
+          </Route>
+
           <Route path="/cadastros" element={
             <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
               <Cadastros />
@@ -230,6 +300,7 @@ function AnimatedRoutes() {
             <Route path="equipes" element={<EquipesPage />} />
             <Route path="circulos" element={<CirculosPage />} />
             <Route path="montagem" element={<MontagemPage />} />
+            <Route path="palestras" element={<PalestrasPage />} />
           </Route>
         </Route>
 
@@ -267,7 +338,15 @@ function MainApp() {
   return (
     <>
       <SplashScreen isVisible={isLoading} />
-      <Toaster position="top-right" />
+      <Toaster 
+        position="top-right" 
+        containerStyle={{ zIndex: 100000 }}
+        toastOptions={{
+          style: {
+            zIndex: 100001,
+          }
+        }}
+      />
       <Router>
         <AnimatedRoutes />
       </Router>
@@ -280,7 +359,11 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <ExternalSessionProvider>
-          <MainApp />
+          <EncontroProvider>
+            <EquipeProvider>
+              <MainApp />
+            </EquipeProvider>
+          </EncontroProvider>
         </ExternalSessionProvider>
       </AuthProvider>
     </ThemeProvider>

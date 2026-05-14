@@ -18,10 +18,19 @@ export interface Encontro {
     quadrante_token?: string;
     quadrante_pin?: string | null;
     quadrante_ativo?: boolean;
+<<<<<<< HEAD
     logo_url?: string | null;
     simbologia_texto?: string | null;
     tematica_texto?: string | null;
     musica_letra?: string | null;
+=======
+    pix_taxa_chave?: string | null;
+    pix_taxa_tipo?: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+    pix_taxa_qrcode_url?: string | null;
+    pix_camisetas_chave?: string | null;
+    pix_camisetas_tipo?: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+    pix_camisetas_qrcode_url?: string | null;
+>>>>>>> master
 }
 
 export type EncontroFormData = Omit<Encontro, 'id' | 'created_at' | 'quadrante_token'>;
@@ -43,8 +52,17 @@ export const encontroFormDataVazio = (): EncontroFormData => ({
     valor_taxa: 0,
     quadrante_pin: '',
     quadrante_ativo: false,
+<<<<<<< HEAD
     logo_url: null,
     simbologia_texto: '',
     tematica_texto: '',
     musica_letra: '',
+=======
+    pix_taxa_chave: '',
+    pix_taxa_tipo: null,
+    pix_taxa_qrcode_url: '',
+    pix_camisetas_chave: '',
+    pix_camisetas_tipo: null,
+    pix_camisetas_qrcode_url: '',
+>>>>>>> master
 });

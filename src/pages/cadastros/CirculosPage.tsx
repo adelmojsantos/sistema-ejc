@@ -45,7 +45,7 @@ export function CirculosPage() {
     }, [search, circulos]);
 
     const handleBack = () => {
-        navigate('/cadastros');
+        navigate('/circulos');
     };
 
     const handleCreate = async () => {

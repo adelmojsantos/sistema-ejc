@@ -12,8 +12,15 @@ import {
   Baby,
   ChevronLeft,
   ChevronRight,
+<<<<<<< HEAD
   Mic2,
   X
+=======
+  X,
+  Folder,
+  ShoppingBag,
+  UsersRound
+>>>>>>> master
 } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
@@ -38,8 +45,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { to: '/dashboard', label: 'Início', icon: Home },
   ];
 
+  const menuItems = [];
+
   if (hasPermission('modulo_secretaria') || hasPermission('modulo_admin')) {
-    navLinks.push(
+    menuItems.push(
       { to: '/inscricao', label: 'Inscrições', icon: UserPlus },
       { to: '/secretaria', label: 'Secretaria', icon: FileText },
       { to: '/cadastros', label: 'Cadastros', icon: Calendar },
@@ -47,29 +56,54 @@ export const Sidebar: React.FC<SidebarProps> = ({
     );
   }
 
+  const hasCirculosAccess = 
+    hasPermission('modulo_circulos') || 
+    hasPermission('modulo_circulos_cadastros') || 
+    hasPermission('modulo_circulos_coordenador') || 
+    hasPermission('modulo_circulos_mediador') || 
+    hasPermission('modulo_admin');
+    
+  if (hasCirculosAccess) {
+    menuItems.push({ to: '/circulos', label: 'Círculos', icon: UsersRound });
+  }
+
   if (hasPermission('modulo_admin')) {
-    navLinks.push(
+    menuItems.push(
       { to: '/admin/usuarios', label: 'Usuários', icon: Users },
       { to: '/admin/acessos', label: 'Acessos', icon: Shield },
     );
   }
 
+  if (hasPermission('modulo_biblioteca') || hasPermission('modulo_admin')) {
+    menuItems.push({ to: '/admin/biblioteca', label: 'Biblioteca', icon: Folder });
+  }
+
+  if (hasPermission('modulo_compras') || hasPermission('modulo_admin')) {
+    menuItems.push({ to: '/compras', label: 'Compras', icon: ShoppingBag });
+  }
+
   if (hasPermission('modulo_coordenador') || userParticipacao?.coordenador) {
-    navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe', icon: Users2 });
+    menuItems.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe', icon: Users2 });
   }
 
   const hasVisitacaoAccess = hasPermission('modulo_visitacao_coordenar') || hasPermission('modulo_visitacao_duplas') || hasPermission('modulo_admin');
   if (hasVisitacaoAccess) {
-    navLinks.push({ to: '/visitacao', label: 'Visitação', icon: MapPin });
+    menuItems.push({ to: '/visitacao', label: 'Visitação', icon: MapPin });
   }
 
   if (hasPermission('modulo_recepcao') || hasPermission('modulo_admin')) {
-    navLinks.push({ to: '/atividades/recepcao', label: 'Recepção', icon: Car });
+    menuItems.push({ to: '/atividades/recepcao', label: 'Recepção', icon: Car });
   }
 
   if (hasPermission('modulo_recreacao') || hasPermission('modulo_admin')) {
-    navLinks.push({ to: '/atividades/recreacao', label: 'Recreação Infantil', icon: Baby });
+    menuItems.push({ to: '/atividades/recreacao', label: 'Recreação Infantil', icon: Baby });
   }
+
+  // Ordena os itens alfabeticamente
+  menuItems.sort((a, b) => a.label.localeCompare(b.label));
+
+  // Adiciona ao menu principal após o Início
+  navLinks.push(...menuItems);
 
   const handleLinkClick = () => {
     if (window.innerWidth <= 1024) {

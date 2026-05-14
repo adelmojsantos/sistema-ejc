@@ -16,6 +16,7 @@ export interface ListaEsperaEntry {
     nome_mae: string | null;
     endereco: string | null;
     numero: string | null;
+    complemento: string | null;
     cep: string | null;
     bairro: string | null;
     cidade: string | null;
@@ -40,6 +41,7 @@ export const listaEsperaFormDataVazia = (): ListaEsperaFormData => ({
     nome_mae: null,
     endereco: null,
     numero: null,
+    complemento: null,
     cep: null,
     bairro: null,
     cidade: null,

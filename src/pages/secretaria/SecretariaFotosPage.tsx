@@ -3,10 +3,9 @@ import { Camera, Image as ImageIcon, Trash2, Users, LayoutGrid, Search } from 'l
 import { toast } from 'react-hot-toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
 import { supabase } from '../../lib/supabase';
-import type { Encontro } from '../../types/encontro';
+import { useEncontros } from '../../contexts/EncontroContext';
 
 interface TeamConfirmationWithEquipe {
     id: string;
@@ -19,10 +18,9 @@ interface TeamConfirmationWithEquipe {
 }
 
 export function SecretariaFotosPage() {
-    const [encontros, setEncontros] = useState<Encontro[]>([]);
+    const { encontros } = useEncontros();
     const [selectedEncontro, setSelectedEncontro] = useState<string>('');
     const [teams, setTeams] = useState<TeamConfirmationWithEquipe[]>([]);
-    const [loading, setLoading] = useState(true);
     const [loadingTeams, setLoadingTeams] = useState(false);
     const [uploading, setUploading] = useState<string | null>(null);
     const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -31,23 +29,12 @@ export function SecretariaFotosPage() {
     const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
     const [isRemoving, setIsRemoving] = useState(false);
 
+    // Seleciona o primeiro encontro quando o contexto carregar
     useEffect(() => {
-        async function loadEncontros() {
-            try {
-                const data = await encontroService.listar();
-                setEncontros(data);
-                if (data.length > 0) {
-                    setSelectedEncontro(data[0].id);
-                }
-            } catch (error) {
-                console.error('Erro ao carregar encontros:', error);
-                toast.error('Erro ao carregar encontros');
-            } finally {
-                setLoading(false);
-            }
+        if (encontros.length > 0 && !selectedEncontro) {
+            setSelectedEncontro(encontros[0].id);
         }
-        loadEncontros();
-    }, []);
+    }, [encontros, selectedEncontro]);
 
     useEffect(() => {
         if (!selectedEncontro) return;
@@ -159,7 +146,7 @@ export function SecretariaFotosPage() {
         }
     };
 
-    if (loading) return <div className="p-8 text-center">Carregando...</div>;
+    if (!encontros.length) return <div className="p-8 text-center">Carregando encontros...</div>;
 
     return (
         <div className="container" style={{ paddingBottom: '4rem' }}>

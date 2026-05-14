@@ -86,7 +86,7 @@ export function InscricaoPage() {
     }
   };
 
-  const handleSubmit = async (data: PessoaFormData) => {
+  const handleSubmit = async (data: PessoaFormData, _shouldConfirm: boolean) => {
     setIsSaving(true);
     try {
       // 0. Verificar idade (Mínimo 15 anos na data do encontro)

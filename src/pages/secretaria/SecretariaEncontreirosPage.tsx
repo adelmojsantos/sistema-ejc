@@ -6,10 +6,10 @@ import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
-import { equipeService } from '../../services/equipeService';
 import { inscricaoService } from '../../services/inscricaoService';
+import { useEncontros } from '../../contexts/EncontroContext';
+import { useEquipes } from '../../contexts/EquipeContext';
 import type { Encontro } from '../../types/encontro';
-import type { Equipe } from '../../types/equipe';
 import type { InscricaoEnriched } from '../../types/inscricao';
 
 function formatTelefone(tel: string | null | undefined) {
@@ -22,12 +22,12 @@ function formatTelefone(tel: string | null | undefined) {
 
 export function SecretariaEncontreirosPage() {
   const navigate = useNavigate();
+  const { encontros } = useEncontros();
+  const { equipes } = useEquipes();
 
-  const [encontros, setEncontros] = useState<Encontro[]>([]);
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
-  const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [filterTeamId, setFilterTeamId] = useState<string>('all');
@@ -35,31 +35,21 @@ export function SecretariaEncontreirosPage() {
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
 
+  // Seleciona encontro ativo automaticamente quando o contexto carregar
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const [encontrosData, equipesData] = await Promise.all([
-          encontroService.listar(),
-          equipeService.listar()
-        ]);
-        setEncontros(encontrosData);
-        setEquipes(equipesData);
-        const active = encontrosData.find(e => e.ativo);
-        if (active) setSelectedEncontroId(active.id);
-        else if (encontrosData.length > 0) setSelectedEncontroId(encontrosData[0].id);
-      } catch {
-        toast.error('Erro ao carregar dados iniciais.');
-      }
-    };
-    loadInitialData();
-  }, []);
+    if (encontros.length > 0 && !selectedEncontroId) {
+      const active = encontros.find(e => e.ativo);
+      setSelectedEncontroId(active?.id ?? encontros[0].id);
+    }
+  }, [encontros, selectedEncontroId]);
 
   const loadParticipantes = useCallback(async () => {
     if (!selectedEncontroId) return;
     setIsLoading(true);
     try {
-      const data = await inscricaoService.listarPorEncontro(selectedEncontroId);
-      setParticipantes(data.filter(p => !p.participante));
+      // Filtro server-side: busca apenas encontreiros (participante=false)
+      const data = await inscricaoService.listarEncontreirosPorEncontro(selectedEncontroId);
+      setParticipantes(data);
     } catch {
       toast.error('Erro ao carregar encontreiros.');
     } finally {

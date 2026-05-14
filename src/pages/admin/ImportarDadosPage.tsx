@@ -343,6 +343,7 @@ export function ImportarDadosPage() {
                 numero: row.numero,
                 bairro: row.bairro,
                 cidade: 'Franca', // Default per user request
+                complemento: '',
                 estado: '',
                 cep: null,
                 data_nascimento: null,

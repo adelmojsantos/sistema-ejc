@@ -1,6 +1,6 @@
+import { Calendar, Check, Copy, LayoutGrid, LinkIcon, MapPin, Music, Pencil, Quote, Trash2, Youtube } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { Calendar, Check, Copy, LinkIcon, MapPin, Music, Pencil, Quote, Trash2, Youtube, LayoutGrid } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Encontro } from '../../types/encontro';
 

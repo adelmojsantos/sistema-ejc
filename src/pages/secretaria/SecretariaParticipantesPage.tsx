@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
+import { useEncontros } from '../../contexts/EncontroContext';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
@@ -33,10 +34,10 @@ export function SecretariaParticipantesPage() {
   const { setIsLoading: setGlobalLoading } = useLoading();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [encontros, setEncontros] = useState<Encontro[]>([]);
+  const { encontros } = useEncontros();
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isUpdatingGeo, setIsUpdatingGeo] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showConfirmGeoModal, setShowConfirmGeoModal] = useState(false);
@@ -51,32 +52,24 @@ export function SecretariaParticipantesPage() {
   const [isExporting, setIsExporting] = useState(false);
   const progressListRef = useRef<HTMLDivElement>(null);
 
+  // Seleciona encontro ativo automaticamente quando o contexto carregar
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const data = await encontroService.listar();
-        setEncontros(data);
-        const encontroParam = searchParams.get('encontro');
-        if (encontroParam) {
-          setSelectedEncontroId(encontroParam);
-        } else {
-          const active = data.find(e => e.ativo);
-          if (active) setSelectedEncontroId(active.id);
-          else if (data.length > 0) setSelectedEncontroId(data[0].id);
-        }
-      } catch {
-        toast.error('Erro ao carregar encontros.');
-      }
-    };
-    loadInitialData();
-  }, [searchParams]);
+    const encontroParam = searchParams.get('encontro');
+    if (encontroParam) {
+      setSelectedEncontroId(encontroParam);
+    } else if (encontros.length > 0 && !selectedEncontroId) {
+      const active = encontros.find(e => e.ativo);
+      setSelectedEncontroId(active?.id ?? encontros[0].id);
+    }
+  }, [encontros, searchParams, selectedEncontroId]);
 
   const loadParticipantes = useCallback(async () => {
     if (!selectedEncontroId) return;
     setIsLoading(true);
     try {
-      const data = await inscricaoService.listarPorEncontro(selectedEncontroId);
-      setParticipantes(data.filter(p => p.participante === true));
+      // Filtro server-side: busca apenas participantes (participante=true)
+      const data = await inscricaoService.listarParticipantesPorEncontro(selectedEncontroId);
+      setParticipantes(data);
     } catch {
       toast.error('Erro ao carregar participantes.');
     } finally {

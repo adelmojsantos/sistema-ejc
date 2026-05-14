@@ -4,21 +4,20 @@ import { toast } from 'react-hot-toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { encontroService } from '../../services/encontroService';
 import { listaEsperaService } from '../../services/listaEsperaService';
 import { pessoaService } from '../../services/pessoaService';
-import type { Encontro } from '../../types/encontro';
+import { useEncontros } from '../../contexts/EncontroContext';
 import type { ListaEsperaEntry, ListaEsperaFormData } from '../../types/listaEspera';
 import type { Pessoa } from '../../types/pessoa';
 import { formatTelefone, maskCpf } from '../../utils/cpfUtils';
 import { calculateAge } from '../../utils/dateUtils';
 
 export function GerenciarListaEsperaPage() {
-    const [encontroAtivo, setEncontroAtivo] = useState<Encontro | null>(null);
+    const { encontroAtivo } = useEncontros();
     const [entries, setEntries] = useState<ListaEsperaEntry[]>([]);
     const [efetivados, setEfetivados] = useState<ListaEsperaEntry[]>([]);
     const [reprovados, setReprovados] = useState<ListaEsperaEntry[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [viewMode, setViewMode] = useState<'pendente' | 'reprovado'>('pendente');
 
     // Batch Selection Data
@@ -41,23 +40,21 @@ export function GerenciarListaEsperaPage() {
 
     useEffect(() => {
         loadData();
-    }, []);
+    }, [encontroAtivo]);
 
     const loadData = async () => {
+        if (!encontroAtivo) return;
         setIsLoading(true);
         try {
-            const encontros = await encontroService.listar();
-            const active = encontros.find(e => e.ativo);
-
-            if (active) {
-                setEncontroAtivo(active);
-                const pendentes = await listaEsperaService.listPendentesNoEncontro(active.id);
-                const efetivados = await listaEsperaService.listEfetivadosNoEncontro(active.id);
-                const reprovadosData = await listaEsperaService.listReprovadosNoEncontro(active.id);
-                setEntries([...pendentes]);
-                setEfetivados([...efetivados]);
-                setReprovados([...reprovadosData]);
-            }
+            // Queries paralelas: elimina espera sequencial
+            const [pendentes, efetivadosData, reprovadosData] = await Promise.all([
+                listaEsperaService.listPendentesNoEncontro(encontroAtivo.id),
+                listaEsperaService.listEfetivadosNoEncontro(encontroAtivo.id),
+                listaEsperaService.listReprovadosNoEncontro(encontroAtivo.id),
+            ]);
+            setEntries([...pendentes]);
+            setEfetivados([...efetivadosData]);
+            setReprovados([...reprovadosData]);
         } catch (error) {
             console.error('Erro ao carregar lista de espera:', error);
             toast.error('Erro ao carregar dados');

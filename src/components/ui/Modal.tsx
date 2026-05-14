@@ -27,29 +27,19 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = '500px' }: 
     if (!isOpen) return null;
 
     return (
-        <div className="modal-overlay" onClick={onClose} style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 3000, padding: '1rem'
-        }}>
-            <div className="modal-content card" onClick={(e) => e.stopPropagation()} style={{
-                maxWidth, width: '100%', maxHeight: '90vh',
-                display: 'flex', flexDirection: 'column', padding: 0,
-                overflow: 'hidden', border: '1px solid var(--border-color)',
-                boxShadow: 'var(--shadow-float)'
-            }}>
-                <div className="modal-header" style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-color)',
-                    background: 'var(--surface-2)'
-                }}>
-                    <h3 className="modal-title" style={{ margin: 0, fontSize: '1.25rem' }}>{title}</h3>
-                    <button onClick={onClose} className="icon-btn" style={{ cursor: 'pointer', opacity: 0.7 }} aria-label="Fechar">
+        <div className="modal-overlay" onClick={onClose}>
+            <div 
+                className="modal-content" 
+                onClick={(e) => e.stopPropagation()} 
+                style={{ maxWidth }}
+            >
+                <div className="modal-header">
+                    <h3 className="modal-title">{title}</h3>
+                    <button onClick={onClose} className="icon-btn" aria-label="Fechar">
                         <X size={20} />
                     </button>
                 </div>
-                <div className="modal-body" style={{ padding: '1.5rem', overflowY: 'auto', flex: 1 }}>
+                <div className="modal-body">
                     {children}
                 </div>
             </div>

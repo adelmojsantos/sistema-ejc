@@ -4,11 +4,17 @@ import type { RecreacaoDados, RecreacaoDadosFormData } from '../types/recreacao'
 const TABLE = 'recreacao_dados';
 
 export const recreacaoService = {
-  async listarPorParticipacao(participacaoId: string): Promise<RecreacaoDados[]> {
+  async listarPorResponsavel(participacaoId: string): Promise<RecreacaoDados[]> {
     const { data, error } = await supabase
       .from(TABLE)
       .select(`
         *,
+        participacoes:participacao_id (
+          id,
+          equipe_id,
+          pessoas (nome_completo, telefone),
+          equipes (nome)
+        ),
         outro_responsavel:outro_responsavel_id (
           id,
           equipe_id,
@@ -16,7 +22,7 @@ export const recreacaoService = {
           equipes (nome)
         )
       `)
-      .eq('participacao_id', participacaoId)
+      .or(`participacao_id.eq.${participacaoId},outro_responsavel_id.eq.${participacaoId}`)
       .order('created_at', { ascending: true });
 
     if (error) throw error;

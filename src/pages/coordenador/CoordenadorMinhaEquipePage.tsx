@@ -18,31 +18,39 @@ import {
   Shield,
   Users,
   X,
-  Car,
-  ShirtIcon,
+  UserX,
+  Upload,
+  Eye,
+  Shirt as ShirtIcon,
   Baby,
-  UserX
+  Car,
+  LayoutGrid
 } from 'lucide-react';
+import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
+import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
+import { BulkShirtOrderModal } from '../../components/coordenador/BulkShirtOrderModal';
+import { TeamShirtSummaryModal } from '../../components/coordenador/TeamShirtSummaryModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
-import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
-import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
+import { equipeService } from '../../services/equipeService';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { camisetaService } from '../../services/camisetaService';
-import { equipeService } from '../../services/equipeService';
 import { exportConfigService } from '../../services/exportConfigService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
-import type { CamisetaModelo, CamisetaPedido } from '../../types/camiseta';
+import { validatePessoaForConfirmation } from '../../utils/pessoaValidation';
+import type { CamisetaModelo, CamisetaPedido, CamisetaTamanho } from '../../types/camiseta';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import type { RecepcaoDados } from '../../types/recepcao';
 import type { RecreacaoDados } from '../../types/recreacao';
 import { formatBRL } from '../../utils/currencyUtils';
+import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
+import { Minus, Plus } from 'phosphor-react';
 
 interface EquipeMember {
   id: string;
@@ -54,6 +62,7 @@ interface EquipeMember {
   pessoas: Pessoa;
   recepcao_dados: RecepcaoDados | null;
   recreacao_dados: RecreacaoDados[];
+  recreacao_dados_secundario?: RecreacaoDados[];
 }
 
 function formatTelefone(tel: string | null | undefined) {
@@ -82,13 +91,64 @@ export function CoordenadorMinhaEquipePage() {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [addingShirtToMemberId, setAddingShirtToMemberId] = useState<string | null>(null);
   const [modelosCamiseta, setModelosCamiseta] = useState<CamisetaModelo[]>([]);
+  const [tamanhosCamiseta, setTamanhosCamiseta] = useState<CamisetaTamanho[]>([]);
   const [newShirtData, setNewShirtData] = useState({ modelo_id: '', tamanho: 'G', quantidade: 1 });
-  const [recepcaoParticipacaoId, setRecepcaoParticipacaoId] = useState<string | null>(null);
-  const [recepcaoParticipanteNome, setRecepcaoParticipanteNome] = useState<string>('');
-  const [recreacaoParticipacaoId, setRecreacaoParticipacaoId] = useState<string | null>(null);
-  const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState<string>('');
   const [isExporting, setIsExporting] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
+  const [showFinalizeModal, setShowFinalizeModal] = useState(false);
+  const [isFinalizingTeam, setIsFinalizingTeam] = useState(false);
+  const [isUploadingProof, setIsUploadingProof] = useState<string | null>(null); // 'taxas' | 'camisetas' | null
+  const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
+  const [showBulkShirtModal, setShowBulkShirtModal] = useState(false);
+  const [showShirtSummaryModal, setShowShirtSummaryModal] = useState(false);
+  const [comprovanteCamisetasUrl, setComprovanteCamisetasUrl] = useState<string | null>(null);
+  const [pixTaxa, setPixTaxa] = useState<{
+    chave: string | null;
+    tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+    qrCodeUrl: string | null;
+  }>({ chave: null, tipo: null, qrCodeUrl: null });
+
+  const teamShirtSummary = useMemo(() => {
+    const memberIds = new Set(members.map(m => m.id));
+    const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
+    
+    const summaryMap = new Map<string, any>();
+    
+    teamPedidos.forEach(p => {
+      const modId = p.modelo_id;
+      if (!summaryMap.has(modId)) {
+        const modeloEncontro = modelosCamiseta.find(m => m.id === modId);
+        summaryMap.set(modId, {
+          modelo_id: modId,
+          modelo_nome: p.camiseta_modelos?.nome || 'Desconhecido',
+          tamanhos: {},
+          total: 0,
+          valor_unitario: modeloEncontro?.valor || 0,
+          valor_total: 0
+        });
+      }
+      
+      const modSummary = summaryMap.get(modId)!;
+      const tam = p.tamanho;
+      modSummary.tamanhos[tam] = (modSummary.tamanhos[tam] || 0) + (p.quantidade || 1);
+      modSummary.total += (p.quantidade || 1);
+      const modeloEncontro = modelosCamiseta.find(m => m.id === modId);
+      modSummary.valor_total += (modeloEncontro?.valor || 0) * (p.quantidade || 1);
+    });
+    
+    return Array.from(summaryMap.values());
+  }, [members, pedidosCamisetas]);
+
+  const [pixCamisetas, setPixCamisetas] = useState<{
+    chave: string | null;
+    tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+    qrCodeUrl: string | null;
+  }>({ chave: null, tipo: null, qrCodeUrl: null });
+
+  const [recepcaoParticipacaoId, setRecepcaoParticipacaoId] = useState<string | null>(null);
+  const [recepcaoParticipanteNome, setRecepcaoParticipanteNome] = useState('');
+  const [recreacaoParticipacaoId, setRecreacaoParticipacaoId] = useState<string | null>(null);
+  const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState('');
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -101,14 +161,20 @@ export function CoordenadorMinhaEquipePage() {
   const loadPedidos = useCallback(async () => {
     if (!userParticipacao?.encontro_id) return;
     try {
-      const [pedidos, modelos] = await Promise.all([
+      const [pedidos, modelosRaw, tamanhos] = await Promise.all([
         camisetaService.listarPedidosPorEncontro(userParticipacao.encontro_id),
-        camisetaService.listarModelos()
+        camisetaService.listarModelos(userParticipacao.encontro_id),
+        camisetaService.listarTamanhos()
       ]);
+      // Filtra apenas os modelos que estão ativos especificamente para este encontro
+      const modelos = modelosRaw.filter((m: any) => m.esta_ativo_no_encontro !== false);
       setPedidosCamisetas(pedidos);
       setModelosCamiseta(modelos);
+      setTamanhosCamiseta(tamanhos);
       if (modelos.length > 0) {
-        setNewShirtData(prev => ({ ...prev, modelo_id: modelos[0].id }));
+        const availableSizes = tamanhos.filter(t => !t.modelo_id || t.modelo_id === modelos[0].id);
+        const defaultSize = availableSizes.length > 0 ? availableSizes[0].sigla : '';
+        setNewShirtData(prev => ({ ...prev, modelo_id: modelos[0].id, tamanho: defaultSize }));
       }
     } catch (error) {
       console.error('Erro ao carregar pedidos:', error);
@@ -126,53 +192,39 @@ export function CoordenadorMinhaEquipePage() {
         setEquipeNome(userParticipacao.equipes.nome);
       }
 
-      const conf = await equipeService.obterConfirmacao(userParticipacao.equipe_id!, userParticipacao.encontro_id);
-      setTeamConfirmation(conf);
+      if (userParticipacao?.encontro_id && userParticipacao?.equipe_id) {
+        const conf = await equipeService.obterConfirmacao(userParticipacao.equipe_id, userParticipacao.encontro_id);
+        if (conf) {
+          setTeamConfirmation(conf);
+          setComprovanteUrl(conf.comprovante_taxas_url);
+          setComprovanteCamisetasUrl(conf.comprovante_camisetas_url);
+        }
+      }
 
-      // Get encounter fee
-      const { data: encData } = await supabase.from('encontros').select('valor_taxa').eq('id', userParticipacao.encontro_id).single();
-      if (encData) setValorTaxa(encData.valor_taxa || 0);
+      // Get encounter fee and PIX info
+      const { data: encData } = await supabase
+        .from('encontros')
+        .select('valor_taxa, pix_taxa_chave, pix_taxa_tipo, pix_taxa_qrcode_url, pix_camisetas_chave, pix_camisetas_tipo, pix_camisetas_qrcode_url')
+        .eq('id', userParticipacao.encontro_id)
+        .single();
+
+      if (encData) {
+        setValorTaxa(encData.valor_taxa || 0);
+        setPixTaxa({
+          chave: encData.pix_taxa_chave,
+          tipo: encData.pix_taxa_tipo as any,
+          qrCodeUrl: encData.pix_taxa_qrcode_url
+        });
+        setPixCamisetas({
+          chave: encData.pix_camisetas_chave,
+          tipo: encData.pix_camisetas_tipo as any,
+          qrCodeUrl: encData.pix_camisetas_qrcode_url
+        });
+      }
 
       loadPedidos();
 
-      const { data, error } = await supabase
-        .from('participacoes')
-        .select(`
-          id,
-          pessoa_id,
-          coordenador,
-          participante,
-          dados_confirmados,
-          pessoas (
-            id,
-            nome_completo,
-            cpf,
-            email,
-            telefone,
-            comunidade,
-            data_nascimento,
-            nome_pai,
-            nome_mae,
-            endereco,
-            numero,
-            bairro,
-            cidade,
-            telefone_pai,
-            telefone_mae,
-            outros_contatos,
-            fez_ejc_outra_paroquia,
-            qual_paroquia_ejc,
-            qr_code_token,
-            created_at
-          ),
-          pago_taxa,
-          recepcao_dados(*),
-          recreacao_dados!participacao_id(*)
-        `)
-        .eq('encontro_id', userParticipacao.encontro_id)
-        .eq('equipe_id', userParticipacao.equipe_id!);
-
-      if (error) throw error;
+      const data = await inscricaoService.listarPorEquipeEEncontro(userParticipacao.equipe_id!, userParticipacao.encontro_id);
 
       const typedData = (data as unknown as EquipeMember[]) || [];
 
@@ -184,9 +236,11 @@ export function CoordenadorMinhaEquipePage() {
         return nomeA.localeCompare(nomeB);
       });
       setMembers(sortedData);
+      return sortedData;
     } catch (error) {
       console.error('Erro ao buscar membros da equipe:', error);
       toast.error('Erro ao carregar membros da equipe.');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -212,19 +266,56 @@ export function CoordenadorMinhaEquipePage() {
     }
   };
 
-  const handleEditSubmit = async (data: PessoaFormData) => {
+  const handleUploadProof = async (e: React.ChangeEvent<HTMLInputElement>, tipo: 'taxas' | 'camisetas') => {
+    const file = e.target.files?.[0];
+    if (!file || !userParticipacao?.equipe_id || !userParticipacao?.encontro_id || !user) return;
+
+    // Validar tamanho (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('O arquivo deve ter no máximo 5MB');
+      return;
+    }
+
+    setIsUploadingProof(tipo);
+    try {
+      const url = await equipeService.uploadComprovante(userParticipacao.equipe_id, userParticipacao.encontro_id, file, tipo);
+      await equipeService.atualizarComprovante(userParticipacao.equipe_id, userParticipacao.encontro_id, url, user.id, tipo);
+
+      if (tipo === 'taxas') setComprovanteUrl(url);
+      else setComprovanteCamisetasUrl(url);
+
+      toast.success(`Comprovante de ${tipo} enviado com sucesso!`);
+
+      // Atualiza o estado da confirmação se necessário
+      const conf = await equipeService.obterConfirmacao(userParticipacao.equipe_id, userParticipacao.encontro_id);
+      if (conf) setTeamConfirmation(conf);
+    } catch (error) {
+      console.error('Erro ao enviar comprovante:', error);
+      toast.error('Erro ao enviar comprovante');
+    } finally {
+      setIsUploadingProof(null);
+    }
+  };
+
+  const handleEditSubmit = async (data: PessoaFormData, shouldConfirm: boolean) => {
     if (!editingPessoa) return;
     setIsSaving(true);
     try {
       const member = members.find(m => m.pessoa_id === editingPessoa.id);
       await pessoaService.atualizar(editingPessoa.id, data);
-      if (member) {
+
+      if (member && shouldConfirm) {
         await inscricaoService.confirmarDados(member.id);
+        toast.success('Dados salvos e confirmados com sucesso!');
+      } else {
+        toast.success('Dados salvos com sucesso!');
       }
-      toast.success('Dados salvos e confirmados com sucesso!');
+
       setEditingPessoa(null);
-      setLoading(true);
-      await loadMembers();
+      const updatedMembers = await loadMembers();
+      if (shouldConfirm && updatedMembers) {
+        checkAllMembersConfirmed(updatedMembers);
+      }
     } catch (error) {
       console.error('Erro ao salvar:', error);
       toast.error('Erro ao salvar alterações.');
@@ -233,11 +324,57 @@ export function CoordenadorMinhaEquipePage() {
     }
   };
 
+  const checkAllMembersConfirmed = (currentMembers: EquipeMember[]) => {
+    if (currentMembers.length === 0) return;
+    const allConfirmed = currentMembers.every(m => m.dados_confirmados);
+    if (allConfirmed && !teamConfirmation) {
+      setShowFinalizeModal(true);
+    }
+  };
+
+  const handleFinalizeTeam = async () => {
+    if (!userParticipacao?.equipe_id || !userParticipacao?.encontro_id || !user?.id) return;
+
+    setIsFinalizingTeam(true);
+    try {
+      await equipeService.confirmarEquipe(
+        userParticipacao.equipe_id,
+        userParticipacao.encontro_id,
+        user.id
+      );
+      toast.success('Equipe finalizada com sucesso!');
+      setShowFinalizeModal(false);
+      // Reload to update confirmation badge
+      await loadMembers();
+    } catch (error) {
+      console.error('Erro ao finalizar equipe:', error);
+      toast.error('Erro ao finalizar equipe.');
+    } finally {
+      setIsFinalizingTeam(false);
+    }
+  };
+
   const handleConfirmOneMember = async (memberId: string) => {
+    const member = members.find(m => m.id === memberId);
+    if (member?.pessoas) {
+      const validation = validatePessoaForConfirmation(member.pessoas);
+      if (!validation.isValid) {
+        toast.error(`Para confirmar, preencha os seguintes campos: ${validation.missingFields.join(', ')}`, {
+          duration: 5000,
+          icon: '⚠️'
+        });
+        return;
+      }
+    }
+
     try {
       await inscricaoService.confirmarDados(memberId);
       toast.success('Integrante confirmado!');
-      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, dados_confirmados: true } : m));
+      const updatedMembers = members.map(m => m.id === memberId ? { ...m, dados_confirmados: true } : m);
+      setMembers(updatedMembers);
+
+      // Check if team is now complete
+      checkAllMembersConfirmed(updatedMembers);
     } catch {
       toast.error('Erro ao confirmar integrante.');
     }
@@ -261,6 +398,10 @@ export function CoordenadorMinhaEquipePage() {
   const handleAddShirt = async (participacaoId: string) => {
     if (!newShirtData.modelo_id) {
       toast.error('Selecione um modelo de camiseta.');
+      return;
+    }
+    if (!newShirtData.quantidade || newShirtData.quantidade < 1) {
+      toast.error('A quantidade deve ser pelo menos 1.');
       return;
     }
     setIsSaving(true);
@@ -489,6 +630,7 @@ export function CoordenadorMinhaEquipePage() {
             onCancel={() => setEditingPessoa(null)}
             isLoading={isSaving}
             isConfirmationContext={true}
+            hideConfirmAction={!!teamConfirmation}
           />
         </div>
       </>
@@ -513,6 +655,22 @@ export function CoordenadorMinhaEquipePage() {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem' }}>
+          {userParticipacao?.coordenador && (
+            <button
+              onClick={() => setShowBulkShirtModal(true)}
+              className="btn-primary flex items-center gap-2"
+              style={{
+                fontSize: '0.85rem',
+                padding: '0.5rem 1rem',
+                backgroundColor: 'var(--primary-color)',
+                borderColor: 'var(--primary-color)',
+              }}
+            >
+              <ShirtIcon size={16} />
+              <span>Pedir camiseta</span>
+            </button>
+          )}
+
           {userParticipacao?.coordenador && !userParticipacao.dados_confirmados && (
             <button
               onClick={handleConfirmData}
@@ -676,11 +834,166 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       )}
 
+
+      {/* Seção de Comprovantes */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+        gap: '1rem',
+        marginBottom: '1.5rem',
+        marginTop: '1.5rem'
+      }}>
+        {/* Card 1: Taxas */}
+        <div className="card animate-fade-in" style={{
+          padding: '1.25rem',
+          background: 'var(--card-bg)',
+          border: '1px solid var(--border-color)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              backgroundColor: comprovanteUrl ? 'rgba(16, 185, 129, 0.1)' : 'rgba(var(--primary-rgb), 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: comprovanteUrl ? '#10b981' : 'var(--primary-color)',
+            }}>
+              <FileText size={22} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Taxas da Equipe</h3>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.2rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                  {members.filter(m => m.pago_taxa).length}/{members.length} pagas
+                </span>
+                <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                  {formatBRL(members.filter(m => m.pago_taxa).length * valorTaxa)}/{formatBRL(members.length * valorTaxa)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+
+          <div style={{ margin: '0.25rem 0' }}>
+            <PixPaymentInfo
+              chave={pixTaxa.chave}
+              tipo={pixTaxa.tipo}
+              qrCodeUrl={pixTaxa.qrCodeUrl}
+              variant="compact"
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {comprovanteUrl && (
+              <a href={comprovanteUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center' }}>
+                <Eye size={18} />
+                <span>Ver</span>
+              </a>
+            )}
+            <label className={`btn ${comprovanteUrl ? 'btn-secondary' : 'btn-primary'}`} style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', cursor: isUploadingProof === 'taxas' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center', margin: 0 }}>
+              {isUploadingProof === 'taxas' ? <Loader className="animate-spin" size={14} /> : <Upload size={14} />}
+              <span>{comprovanteUrl ? 'Trocar' : 'Enviar'}</span>
+              <input type="file" onChange={(e) => handleUploadProof(e, 'taxas')} accept="image/*,.pdf" style={{ display: 'none' }} disabled={isUploadingProof === 'taxas'} />
+            </label>
+          </div>
+        </div>
+
+        {/* Card 2: Camisetas */}
+        <div className="card animate-fade-in" style={{
+          padding: '1.25rem',
+          background: 'var(--card-bg)',
+          border: '1px solid var(--border-color)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          gap: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '10px',
+              backgroundColor: comprovanteCamisetasUrl ? 'rgba(var(--accent-rgb), 0.1)' : 'rgba(var(--primary-rgb), 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: comprovanteCamisetasUrl ? 'var(--accent-color)' : 'var(--primary-color)',
+            }}>
+              <ShirtIcon size={22} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Camisetas da Equipe</h3>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.2rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                  {(() => {
+                    const memberIds = new Set(members.map(m => m.id));
+                    const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
+                    const total = teamPedidos.reduce((acc, curr) => acc + (curr.quantidade || 1), 0);
+                    return `${total} ${total === 1 ? 'camiseta' : 'camisetas'}`;
+                  })()}
+                </span>
+                <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                  {(() => {
+                    const memberIds = new Set(members.map(m => m.id));
+                    const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
+                    const total = teamPedidos.reduce((acc, curr) => {
+                      const modeloEncontro = modelosCamiseta.find(m => m.id === curr.modelo_id);
+                      return acc + ((modeloEncontro?.valor || 0) * (curr.quantidade || 1));
+                    }, 0);
+                    return formatBRL(total);
+                  })()}
+                </span>
+                <button 
+                  onClick={() => setShowShirtSummaryModal(true)}
+                  className="btn-text" 
+                  style={{ fontSize: '0.75rem', padding: '2px 8px', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <LayoutGrid size={14} />
+                  <span>Resumo</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+
+          <div style={{ margin: '0.25rem 0' }}>
+            <PixPaymentInfo
+              chave={pixCamisetas.chave}
+              tipo={pixCamisetas.tipo}
+              qrCodeUrl={pixCamisetas.qrCodeUrl}
+              variant="compact"
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {comprovanteCamisetasUrl && (
+              <a href={comprovanteCamisetasUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center' }}>
+                <Eye size={18} />
+                <span>Ver</span>
+              </a>
+            )}
+            <label className={`btn ${comprovanteCamisetasUrl ? 'btn-secondary' : 'btn-primary'}`} style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', cursor: isUploadingProof === 'camisetas' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center', margin: 0 }}>
+              {isUploadingProof === 'camisetas' ? <Loader className="animate-spin" size={14} /> : <Upload size={14} />}
+              <span>{comprovanteCamisetasUrl ? 'Trocar' : 'Enviar'}</span>
+              <input type="file" onChange={(e) => handleUploadProof(e, 'camisetas')} accept="image/*,.pdf" style={{ display: 'none' }} disabled={isUploadingProof === 'camisetas'} />
+            </label>
+          </div>
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-        <div 
+        <div
           onClick={() => setActiveFilter('all')}
-          className="card" 
-          style={{ 
+          className="card"
+          style={{
             padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
             border: activeFilter === 'all' ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
             transform: activeFilter === 'all' ? 'translateY(-2px)' : 'none',
@@ -703,10 +1016,10 @@ export function CoordenadorMinhaEquipePage() {
           </div>
         </div>
 
-        <div 
+        <div
           onClick={() => setActiveFilter('confirmed')}
-          className="card" 
-          style={{ 
+          className="card"
+          style={{
             padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
             border: activeFilter === 'confirmed' ? '2px solid #10b981' : '1px solid var(--border-color)',
             transform: activeFilter === 'confirmed' ? 'translateY(-2px)' : 'none',
@@ -729,10 +1042,10 @@ export function CoordenadorMinhaEquipePage() {
           </div>
         </div>
 
-        <div 
+        <div
           onClick={() => setActiveFilter('pending')}
-          className="card" 
-          style={{ 
+          className="card"
+          style={{
             padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
             border: activeFilter === 'pending' ? '2px solid #f59e0b' : '1px solid var(--border-color)',
             transform: activeFilter === 'pending' ? 'translateY(-2px)' : 'none',
@@ -909,7 +1222,7 @@ export function CoordenadorMinhaEquipePage() {
                 {/* Body: 3-column Grid (Taxa, Camisetas, Recepção) */}
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(130px, 1fr))',
+                  gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
                   gap: '1.25rem',
                   paddingTop: '1.25rem',
                   borderTop: '1px solid var(--border-color)'
@@ -1005,31 +1318,136 @@ export function CoordenadorMinhaEquipePage() {
                         backgroundColor: 'rgba(0,0,0,0.03)',
                         borderRadius: '10px'
                       }}>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <select
-                            value={newShirtData.modelo_id}
-                            onChange={e => setNewShirtData({ ...newShirtData, modelo_id: e.target.value })}
-                            className="form-input"
-                            style={{ flex: 1, padding: '0.4rem', fontSize: '0.8rem' }}
-                          >
-                            {modelosCamiseta.map(mod => (
-                              <option key={mod.id} value={mod.id}>{mod.nome}</option>
-                            ))}
-                          </select>
-                          <select
-                            value={newShirtData.tamanho}
-                            onChange={e => setNewShirtData({ ...newShirtData, tamanho: e.target.value })}
-                            className="form-input"
-                            style={{ width: '60px', padding: '0.4rem', fontSize: '0.8rem' }}
-                          >
-                            {['P', 'M', 'G', 'GG', 'XG'].map(t => (
-                              <option key={t} value={t}>{t}</option>
-                            ))}
-                          </select>
+                        <div style={{
+                          display: 'flex',
+                          gap: '0.75rem',
+                          alignItems: 'flex-end',
+                          flexWrap: 'nowrap',
+                          marginBottom: '1rem'
+                        }}>
+                          <div style={{ flex: '2', minWidth: '0' }}>
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.3rem', display: 'block' }}>Modelo</label>
+                            <select
+                              value={newShirtData.modelo_id}
+                              onChange={e => {
+                                const newModelId = e.target.value;
+                                const availableSizes = tamanhosCamiseta.filter(t => !t.modelo_id || t.modelo_id === newModelId);
+                                const newSize = availableSizes.some(t => t.sigla === newShirtData.tamanho) ? newShirtData.tamanho : (availableSizes[0]?.sigla || '');
+                                setNewShirtData({ ...newShirtData, modelo_id: newModelId, tamanho: newSize });
+                              }}
+                              className="form-input"
+                              style={{ width: '100%', padding: '0.5rem', fontSize: '0.8rem', height: '44px' }}
+                            >
+                              {modelosCamiseta.map(mod => (
+                                <option key={mod.id} value={mod.id}>{mod.nome}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div style={{ flex: 1, flexShrink: 1 }}>
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.3rem', display: 'block', textAlign: 'left' }}>Tam</label>
+                            <select
+                              value={newShirtData.tamanho}
+                              onChange={e => setNewShirtData({ ...newShirtData, tamanho: e.target.value })}
+                              className="form-input"
+                              style={{ width: '100%', padding: '0.5rem', fontSize: '0.8rem', textAlign: 'left', height: '44px' }}
+                            >
+                              {tamanhosCamiseta
+                                .filter(t => !t.modelo_id || t.modelo_id === newShirtData.modelo_id)
+                                .map(t => (
+                                  <option key={t.id} value={t.sigla}>{t.sigla}</option>
+                                ))}
+                            </select>
+                          </div>
+
+                          <div style={{ flex: 1, flexShrink: 1 }}>
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.3rem', display: 'block', textAlign: 'left' }}>Qtd</label>
+                            <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden', height: '44px', padding: '2px' }}>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setNewShirtData(prev => ({ ...prev, quantidade: Math.max(0, prev.quantidade - 1) })); }}
+                                style={{
+                                  minWidth: '40px', height: '100%', border: 'none', background: 'none',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  cursor: 'pointer', color: 'var(--primary-color)',
+                                  transition: 'all 0.2s',
+                                  flexShrink: 1,
+                                  padding: 0,
+                                  outline: 'none',
+                                }}
+                                disabled={newShirtData.quantidade === 1}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                <Minus size={16} strokeWidth={1.5} color='var(--text-color)' />
+                              </button>
+                              <input
+                                type="number"
+                                min="1"
+                                value={newShirtData.quantidade || ''}
+                                onChange={e => setNewShirtData({ ...newShirtData, quantidade: parseInt(e.target.value) })}
+                                className="form-input no-spinner"
+                                style={{
+                                  flex: 1, padding: '0', border: 'none', background: 'transparent',
+                                  fontSize: '0.9rem', textAlign: 'center', fontWeight: 500,
+                                  color: 'var(--text-color)',
+                                  appearance: 'none', margin: 0,
+                                  boxShadow: 'none',
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setNewShirtData(prev => ({ ...prev, quantidade: prev.quantidade + 1 })); }}
+                                style={{
+                                  minWidth: '40px', height: '100%', border: 'none', background: 'none',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  cursor: 'pointer', color: 'var(--primary-color)',
+                                  transition: 'all 0.2s',
+                                  flexShrink: 1,
+                                  padding: 0,
+                                  outline: 'none',
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                <Plus size={16} strokeWidth={1.5} color='var(--text-color)' />
+                              </button>
+                            </div>
+                          </div>
                         </div>
+
+                        {/* Price Info */}
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.65rem 0.85rem',
+                          backgroundColor: 'rgba(var(--primary-rgb), 0.05)',
+                          borderRadius: '10px',
+                          border: '1px dashed var(--border-color)',
+                          marginBottom: '0.75rem'
+                        }}>
+                          {(() => {
+                            const model = modelosCamiseta.find(m => m.id === newShirtData.modelo_id);
+                            const unitPrice = model?.valor || 0;
+                            const totalPrice = unitPrice * newShirtData.quantidade;
+
+                            return (
+                              <>
+                                <div style={{ fontSize: '0.7rem', opacity: 0.7 }}>
+                                  Unit.: <span style={{ fontWeight: 700 }}>{unitPrice > 0 ? formatBRL(unitPrice) : 'Valor a confirmar'}</span>
+                                </div>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--primary-color)' }}>
+                                  Total: {unitPrice > 0 ? formatBRL(totalPrice) : 'Valor a confirmar'}
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+
                         <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
                           <button onClick={() => setAddingShirtToMemberId(null)} className="btn-text" style={{ fontSize: '0.75rem' }}>Canc.</button>
-                          <button onClick={() => handleAddShirt(m.id)} disabled={isSaving} className="btn-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.75rem' }}>Salvar</button>
+                          <button onClick={() => handleAddShirt(m.id)} disabled={isSaving} className="btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}>Salvar</button>
                         </div>
                       </div>
                     ) : memberOrders.length === 0 ? (
@@ -1043,7 +1461,8 @@ export function CoordenadorMinhaEquipePage() {
                             <tr style={{ textAlign: 'left', opacity: 0.5 }}>
                               <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Mod</th>
                               <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>T</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Q</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'center' }}>Q</th>
+                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'right' }}>Valor</th>
                               <th style={{ width: '20px' }}></th>
                             </tr>
                           </thead>
@@ -1052,7 +1471,14 @@ export function CoordenadorMinhaEquipePage() {
                               <tr key={order.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                                 <td style={{ padding: '0.4rem 0.25rem' }}>{order.camiseta_modelos?.nome}</td>
                                 <td style={{ padding: '0.4rem 0.25rem' }}>{order.tamanho}</td>
-                                <td style={{ padding: '0.4rem 0.25rem' }}>{order.quantidade}</td>
+                                <td style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>{order.quantidade}</td>
+                                <td style={{ padding: '0.4rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>
+                                  {(() => {
+                                    const modeloEncontro = modelosCamiseta.find(m => m.id === order.modelo_id);
+                                    const val = (modeloEncontro?.valor || 0) * (order.quantidade || 1);
+                                    return formatBRL(val);
+                                  })()}
+                                </td>
                                 <td style={{ padding: '0.25rem', textAlign: 'right' }}>
                                   <button onClick={() => handleDeleteShirt(order.id)} style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.4, cursor: 'pointer' }}><X size={12} /></button>
                                 </td>
@@ -1067,7 +1493,7 @@ export function CoordenadorMinhaEquipePage() {
                   {/* Recepção Section */}
                   <div style={{
                     padding: '1rem',
-                    backgroundColor: 'var(--surface-2)',
+                    backgroundColor: 'rgba(var(--primary-rgb), 0.02)',
                     borderRadius: '12px',
                     border: '1px solid var(--border-color)',
                     display: 'flex',
@@ -1076,7 +1502,7 @@ export function CoordenadorMinhaEquipePage() {
                     minHeight: '150px'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
                         Recepção
                       </div>
                       <button
@@ -1142,7 +1568,7 @@ export function CoordenadorMinhaEquipePage() {
                     minHeight: '150px'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
                         Recreação
                       </div>
                       <button
@@ -1170,7 +1596,7 @@ export function CoordenadorMinhaEquipePage() {
                       </button>
                     </div>
 
-                    {!m.recreacao_dados || m.recreacao_dados.length === 0 ? (
+                    {(!m.recreacao_dados || m.recreacao_dados.length === 0) && (!m.recreacao_dados_secundario || m.recreacao_dados_secundario.length === 0) ? (
                       <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
                         Não cadastrado
                       </div>
@@ -1184,9 +1610,13 @@ export function CoordenadorMinhaEquipePage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {m.recreacao_dados.map((c: RecreacaoDados) => (
+                            {[...(m.recreacao_dados || []), ...(m.recreacao_dados_secundario || [])].map(c => (
                               <tr key={c.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                                <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{c.nome_crianca}</td>
+                                <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    {c.nome_crianca}
+                                  </div>
+                                </td>
                                 <td style={{ padding: '0.4rem 0.25rem' }}>{c.idade}a</td>
                               </tr>
                             ))}
@@ -1195,12 +1625,53 @@ export function CoordenadorMinhaEquipePage() {
                       </div>
                     )}
                   </div>
+
+
                 </div>
               </div>
             );
           })}
         </div>
       )}
+
+
+
+      <BulkShirtOrderModal
+        isOpen={showBulkShirtModal}
+        onClose={() => setShowBulkShirtModal(false)}
+        members={members}
+        modelos={modelosCamiseta}
+        tamanhos={tamanhosCamiseta}
+        onSuccess={loadPedidos}
+      />
+
+      <TeamShirtSummaryModal
+        isOpen={showShirtSummaryModal}
+        onClose={() => setShowShirtSummaryModal(false)}
+        resumo={teamShirtSummary}
+        equipeNome={equipeNome}
+      />
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Desvincular Integrante"
+        message={`Deseja realmente remover ${deleteTarget?.pessoas?.nome_completo} desta equipe e do encontro?`}
+        onConfirm={handleDeleteMember}
+        onCancel={() => setDeleteTarget(null)}
+        confirmText="Desvincular"
+        isDestructive={true}
+        isLoading={isConfirmingDelete}
+      />
+
+      <ConfirmDialog
+        isOpen={showFinalizeModal}
+        title="Finalizar Confirmação da Equipe"
+        message={`Todos os integrantes desta equipe foram confirmados! Deseja finalizar a confirmação da equipe "${equipeNome}" agora?`}
+        onConfirm={handleFinalizeTeam}
+        onCancel={() => setShowFinalizeModal(false)}
+        confirmText="Finalizar Equipe"
+        isLoading={isFinalizingTeam}
+      />
 
       <RecepcaoDadosModal
         isOpen={!!recepcaoParticipacaoId}
@@ -1222,17 +1693,6 @@ export function CoordenadorMinhaEquipePage() {
         participacaoId={recreacaoParticipacaoId || ''}
         participanteNome={recreacaoParticipanteNome}
         encontroId={userParticipacao?.encontro_id || ''}
-      />
-
-      <ConfirmDialog
-        isOpen={!!deleteTarget}
-        title="Desvincular Integrante"
-        message={`Deseja realmente remover ${deleteTarget?.pessoas?.nome_completo} desta equipe e do encontro?`}
-        onConfirm={handleDeleteMember}
-        onCancel={() => setDeleteTarget(null)}
-        confirmText="Desvincular"
-        isDestructive={true}
-        isLoading={isConfirmingDelete}
       />
     </>
   );

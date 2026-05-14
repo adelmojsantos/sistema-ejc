@@ -4,24 +4,28 @@ import type { CirculoParticipacao, CirculoParticipacaoEnriched } from '../types/
 const TABLE = 'circulo_participacao';
 
 export const circuloParticipacaoService = {
+    /**
+     * Busca todos os vínculos de círculo para um encontro.
+     * CORREÇÃO: query em dois passos para evitar bug do PostgREST
+     * onde o .filter() em join retorna rows pai com join nulo
+     * em vez de filtrar as próprias rows.
+     */
     async listarPorEncontro(encontroId: string): Promise<CirculoParticipacaoEnriched[]> {
-        // Here we first need to get the "participacoes" for the meeting
-        // and then join with "circulo_participacao"
         const { data, error } = await supabase
             .from(TABLE)
             .select(`
                 *,
-                participacoes!participacao (
+                participacoes!inner (
                     id,
                     encontro_id,
                     pessoas (nome_completo)
                 ),
                 circulos (nome)
             `)
-            .filter('participacoes.encontro_id', 'eq', encontroId);
+            .eq('participacoes.encontro_id', encontroId);
 
         if (error) throw error;
-        return data;
+        return (data || []) as CirculoParticipacaoEnriched[];
     },
 
     async listarPorCirculo(circulo_id: number): Promise<CirculoParticipacaoEnriched[]> {
@@ -45,11 +49,43 @@ export const circuloParticipacaoService = {
         return data;
     },
 
+    async vincularMuitos(vinculos: Partial<CirculoParticipacao>[]): Promise<void> {
+        const { error } = await supabase
+            .from(TABLE)
+            .insert(vinculos);
+
+        if (error) throw error;
+    },
+
     async desvincular(id: string): Promise<void> {
         const { error } = await supabase
             .from(TABLE)
             .delete()
             .eq('id', id);
+
+        if (error) throw error;
+    },
+
+    /**
+     * Remove todos os vínculos de um círculo num encontro específico.
+     * O círculo global e os participantes do encontro não são afetados.
+     */
+    async removerPorCirculoEEncontro(circuloId: number, encontroId: string): Promise<void> {
+        const { data: parts, error: partsError } = await supabase
+            .from('participacoes')
+            .select('id')
+            .eq('encontro_id', encontroId);
+
+        if (partsError) throw partsError;
+        if (!parts || parts.length === 0) return;
+
+        const participacaoIds = parts.map((p: { id: string }) => p.id);
+
+        const { error } = await supabase
+            .from(TABLE)
+            .delete()
+            .eq('circulo_id', circuloId)
+            .in('participacao', participacaoIds);
 
         if (error) throw error;
     }

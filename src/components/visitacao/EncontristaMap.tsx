@@ -1,10 +1,11 @@
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { VisitaParticipacaoEnriched } from '../../types/visitacao';
-import { Users, CheckCircle2, MapPin, Trash2 } from 'lucide-react';
+import { Users, CheckCircle2, MapPin, Trash2, Edit2, RefreshCw, XCircle, Loader2 } from 'lucide-react';
 import { applyJitter } from '../../utils/geocoding';
+import { pessoaService } from '../../services/pessoaService';
 
 // Fix for default marker icons in Leaflet + Vite
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -45,9 +46,12 @@ interface EncontristaMapProps {
   onVincular: (participacaoId: string) => void;
   onDesvincular?: (vinculoId: string) => void;
   onShowUnmappedClick?: () => void;
+  onEditAddress?: (p: InscricaoEnriched) => void;
+  onRefresh?: () => void;
 }
 
-export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVincular, onDesvincular, onShowUnmappedClick }: EncontristaMapProps) {
+export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVincular, onDesvincular, onShowUnmappedClick, onEditAddress, onRefresh }: EncontristaMapProps) {
+  const [clearingGeoId, setClearingGeoId] = useState<string | null>(null);
   const markers = useMemo(() => {
     return participantes
       .filter(p => p.pessoas?.latitude && p.pessoas?.longitude)
@@ -55,21 +59,71 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
         const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
         return {
           id: p.id,
+          pessoaId: p.pessoa_id,
           nome: p.pessoas?.nome_completo,
           bairro: p.pessoas?.bairro,
+          endereco: p.pessoas?.endereco,
+          numero: p.pessoas?.numero,
+          complemento: p.pessoas?.complemento,
+          cidade: p.pessoas?.cidade,
+          estado: p.pessoas?.estado,
+          cep: p.pessoas?.cep,
           coords: applyJitter([p.pessoas!.latitude!, p.pessoas!.longitude!]),
           isLinked: !!vinculo,
           vinculoGrupo: vinculo?.visita_grupos?.nome,
           vinculoGrupoId: vinculo?.grupo_id,
-          vinculoId: vinculo?.id
+          vinculoId: vinculo?.id,
+          raw: p
         };
       });
   }, [participantes, vinculos]);
+
+  const handleClearGeo = async (pessoaId: string, markerId: string) => {
+    setClearingGeoId(markerId);
+    try {
+      await pessoaService.atualizar(pessoaId, { latitude: null, longitude: null });
+      onRefresh?.();
+    } catch (err) {
+      console.error('Erro ao remover geolocalização:', err);
+    } finally {
+      setClearingGeoId(null);
+    }
+  };
 
   const center: [number, number] = [-20.5383, -47.4008]; // Franca, SP center
 
   return (
     <div className="card" style={{ height: '600px', position: 'relative', overflow: 'hidden', padding: 0 }}>
+
+      {/* Botão de Atualizar — canto superior esquerdo */}
+      {onRefresh && (
+        <button
+          onClick={onRefresh}
+          style={{
+            position: 'absolute',
+            top: '1rem',
+            left: '1rem',
+            zIndex: 1000,
+            backgroundColor: 'var(--card-bg)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '8px',
+            padding: '0.45rem 0.85rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            fontSize: '0.8rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            color: 'var(--primary-color)',
+            boxShadow: 'var(--shadow-md)',
+            backdropFilter: 'blur(8px)'
+          }}
+          title="Recarregar dados do banco"
+        >
+          <RefreshCw size={14} /> Atualizar
+        </button>
+      )}
+
       <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -87,7 +141,80 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
                   <h4 className="map-popup-name">{m.nome}</h4>
                   <span className="map-popup-bairro">{m.bairro || 'Bairro ñ informado'}</span>
                 </div>
-                
+
+                {/* Endereço Completo */}
+                <div style={{ 
+                  marginBottom: '0.75rem',
+                  padding: '0.6rem 0.75rem',
+                  backgroundColor: 'var(--secondary-bg)',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-color)',
+                  lineHeight: '1.5'
+                }}>
+                  {m.endereco ? (
+                    <>
+                      <div>{m.endereco}{m.numero ? `, ${m.numero}` : ''}{m.complemento ? ` (${m.complemento})` : ''}</div>
+                      {m.bairro && <div style={{ opacity: 0.7 }}>{m.bairro}</div>}
+                      {m.cidade && <div style={{ opacity: 0.7 }}>{m.cidade}{m.estado ? ` / ${m.estado}` : ''}{m.cep ? ` — CEP ${m.cep}` : ''}</div>}
+                    </>
+                  ) : (
+                    <span style={{ opacity: 0.5, fontStyle: 'italic' }}>Endereço não informado</span>
+                  )}
+                </div>
+
+                {/* Botões de Endereço e Geoloc */}
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  {onEditAddress && (
+                    <button
+                      onClick={() => onEditAddress(m.raw)}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        padding: '0.4rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--surface-1)',
+                        color: 'var(--primary-color)',
+                        cursor: 'pointer'
+                      }}
+                      title="Editar endereço e re-geocodificar"
+                    >
+                      <Edit2 size={13} /> Editar End.
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleClearGeo(m.pessoaId, m.id)}
+                    disabled={clearingGeoId === m.id}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      padding: '0.4rem',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      borderRadius: '6px',
+                      border: '1px solid var(--danger-border)',
+                      background: 'transparent',
+                      color: 'var(--danger-text)',
+                      cursor: 'pointer'
+                    }}
+                    title="Remover latitude e longitude do banco"
+                  >
+                    {clearingGeoId === m.id
+                      ? <Loader2 size={13} className="animate-spin" />
+                      : <XCircle size={13} />}
+                    {clearingGeoId === m.id ? 'Removendo...' : 'Remover Geo'}
+                  </button>
+                </div>
+
                 {m.isLinked ? (
                   <div className="flex-col gap-2">
                     <div className="map-popup-linked-badge">

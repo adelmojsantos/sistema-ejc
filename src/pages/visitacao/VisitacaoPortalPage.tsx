@@ -3,6 +3,7 @@ import { useAuth } from '../../hooks/useAuth';
 import {
     Shield, ArrowRight, MapPin
 } from 'lucide-react';
+import { SharedLibraryView } from '../../components/admin/biblioteca/SharedLibraryView';
 
 export function VisitacaoPortalPage() {
     const navigate = useNavigate();
@@ -32,7 +33,7 @@ export function VisitacaoPortalPage() {
     const availableModules = modules.filter(m => hasPermission(m.permission) || hasPermission('modulo_admin'));
 
     return (
-        <>
+        <div style={{ padding: '0 1rem' }}>
             <div style={{ marginBottom: '3rem', textAlign: 'center', marginTop: '2rem' }}>
                 <h1 style={{ marginBottom: '1rem', fontSize: '2.5rem' }}>Portal de Visitação</h1>
                 <p style={{ fontSize: '1.1rem', opacity: 0.7, maxWidth: '700px', margin: '0 auto' }}>
@@ -70,6 +71,13 @@ export function VisitacaoPortalPage() {
                         </div>
                     </div>
                 ))}
+
+                {/* Card de Documentos Integrado na Grid */}
+                <SharedLibraryView
+                    title="Documentos e Arquivos"
+                    description="Acesse arquivos compartilhados com a equipe de visitação."
+                    moduleContext="Visitação"
+                />
             </div>
 
             {availableModules.length === 0 && (
@@ -79,6 +87,6 @@ export function VisitacaoPortalPage() {
                     <button onClick={() => navigate('/dashboard')} className="btn-outline" style={{ marginTop: '1rem' }}>Voltar ao Início</button>
                 </div>
             )}
-        </>
+        </div>
     );
 }

@@ -37,6 +37,7 @@ export function FormField(props: FormFieldProps) {
             <div className="form-input-wrapper">
                 <Tag
                     id={id}
+                    required={required}
                     placeholder={floating ? (rest.placeholder || " ") : rest.placeholder}
                     className={`form-input ${floating ? 'floating-input' : 'standard-input'} ${hasIcon ? 'form-input--with-icon' : ''} ${className || ''} ${error ? ' input-error' : ''}`}
                     {...(rest as InputHTMLAttributes<HTMLInputElement> & TextareaHTMLAttributes<HTMLTextAreaElement>)}

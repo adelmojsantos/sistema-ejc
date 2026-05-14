@@ -51,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // 4. Fetch User Groups and Permissions
             const grupos: string[] = [];
+            const grupoIds: string[] = [];
             const permissions: string[] = [];
 
             const { data: ugData, error: ugError } = await supabase
@@ -58,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 .select(`
                     encontro_id,
                     grupos (
+                        id,
                         nome,
                         grupo_permissoes (
                             permissoes (
@@ -78,6 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                     if (grupo && (isGlobal || isActiveEncounter)) {
                         grupos.push(grupo.nome);
+                        if (grupo.id) grupoIds.push(grupo.id);
                         const gps = Array.isArray(grupo.grupo_permissoes) ? grupo.grupo_permissoes : [grupo.grupo_permissoes];
                         
                         gps.forEach((gp: Record<string, unknown>) => {
@@ -98,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 ...(profileData as unknown as UserProfile),
                 nome_completo: pessoaData?.nome_completo,
                 grupos,
+                grupoIds,
                 permissions
             };
 

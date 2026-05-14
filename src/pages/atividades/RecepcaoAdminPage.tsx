@@ -22,6 +22,7 @@ import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosMo
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useAuth } from '../../hooks/useAuth';
 import { useLoading } from '../../contexts/LoadingContext';
+import { useEncontros } from '../../contexts/EncontroContext';
 import { encontroService } from '../../services/encontroService';
 import { recepcaoService } from '../../services/recepcaoService';
 import type { Encontro } from '../../types/encontro';
@@ -32,10 +33,10 @@ export function RecepcaoAdminPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const { setIsLoading: setGlobalLoading } = useLoading();
-  
+
   const canChangeEncontro = hasPermission('modulo_admin');
 
-  const [encontros, setEncontros] = useState<Encontro[]>([]);
+  const { encontros, encontroAtivo } = useEncontros();
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [registros, setRegistros] = useState<RecepcaoDados[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,21 +52,13 @@ export function RecepcaoAdminPage() {
   const [registroToDelete, setRegistroToDelete] = useState<RecepcaoDados | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Load initial encounters
+  // Seleciona encontro ativo via contexto
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const data = await encontroService.listar();
-        setEncontros(data);
-        const active = data.find(e => e.ativo);
-        if (active) setSelectedEncontroId(active.id);
-        else if (data.length > 0) setSelectedEncontroId(data[0].id);
-      } catch {
-        toast.error('Erro ao carregar encontros.');
-      }
-    };
-    loadInitialData();
-  }, []);
+    if (!selectedEncontroId) {
+      if (encontroAtivo) setSelectedEncontroId(encontroAtivo.id);
+      else if (encontros.length > 0) setSelectedEncontroId(encontros[0].id);
+    }
+  }, [encontros, encontroAtivo, selectedEncontroId]);
 
   const loadRegistros = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -122,15 +115,20 @@ export function RecepcaoAdminPage() {
 
   const filteredRegistros = useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
-    if (!term) return registros;
 
-    return registros.filter(r => {
+    const filtered = term ? registros.filter(r => {
       const nome = r.participacoes?.pessoas?.nome_completo?.toLowerCase() || '';
       const equipe = r.participacoes?.equipes?.nome?.toLowerCase() || '';
       const placa = r.veiculo_placa?.toLowerCase() || '';
       const modelo = r.veiculo_modelo?.toLowerCase() || '';
 
       return nome.includes(term) || equipe.includes(term) || placa.includes(term) || modelo.includes(term);
+    }) : registros;
+
+    return [...filtered].sort((a, b) => {
+      const nomeA = a.participacoes?.pessoas?.nome_completo || '';
+      const nomeB = b.participacoes?.pessoas?.nome_completo || '';
+      return nomeA.localeCompare(nomeB);
     });
   }, [registros, debouncedSearch]);
 
@@ -271,7 +269,18 @@ export function RecepcaoAdminPage() {
                     <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.4, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <CarFrontIcon size={14} /> Placa
                     </div>
-                    <div className="badge-placa">{formatPlate(reg.veiculo_placa)}</div>
+                    {(() => {
+                      const formatted = formatPlate(reg.veiculo_placa);
+                      const isMercosul = !formatted.includes('-');
+                      return (
+                        <div
+                          className="badge-placa"
+                          style={{ letterSpacing: isMercosul ? '0.15em' : '0.05em' }}
+                        >
+                          {formatted}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '120px' }}>
@@ -372,15 +381,15 @@ export function RecepcaoAdminPage() {
         }
         .badge-placa {
           display: inline-block;
-          background-color: var(--primary-color);
+          background-color: #2563eb;
           color: white;
           padding: 0.15rem 0.6rem;
           border-radius: 6px;
-          font-weight: 700;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 0.9rem;
-          letter-spacing: 0.05em;
-          box-shadow: 0 2px 4px rgba(var(--primary-rgb), 0.2);
+          font-weight: 600;
+          font-family: 'Plus Jakarta Sans', sans-serif;
+          font-size: 0.95rem;
+          text-transform: uppercase;
+          box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);
         }
         @media (max-width: 768px) {
           .admin-card-content {

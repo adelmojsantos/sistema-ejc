@@ -4,12 +4,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { equipeService } from '../../services/equipeService';
 import { ChevronLeft, Search, Filter, Users, UserCheck, Shield, User, Download, FileText, FileSpreadsheet, X } from 'lucide-react';
-import type { Encontro } from '../../types/encontro';
-import type { Equipe } from '../../types/equipe';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import { useEncontros } from '../../contexts/EncontroContext';
+import { useEquipes } from '../../contexts/EquipeContext';
+import type { Encontro } from '../../types/encontro';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -43,11 +43,11 @@ function maskCpf(cpf: string | null | undefined) {
 export function EncontroParticipantesPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [encontros, setEncontros] = useState<Encontro[]>([]);
+  const { encontros, encontroAtivo } = useEncontros();
+  const { equipes } = useEquipes();
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
-  const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Filters — read initial values from URL query params
@@ -55,31 +55,16 @@ export function EncontroParticipantesPage() {
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [filterTeamId, setFilterTeamId] = useState<string>(searchParams.get('filter') || 'all');
 
+  // Seleciona encontro via contexto ou URL param
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const [encontrosData, equipesData] = await Promise.all([
-          encontroService.listar(),
-          equipeService.listar()
-        ]);
-        setEncontros(encontrosData);
-        setEquipes(equipesData);
-
-        // Check if a specific encontro was passed via URL
-        const encontroParam = searchParams.get('encontro');
-        if (encontroParam) {
-          setSelectedEncontroId(encontroParam);
-        } else {
-          const active = encontrosData.find(e => e.ativo);
-          if (active) setSelectedEncontroId(active.id);
-          else if (encontrosData.length > 0) setSelectedEncontroId(encontrosData[0].id);
-        }
-      } catch {
-        toast.error('Erro ao carregar dados iniciais.');
-      }
-    };
-    loadInitialData();
-  }, [searchParams]);
+    const encontroParam = searchParams.get('encontro');
+    if (encontroParam) {
+      setSelectedEncontroId(encontroParam);
+    } else if (!selectedEncontroId) {
+      if (encontroAtivo) setSelectedEncontroId(encontroAtivo.id);
+      else if (encontros.length > 0) setSelectedEncontroId(encontros[0].id);
+    }
+  }, [encontros, encontroAtivo, searchParams, selectedEncontroId]);
 
   useEffect(() => {
     if (!selectedEncontroId) return;

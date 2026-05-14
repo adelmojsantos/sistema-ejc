@@ -9,9 +9,8 @@ import { HistoricoModal } from '../../components/pessoa/HistoricoModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { pessoaService } from '../../services/pessoaService';
 import { useDebounce } from '../../hooks/useDebounce.ts';
-import { encontroService } from '../../services/encontroService';
+import { useEncontros } from '../../contexts/EncontroContext';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
-import type { Encontro } from '../../types/encontro';
 
 type Mode = 'list' | 'create' | 'edit';
 
@@ -38,7 +37,7 @@ export function PessoasPage() {
     const debouncedSearch = useDebounce(search, 500);
 
     // Filter States
-    const [encontros, setEncontros] = useState<Encontro[]>([]);
+    const { encontros } = useEncontros();
     const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
 
     const load = useCallback(async (currentSearch: string, currentPage: number, currentEncontroId: string) => {
@@ -56,18 +55,6 @@ export function PessoasPage() {
             setIsFetching(false);
         }
     }, [pageSize]);
-
-    useEffect(() => {
-        async function fetchEncontros() {
-            try {
-                const data = await encontroService.listar();
-                setEncontros(data);
-            } catch (err) {
-                console.error('Erro ao carregar encontros:', err);
-            }
-        }
-        fetchEncontros();
-    }, []);
 
     useEffect(() => {
         load(debouncedSearch, page, selectedEncontroId);
@@ -115,7 +102,7 @@ export function PessoasPage() {
         }
     };
 
-    const handleSubmit = async (data: PessoaFormData) => {
+    const handleSubmit = async (data: PessoaFormData, _shouldConfirm: boolean) => {
         setIsLoading(true);
         setFormError(null);
         try {

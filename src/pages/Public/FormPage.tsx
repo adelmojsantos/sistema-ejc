@@ -4,16 +4,20 @@ import { useExternalAccess } from '../../hooks/useExternalAccess';
 import { recepcaoService } from '../../services/recepcaoService';
 import { FormField } from '../../components/ui/FormField';
 import { RadioGroup } from '../../components/ui/RadioGroup';
-import { Loader, Car, CheckCircle, LogOut } from 'lucide-react';
+import { Loader, Car, Baby, CheckCircle, LogOut, Trash2 } from 'lucide-react';
+import logoEjc from '../../assets/logo-ejc.svg';
 import { toast } from 'react-hot-toast';
 import type { RecepcaoDadosFormData } from '../../types/recepcao';
+import { cleanPlate, formatPlate } from '../../utils/plateUtils';
 
 export default function FormPage() {
   const navigate = useNavigate();
   const { session, isAuthenticated, isSessionLoading, logout } = useExternalAccess();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [recordId, setRecordId] = useState<string | null>(null);
   const [formData, setFormData] = useState<RecepcaoDadosFormData>({
     veiculo_tipo: 'carro',
     veiculo_modelo: '',
@@ -33,12 +37,15 @@ export default function FormPage() {
         try {
           const existing = await recepcaoService.obterPorParticipacao(session.participacao_id);
           if (existing) {
+            setRecordId(existing.id);
             setFormData({
               veiculo_tipo: existing.veiculo_tipo,
               veiculo_modelo: existing.veiculo_modelo,
               veiculo_cor: existing.veiculo_cor,
-              veiculo_placa: existing.veiculo_placa,
+              veiculo_placa: formatPlate(existing.veiculo_placa),
             });
+          } else {
+            setRecordId(null);
           }
         } catch (error) {
           console.error('Erro ao carregar dados prévios:', error);
@@ -54,13 +61,54 @@ export default function FormPage() {
         }
     };
 
+    const handleDelete = async () => {
+      if (!recordId) return;
+      if (!window.confirm('Deseja realmente remover os dados do seu veículo?')) return;
+
+      setIsDeleting(true);
+      try {
+        await recepcaoService.excluir(recordId);
+        toast.success('Veículo removido com sucesso!');
+        setRecordId(null);
+        setFormData({
+          veiculo_tipo: 'carro',
+          veiculo_modelo: '',
+          veiculo_cor: '',
+          veiculo_placa: '',
+        });
+      } catch (error) {
+        console.error('Erro ao excluir dados:', error);
+        toast.error('Erro ao excluir os dados. Tente novamente.');
+      } finally {
+        setIsDeleting(false);
+      }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!session?.participacao_id) return;
 
+    if (!formData.veiculo_modelo.trim()) {
+      toast.error('O modelo do veículo é obrigatório.');
+      return;
+    }
+    if (!formData.veiculo_cor.trim()) {
+      toast.error('A cor do veículo é obrigatória.');
+      return;
+    }
+    if (!formData.veiculo_placa.trim()) {
+      toast.error('A placa do veículo é obrigatória.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await recepcaoService.salvar(session.participacao_id, formData);
+      const cleanedData = {
+        ...formData,
+        veiculo_placa: cleanPlate(formData.veiculo_placa)
+      };
+      const result = await recepcaoService.salvar(session.participacao_id, cleanedData);
+      setRecordId(result.id);
       toast.success('Dados salvos com sucesso!');
       setIsSuccess(true);
     } catch (error) {
@@ -139,11 +187,26 @@ export default function FormPage() {
             Seus dados de recepção foram registrados com sucesso. Obrigado pela colaboração!
           </p>
           <button 
-            onClick={() => { logout(); navigate('/'); }} 
-            className="btn-secondary"
-            style={{ width: '100%' }}
+            onClick={() => setIsSuccess(false)} 
+            className="btn-primary"
+            style={{ width: '100%', marginBottom: '0.75rem' }}
           >
-            Sair
+            Voltar para Início
+          </button>
+          <button 
+            onClick={() => navigate('/formulario/recreacao')} 
+            className="btn-secondary"
+            style={{ width: '100%', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+          >
+            <Baby size={18} />
+            Preencher Recreação
+          </button>
+          <button 
+            onClick={() => { logout(); navigate('/'); }} 
+            className="btn-text"
+            style={{ width: '100%', opacity: 0.6 }}
+          >
+            Sair e Finalizar
           </button>
         </div>
       </div>
@@ -164,13 +227,83 @@ export default function FormPage() {
         top: 0,
         zIndex: 10
       }}>
-        <div>
-          <h2 style={{ fontSize: '1rem', margin: 0 }}>Dados da Recepção</h2>
-          <p style={{ fontSize: '0.75rem', opacity: 0.5, margin: 0 }}>{session?.participacoes?.pessoas?.nome_completo}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <img src={logoEjc} alt="Logo" className="public-logo-img" style={{ height: '32px', width: 'auto' }} />
+          <div>
+            <h2 style={{ fontSize: '1rem', margin: 0 }}>Dados da Recepção</h2>
+            <p style={{ fontSize: '0.75rem', opacity: 0.5, margin: 0 }}>{session?.participacoes?.equipes?.nome}</p>
+          </div>
         </div>
         <button onClick={logout} className="icon-btn" title="Sair">
           <LogOut size={18} />
         </button>
+      </div>
+
+      {/* Navigation Tabs - Pill Style */}
+      <div style={{
+        background: 'var(--card-bg)',
+        borderBottom: '1px solid var(--border-color)',
+        display: 'flex',
+        justifyContent: 'center',
+        padding: '0.75rem 1rem'
+      }}>
+        <div style={{ 
+          display: 'flex', 
+          backgroundColor: 'rgba(var(--primary-rgb), 0.05)', 
+          padding: '4px',
+          borderRadius: '12px',
+          gap: '4px',
+          border: '1px solid var(--border-color)',
+          width: '100%',
+          maxWidth: '500px'
+        }}>
+          <button 
+            onClick={() => navigate('/formulario/recepcao')}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.5rem',
+              borderRadius: '10px',
+              border: 'none',
+              background: 'var(--primary-color)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 4px 12px rgba(var(--primary-rgb), 0.2)'
+            }}
+          >
+            <Car size={16} />
+            Recepção
+          </button>
+          <button 
+            onClick={() => navigate('/formulario/recreacao')}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.5rem',
+              borderRadius: '10px',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--text-color)',
+              opacity: 0.7,
+              fontWeight: 600,
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Baby size={16} />
+            Recreação
+          </button>
+        </div>
       </div>
 
       <div className="container" style={{ maxWidth: '600px', marginTop: '2rem' }}>
@@ -186,10 +319,10 @@ export default function FormPage() {
               backgroundColor: 'rgba(var(--primary-rgb, 0, 0, 254), 0.04)', 
               borderRadius: '8px', 
               border: '1px solid var(--border-color)',
-              marginBottom: '0.5rem'
+              marginBottom: '0.5rem',
+              textAlign: 'center'
             }}>
-              <p style={{ fontSize: '0.875rem', margin: '0 0 0.5rem 0', opacity: 0.6 }}>Você está preenchendo para a equipe:</p>
-              <p style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>{session?.participacoes?.equipes?.nome}</p>
+              <p style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Olá, {session?.participacoes?.pessoas?.nome_completo}!</p>
             </div>
 
             <RadioGroup
@@ -224,15 +357,27 @@ export default function FormPage() {
               required
               placeholder="ABC-1234 ou ABC1D23"
               value={formData.veiculo_placa}
-              onChange={e => setFormData({ ...formData, veiculo_placa: e.target.value })}
+              onChange={e => setFormData({ ...formData, veiculo_placa: formatPlate(e.target.value) })}
             />
 
-            <div style={{ marginTop: '1rem' }}>
+            <div style={{ marginTop: '1rem', display: 'flex', gap: '1rem' }}>
+              {recordId && (
+                <button 
+                  type="button" 
+                  onClick={handleDelete} 
+                  className="btn-danger-outline" 
+                  style={{ height: '48px', display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'center' }}
+                  disabled={isSubmitting || isDeleting}
+                >
+                  {isDeleting ? <Loader className="animate-spin" size={20} /> : <Trash2 size={20} />}
+                  <span>Remover</span>
+                </button>
+              )}
               <button 
                 type="submit" 
                 className="btn-primary" 
-                style={{ width: '100%', height: '48px', fontSize: '1rem' }}
-                disabled={isSubmitting}
+                style={{ height: '48px', fontSize: '1rem', flex: 2 }}
+                disabled={isSubmitting || isDeleting}
               >
                 {isSubmitting ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
