@@ -9,7 +9,6 @@ import {
     AlertCircle,
     Edit3,
     MapPin,
-    Phone,
     Loader,
     LayoutGrid,
     Map as MapIcon
@@ -17,10 +16,13 @@ import {
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { visitacaoService } from '../../services/visitacaoService';
+import { inscricaoService } from '../../services/inscricaoService';
 import type { VisitaParticipacaoEnriched, VisitaStatus, VisitaGrupo } from '../../types/visitacao';
 import { toast } from 'react-hot-toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { MyParticipantsMap } from '../../components/visitacao/MyParticipantsMap';
+import { formatPhone } from '../../utils/stringUtils';
+import { WhatsappLogo } from 'phosphor-react';
 
 export function VisitacaoMeusParticipantesPage() {
     const { userParticipacao, hasPermission } = useAuth();
@@ -37,10 +39,17 @@ export function VisitacaoMeusParticipantesPage() {
         return (sessionStorage.getItem('visita_view_mode') as 'list' | 'map') || 'list';
     });
     const [grupoNome, setGrupoNome] = useState('');
+    const [filterStatus, setFilterStatus] = useState<'todos' | 'pendentes' | 'visitados' | 'ausentes' | 'cancelados'>('todos');
 
     useEffect(() => {
         sessionStorage.setItem('visita_view_mode', viewMode);
     }, [viewMode]);
+
+    useEffect(() => {
+        if (selectedGrupoId) {
+            sessionStorage.setItem('visita_selected_grupo_id', selectedGrupoId);
+        }
+    }, [selectedGrupoId]);
 
     useEffect(() => {
         async function loadGroups() {
@@ -102,7 +111,10 @@ export function VisitacaoMeusParticipantesPage() {
                 setGrupoNome(targetGrupoNome);
 
                 if (targetGrupoId) {
-                    const { data, error } = await supabase
+                    const encontroId = userParticipacao?.encontro_id || '';
+                    
+                    // 1. Fetch active participants
+                    const { data: activeData, error: activeError } = await supabase
                         .from('visita_participacao')
                         .select(`
                             *,
@@ -114,8 +126,30 @@ export function VisitacaoMeusParticipantesPage() {
                         .eq('grupo_id', targetGrupoId)
                         .eq('visitante', false);
 
-                    if (error) throw error;
-                    setParticipantes((data as unknown as VisitaParticipacaoEnriched[]) || []);
+                    if (activeError) throw activeError;
+
+                    // 2. Fetch canceled participants from history
+                    let transformedCanceled: any[] = [];
+                    try {
+                        const canceledData = await inscricaoService.listarCanceladosPorGrupo(targetGrupoId, encontroId);
+                        transformedCanceled = canceledData.map(c => ({
+                            id: c.id,
+                            grupo_id: c.grupo_id,
+                            participacao_id: c.dados_snapshot?.participacao_id || '',
+                            status: 'cancelada',
+                            observacoes: c.observacoes,
+                            taxa_paga: c.dados_snapshot?.taxa_paga || false,
+                            participacoes: {
+                                id: c.dados_snapshot?.participacao_id || '',
+                                pessoas: c.pessoas
+                            },
+                            is_history: true
+                        }));
+                    } catch (err) {
+                        console.error('Erro ao buscar cancelados:', err);
+                    }
+
+                    setParticipantes([...(activeData || []), ...transformedCanceled] as unknown as VisitaParticipacaoEnriched[]);
                 } else {
                     setParticipantes([]);
                 }
@@ -130,10 +164,32 @@ export function VisitacaoMeusParticipantesPage() {
     }, [userParticipacao, isCoordinator, selectedGrupoId, grupos]);
 
     const stats = useMemo(() => {
-        const total = participantes.length;
-        const realizadas = participantes.filter(p => p.status === 'realizada').length;
-        const pendentesPagamento = participantes.filter(p => !p.taxa_paga).length;
-        return { total, realizadas, pendentesPagamento };
+        const ativos = participantes.filter(p => p.status !== 'cancelada');
+        const total = ativos.length;
+        const realizadas = ativos.filter(p => p.status === 'realizada').length;
+        const pendentesVisita = total - realizadas;
+        const pagas = ativos.filter(p => p.taxa_paga).length;
+        const pendentesPagamento = total - pagas;
+        return { total, realizadas, pendentesVisita, pagas, pendentesPagamento };
+    }, [participantes]);
+
+    const participantesFiltrados = useMemo(() => {
+        switch (filterStatus) {
+            case 'pendentes':
+                return participantes.filter(p => p.status === 'pendente');
+            case 'visitados':
+                return participantes.filter(p => p.status === 'realizada');
+            case 'ausentes':
+                return participantes.filter(p => p.status === 'ausente');
+            case 'cancelados':
+                return participantes.filter(p => p.status === 'cancelada');
+            default:
+                return participantes;
+        }
+    }, [participantes, filterStatus]);
+
+    const urgentes = useMemo(() => {
+        return participantes.filter(p => !p.taxa_paga && p.status === 'pendente');
     }, [participantes]);
 
     const handleToggleTax = async (pId: string, currentStatus: boolean) => {
@@ -166,84 +222,137 @@ export function VisitacaoMeusParticipantesPage() {
 
     return (
         <>
-                <PageHeader
-                    title={grupoNome || 'Participantes da Visita'}
-                    subtitle="Início / Visitação"
-                    backPath="/visitacao"
-                />
+            <PageHeader
+                title={grupoNome || 'Participantes da Visita'}
+                subtitle="Início / Visitação"
+                backPath="/visitacao"
+            />
 
-                {isCoordinator && (
-                    <div className="card" style={{ padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <label className="form-label" style={{ marginBottom: 0, fontWeight: 700 }}>Alternar Visualização de Dupla</label>
-                        <select
-                            className="form-input"
-                            value={selectedGrupoId}
-                            onChange={(e) => setSelectedGrupoId(e.target.value)}
-                        >
-                            <option value="">Selecione uma dupla...</option>
-                            {grupos.map(g => (
-                                <option key={g.id} value={g.id}>{g.nome}</option>
-                            ))}
-                        </select>
-                    </div>
-                )}
+            {isCoordinator && (
+                <div className="card" style={{ padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <label className="form-label" style={{ marginBottom: 0, fontWeight: 700 }}>Alternar Visualização de Dupla</label>
+                    <select
+                        className="form-input"
+                        value={selectedGrupoId}
+                        onChange={(e) => setSelectedGrupoId(e.target.value)}
+                    >
+                        <option value="">Selecione uma dupla...</option>
+                        {grupos.map(g => (
+                            <option key={g.id} value={g.id}>{g.nome}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
 
-                {userParticipacao && participantes.length > 0 && (
-                    <div className="visita-dashboard-grid" style={{ marginBottom: '2.5rem' }}>
-                        <div className="visita-dashboard-card visita-card-indigo">
-                            <div className="visita-card-icon-container">
-                                <Users size={20} />
+            {userParticipacao && participantes.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '2.5rem' }}>
+                    {/* HERO PROGRESS BAR */}
+                    <div className="card" style={{ padding: '1.5rem', background: 'linear-gradient(135deg, var(--card-bg) 0%, rgba(59, 130, 246, 0.05) 100%)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem' }}>
+                            <div>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <TrendingUp size={18} /> Progresso da Dupla
+                                </h3>
+                                <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', opacity: 0.7 }}>
+                                    Você visitou <strong>{stats.realizadas}</strong> de <strong>{stats.total}</strong> encontristas.
+                                </p>
                             </div>
-                            <div className="visita-card-content">
-                                <p className="visita-card-label">Total</p>
-                                <h2 className="visita-card-value">{stats.total}</h2>
+                            <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary-color)' }}>
+                                {stats.total > 0 ? Math.round((stats.realizadas / stats.total) * 100) : 0}%
                             </div>
                         </div>
-                        <div className="visita-dashboard-card visita-card-emerald">
-                            <div className="visita-card-icon-container">
-                                <TrendingUp size={20} />
-                            </div>
-                            <div className="visita-card-content">
-                                <p className="visita-card-label">Visitas</p>
-                                <h2 className="visita-card-value">{stats.realizadas}</h2>
-                            </div>
-                        </div>
-                        <div className="visita-dashboard-card visita-card-rose" style={{
-                            background: stats.pendentesPagamento > 0 ? 'linear-gradient(135deg, #f43f5e 0%, #e11d48 100%)' : 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)'
-                        }}>
-                            <div className="visita-card-icon-container">
-                                <DollarSign size={20} />
-                            </div>
-                            <div className="visita-card-content">
-                                <p className="visita-card-label">Taxas</p>
-                                <h2 className="visita-card-value">{stats.pendentesPagamento}</h2>
-                            </div>
+                        <div style={{ width: '100%', height: '12px', background: 'rgba(0,0,0,0.05)', borderRadius: '99px', overflow: 'hidden' }}>
+                            <div style={{
+                                height: '100%',
+                                width: `${stats.total > 0 ? Math.round((stats.realizadas / stats.total) * 100) : 0}%`,
+                                background: 'linear-gradient(90deg, #3b82f6 0%, #10b981 100%)',
+                                borderRadius: '99px',
+                                transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)'
+                            }} />
                         </div>
                     </div>
-                )}
 
-                {!userParticipacao ? (
-                    <div className="card empty-state">
-                        <Users size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                        <p>Você não possui uma participação ativa neste encontro.</p>
+                    {/* STAT CARDS */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                        <div className="card" style={{ padding: '1.25rem', borderLeft: '4px solid #10b981' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                                <div style={{ background: '#10b98120', padding: '0.5rem', borderRadius: '8px', color: '#10b981' }}>
+                                    <CheckCircle size={20} />
+                                </div>
+                                <span style={{ fontSize: '1.25rem', fontWeight: 800 }}>{stats.realizadas}/{stats.total}</span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-color)', opacity: 0.8 }}>Visitas Realizadas</p>
+                            <div style={{ width: '100%', height: '4px', background: 'rgba(0,0,0,0.05)', borderRadius: '99px', marginTop: '0.75rem' }}>
+                                <div style={{ height: '100%', width: `${stats.total > 0 ? (stats.realizadas / stats.total) * 100 : 0}%`, background: '#10b981', borderRadius: '99px' }} />
+                            </div>
+                        </div>
+
+                        <div className="card" style={{ padding: '1.25rem', borderLeft: '4px solid #f59e0b' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                                <div style={{ background: '#f59e0b20', padding: '0.5rem', borderRadius: '8px', color: '#f59e0b' }}>
+                                    <DollarSign size={20} />
+                                </div>
+                                <span style={{ fontSize: '1.25rem', fontWeight: 800 }}>{stats.pagas}/{stats.total}</span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-color)', opacity: 0.8 }}>Taxas Pagas</p>
+                            <div style={{ width: '100%', height: '4px', background: 'rgba(0,0,0,0.05)', borderRadius: '99px', marginTop: '0.75rem' }}>
+                                <div style={{ height: '100%', width: `${stats.total > 0 ? (stats.pagas / stats.total) * 100 : 0}%`, background: '#f59e0b', borderRadius: '99px' }} />
+                            </div>
+                        </div>
+
+                        <div className="card" style={{ padding: '1.25rem', borderLeft: '4px solid #6366f1' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                                <div style={{ background: '#6366f120', padding: '0.5rem', borderRadius: '8px', color: '#6366f1' }}>
+                                    <Clock size={20} />
+                                </div>
+                                <span style={{ fontSize: '1.25rem', fontWeight: 800 }}>{stats.pendentesVisita}</span>
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-color)', opacity: 0.8 }}>Restam Visitar</p>
+                            <p style={{ margin: '0.5rem 0 0', fontSize: '0.7rem', opacity: 0.6 }}>Conclua para bater a meta!</p>
+                        </div>
                     </div>
-                ) : participantes.length === 0 ? (
-                    <div className="card empty-state">
-                        <Users size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                        <p>Nenhum encontrista vinculado à sua dupla no momento.</p>
-                    </div>
-                ) : (
-                    <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', background: 'var(--card-bg)', padding: '0.75rem 1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+
+                    {/* URGENTES TRAY */}
+                    {urgentes.length > 0 && (
+                        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                            <div style={{ background: '#fee2e2', color: '#ef4444', padding: '0.5rem', borderRadius: '50%' }}>
+                                <AlertCircle size={24} />
+                            </div>
+                            <div>
+                                <h4 style={{ margin: 0, color: '#991b1b', fontSize: '0.95rem' }}>Atenção Necessária</h4>
+                                <p style={{ margin: 0, color: '#b91c1c', fontSize: '0.8rem', marginTop: '0.2rem' }}>
+                                    Você tem {urgentes.length} encontrista(s) pendente(s) de visita e pagamento. Planeje estas visitas em breve!
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {!userParticipacao ? (
+                <div className="card empty-state">
+                    <Users size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+                    <p>Você não possui uma participação ativa neste encontro.</p>
+                </div>
+            ) : participantes.length === 0 ? (
+                <div className="card empty-state">
+                    <Users size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+                    <p>Nenhum encontrista vinculado à sua dupla no momento.</p>
+                </div>
+            ) : (
+                <>
+                    {/* CONTROLS & FILTERS */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card-bg)', padding: '0.75rem 1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '1rem' }}>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                                <button 
+                                <button
                                     onClick={() => setViewMode('list')}
                                     className={viewMode === 'list' ? 'btn-primary' : 'btn-secondary'}
                                     style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
                                 >
                                     <LayoutGrid size={16} /> Lista
                                 </button>
-                                <button 
+                                <button
                                     onClick={() => setViewMode('map')}
                                     className={viewMode === 'map' ? 'btn-primary' : 'btn-secondary'}
                                     style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -252,126 +361,227 @@ export function VisitacaoMeusParticipantesPage() {
                                 </button>
                             </div>
 
-                            <div style={{ fontSize: '0.85rem', opacity: 0.6, fontWeight: 600 }}>
-                                {participantes.length} Encontristas
-                            </div>
-                        </div>
-
-                        {viewMode === 'map' ? (
-                            <MyParticipantsMap 
-                                participantes={participantes} 
-                                onSelect={(id) => navigate(`/visitacao/manutencao/${id}`)}
-                            />
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {participantes.map((p: any) => {
-                            const status = getStatusInfo(p.status);
-                            const pessoa = p.participacoes?.pessoas;
-                            return (
-                                <div key={p.id} className="card card-hover" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1.5rem', transition: 'transform 0.2s' }}>
-                                    <div style={{
-                                        width: '60px', height: '60px', borderRadius: '12px', background: 'var(--secondary-bg)',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)',
-                                        border: '1px solid var(--border-color)'
-                                    }}>
-                                        <Users size={28} />
-                                    </div>
-
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.25rem' }}>
-                                            <h4 style={{ margin: 0, fontSize: '1.1rem' }}>{pessoa?.nome_completo}</h4>
-                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                <span style={{
-                                                    padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem',
-                                                    background: status.color + '20', color: status.color,
-                                                    fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px'
-                                                }}>
-                                                    {status.icon} {status.label}
-                                                </span>
-                                                {p.taxa_paga ? (
-                                                    <span style={{
-                                                        padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem',
-                                                        background: '#10b98120', color: '#10b981',
-                                                        fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px'
-                                                    }}>
-                                                        <DollarSign size={12} /> Pago
-                                                    </span>
-                                                ) : (
-                                                    <span style={{
-                                                        padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem',
-                                                        background: '#ef444420', color: '#ef4444',
-                                                        fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px'
-                                                    }}>
-                                                        <DollarSign size={12} /> Pendente
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.85rem', marginTop: '0.5rem' }}>
-                                            {/* Endereço com link para o Maps */}
-                                            <a
-                                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${pessoa?.endereco}, ${pessoa?.numero}, ${pessoa?.bairro}, ${pessoa?.cidade}`)}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-color)', textDecoration: 'none', fontWeight: 500 }}
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <MapPin size={14} />
-                                                {pessoa?.endereco ? `${pessoa?.endereco}, ${pessoa?.numero} - ${pessoa?.bairro}` : 'Endereço não informado'}
-                                            </a>
-
-                                            {/* Telefones */}
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', opacity: 0.8 }}>
-                                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <Phone size={14} /> {pessoa?.telefone || 'Ñ inf.'}
-                                                </span>
-                                                {pessoa?.telefone_pai && (
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <Phone size={14} /> <strong>Pai ({pessoa.nome_pai?.split(' ')[0]}):</strong> {pessoa.telefone_pai}
-                                                    </span>
-                                                )}
-                                                {pessoa?.telefone_mae && (
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <Phone size={14} /> <strong>Mãe ({pessoa.nome_mae?.split(' ')[0]}):</strong> {pessoa.telefone_mae}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="visita-item-actions">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleToggleTax(p.id, p.taxa_paga); }}
-                                            style={{
-                                                padding: '0.6rem 1rem', borderRadius: '12px',
-                                                background: p.taxa_paga ? '#10b981' : 'rgba(0,0,0,0.05)',
-                                                color: p.taxa_paga ? 'white' : 'inherit',
-                                                border: p.taxa_paga ? 'none' : '2px dashed var(--border-color)',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                                                transition: 'all 0.2s ease', cursor: 'pointer',
-                                                fontSize: '0.85rem', fontWeight: 700
-                                            }}
-                                        >
-                                            <DollarSign size={18} />
-                                            {p.taxa_paga ? 'PAGO' : 'MARCAR PAGO'}
-                                        </button>
-
-                                        <button
-                                            onClick={() => navigate(`/visitacao/manutencao/${p.id}`)}
-                                            className="btn-primary"
-                                            style={{ padding: '0.6rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
-                                        >
-                                            <Edit3 size={16} /> Detalhes / Visita
-                                        </button>
-                                    </div>
+                            {viewMode === 'list' && (
+                                <div className="filter-chips" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    <button
+                                        onClick={() => setFilterStatus('todos')}
+                                        style={{ padding: '0.3rem 0.8rem', borderRadius: '99px', fontSize: '0.75rem', fontWeight: 600, border: 'none', background: filterStatus === 'todos' ? 'var(--primary-color)' : 'var(--secondary-bg)', color: filterStatus === 'todos' ? 'white' : 'var(--text-color)', cursor: 'pointer', transition: '0.2s' }}
+                                    >
+                                        Todos
+                                    </button>
+                                    <button
+                                        onClick={() => setFilterStatus('pendentes')}
+                                        style={{ padding: '0.3rem 0.8rem', borderRadius: '99px', fontSize: '0.75rem', fontWeight: 600, border: 'none', background: filterStatus === 'pendentes' ? '#6b7280' : 'var(--secondary-bg)', color: filterStatus === 'pendentes' ? 'white' : 'var(--text-color)', cursor: 'pointer', transition: '0.2s' }}
+                                    >
+                                        Pendentes
+                                    </button>
+                                    <button
+                                        onClick={() => setFilterStatus('visitados')}
+                                        style={{ padding: '0.3rem 0.8rem', borderRadius: '99px', fontSize: '0.75rem', fontWeight: 600, border: 'none', background: filterStatus === 'visitados' ? '#10b981' : 'var(--secondary-bg)', color: filterStatus === 'visitados' ? 'white' : 'var(--text-color)', cursor: 'pointer', transition: '0.2s' }}
+                                    >
+                                        Visitados
+                                    </button>
+                                    <button
+                                        onClick={() => setFilterStatus('ausentes')}
+                                        style={{ padding: '0.3rem 0.8rem', borderRadius: '99px', fontSize: '0.75rem', fontWeight: 600, border: 'none', background: filterStatus === 'ausentes' ? '#f59e0b' : 'var(--secondary-bg)', color: filterStatus === 'ausentes' ? 'white' : 'var(--text-color)', cursor: 'pointer', transition: '0.2s' }}
+                                    >
+                                        Ausentes
+                                    </button>
+                                    <button
+                                        onClick={() => setFilterStatus('cancelados')}
+                                        style={{ padding: '0.3rem 0.8rem', borderRadius: '99px', fontSize: '0.75rem', fontWeight: 600, border: 'none', background: filterStatus === 'cancelados' ? '#ef4444' : 'var(--secondary-bg)', color: filterStatus === 'cancelados' ? 'white' : 'var(--text-color)', cursor: 'pointer', transition: '0.2s' }}
+                                    >
+                                        Cancelados
+                                    </button>
                                 </div>
-                            );
-                        })}
+                            )}
+                        </div>
                     </div>
-                )}
-            </>
-        )}
+
+                    {viewMode === 'map' ? (
+                        <MyParticipantsMap
+                            participantes={participantesFiltrados}
+                            onSelect={(id) => navigate(`/visitacao/manutencao/${id}`)}
+                        />
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {participantesFiltrados.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.6 }}>
+                                    Nenhum participante encontrado para este filtro.
+                                </div>
+                            ) : (
+                                participantesFiltrados.map((p: any) => {
+                                    const status = getStatusInfo(p.status);
+                                    const pessoa = p.participacoes?.pessoas;
+                                    return (
+                                        <div key={p.id} className="card card-hover" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden' }}>
+                                            {/* Indicador de status lateral (borda) */}
+                                            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '4px', background: status.color }} />
+
+                                            <div style={{ display: 'flex', gap: '1.25rem', flexDirection: 'column', paddingLeft: '0.5rem' }}>
+                                                {/* Header do Card */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                                        <div style={{
+                                                            width: '48px', height: '48px', borderRadius: '50%', background: status.color + '20',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', color: status.color,
+                                                            fontWeight: 700, fontSize: '1.2rem', flexShrink: 0
+                                                        }}>
+                                                            {pessoa?.nome_completo?.charAt(0) || <Users size={24} />}
+                                                        </div>
+                                                        <div>
+                                                            <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>{pessoa?.nome_completo}</h4>
+                                                            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                                                                <span style={{
+                                                                    padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem',
+                                                                    background: status.color + '15', color: status.color,
+                                                                    fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', border: `1px solid ${status.color}30`
+                                                                }}>
+                                                                    {status.icon} {status.label}
+                                                                </span>
+                                                                {p.taxa_paga ? (
+                                                                    <span style={{
+                                                                        padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem',
+                                                                        background: '#10b98115', color: '#10b981',
+                                                                        fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #10b98130'
+                                                                    }}>
+                                                                        <DollarSign size={12} /> Taxa Paga
+                                                                    </span>
+                                                                ) : (
+                                                                    <span style={{
+                                                                        padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem',
+                                                                        background: '#ef444415', color: '#ef4444',
+                                                                        fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #ef444430'
+                                                                    }}>
+                                                                        <DollarSign size={12} /> Pendente
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Ações Rápidas Topo */}
+                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleToggleTax(p.id, p.taxa_paga); }}
+                                                            style={{
+                                                                padding: '0.4rem 0.8rem', borderRadius: '8px',
+                                                                background: p.taxa_paga ? '#10b98110' : 'transparent',
+                                                                color: p.taxa_paga ? '#10b981' : 'var(--text-color)',
+                                                                border: p.taxa_paga ? '1px solid #10b98130' : '1px solid var(--border-color)',
+                                                                display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                                                cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, transition: '0.2s'
+                                                            }}
+                                                            title={p.taxa_paga ? "Remover pagamento" : "Marcar como pago"}
+                                                        >
+                                                            {p.taxa_paga ? <CheckCircle size={14} /> : <DollarSign size={14} />}
+                                                            {p.taxa_paga ? 'Pago' : 'Marcar Pago'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Info Secundária (Endereço e Contatos) */}
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', padding: '0.75rem 1rem', background: 'var(--secondary-bg)', borderRadius: '8px', fontSize: '0.85rem' }}>
+                                                    <div style={{ flex: '1 1 300px' }}>
+                                                        <a
+                                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${pessoa?.endereco}, ${pessoa?.numero}, ${pessoa?.bairro}, ${pessoa?.cidade}`)}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '6px', color: 'var(--text-color)', textDecoration: 'none', transition: 'color 0.2s' }}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="hover-primary"
+                                                        >
+                                                            <MapPin size={16} style={{ color: 'var(--primary-color)', flexShrink: 0, marginTop: '2px' }} />
+                                                            <span style={{ lineHeight: 1.4 }}>
+                                                                {pessoa?.endereco ? `${pessoa?.endereco}, ${pessoa?.numero}${pessoa?.complemento ? ` - ${pessoa.complemento}` : ''}` : 'Endereço não informado'}<br />
+                                                                <span style={{ opacity: 0.6, fontSize: '0.75rem' }}>{pessoa?.bairro}</span>
+                                                            </span>
+                                                        </a>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: '1 1 200px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-color)' }}>
+                                                            {pessoa?.telefone ? (
+                                                                <a
+                                                                    href={`https://wa.me/55${pessoa.telefone.replace(/\D/g, '')}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    style={{ fontWeight: 700, color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                                                    className="whatsapp-link"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <WhatsappLogo size={16} color="#25D366" weight="fill" />
+                                                                    {formatPhone(pessoa.telefone)}
+                                                                </a>
+                                                            ) : (
+                                                                <span style={{ fontWeight: 600 }}>Ñ inf.</span>
+                                                            )}
+                                                        </div>
+                                                        {pessoa?.telefone_pai && (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', opacity: 0.9 }}>
+                                                                <a
+                                                                    href={`https://wa.me/55${pessoa.telefone_pai.replace(/\D/g, '')}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                                                    className="whatsapp-link"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <WhatsappLogo size={14} color="#25D366" weight="fill" />
+                                                                    Pai ({pessoa.nome_pai?.split(' ')[0]}): {formatPhone(pessoa.telefone_pai)}
+                                                                </a>
+                                                            </div>
+                                                        )}
+                                                        {pessoa?.telefone_mae && (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', opacity: 0.9 }}>
+                                                                <a
+                                                                    href={`https://wa.me/55${pessoa.telefone_mae.replace(/\D/g, '')}`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                                                    className="whatsapp-link"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <WhatsappLogo size={14} color="#25D366" weight="fill" />
+                                                                    Mãe ({pessoa.nome_mae?.split(' ')[0]}): {formatPhone(pessoa.telefone_mae)}
+                                                                </a>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Rodapé do Card / Ação Principal */}
+                                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                                                    <button
+                                                        onClick={() => navigate(`/visitacao/manutencao/${p.id}`)}
+                                                        className="btn-primary"
+                                                        style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', borderRadius: '8px' }}
+                                                    >
+                                                        <Edit3 size={16} /> Abrir Detalhes da Visita
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    )}
+                </>
+            )}
+
+            <style>{`
+                    .hover-primary:hover {
+                        color: var(--primary-color) !important;
+                    }
+                    .whatsapp-link {
+                        transition: all 0.2s ease;
+                    }
+                    .whatsapp-link:hover {
+                        color: #25D366 !important;
+                        transform: translateX(4px);
+                    }
+                `}</style>
         </>
     );
 }

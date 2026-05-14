@@ -2,16 +2,20 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home } from 'lucide-react';
 import { visitacaoService } from '../../services/visitacaoService';
+import { inscricaoService } from '../../services/inscricaoService';
 import { supabase } from '../../lib/supabase';
 import type { VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
 import { toast } from 'react-hot-toast';
 import { FormSection } from '../../components/ui/FormSection';
 import { FormRow } from '../../components/ui/FormRow';
 import { FormField } from '../../components/ui/FormField';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 /** Local type for the Supabase-joined participacoes field on this page's query */
 type ParticipacaoComPessoa = {
     id: string;
+    encontro_id: string;
+    foto_url: string | null;
     pessoas: {
         id: string;
         nome_completo: string;
@@ -52,27 +56,72 @@ export function VisitacaoManutencaoPage() {
     const [telefonePai, setTelefonePai] = useState('');
     const [nomeMae, setNomeMae] = useState('');
     const [telefoneMae, setTelefoneMae] = useState('');
+    const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+
+    const [isHistory, setIsHistory] = useState(false);
 
     useEffect(() => {
         async function loadVisita() {
             if (!id) return;
             try {
-                const { data, error } = await supabase
+                // 1. Try to fetch from active visits
+                let { data } = await supabase
                     .from('visita_participacao')
                     .select(`
                         *,
                         participacoes:participacao_id (
                             id,
+                            encontro_id,
                             foto_url,
                             pessoas (*)
                         )
                     `)
                     .eq('id', id)
-                    .single();
+                    .maybeSingle();
 
-                if (error) throw error;
                 if (data) {
                     setVisita(data);
+                    setIsHistory(false);
+                } else {
+                    // 2. Try to fetch from canceled history
+                    const { data: historyData, error: historyError } = await supabase
+                        .from('participacoes_canceladas')
+                        .select(`
+                            *,
+                            pessoas (*)
+                        `)
+                        .eq('id', id)
+                        .maybeSingle();
+                    
+                    if (historyError) throw historyError;
+                    
+                    if (historyData) {
+                        setIsHistory(true);
+                        // Map history data to match expected structure
+                        const mappedData: VisitaParticipacaoEnriched = {
+                            id: historyData.id,
+                            grupo_id: historyData.grupo_id || '',
+                            visitante: false,
+                            status: (historyData.status_visita as VisitaStatus) || 'cancelada',
+                            observacoes: historyData.observacoes || '',
+                            taxa_paga: historyData.dados_snapshot?.taxa_paga || false,
+                            participacao_id: historyData.dados_snapshot?.participacao_id || '',
+                            created_at: historyData.data_cancelamento || '',
+                            foto_url: null,
+                            data_visita: null,
+                            participacoes: {
+                                id: historyData.dados_snapshot?.participacao_id || '',
+                                encontro_id: historyData.encontro_id,
+                                foto_url: null,
+                                pessoas: historyData.pessoas
+                            }
+                        };
+                        setVisita(mappedData);
+                        data = mappedData;
+                    }
+                }
+
+                if (data) {
                     setStatus(data.status || 'pendente');
                     setObservacoes(data.observacoes || '');
                     setTaxaPaga(data.taxa_paga || false);
@@ -93,6 +142,9 @@ export function VisitacaoManutencaoPage() {
                         setNomeMae(p.nome_mae || '');
                         setTelefoneMae(p.telefone_mae || '');
                     }
+                } else {
+                    toast.error('Visita não encontrada.');
+                    navigate('/visitacao/meus-participantes');
                 }
             } catch (error) {
                 console.error('Erro ao buscar dados da visita:', error);
@@ -124,14 +176,59 @@ export function VisitacaoManutencaoPage() {
 
     const handleSave = async () => {
         if (!id || !visita) return;
+        
+        if (status === 'cancelada') {
+            setIsConfirmDialogOpen(true);
+            return;
+        }
+
+        await executeSave();
+    };
+
+    const handleConfirmCancel = async () => {
+        if (!id || !visita) return;
         setSaving(true);
         try {
-            // Update Visit record
+            // 1. Record the cancellation in the history table
+            await inscricaoService.registrarCancelamento({
+                pessoa_id: (visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.id || '',
+                encontro_id: (visita.participacoes as ParticipacaoComPessoa | null)?.encontro_id || '',
+                grupo_id: visita.grupo_id,
+                status_visita: status,
+                observacoes: observacoes,
+                dados_snapshot: {
+                    visita_participacao_id: id,
+                    participacao_id: visita.participacao_id,
+                    taxa_paga: taxaPaga,
+                    data_registro: new Date().toISOString()
+                }
+            });
+
+            // 2. Delete the visitation link (visita_participacao)
+            await visitacaoService.desvincular(id);
+            
+            // 3. Delete the meeting registration (participacoes)
+            // As requested, this removes the person from the meeting entirely
+            await inscricaoService.desvincularDoEncontro(visita.participacao_id);
+            
+            toast.success('Visita cancelada e participação removida do encontro.');
+            navigate('/visitacao/meus-participantes');
+        } catch (error) {
+            console.error('Erro ao cancelar:', error);
+            toast.error('Erro ao processar cancelamento.');
+            setSaving(false);
+        }
+    };
+
+    const executeSave = async () => {
+        if (!id || !visita) return;
+        setSaving(true);
+        try {
             await visitacaoService.atualizarVisita(id, {
                 status,
                 observacoes,
                 taxa_paga: taxaPaga,
-                data_visita: status === 'realizada' ? new Date().toISOString() : visita?.data_visita
+                data_visita: status === 'realizada' ? new Date().toISOString() : (visita.data_visita || undefined)
             });
 
             // Update Participation record (Photo is here now)
@@ -193,6 +290,15 @@ export function VisitacaoManutencaoPage() {
                     </div>
                 </div>
 
+                {isHistory && (
+                    <div className="card" style={{ marginBottom: '1.5rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#ef4444' }}>
+                        <Info size={20} />
+                        <p style={{ margin: 0, fontWeight: 600 }}>
+                            Esta visita foi CANCELADA e arquivada no histórico. Os dados abaixo são apenas para consulta.
+                        </p>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Column 1: Info & Photo */}
                     <div className="md:col-span-1 flex flex-col gap-6">
@@ -244,15 +350,17 @@ export function VisitacaoManutencaoPage() {
                                     {(['pendente', 'realizada', 'ausente', 'cancelada'] as VisitaStatus[]).map((s) => (
                                         <button
                                             key={s}
-                                            onClick={() => setStatus(s)}
+                                            onClick={() => !isHistory && setStatus(s)}
                                             style={{
                                                 padding: '0.75rem', borderRadius: '10px', border: '2px solid',
                                                 borderColor: status === s ? 'var(--primary-color)' : 'var(--border-color)',
                                                 background: status === s ? 'var(--primary-color)10' : 'transparent',
                                                 color: status === s ? 'var(--primary-color)' : 'inherit',
                                                 fontWeight: status === s ? 700 : 400,
-                                                cursor: 'pointer', transition: 'all 0.2s', textTransform: 'capitalize'
+                                                cursor: isHistory ? 'default' : 'pointer', transition: 'all 0.2s', textTransform: 'capitalize',
+                                                opacity: isHistory && status !== s ? 0.5 : 1
                                             }}
+                                            disabled={isHistory}
                                         >
                                             {s}
                                         </button>
@@ -268,6 +376,7 @@ export function VisitacaoManutencaoPage() {
                                     onChange={(e) => setObservacoes(e.target.value)}
                                     placeholder="Descreva como foi a visita, se houve alguma mudança de dados, etc..."
                                     style={{ minHeight: '150px', padding: '1rem', resize: 'vertical' }}
+                                    disabled={isHistory}
                                 />
                             </div>
 
@@ -292,12 +401,13 @@ export function VisitacaoManutencaoPage() {
                                     </div>
                                 </div>
                                 <div 
-                                    onClick={() => setTaxaPaga(!taxaPaga)}
+                                    onClick={() => !isHistory && setTaxaPaga(!taxaPaga)}
                                     style={{
                                         width: '56px', height: '30px', borderRadius: '20px',
                                         background: taxaPaga ? '#10b981' : '#cbd5e1',
-                                        position: 'relative', cursor: 'pointer', transition: 'all 0.3s ease',
-                                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)'
+                                        position: 'relative', cursor: isHistory ? 'default' : 'pointer', transition: 'all 0.3s ease',
+                                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)',
+                                        opacity: isHistory ? 0.7 : 1
                                     }}
                                 >
                                     <div style={{
@@ -322,6 +432,7 @@ export function VisitacaoManutencaoPage() {
                                             onChange={e => setNomeCompleto(e.target.value)}
                                             colSpan={8}
                                             icon={<User size={18} />}
+                                            disabled={isHistory}
                                         />
                                         <FormField
                                             label="Telefone Encontrista"
@@ -329,6 +440,7 @@ export function VisitacaoManutencaoPage() {
                                             onChange={e => setTelefone(e.target.value)}
                                             colSpan={4}
                                             icon={<Phone size={18} />}
+                                            disabled={isHistory}
                                         />
                                     </FormRow>
 
@@ -339,18 +451,21 @@ export function VisitacaoManutencaoPage() {
                                             onChange={e => setBairro(e.target.value)}
                                             colSpan={4}
                                             icon={<Home size={18} />}
+                                            disabled={isHistory}
                                         />
                                         <FormField
                                             label="Endereço / Rua"
                                             value={endereco}
                                             onChange={e => setEndereco(e.target.value)}
                                             colSpan={6}
+                                            disabled={isHistory}
                                         />
                                         <FormField
                                             label="Nº"
                                             value={numero}
                                             onChange={e => setNumero(e.target.value)}
                                             colSpan={2}
+                                            disabled={isHistory}
                                         />
                                     </FormRow>
 
@@ -361,6 +476,7 @@ export function VisitacaoManutencaoPage() {
                                                 value={nomePai}
                                                 onChange={e => setNomePai(e.target.value)}
                                                 colSpan={8}
+                                                disabled={isHistory}
                                             />
                                             <FormField
                                                 label="Telefone do Pai"
@@ -368,6 +484,7 @@ export function VisitacaoManutencaoPage() {
                                                 onChange={e => setTelefonePai(e.target.value)}
                                                 colSpan={4}
                                                 icon={<Phone size={18} />}
+                                                disabled={isHistory}
                                             />
                                         </FormRow>
                                         <FormRow>
@@ -376,6 +493,7 @@ export function VisitacaoManutencaoPage() {
                                                 value={nomeMae}
                                                 onChange={e => setNomeMae(e.target.value)}
                                                 colSpan={8}
+                                                disabled={isHistory}
                                             />
                                             <FormField
                                                 label="Telefone da Mãe"
@@ -383,6 +501,7 @@ export function VisitacaoManutencaoPage() {
                                                 onChange={e => setTelefoneMae(e.target.value)}
                                                 colSpan={4}
                                                 icon={<Phone size={18} />}
+                                                disabled={isHistory}
                                             />
                                         </FormRow>
                                     </FormSection>
@@ -394,8 +513,13 @@ export function VisitacaoManutencaoPage() {
                                 <button 
                                     onClick={handleSave} 
                                     className="btn-primary" 
-                                    disabled={saving}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0 2rem' }}
+                                    disabled={saving || isHistory}
+                                    style={{ 
+                                        display: isHistory ? 'none' : 'flex', 
+                                        alignItems: 'center', 
+                                        gap: '0.5rem', 
+                                        padding: '0 2rem' 
+                                    }}
                                 >
                                     {saving ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
                                     Salvar Visita
@@ -404,6 +528,18 @@ export function VisitacaoManutencaoPage() {
                         </div>
                     </div>
                 </div>
+
+            <ConfirmDialog
+                isOpen={isConfirmDialogOpen}
+                title="Confirmar Cancelamento"
+                message="Marcar como CANCELADA irá REMOVER esta pessoa do Encontro permanentemente (embora os dados fiquem salvos no histórico). Esta ação não pode ser desfeita. Deseja continuar?"
+                confirmText="Sim, Cancelar Participação"
+                cancelText="Voltar"
+                onConfirm={handleConfirmCancel}
+                onCancel={() => setIsConfirmDialogOpen(false)}
+                isLoading={saving}
+                isDestructive={true}
+            />
         </>
     );
 }

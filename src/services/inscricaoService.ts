@@ -270,6 +270,41 @@ export const inscricaoService = {
 
         if (error) throw error;
         return (data || []) as unknown as InscricaoEnriched[];
+    },
+
+    async registrarCancelamento(dados: {
+        pessoa_id: string;
+        encontro_id: string;
+        grupo_id?: string;
+        status_visita?: string;
+        observacoes?: string;
+        dados_snapshot?: any;
+    }): Promise<void> {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        const { error } = await supabase
+            .from('participacoes_canceladas')
+            .insert([{
+                ...dados,
+                cancelado_por: user?.id,
+                data_cancelamento: new Date().toISOString()
+            }]);
+
+        if (error) throw error;
+    },
+
+    async listarCanceladosPorGrupo(grupoId: string, encontroId: string): Promise<any[]> {
+        const { data, error } = await supabase
+            .from('participacoes_canceladas')
+            .select(`
+                *,
+                pessoas:pessoa_id (*)
+            `)
+            .eq('grupo_id', grupoId)
+            .eq('encontro_id', encontroId);
+
+        if (error) throw error;
+        return data || [];
     }
 };
 

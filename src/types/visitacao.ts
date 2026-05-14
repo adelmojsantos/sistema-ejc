@@ -27,6 +27,7 @@ export interface VisitaParticipacaoEnriched extends VisitaParticipacao {
     participacoes?: {
         id: string;
         encontro_id: string;
+        foto_url: string | null;
         pessoas: Pessoa | null;
     };
     visita_grupos?: {
