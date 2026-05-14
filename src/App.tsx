@@ -25,13 +25,10 @@ import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
 import { ResumoPalestrasPage } from './pages/circulos/ResumoPalestrasPage';
 import { MontagemPage } from './pages/cadastros/MontagemPage';
 import { PessoasPage } from './pages/cadastros/PessoasPage';
-<<<<<<< HEAD
 import { PalestrasGestaoPage } from './pages/cadastros/PalestrasGestaoPage';
 import { PalestrasResumoPage } from './pages/cadastros/PalestrasResumoPage';
 import { PalestrasModulePage } from './pages/atividades/PalestrasModulePage';
-=======
 import { PalestrasPage } from './pages/cadastros/PalestrasPage';
->>>>>>> master
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
 import { RecepcaoAdminPage } from './pages/atividades/RecepcaoAdminPage';

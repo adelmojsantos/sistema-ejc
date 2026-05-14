@@ -7,16 +7,10 @@ import {
     EyeOff,
     FileText,
     Image as ImageIcon,
-    Mic2,
-    MoreHorizontal,
-    Plus,
     QrCode,
     RefreshCw,
-    Settings,
     Shield,
-    Trash2,
-    Type,
-    User
+    Type
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useRef, useState } from 'react';
