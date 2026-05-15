@@ -1,6 +1,16 @@
 import { supabase } from '../lib/supabase';
 import type { VisitaGrupo, VisitaGrupoFormData, VisitaParticipacao, VisitaParticipacaoFormData, VisitaParticipacaoEnriched } from '../types/visitacao';
 
+export interface IntencaoCamisetaItem {
+    id?: string;
+    visita_id?: string;
+    modelo_id: string;
+    tamanho: string;
+    quantidade: number;
+    // Enriched
+    camiseta_modelos?: { id: string; nome: string };
+}
+
 const GRUPOS_TABLE = 'visita_grupos';
 const PARTICIPACAO_TABLE = 'visita_participacao';
 
@@ -138,6 +148,43 @@ export const visitacaoService = {
             .eq('id', id);
 
         if (error) throw error;
+    },
+
+    async listarIntencoes(visitaId: string): Promise<IntencaoCamisetaItem[]> {
+        const { data, error } = await supabase
+            .from('visita_intencao_camiseta')
+            .select('*, camiseta_modelos(id, nome)')
+            .eq('visita_id', visitaId)
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        return data || [];
+    },
+
+    async salvarIntencoes(visitaId: string, itens: IntencaoCamisetaItem[]): Promise<void> {
+        // 1. Apaga todas as intenções existentes desta visita
+        const { error: deleteError } = await supabase
+            .from('visita_intencao_camiseta')
+            .delete()
+            .eq('visita_id', visitaId);
+
+        if (deleteError) throw deleteError;
+
+        // 2. Insere os novos itens (se houver)
+        if (itens.length === 0) return;
+
+        const rows = itens.map(item => ({
+            visita_id: visitaId,
+            modelo_id: item.modelo_id,
+            tamanho: item.tamanho,
+            quantidade: item.quantidade
+        }));
+
+        const { error: insertError } = await supabase
+            .from('visita_intencao_camiseta')
+            .insert(rows);
+
+        if (insertError) throw insertError;
     }
 };
 

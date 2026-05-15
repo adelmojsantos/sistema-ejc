@@ -118,7 +118,7 @@ export default function SharedLibraryPage() {
                         borderRadius: '12px',
                         border: '1px solid var(--border-color)',
                         padding: viewMode === 'list' ? 0 : '1.5rem',
-                        overflow: 'hidden'
+                        position: 'relative'
                     }}>
                         {loading ? (
                             <SkeletonLibrary viewMode={viewMode} />

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home, Heart, UtensilsCrossed, Pill, AlertTriangle, Upload, ImagePlus, Calendar } from 'lucide-react';
-import { visitacaoService } from '../../services/visitacaoService';
+import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home, Heart, UtensilsCrossed, Pill, AlertTriangle, Upload, ImagePlus, Calendar, Shirt, Plus, Trash2, X } from 'lucide-react';
+import { visitacaoService, type IntencaoCamisetaItem } from '../../services/visitacaoService';
+import { camisetaService } from '../../services/camisetaService';
+import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
 import { inscricaoService } from '../../services/inscricaoService';
 import { supabase } from '../../lib/supabase';
 import type { VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
@@ -83,6 +85,13 @@ export function VisitacaoManutencaoPage() {
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // ---- Intenção de camiseta ----
+    const [intencoes, setIntencoes] = useState<IntencaoCamisetaItem[]>([]);
+    const [modelosCamiseta, setModelosCamiseta] = useState<CamisetaModelo[]>([]);
+    const [tamanhosCamiseta, setTamanhosCamiseta] = useState<CamisetaTamanho[]>([]);
+    const [showAddIntencao, setShowAddIntencao] = useState(false);
+    const [newIntencao, setNewIntencao] = useState({ modelo_id: '', tamanho: '', quantidade: 1 });
+
     const processFile = useCallback(async (file: File) => {
         if (!file || !visita || !file.type.startsWith('image/')) return;
         setUploading(true);
@@ -137,9 +146,12 @@ export function VisitacaoManutencaoPage() {
                     .eq('id', id)
                     .maybeSingle();
 
+                let isHistoryRecord = false;
+
                 if (data) {
                     setVisita(data);
                     setIsHistory(false);
+                    isHistoryRecord = false;
                 } else {
                     // 2. Try to fetch from canceled history
                     const { data: historyData, error: historyError } = await supabase
@@ -154,6 +166,7 @@ export function VisitacaoManutencaoPage() {
                     if (historyError) throw historyError;
 
                     if (historyData) {
+                        isHistoryRecord = true;
                         setIsHistory(true);
                         // Map history data to match expected structure
                         const mappedData: VisitaParticipacaoEnriched = {
@@ -208,6 +221,27 @@ export function VisitacaoManutencaoPage() {
                         setMedicamentoContinuo(p.medicamento_continuo || '');
                         setAlergia(p.alergia || '');
                         setObservacoesSaude(p.observacoes_saude || '');
+                    }
+
+                    // Load shirt intentions (only for real visits, not history)
+                    if (!isHistoryRecord && data.id) {
+                        try {
+                            const intData = await visitacaoService.listarIntencoes(data.id);
+                            setIntencoes(intData);
+                        } catch { /* silently ignore */ }
+                    }
+
+                    // Load shirt models for the encontro
+                    const encontroId = (data.participacoes as any)?.encontro_id;
+                    if (encontroId) {
+                        try {
+                            const [mods, tams] = await Promise.all([
+                                camisetaService.listarModelos(encontroId),
+                                camisetaService.listarTamanhos()
+                            ]);
+                            setModelosCamiseta(mods.filter((m: any) => m.esta_ativo_no_encontro !== false));
+                            setTamanhosCamiseta(tams);
+                        } catch { /* silently ignore */ }
                     }
                 } else {
                     toast.error('Visita não encontrada.');
@@ -315,6 +349,9 @@ export function VisitacaoManutencaoPage() {
                     observacoes_saude: observacoesSaude || null
                 });
             }
+
+            // Save shirt intentions
+            await visitacaoService.salvarIntencoes(id, intencoes);
 
             toast.success('Dados salvos com sucesso!');
             navigate('/visitacao/meus-participantes');
@@ -537,6 +574,223 @@ export function VisitacaoManutencaoPage() {
                             }} />
                         </div>
                     </div>
+
+                    {/* ---- INTENÇÃO DE CAMISETA ---- */}
+                    {!isHistory && (
+                        <div style={{
+                            marginTop: '2rem',
+                            borderRadius: '16px',
+                            border: intencoes.length > 0
+                                ? '1px solid rgba(99, 102, 241, 0.3)'
+                                : '1px solid var(--border-color)',
+                            background: intencoes.length > 0
+                                ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.06) 0%, rgba(99, 102, 241, 0.02) 100%)'
+                                : 'var(--secondary-bg)',
+                            overflow: 'hidden',
+                            transition: 'all 0.3s ease'
+                        }}>
+                            {/* Header */}
+                            <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                padding: '1.25rem 1.5rem',
+                                borderBottom: (showAddIntencao || intencoes.length > 0) ? '1px solid var(--border-color)' : 'none'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <div style={{
+                                        background: intencoes.length > 0 ? '#6366f1' : 'var(--muted-text)',
+                                        color: 'white', padding: '0.5rem', borderRadius: '10px',
+                                        transition: 'all 0.3s ease', display: 'flex'
+                                    }}>
+                                        <Shirt size={18} />
+                                    </div>
+                                    <div>
+                                        <h4 style={{ margin: 0, color: intencoes.length > 0 ? '#6366f1' : 'inherit' }}>
+                                            Intenção de Camiseta
+                                            {intencoes.length > 0 && (
+                                                <span style={{
+                                                    marginLeft: '0.5rem', fontSize: '0.75rem', fontWeight: 700,
+                                                    background: '#6366f1', color: 'white',
+                                                    padding: '2px 8px', borderRadius: '999px'
+                                                }}>
+                                                    {intencoes.reduce((s, i) => s + i.quantidade, 0)} un.
+                                                </span>
+                                            )}
+                                        </h4>
+                                        <p style={{ margin: 0, fontSize: '0.78rem', opacity: 0.6 }}>
+                                            Registre o interesse — não é um pedido formal
+                                        </p>
+                                    </div>
+                                </div>
+                                {!showAddIntencao && modelosCamiseta.length > 0 && (
+                                    <button
+                                        onClick={() => {
+                                            const firstMod = modelosCamiseta[0];
+                                            const firstTam = tamanhosCamiseta.filter(t => !t.modelo_id || t.modelo_id === firstMod.id)[0]?.sigla || '';
+                                            setNewIntencao({ modelo_id: firstMod.id, tamanho: firstTam, quantidade: 1 });
+                                            setShowAddIntencao(true);
+                                        }}
+                                        style={{
+                                            background: '#6366f1', color: 'white', border: 'none',
+                                            borderRadius: '10px', padding: '0.5rem 1rem',
+                                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                            fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        <Plus size={16} /> Adicionar
+                                    </button>
+                                )}
+                                {!showAddIntencao && modelosCamiseta.length === 0 && (
+                                    <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>Nenhum modelo disponível</span>
+                                )}
+                            </div>
+
+                            {/* Lista de intenções */}
+                            {intencoes.length > 0 && (
+                                <div style={{ padding: '0.75rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    {intencoes.map((item, idx) => {
+                                        const modeloNome = item.camiseta_modelos?.nome
+                                            || modelosCamiseta.find(m => m.id === item.modelo_id)?.nome
+                                            || 'Modelo';
+                                        return (
+                                            <div key={idx} style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                padding: '0.6rem 0.75rem', borderRadius: '10px',
+                                                background: 'rgba(99, 102, 241, 0.07)',
+                                                border: '1px solid rgba(99, 102, 241, 0.15)'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <Shirt size={14} color="#6366f1" />
+                                                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{modeloNome}</span>
+                                                    <span style={{
+                                                        fontSize: '0.78rem', fontWeight: 700, padding: '2px 8px',
+                                                        borderRadius: '6px', background: 'rgba(99,102,241,0.15)', color: '#6366f1'
+                                                    }}>{item.tamanho}</span>
+                                                    <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>× {item.quantidade}</span>
+                                                </div>
+                                                <button
+                                                    onClick={() => setIntencoes(prev => prev.filter((_, i) => i !== idx))}
+                                                    style={{
+                                                        background: 'none', border: 'none', cursor: 'pointer',
+                                                        color: '#ef4444', opacity: 0.5, padding: '4px',
+                                                        display: 'flex', transition: 'opacity 0.2s'
+                                                    }}
+                                                    onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                                                    onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}
+                                                    title="Remover"
+                                                >
+                                                    <Trash2 size={15} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Mini-form para adicionar */}
+                            {showAddIntencao && (
+                                <div style={{ padding: '1rem 1.5rem', background: 'rgba(99,102,241,0.04)' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto auto', gap: '0.75rem', alignItems: 'flex-end' }}>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label" style={{ fontSize: '0.78rem' }}>Modelo</label>
+                                            <select
+                                                className="form-input"
+                                                value={newIntencao.modelo_id}
+                                                onChange={e => {
+                                                    const modId = e.target.value;
+                                                    const firstTam = tamanhosCamiseta.filter(t => !t.modelo_id || t.modelo_id === modId)[0]?.sigla || '';
+                                                    setNewIntencao(prev => ({ ...prev, modelo_id: modId, tamanho: firstTam }));
+                                                }}
+                                                style={{ height: '42px', fontSize: '0.875rem', padding: '0 0.75rem' }}
+                                            >
+                                                {modelosCamiseta.map(m => (
+                                                    <option key={m.id} value={m.id}>{m.nome}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label" style={{ fontSize: '0.78rem' }}>Tamanho</label>
+                                            <select
+                                                className="form-input"
+                                                value={newIntencao.tamanho}
+                                                onChange={e => setNewIntencao(prev => ({ ...prev, tamanho: e.target.value }))}
+                                                style={{ height: '42px', fontSize: '0.875rem', padding: '0 0.75rem' }}
+                                            >
+                                                {tamanhosCamiseta
+                                                    .filter(t => !t.modelo_id || t.modelo_id === newIntencao.modelo_id)
+                                                    .sort((a, b) => a.ordem - b.ordem)
+                                                    .map(t => (
+                                                        <option key={t.id} value={t.sigla}>{t.sigla}</option>
+                                                    ))}
+                                            </select>
+                                        </div>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label" style={{ fontSize: '0.78rem' }}>Qtd</label>
+                                            <input
+                                                type="number" min={1} max={10}
+                                                className="form-input"
+                                                value={newIntencao.quantidade}
+                                                onChange={e => setNewIntencao(prev => ({ ...prev, quantidade: Math.max(1, parseInt(e.target.value) || 1) }))}
+                                                style={{ height: '42px', fontSize: '0.875rem', width: '70px', textAlign: 'center' }}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                            <button
+                                                onClick={() => {
+                                                    if (!newIntencao.modelo_id || !newIntencao.tamanho) return;
+                                                    setIntencoes(prev => [...prev, { ...newIntencao }]);
+                                                    setShowAddIntencao(false);
+                                                }}
+                                                style={{
+                                                    background: '#6366f1', color: 'white', border: 'none',
+                                                    borderRadius: '10px', padding: '0 1rem', height: '42px',
+                                                    display: 'flex', alignItems: 'center', gap: '0.3rem',
+                                                    fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                                disabled={!newIntencao.modelo_id || !newIntencao.tamanho}
+                                            >
+                                                <Plus size={15} /> OK
+                                            </button>
+                                            <button
+                                                onClick={() => setShowAddIntencao(false)}
+                                                style={{
+                                                    background: 'none', border: '1px solid var(--border-color)',
+                                                    borderRadius: '10px', padding: '0 0.75rem', height: '42px',
+                                                    display: 'flex', alignItems: 'center', cursor: 'pointer',
+                                                    color: 'var(--text-color)'
+                                                }}
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Botão adicionar mais (quando já tem itens e não está no form) */}
+                            {!showAddIntencao && intencoes.length > 0 && modelosCamiseta.length > 0 && (
+                                <div style={{ padding: '0.5rem 1.5rem 1rem' }}>
+                                    <button
+                                        onClick={() => {
+                                            const firstMod = modelosCamiseta[0];
+                                            const firstTam = tamanhosCamiseta.filter(t => !t.modelo_id || t.modelo_id === firstMod.id)[0]?.sigla || '';
+                                            setNewIntencao({ modelo_id: firstMod.id, tamanho: firstTam, quantidade: 1 });
+                                            setShowAddIntencao(true);
+                                        }}
+                                        style={{
+                                            background: 'none', border: '1px dashed rgba(99,102,241,0.4)',
+                                            borderRadius: '8px', padding: '0.4rem 0.75rem',
+                                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                            fontSize: '0.8rem', color: '#6366f1', cursor: 'pointer', fontWeight: 600
+                                        }}
+                                    >
+                                        <Plus size={14} /> Adicionar outro modelo
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     <div style={{ paddingTop: '2rem' }}>
                         <FormSection title="Correção de Dados Cadastrais" icon={<Info size={20} />}>
