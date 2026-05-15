@@ -989,7 +989,7 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(140px, 100%), 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         <div
           onClick={() => setActiveFilter('all')}
           className="card"

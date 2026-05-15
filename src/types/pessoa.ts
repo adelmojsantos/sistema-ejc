@@ -25,6 +25,10 @@ export interface Pessoa {
     latitude?: number | null;
     longitude?: number | null;
     origem?: string;
+    restricao_alimentar?: string | null;
+    medicamento_continuo?: string | null;
+    alergia?: string | null;
+    observacoes_saude?: string | null;
 }
 
 export type PessoaFormData = Omit<Pessoa, 'id' | 'qr_code_token' | 'created_at'>;
@@ -50,4 +54,8 @@ export const pessoaFormDataVazia = (): PessoaFormData => ({
     outros_contatos: null,
     fez_ejc_outra_paroquia: null,
     qual_paroquia_ejc: null,
+    restricao_alimentar: null,
+    medicamento_continuo: null,
+    alergia: null,
+    observacoes_saude: null,
 });

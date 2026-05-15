@@ -129,6 +129,15 @@ export const visitacaoService = {
             .eq('id', id);
 
         if (error) throw error;
+    },
+
+    async trocarGrupo(id: string, novoGrupoId: string): Promise<void> {
+        const { error } = await supabase
+            .from(PARTICIPACAO_TABLE)
+            .update({ grupo_id: novoGrupoId })
+            .eq('id', id);
+
+        if (error) throw error;
     }
 };
 
