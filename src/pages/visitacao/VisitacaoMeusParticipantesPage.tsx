@@ -211,7 +211,7 @@ export function VisitacaoMeusParticipantesPage() {
         switch (status) {
             case 'realizada': return { label: 'Visitado', color: '#10b981', icon: <CheckCircle size={14} /> };
             case 'ausente': return { label: 'Ausente', color: '#f59e0b', icon: <AlertCircle size={14} /> };
-            case 'cancelada': return { label: 'Cancelada', color: '#ef4444', icon: <AlertCircle size={14} /> };
+            case 'cancelada': return { label: 'Desistente', color: '#ef4444', icon: <AlertCircle size={14} /> };
             default: return { label: 'Pendente', color: '#6b7280', icon: <Clock size={14} /> };
         }
     };
@@ -395,7 +395,7 @@ export function VisitacaoMeusParticipantesPage() {
                                         onClick={() => setFilterStatus('cancelados')}
                                         style={{ padding: '0.3rem 0.8rem', borderRadius: '99px', fontSize: '0.75rem', fontWeight: 600, border: 'none', background: filterStatus === 'cancelados' ? '#ef4444' : 'var(--secondary-bg)', color: filterStatus === 'cancelados' ? 'white' : 'var(--text-color)', cursor: 'pointer', transition: '0.2s' }}
                                     >
-                                        Cancelados
+                                        Desistentes
                                     </button>
                                 </div>
                             )}

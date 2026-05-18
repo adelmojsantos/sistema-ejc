@@ -300,7 +300,7 @@ export function VisitacaoManutencaoPage() {
             // As requested, this removes the person from the meeting entirely
             await inscricaoService.desvincularDoEncontro(visita.participacao_id);
 
-            toast.success('Visita cancelada e participação removida do encontro.');
+            toast.success('Pessoa marcada como desistente e participação removida do encontro.');
             navigate('/visitacao/meus-participantes');
         } catch (error) {
             console.error('Erro ao cancelar:', error);
@@ -395,7 +395,7 @@ export function VisitacaoManutencaoPage() {
                 <div className="card" style={{ marginBottom: '1.5rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#ef4444' }}>
                     <Info size={20} />
                     <p style={{ margin: 0, fontWeight: 600 }}>
-                        Esta visita foi CANCELADA e arquivada no histórico. Os dados abaixo são apenas para consulta.
+                        Esta pessoa foi marcada como DESISTENTE e arquivada no histórico. Os dados abaixo são apenas para consulta.
                     </p>
                 </div>
             )}
@@ -528,7 +528,7 @@ export function VisitacaoManutencaoPage() {
                                         }}
                                         disabled={isHistory}
                                     >
-                                        {s}
+                                        {s === 'cancelada' ? 'desistente' : s}
                                     </button>
                                 );
                             })}
@@ -1130,9 +1130,9 @@ export function VisitacaoManutencaoPage() {
 
             <ConfirmDialog
                 isOpen={isConfirmDialogOpen}
-                title="Confirmar Cancelamento"
-                message="Marcar como CANCELADA irá REMOVER esta pessoa do Encontro permanentemente (embora os dados fiquem salvos no histórico). Esta ação não pode ser desfeita. Deseja continuar?"
-                confirmText="Sim, Cancelar Participação"
+                title="Confirmar Desistência"
+                message="Marcar como DESISTENTE irá REMOVER esta pessoa do Encontro permanentemente (embora os dados fiquem salvos no histórico). Esta ação não pode ser desfeita. Deseja continuar?"
+                confirmText="Sim, Confirmar Desistência"
                 cancelText="Voltar"
                 onConfirm={handleConfirmCancel}
                 onCancel={() => setIsConfirmDialogOpen(false)}

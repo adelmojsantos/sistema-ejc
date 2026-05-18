@@ -456,7 +456,7 @@ export function CoordenadorVisitacaoPage() {
       pendente: { label: 'Pendente', color: '#6b7280' },
       realizada: { label: 'Realizada', color: '#10b981' },
       ausente: { label: 'Ausente', color: '#f59e0b' },
-      cancelada: { label: 'Cancelada', color: '#ef4444' }
+      cancelada: { label: 'Desistente', color: '#ef4444' }
     };
     const s = config[status] || config.pendente;
     return <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem', background: s.color + '20', color: s.color, fontWeight: 600 }}>{s.label}</span>;
@@ -715,7 +715,7 @@ export function CoordenadorVisitacaoPage() {
                     background: 'rgba(0,0,0,0.01)', gap: '0.5rem', flexWrap: 'wrap'
                   }}>
                     <span style={{ fontSize: '0.75rem', opacity: 0.5, fontStyle: 'italic' }}>
-                      {g.stats.canceladas > 0 ? `${g.stats.canceladas} cancelado(s)` : 'Nenhum cancelamento'}
+                      {g.stats.canceladas > 0 ? `${g.stats.canceladas} desistente(s)` : 'Nenhuma desistência'}
                     </span>
                     <button
                       onClick={() => setSelectedDuoForDetails(g)}

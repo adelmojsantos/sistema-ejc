@@ -20,7 +20,7 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 // Custom Icons for different status
 const PendingIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png',
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-orange.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
   iconSize: [25, 41],
   iconAnchor: [12, 41],
@@ -46,14 +46,7 @@ const AbsentIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
-const CancelledIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
+
 
 interface MyParticipantsMapProps {
   participantes: VisitaParticipacaoEnriched[];
@@ -69,7 +62,7 @@ export function MyParticipantsMap({ participantes, onSelect }: MyParticipantsMap
         let icon = PendingIcon;
         if (v.status === 'realizada') icon = DoneIcon;
         else if (v.status === 'ausente') icon = AbsentIcon;
-        else if (v.status === 'cancelada') icon = CancelledIcon;
+
 
         return {
           id: v.id,
@@ -131,10 +124,10 @@ export function MyParticipantsMap({ participantes, onSelect }: MyParticipantsMap
                         textTransform: 'uppercase', width: 'fit-content',
                         backgroundColor: 
                             m.status === 'realizada' ? 'rgba(16, 185, 129, 0.1)' : 
-                            m.status === 'pendente' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(0,0,0,0.05)',
+                            m.status === 'pendente' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(100, 116, 139, 0.1)',
                         color: 
                             m.status === 'realizada' ? '#059669' : 
-                            m.status === 'pendente' ? '#d97706' : '#64748b'
+                            m.status === 'pendente' ? '#f59e0b' : '#64748b'
                     }}>
                         {m.status === 'realizada' && <CheckCircle2 size={12} />}
                         {m.status}
@@ -167,7 +160,7 @@ export function MyParticipantsMap({ participantes, onSelect }: MyParticipantsMap
       <div className="map-legend" style={{ bottom: '10px', left: '10px', padding: '8px 12px' }}>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
             <div className="map-legend-item">
-              <div className="legend-dot" style={{ backgroundColor: '#d97706' }} />
+              <div className="legend-dot" style={{ backgroundColor: '#f59e0b' }} />
               <span>Pendente</span>
             </div>
             <div className="map-legend-item">
@@ -175,8 +168,8 @@ export function MyParticipantsMap({ participantes, onSelect }: MyParticipantsMap
               <span>Realizada</span>
             </div>
             <div className="map-legend-item">
-              <div className="legend-dot" style={{ backgroundColor: '#ef4444' }} />
-              <span>Ausente/Canc</span>
+              <div className="legend-dot" style={{ backgroundColor: '#64748b' }} />
+              <span>Ausente</span>
             </div>
         </div>
       </div>
