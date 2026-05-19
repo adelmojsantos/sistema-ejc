@@ -79,6 +79,7 @@ export function CoordenadorMinhaEquipePage() {
   const [members, setMembers] = useState<EquipeMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [equipeNome, setEquipeNome] = useState('');
+  const [equipeAcesso, setEquipeAcesso] = useState<'verde' | 'amarela' | 'vermelha'>('verde');
   const [editingPessoa, setEditingPessoa] = useState<Pessoa | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -190,6 +191,14 @@ export function CoordenadorMinhaEquipePage() {
     try {
       if (userParticipacao.equipes?.nome) {
         setEquipeNome(userParticipacao.equipes.nome);
+        if ((userParticipacao.equipes as any).acesso_plenario) {
+          setEquipeAcesso((userParticipacao.equipes as any).acesso_plenario);
+        } else if (userParticipacao.equipe_id) {
+          const equipeFull = await equipeService.buscarPorId(userParticipacao.equipe_id);
+          if (equipeFull?.acesso_plenario) {
+             setEquipeAcesso(equipeFull.acesso_plenario);
+          }
+        }
       }
 
       if (userParticipacao?.encontro_id && userParticipacao?.equipe_id) {
@@ -648,8 +657,24 @@ export function CoordenadorMinhaEquipePage() {
             <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Equipe
             </p>
-            <h1 className="page-title text-gradient" style={{ margin: 0, fontSize: '1.75rem' }}>
+            <h1 className="page-title text-gradient" style={{ margin: 0, fontSize: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               {equipeNome || 'Minha Equipe'}
+              <span
+                style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  backgroundColor: equipeAcesso === 'verde' ? '#10b981' : equipeAcesso === 'amarela' ? '#f59e0b' : '#dc2626',
+                  color: '#ffffff',
+                  WebkitTextFillColor: '#ffffff',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  boxShadow: `0 2px 4px ${equipeAcesso === 'verde' ? 'rgba(16, 185, 129, 0.3)' : equipeAcesso === 'amarela' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(220, 38, 38, 0.3)'}`
+                }}
+              >
+                {equipeAcesso === 'verde' ? 'Verde' : equipeAcesso === 'amarela' ? 'Amarelo' : 'Vermelho'}
+              </span>
             </h1>
           </div>
         </div>

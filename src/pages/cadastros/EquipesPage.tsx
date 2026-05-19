@@ -15,6 +15,7 @@ export function EquipesPage() {
     const [filtered, setFiltered] = useState<Equipe[]>([]);
     const [search, setSearch] = useState('');
     const [novoNome, setNovoNome] = useState('');
+    const [novoAcesso, setNovoAcesso] = useState<'verde' | 'amarela' | 'vermelha'>('verde');
     const [isAdding, setIsAdding] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(true);
@@ -51,9 +52,10 @@ export function EquipesPage() {
         setIsLoading(true);
         setError(null);
         try {
-            const nova = await equipeService.criar({ nome: novoNome.trim() });
+            const nova = await equipeService.criar({ nome: novoNome.trim(), acesso_plenario: novoAcesso });
             setEquipes((prev) => [...prev, nova].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')));
             setNovoNome('');
+            setNovoAcesso('verde');
             setIsAdding(false);
             toast.success('Equipe criada com sucesso!');
         } catch {
@@ -163,6 +165,25 @@ export function EquipesPage() {
                             onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
                             disabled={isLoading}
                         />
+                        <select
+                            className="search-input"
+                            style={{
+                                background: 'var(--card-bg)',
+                                border: '2px solid var(--primary-color)',
+                                outline: 'none',
+                                borderRadius: '8px',
+                                padding: '0.6rem 0.8rem',
+                                color: novoAcesso === 'verde' ? '#10b981' : novoAcesso === 'amarela' ? '#f59e0b' : '#dc2626',
+                                fontWeight: 600
+                            }}
+                            value={novoAcesso}
+                            onChange={(e) => setNovoAcesso(e.target.value as 'verde' | 'amarela' | 'vermelha')}
+                            disabled={isLoading}
+                        >
+                            <option value="verde" style={{ color: '#10b981' }}>🟢 Acesso Total (Plenário + Encontristas)</option>
+                            <option value="amarela" style={{ color: '#f59e0b' }}>🟡 Acesso Parcial (Encontristas apenas)</option>
+                            <option value="vermelha" style={{ color: '#dc2626' }}>🔴 Escondida</option>
+                        </select>
                         <button
                             className="icon-btn"
                             onClick={handleCreate}
@@ -173,7 +194,7 @@ export function EquipesPage() {
                         </button>
                         <button
                             className="icon-btn"
-                            onClick={() => { setNovoNome(''); setIsAdding(false); }}
+                            onClick={() => { setNovoNome(''); setNovoAcesso('verde'); setIsAdding(false); }}
                             disabled={isLoading}
                             title="Cancelar"
                             style={{ height: '38px', width: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}

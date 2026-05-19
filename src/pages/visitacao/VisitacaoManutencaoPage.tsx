@@ -74,6 +74,7 @@ export function VisitacaoManutencaoPage() {
     const [nomeMae, setNomeMae] = useState('');
     const [telefoneMae, setTelefoneMae] = useState('');
     const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+    const [isConfirmPhotoRemoveDialogOpen, setIsConfirmPhotoRemoveDialogOpen] = useState(false);
 
     // Health states
     const [restricaoAlimentar, setRestricaoAlimentar] = useState('');
@@ -98,6 +99,12 @@ export function VisitacaoManutencaoPage() {
         try {
             const url = await visitacaoService.uploadFoto(visita.participacao_id, file);
             setFotoUrl(url);
+
+            // Salva a foto no banco imediatamente após o upload
+            await visitacaoService.atualizarParticipacao(visita.participacao_id, {
+                foto_url: url
+            });
+
             toast.success('Foto enviada com sucesso!');
         } catch (error) {
             console.error('Erro no upload:', error);
@@ -106,6 +113,29 @@ export function VisitacaoManutencaoPage() {
             setUploading(false);
         }
     }, [visita]);
+
+    const removePhoto = useCallback((e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsConfirmPhotoRemoveDialogOpen(true);
+    }, []);
+
+    const handleConfirmRemovePhoto = async () => {
+        if (!visita) return;
+        setUploading(true);
+        setIsConfirmPhotoRemoveDialogOpen(false);
+        try {
+            await visitacaoService.atualizarParticipacao(visita.participacao_id, {
+                foto_url: null
+            });
+            setFotoUrl(null);
+            toast.success('Foto removida com sucesso!');
+        } catch (error) {
+            console.error('Erro ao remover foto:', error);
+            toast.error('Erro ao remover foto.');
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
@@ -438,6 +468,37 @@ export function VisitacaoManutencaoPage() {
                             </div>
                         )}
 
+                        {fotoUrl && !uploading && (
+                            <button
+                                onClick={removePhoto}
+                                style={{
+                                    position: 'absolute',
+                                    top: '8px',
+                                    right: '8px',
+                                    background: 'rgba(239, 68, 68, 0.9)',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: 0,
+                                    margin: 0,
+                                    borderRadius: '50%',
+                                    width: '32px',
+                                    height: '32px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    zIndex: 9999,
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#ef4444'}
+                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.9)'}
+                                title="Remover Foto"
+                            >
+                                <Trash2 size={16} color="white" />
+                            </button>
+                        )}
+
                         {uploading && (
                             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px' }}>
                                 <Loader className="animate-spin" color="white" size={32} />
@@ -448,7 +509,6 @@ export function VisitacaoManutencaoPage() {
                             ref={fileInputRef}
                             type="file"
                             accept="image/*"
-                            capture="environment"
                             style={{ display: 'none' }}
                             onChange={handleFileUpload}
                             disabled={uploading}
@@ -591,11 +651,11 @@ export function VisitacaoManutencaoPage() {
                         }}>
                             {/* Header */}
                             <div style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem',
                                 padding: '1.25rem 1.5rem',
                                 borderBottom: (showAddIntencao || intencoes.length > 0) ? '1px solid var(--border-color)' : 'none'
                             }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: '1 1 200px' }}>
                                     <div style={{
                                         background: intencoes.length > 0 ? '#6366f1' : 'var(--muted-text)',
                                         color: 'white', padding: '0.5rem', borderRadius: '10px',
@@ -629,10 +689,11 @@ export function VisitacaoManutencaoPage() {
                                             setNewIntencao({ modelo_id: firstMod.id, tamanho: firstTam, quantidade: 1 });
                                             setShowAddIntencao(true);
                                         }}
+                                        className="btn-mobile-full"
                                         style={{
                                             background: '#6366f1', color: 'white', border: 'none',
                                             borderRadius: '10px', padding: '0.5rem 1rem',
-                                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
                                             fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
                                             transition: 'all 0.2s'
                                         }}
@@ -690,8 +751,8 @@ export function VisitacaoManutencaoPage() {
                             {/* Mini-form para adicionar */}
                             {showAddIntencao && (
                                 <div style={{ padding: '1rem 1.5rem', background: 'rgba(99,102,241,0.04)' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto auto', gap: '0.75rem', alignItems: 'flex-end' }}>
-                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end' }}>
+                                        <div className="form-group" style={{ marginBottom: 0, flex: '1 1 180px' }}>
                                             <label className="form-label" style={{ fontSize: '0.78rem' }}>Modelo</label>
                                             <select
                                                 className="form-input"
@@ -708,7 +769,7 @@ export function VisitacaoManutencaoPage() {
                                                 ))}
                                             </select>
                                         </div>
-                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <div className="form-group" style={{ marginBottom: 0, flex: '1 1 100px' }}>
                                             <label className="form-label" style={{ fontSize: '0.78rem' }}>Tamanho</label>
                                             <select
                                                 className="form-input"
@@ -724,7 +785,7 @@ export function VisitacaoManutencaoPage() {
                                                     ))}
                                             </select>
                                         </div>
-                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <div className="form-group" style={{ marginBottom: 0, flex: '0 0 70px' }}>
                                             <label className="form-label" style={{ fontSize: '0.78rem' }}>Qtd</label>
                                             <input
                                                 type="number" min={1} max={10}
@@ -734,7 +795,7 @@ export function VisitacaoManutencaoPage() {
                                                 style={{ height: '42px', fontSize: '0.875rem', width: '70px', textAlign: 'center' }}
                                             />
                                         </div>
-                                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                        <div style={{ display: 'flex', gap: '0.4rem', flex: '1 1 auto', justifyContent: 'flex-end' }}>
                                             <button
                                                 onClick={() => {
                                                     if (!newIntencao.modelo_id || !newIntencao.tamanho) return;
@@ -1116,6 +1177,7 @@ export function VisitacaoManutencaoPage() {
                         opacity: 0;
                         transition: opacity 0.25s ease;
                         border-radius: 14px;
+                        pointer-events: none;
                     }
                     .visita-photo-area:hover .visita-photo-overlay {
                         opacity: 1;
@@ -1137,6 +1199,18 @@ export function VisitacaoManutencaoPage() {
                 onConfirm={handleConfirmCancel}
                 onCancel={() => setIsConfirmDialogOpen(false)}
                 isLoading={saving}
+                isDestructive={true}
+            />
+
+            <ConfirmDialog
+                isOpen={isConfirmPhotoRemoveDialogOpen}
+                title="Remover Foto"
+                message="Deseja realmente remover a foto deste participante?"
+                confirmText="Sim, Remover Foto"
+                cancelText="Cancelar"
+                onConfirm={handleConfirmRemovePhoto}
+                onCancel={() => setIsConfirmPhotoRemoveDialogOpen(false)}
+                isLoading={uploading}
                 isDestructive={true}
             />
         </>

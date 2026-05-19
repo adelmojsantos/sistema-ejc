@@ -299,7 +299,7 @@ export function ImportarDadosPage() {
       for (const sheet of sheets) {
         if (sheet.status === 'create') {
           try {
-            const newTeam = await equipeService.criar({ nome: sheet.sheetName });
+            const newTeam = await equipeService.criar({ nome: sheet.sheetName, acesso_plenario: 'verde' });
             teamMap.set(sheet.sheetName, newTeam.id);
             // Also update the local state for reference
             sheet.teamId = newTeam.id;

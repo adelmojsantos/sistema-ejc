@@ -108,7 +108,7 @@ export const visitacaoService = {
     async uploadFoto(participacaoId: string, file: File): Promise<string> {
         const fileExt = file.name.split('.').pop();
         const fileName = `${participacaoId}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-        const filePath = `fotos/${fileName}`;
+        const filePath = `fotos/equipes/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
             .from('galeria')

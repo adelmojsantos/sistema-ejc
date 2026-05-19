@@ -587,7 +587,24 @@ export function ConfirmationReportPage() {
                       <Users size={20} />
                     </div>
                     <div style={{ minWidth: 0 }}>
-                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{status.equipe_nome}</h3>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {status.equipe_nome}
+                        <span
+                          style={{
+                            fontSize: '0.6rem',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '10px',
+                            backgroundColor: status.acesso_plenario === 'verde' ? '#10b981' : status.acesso_plenario === 'amarela' ? '#f59e0b' : '#dc2626',
+                            color: '#ffffff',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.05em',
+                            boxShadow: `0 2px 4px ${status.acesso_plenario === 'verde' ? 'rgba(16, 185, 129, 0.3)' : status.acesso_plenario === 'amarela' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(220, 38, 38, 0.3)'}`
+                          }}
+                        >
+                          {status.acesso_plenario === 'verde' ? 'Verde' : status.acesso_plenario === 'amarela' ? 'Amarelo' : 'Vermelho'}
+                        </span>
+                      </h3>
                       <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{status.membros_confirmados} de {status.total_membros} confirmados</div>
                     </div>
                   </div>
@@ -606,22 +623,6 @@ export function ConfirmationReportPage() {
                         border: `1px solid ${status.progresso > 0 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(0,0,0,0.1)'}`
                       }}>{status.progresso === 0 ? 'AGUARDANDO' : 'EM ANDAMENTO'}</span>
                     )}
-
-                    <button
-                      onClick={() => handleVisualizarEquipe(status.equipe_id)}
-                      className="btn-primary"
-                      style={{
-                        padding: '0.4rem 0.75rem',
-                        fontSize: '0.75rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.4rem',
-                        borderRadius: '8px'
-                      }}
-                    >
-                      <Eye size={14} />
-                      <span className="hide-mobile">Visualizar</span>
-                    </button>
                   </div>
                 </div>
 
@@ -699,6 +700,26 @@ export function ConfirmationReportPage() {
                       </>
                     )}
                   </div>
+                </div>
+
+                <div style={{ marginTop: '0.5rem' }}>
+                  <button
+                    onClick={() => handleVisualizarEquipe(status.equipe_id)}
+                    className="btn-primary"
+                    style={{
+                      padding: '0.6rem 1rem',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      borderRadius: '8px',
+                      width: '100%',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Eye size={16} />
+                    <span>Visualizar Equipe</span>
+                  </button>
                 </div>
               </div>
             ))}
