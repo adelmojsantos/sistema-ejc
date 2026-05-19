@@ -295,6 +295,15 @@ export function VisitacaoManutencaoPage() {
         if (file) processFile(file);
     };
 
+    const handlePhotoAreaClick = () => {
+        if (uploading) return;
+        if (window.innerWidth <= 768) {
+            setIsPhotoActionSheetOpen(true);
+        } else {
+            fileInputRef.current?.click();
+        }
+    };
+
     const handleSave = async () => {
         if (!id || !visita) return;
 
@@ -438,7 +447,7 @@ export function VisitacaoManutencaoPage() {
                     {/* Photo Area with Drag & Drop */}
                     <div
                         className={`visita-photo-area ${isDragging ? 'dragging' : ''} ${fotoUrl ? 'has-photo' : ''}`}
-                        onClick={() => !uploading && setIsPhotoActionSheetOpen(true)}
+                        onClick={handlePhotoAreaClick}
                         onDrop={handleDrop}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
