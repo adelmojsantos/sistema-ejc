@@ -1333,7 +1333,7 @@ export function VisitacaoManutencaoPage() {
             />
 
             {isPhotoActionSheetOpen && (
-                <div className="photo-actions-modal-overlay" onClick={() => setIsPhotoActionSheetOpen(false)}>
+                <div className="photo-actions-modal-overlay">
                     <div className="photo-actions-modal" onClick={e => e.stopPropagation()}>
                         <div className="photo-actions-header">
                             <h3>Adicionar Foto</h3>
