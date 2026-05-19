@@ -291,6 +291,7 @@ export function VisitacaoManutencaoPage() {
     }, [id]);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        setIsPhotoActionSheetOpen(false);
         const file = e.target.files?.[0];
         if (file) processFile(file);
     };
@@ -1349,7 +1350,7 @@ export function VisitacaoManutencaoPage() {
                             <p>Como você deseja inserir a foto?</p>
                         </div>
                         <div className="photo-actions-buttons">
-                            <button 
+                            <button
                                 onClick={() => {
                                     setIsPhotoActionSheetOpen(false);
                                     cameraInputRef.current?.click();
@@ -1357,9 +1358,9 @@ export function VisitacaoManutencaoPage() {
                                 className="photo-action-btn"
                             >
                                 <Camera size={20} />
-                                Tirar Foto na Hora (Câmera)
+                                Tirar Foto (Câmera)
                             </button>
-                            <button 
+                            <button
                                 onClick={() => {
                                     setIsPhotoActionSheetOpen(false);
                                     fileInputRef.current?.click();
