@@ -85,6 +85,8 @@ export function VisitacaoManutencaoPage() {
     const [isHistory, setIsHistory] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
+    const [isPhotoActionSheetOpen, setIsPhotoActionSheetOpen] = useState(false);
 
     // ---- Intenção de camiseta ----
     const [intencoes, setIntencoes] = useState<IntencaoCamisetaItem[]>([]);
@@ -436,7 +438,7 @@ export function VisitacaoManutencaoPage() {
                     {/* Photo Area with Drag & Drop */}
                     <div
                         className={`visita-photo-area ${isDragging ? 'dragging' : ''} ${fotoUrl ? 'has-photo' : ''}`}
-                        onClick={() => !uploading && fileInputRef.current?.click()}
+                        onClick={() => !uploading && setIsPhotoActionSheetOpen(true)}
                         onDrop={handleDrop}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
@@ -509,6 +511,16 @@ export function VisitacaoManutencaoPage() {
                             ref={fileInputRef}
                             type="file"
                             accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={handleFileUpload}
+                            disabled={uploading}
+                        />
+
+                        <input
+                            ref={cameraInputRef}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
                             style={{ display: 'none' }}
                             onChange={handleFileUpload}
                             disabled={uploading}
@@ -1188,6 +1200,112 @@ export function VisitacaoManutencaoPage() {
                         display: flex;
                         flex-direction: column;
                     }
+                    /* Action Sheet Styles */
+                    .photo-actions-modal-overlay {
+                        position: fixed;
+                        inset: 0;
+                        background: rgba(0,0,0,0.6);
+                        backdrop-filter: blur(4px);
+                        z-index: 99999;
+                        display: flex;
+                        align-items: flex-end;
+                        justify-content: center;
+                        animation: fadeIn 0.2s ease-out;
+                    }
+                    @media (min-width: 640px) {
+                        .photo-actions-modal-overlay {
+                            align-items: center;
+                        }
+                    }
+                    .photo-actions-modal {
+                        background: var(--card-bg, #ffffff);
+                        width: 100%;
+                        max-width: 500px;
+                        border-top-left-radius: 24px;
+                        border-top-right-radius: 24px;
+                        padding: 1.5rem;
+                        box-shadow: 0 -10px 25px rgba(0,0,0,0.15);
+                        display: flex;
+                        flex-direction: column;
+                        gap: 1rem;
+                        animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                    }
+                    @media (min-width: 640px) {
+                        .photo-actions-modal {
+                            border-radius: 20px;
+                            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+                            animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                        }
+                    }
+                    .photo-actions-header {
+                        text-align: center;
+                    }
+                    .photo-actions-header h3 {
+                        margin: 0;
+                        font-size: 1.2rem;
+                        font-weight: 700;
+                        color: var(--text-color);
+                    }
+                    .photo-actions-header p {
+                        margin: 0.25rem 0 0;
+                        font-size: 0.85rem;
+                        color: var(--text-color);
+                        opacity: 0.7;
+                    }
+                    .photo-actions-buttons {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 0.75rem;
+                    }
+                    .photo-action-btn {
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 0.75rem;
+                        padding: 1rem;
+                        border-radius: 12px;
+                        border: 1px solid var(--border-color);
+                        background: var(--secondary-bg, #f8f9fa);
+                        color: var(--text-color);
+                        font-weight: 600;
+                        font-size: 0.95rem;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                    }
+                    .photo-action-btn:hover {
+                        background: var(--primary-color);
+                        color: white;
+                        border-color: var(--primary-color);
+                    }
+                    .photo-actions-cancel {
+                        padding: 0.75rem;
+                        border-radius: 12px;
+                        border: none;
+                        background: rgba(239, 68, 68, 0.1);
+                        color: #ef4444;
+                        font-weight: 700;
+                        font-size: 0.95rem;
+                        cursor: pointer;
+                        transition: all 0.2s;
+                        text-align: center;
+                    }
+                    .photo-actions-cancel:hover {
+                        background: #ef4444;
+                        color: white;
+                    }
+
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to { opacity: 1; }
+                    }
+                    @keyframes slideUp {
+                        from { transform: translateY(100%); }
+                        to { transform: translateY(0); }
+                    }
+                    @keyframes scaleIn {
+                        from { transform: scale(0.95); opacity: 0; }
+                        to { transform: scale(1); opacity: 1; }
+                    }
                 `}</style>
 
             <ConfirmDialog
@@ -1213,6 +1331,42 @@ export function VisitacaoManutencaoPage() {
                 isLoading={uploading}
                 isDestructive={true}
             />
+
+            {isPhotoActionSheetOpen && (
+                <div className="photo-actions-modal-overlay" onClick={() => setIsPhotoActionSheetOpen(false)}>
+                    <div className="photo-actions-modal" onClick={e => e.stopPropagation()}>
+                        <div className="photo-actions-header">
+                            <h3>Adicionar Foto</h3>
+                            <p>Como você deseja inserir a foto?</p>
+                        </div>
+                        <div className="photo-actions-buttons">
+                            <button 
+                                onClick={() => {
+                                    setIsPhotoActionSheetOpen(false);
+                                    cameraInputRef.current?.click();
+                                }}
+                                className="photo-action-btn"
+                            >
+                                <Camera size={20} />
+                                Tirar Foto na Hora (Câmera)
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    setIsPhotoActionSheetOpen(false);
+                                    fileInputRef.current?.click();
+                                }}
+                                className="photo-action-btn"
+                            >
+                                <ImagePlus size={20} />
+                                Escolher da Galeria
+                            </button>
+                        </div>
+                        <button className="photo-actions-cancel" onClick={() => setIsPhotoActionSheetOpen(false)}>
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            )}
         </>
     );
 }
