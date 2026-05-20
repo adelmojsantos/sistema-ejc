@@ -42,6 +42,7 @@ export function RecepcaoAdminPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
+  const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -113,24 +114,41 @@ export function RecepcaoAdminPage() {
     setIsModalOpen(true);
   };
 
+  const equipesDisponiveis = useMemo(() => {
+    const map = new Map<string, string>();
+    registros.forEach(r => {
+      const equipeId = r.participacoes?.equipe_id;
+      const equipeNome = r.participacoes?.equipes?.nome;
+      if (equipeId && equipeNome) map.set(equipeId, equipeNome);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [registros]);
+
   const filteredRegistros = useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
 
-    const filtered = term ? registros.filter(r => {
-      const nome = r.participacoes?.pessoas?.nome_completo?.toLowerCase() || '';
-      const equipe = r.participacoes?.equipes?.nome?.toLowerCase() || '';
-      const placa = r.veiculo_placa?.toLowerCase() || '';
-      const modelo = r.veiculo_modelo?.toLowerCase() || '';
+    let filtered = registros;
 
-      return nome.includes(term) || equipe.includes(term) || placa.includes(term) || modelo.includes(term);
-    }) : registros;
+    if (selectedEquipeId) {
+      filtered = filtered.filter(r => r.participacoes?.equipe_id === selectedEquipeId);
+    }
+
+    if (term) {
+      filtered = filtered.filter(r => {
+        const nome = r.participacoes?.pessoas?.nome_completo?.toLowerCase() || '';
+        const equipe = r.participacoes?.equipes?.nome?.toLowerCase() || '';
+        const placa = r.veiculo_placa?.toLowerCase() || '';
+        const modelo = r.veiculo_modelo?.toLowerCase() || '';
+        return nome.includes(term) || equipe.includes(term) || placa.includes(term) || modelo.includes(term);
+      });
+    }
 
     return [...filtered].sort((a, b) => {
       const nomeA = a.participacoes?.pessoas?.nome_completo || '';
       const nomeB = b.participacoes?.pessoas?.nome_completo || '';
       return nomeA.localeCompare(nomeB);
     });
-  }, [registros, debouncedSearch]);
+  }, [registros, debouncedSearch, selectedEquipeId]);
 
   return (
     <div className="fade-in">
@@ -152,12 +170,12 @@ export function RecepcaoAdminPage() {
       </div>
 
       <div className="card" style={{ marginBottom: '2rem', padding: '1.25rem' }}>
-        <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem', alignItems: 'end' }}>
+        <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', alignItems: 'end' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Encontro</label>
             <LiveSearchSelect<Encontro>
               value={selectedEncontroId}
-              onChange={(val) => setSelectedEncontroId(val)}
+              onChange={(val) => { setSelectedEncontroId(val); setSelectedEquipeId(''); }}
               fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
               getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
               getOptionValue={(e) => String(e.id)}
@@ -165,6 +183,45 @@ export function RecepcaoAdminPage() {
               initialOptions={encontros}
               disabled={!canChangeEncontro}
             />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Equipe</label>
+            <div className="form-input-wrapper">
+              <select
+                className="form-input"
+                value={selectedEquipeId}
+                onChange={e => setSelectedEquipeId(e.target.value)}
+                disabled={equipesDisponiveis.length === 0}
+              >
+                <option value="">Todas as equipes</option>
+                {equipesDisponiveis.map(([id, nome]) => (
+                  <option key={id} value={id}>{nome}</option>
+                ))}
+              </select>
+              {selectedEquipeId && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedEquipeId('')}
+                  style={{
+                    position: 'absolute',
+                    right: '2rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--muted-text)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0.2rem',
+                  }}
+                  title="Limpar filtro de equipe"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -176,7 +233,7 @@ export function RecepcaoAdminPage() {
               <input
                 type="text"
                 className="form-input form-input--with-icon"
-                placeholder="Nome, placa, equipe..."
+                placeholder="Nome, placa, modelo..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
