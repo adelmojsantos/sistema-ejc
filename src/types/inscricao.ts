@@ -13,6 +13,7 @@ export interface Inscricao {
   dados_confirmados: boolean | null;
   confirmado_em: string | null;
   pago_taxa: boolean | null;
+  pago_camiseta?: boolean | null;
   origem?: string;
 }
 
@@ -40,4 +41,5 @@ export const inscricaoFormDataVazia = (): InscricaoFormData => ({
     dados_confirmados: false,
     confirmado_em: null,
     pago_taxa: false,
+    pago_camiseta: false,
 });

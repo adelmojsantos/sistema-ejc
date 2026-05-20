@@ -59,6 +59,7 @@ interface EquipeMember {
   participante: boolean;
   dados_confirmados: boolean;
   pago_taxa: boolean;
+  pago_camiseta: boolean;
   pessoas: Pessoa;
   recepcao_dados: RecepcaoDados | null;
   recreacao_dados: RecreacaoDados[];
@@ -401,6 +402,21 @@ export function CoordenadorMinhaEquipePage() {
       // Rollback
       setMembers(prev => prev.map(m => m.id === member.id ? { ...m, pago_taxa: !newStatus } : m));
       toast.error('Erro ao atualizar status de pagamento.');
+    }
+  };
+
+  const handleToggleShirtPayment = async (member: EquipeMember) => {
+    const newStatus = !member.pago_camiseta;
+    try {
+      // Optimistic update
+      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, pago_camiseta: newStatus } : m));
+
+      await inscricaoService.alterarStatusPagamentoCamiseta(member.id, newStatus);
+      toast.success(newStatus ? 'Pagamento das camisetas confirmado!' : 'Pagamento das camisetas removido!');
+    } catch {
+      // Rollback
+      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, pago_camiseta: !newStatus } : m));
+      toast.error('Erro ao atualizar status de pagamento das camisetas.');
     }
   };
 
@@ -955,13 +971,24 @@ export function CoordenadorMinhaEquipePage() {
             </div>
             <div style={{ flex: 1 }}>
               <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Camisetas da Equipe</h3>
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.2rem', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
                   {(() => {
                     const memberIds = new Set(members.map(m => m.id));
                     const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
                     const total = teamPedidos.reduce((acc, curr) => acc + (curr.quantidade || 1), 0);
                     return `${total} ${total === 1 ? 'camiseta' : 'camisetas'}`;
+                  })()}
+                </span>
+                <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
+                <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                  {(() => {
+                    const membersWithShirts = members.filter(m => {
+                      const memberOrders = pedidosCamisetas.filter(pc => pc.participacao_id === m.id);
+                      return memberOrders.length > 0;
+                    });
+                    const paidMembersWithShirts = membersWithShirts.filter(m => m.pago_camiseta);
+                    return `${paidMembersWithShirts.length}/${membersWithShirts.length} pagas`;
                   })()}
                 </span>
                 <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
@@ -1480,37 +1507,74 @@ export function CoordenadorMinhaEquipePage() {
                         Nenhum pedido
                       </div>
                     ) : (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Mod</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>T</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'center' }}>Q</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'right' }}>Valor</th>
-                              <th style={{ width: '20px' }}></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {memberOrders.map((order) => (
-                              <tr key={order.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                                <td style={{ padding: '0.4rem 0.25rem' }}>{order.camiseta_modelos?.nome}</td>
-                                <td style={{ padding: '0.4rem 0.25rem' }}>{order.tamanho}</td>
-                                <td style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>{order.quantidade}</td>
-                                <td style={{ padding: '0.4rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>
-                                  {(() => {
-                                    const modeloEncontro = modelosCamiseta.find(m => m.id === order.modelo_id);
-                                    const val = (modeloEncontro?.valor || 0) * (order.quantidade || 1);
-                                    return formatBRL(val);
-                                  })()}
-                                </td>
-                                <td style={{ padding: '0.25rem', textAlign: 'right' }}>
-                                  <button onClick={() => handleDeleteShirt(order.id)} style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.4, cursor: 'pointer' }}><X size={12} /></button>
-                                </td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ textAlign: 'left', opacity: 0.5 }}>
+                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Mod</th>
+                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>T</th>
+                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'center' }}>Q</th>
+                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'right' }}>Valor</th>
+                                <th style={{ width: '20px' }}></th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {memberOrders.map((order) => (
+                                <tr key={order.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                                  <td style={{ padding: '0.4rem 0.25rem' }}>{order.camiseta_modelos?.nome}</td>
+                                  <td style={{ padding: '0.4rem 0.25rem' }}>{order.tamanho}</td>
+                                  <td style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>{order.quantidade}</td>
+                                  <td style={{ padding: '0.4rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>
+                                    {(() => {
+                                      const modeloEncontro = modelosCamiseta.find(m => m.id === order.modelo_id);
+                                      const val = (modeloEncontro?.valor || 0) * (order.quantidade || 1);
+                                      return formatBRL(val);
+                                    })()}
+                                  </td>
+                                  <td style={{ padding: '0.25rem', textAlign: 'right' }}>
+                                    <button onClick={() => handleDeleteShirt(order.id)} style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.4, cursor: 'pointer' }}><X size={12} /></button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between', 
+                          paddingTop: '0.5rem', 
+                          borderTop: '1px dashed var(--border-color)',
+                          marginTop: '0.25rem',
+                          gap: '1rem'
+                        }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.8 }}>
+                            Pagamento:
+                          </span>
+                          <button
+                            onClick={() => handleToggleShirtPayment(m)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '8px',
+                              border: m.pago_camiseta ? 'none' : '1px dashed var(--border-color)',
+                              backgroundColor: m.pago_camiseta ? '#10b981' : 'rgba(0,0,0,0.02)',
+                              color: m.pago_camiseta ? '#fff' : 'var(--text-color)',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              textTransform: 'uppercase'
+                            }}
+                          >
+                            {m.pago_camiseta ? <CheckCircle size={12} /> : <DollarSign size={12} />}
+                            {m.pago_camiseta ? 'Pago' : 'Marcar Pago'}
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
