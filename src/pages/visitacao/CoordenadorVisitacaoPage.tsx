@@ -41,6 +41,7 @@ import { useEquipes } from '../../contexts/EquipeContext';
 import type { Encontro } from '../../types/encontro';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { VisitaGrupo, VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
+import type { ParticipacaoCancelada } from '../../services/inscricaoService';
 import { normalizeString, formatPhone } from '../../utils/stringUtils';
 import { pessoaService } from '../../services/pessoaService';
 import { geocodeWithFallback, getAddressByCEP } from '../../utils/geocoding';
@@ -57,6 +58,7 @@ export function CoordenadorVisitacaoPage() {
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]); // jovens
   const [equipeVisitacao, setEquipeVisitacao] = useState<InscricaoEnriched[]>([]);
   const [vinculos, setVinculos] = useState<VisitaParticipacaoEnriched[]>([]);
+  const [participacoesCanceladas, setParticipacoesCanceladas] = useState<ParticipacaoCancelada[]>([]);
 
   // Selection states 
   const [selectedPessoa1, setSelectedPessoa1] = useState<string>('');
@@ -75,6 +77,7 @@ export function CoordenadorVisitacaoPage() {
   const [showOnlyUnlinkedGeral, setShowOnlyUnlinkedGeral] = useState(false);
   const [monitorFilter, setMonitorFilter] = useState<'todos' | 'pendentes' | 'concluidos' | 'nao_iniciados'>('todos');
   const [selectedDuoForDetails, setSelectedDuoForDetails] = useState<any>(null);
+  const [selectedDuoForCanceled, setSelectedDuoForCanceled] = useState<any>(null);
 
   // UI States
   const [isFetching, setIsFetching] = useState(false);
@@ -118,13 +121,15 @@ export function CoordenadorVisitacaoPage() {
         setEquipeVisitacao(encontreiros);
       }
 
-      const [gData, vData] = await Promise.all([
+      const [gData, vData, canceladosData] = await Promise.all([
         visitacaoService.listarGrupos(selectedEncontroId),
-        visitacaoService.listarParticipacaoPorEncontro(selectedEncontroId)
+        visitacaoService.listarParticipacaoPorEncontro(selectedEncontroId),
+        inscricaoService.listarCanceladosPorEncontro(selectedEncontroId)
       ]);
 
       setGrupos(gData);
       setVinculos(vData || []);
+      setParticipacoesCanceladas(canceladosData || []);
 
       if (gData.length > 0 && !selectedGrupoId) {
         setSelectedGrupoId(gData[0].id);
@@ -417,20 +422,21 @@ export function CoordenadorVisitacaoPage() {
     const data = grupos.map(g => {
       const membrosVisita = vinculos.filter(v => v.grupo_id === g.id && !v.visitante);
       const visitantes = vinculos.filter(v => v.grupo_id === g.id && v.visitante);
+      const desistentes = participacoesCanceladas.filter(c => c.grupo_id === g.id);
       const realizadas = membrosVisita.filter(m => m.status === 'realizada').length;
       const ausentes = membrosVisita.filter(m => m.status === 'ausente').length;
-      const canceladas = membrosVisita.filter(m => m.status === 'cancelada').length;
       const pendentes = membrosVisita.filter(m => m.status === 'pendente').length;
 
       return {
         ...g,
         visitantes,
         membrosVisita,
+        desistentes,
         stats: {
           total: membrosVisita.length,
           realizadas,
           ausentes,
-          canceladas,
+          canceladas: desistentes.length,
           pendentes
         },
         progresso: membrosVisita.length > 0
@@ -449,7 +455,7 @@ export function CoordenadorVisitacaoPage() {
       default:
         return data;
     }
-  }, [grupos, vinculos, monitorFilter]);
+  }, [grupos, vinculos, participacoesCanceladas, monitorFilter]);
 
   const getStatusBadge = (status: VisitaStatus) => {
     const config = {
@@ -460,6 +466,19 @@ export function CoordenadorVisitacaoPage() {
     };
     const s = config[status] || config.pendente;
     return <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem', background: s.color + '20', color: s.color, fontWeight: 600 }}>{s.label}</span>;
+  };
+
+  const formatCancelamentoDate = (date?: string | null) => {
+    if (!date) return null;
+    const parsedDate = new Date(date);
+    if (Number.isNaN(parsedDate.getTime())) return null;
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(parsedDate);
   };
 
   if (isFetching && encontros.length === 0) return <div>Carregando...</div>;
@@ -714,9 +733,29 @@ export function CoordenadorVisitacaoPage() {
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     background: 'rgba(0,0,0,0.01)', gap: '0.5rem', flexWrap: 'wrap'
                   }}>
-                    <span style={{ fontSize: '0.75rem', opacity: 0.5, fontStyle: 'italic' }}>
-                      {g.stats.canceladas > 0 ? `${g.stats.canceladas} desistente(s)` : 'Nenhuma desistência'}
-                    </span>
+                    {g.stats.canceladas > 0 ? (
+                      <button
+                        onClick={() => setSelectedDuoForCanceled(g)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          color: '#ef4444',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        {g.stats.canceladas} desistente(s)
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: '0.75rem', opacity: 0.5, fontStyle: 'italic' }}>
+                        Nenhuma desistência
+                      </span>
+                    )}
                     <button
                       onClick={() => setSelectedDuoForDetails(g)}
                       style={{
@@ -760,7 +799,7 @@ export function CoordenadorVisitacaoPage() {
                   <p style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>Nenhum encontrista vinculado a esta dupla.</p>
                 ) : (
                   selectedDuoForDetails?.membrosVisita.map((m: any) => (
-                    <div key={m.id} className="card" style={{ padding: '1rem', background: 'var(--secondary-bg)', border: 'none' }}>
+                    <div key={m.id} className="card modal-participant-card" style={{ padding: '1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                         <div style={{ flex: 1 }}>
                           <h5 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>{m.participacoes?.pessoas?.nome_completo}</h5>
@@ -829,6 +868,71 @@ export function CoordenadorVisitacaoPage() {
                   <Link2 size={18} /> Gerenciar Vínculos
                 </button>
               </div>
+            </div>
+          </Modal>
+
+          <Modal
+            isOpen={!!selectedDuoForCanceled}
+            onClose={() => setSelectedDuoForCanceled(null)}
+            title={`Desistentes: ${selectedDuoForCanceled?.nome}`}
+            maxWidth="720px"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {selectedDuoForCanceled?.desistentes?.length === 0 ? (
+                <p style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>Nenhuma desistência registrada para esta dupla.</p>
+              ) : (
+                selectedDuoForCanceled?.desistentes?.map((cancelado: ParticipacaoCancelada) => {
+                  const pessoa = cancelado.pessoas;
+                  const dataCancelamento = formatCancelamentoDate(cancelado.data_cancelamento);
+
+                  return (
+                    <div key={cancelado.id} className="card modal-participant-card" style={{ padding: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                        <div style={{ flex: 1 }}>
+                          <h5 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>{pessoa?.nome_completo || 'Nome não informado'}</h5>
+                          {pessoa?.bairro && (
+                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', opacity: 0.7, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <MapPin size={12} /> {pessoa.bairro}
+                            </p>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                          {getStatusBadge('cancelada')}
+                          {pessoa?.telefone && (
+                            <a
+                              href={`https://wa.me/55${pessoa.telefone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                color: '#25D366', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700
+                              }}
+                            >
+                              <WhatsappLogo size={16} weight="fill" />
+                              {formatPhone(pessoa.telefone)}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      {(cancelado.observacoes || dataCancelamento) && (
+                        <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {cancelado.observacoes && (
+                            <div style={{ fontSize: '0.85rem', lineHeight: 1.5 }}>
+                              <strong>Observação:</strong> {cancelado.observacoes}
+                            </div>
+                          )}
+                          {dataCancelamento && (
+                            <span style={{ fontSize: '0.75rem', opacity: 0.65 }}>
+                              Cancelado em {dataCancelamento}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </Modal>
 
@@ -958,6 +1062,14 @@ export function CoordenadorVisitacaoPage() {
                 }
                 .duo-monitor-card:hover .duo-actions-on-hover {
                     opacity: 1;
+                }
+                .modal-participant-card {
+                    background: var(--card-bg);
+                    border: 1px solid color-mix(in srgb, var(--border-color) 78%, var(--primary-color) 22%);
+                    box-shadow: 0 8px 22px -14px rgba(15, 23, 42, 0.32), 0 2px 8px -4px rgba(15, 23, 42, 0.14);
+                }
+                .dark .modal-participant-card {
+                    box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.02);
                 }
             `}</style>
         </div>

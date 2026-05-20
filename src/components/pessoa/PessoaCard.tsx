@@ -70,8 +70,8 @@ export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardPr
                 </div>
             </div>
 
-            {/* Contact Column — hidden on mobile */}
-            <div className="pessoa-row-col desktop-only">
+            {/* Contact Column */}
+            <div className="pessoa-row-col">
                 <span className="pessoa-row-label">Contato</span>
                 <div className="pessoa-row-value-group">
                     <span className="pessoa-row-value">{formatTelefone(pessoa.telefone)}</span>
@@ -83,25 +83,30 @@ export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardPr
                 </div>
             </div>
 
-            {/* Address Column — tablets and up */}
+            {/* Address Column */}
             {mapsUrl ? (
                 <a
                     href={mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="pessoa-row-col desktop-only"
+                    className="pessoa-row-col"
                     style={{ textDecoration: 'none', color: 'var(--primary-color)' }}
                     title={fullAddress}
                 >
                     <span className="pessoa-row-label">Endereço</span>
                     <span className="pessoa-row-value" style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                         <MapPin size={12} style={{ flexShrink: 0 }} />
-                        <span style={{ textDecoration: 'underline', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ textDecoration: 'underline', overflowWrap: 'anywhere' }}>
                             {partAddress || fullAddress}
                         </span>
                     </span>
                 </a>
-            ) : null}
+            ) : (
+                <div className="pessoa-row-col">
+                    <span className="pessoa-row-label">Endereço</span>
+                    <span className="pessoa-row-value">{fullAddress}</span>
+                </div>
+            )}
 
             {/* Actions */}
             <div className="pessoa-row-actions">

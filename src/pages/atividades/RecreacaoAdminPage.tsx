@@ -43,6 +43,7 @@ export function RecreacaoAdminPage() {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedParticipacaoId, setSelectedParticipacaoId] = useState<string | null>(null);
+  const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [obsToShow, setObsToShow] = useState<string | null>(null);
 
@@ -78,6 +79,7 @@ export function RecreacaoAdminPage() {
 
   const handleEdit = (registro: RecreacaoDados) => {
     setSelectedParticipacaoId(registro.participacao_id);
+    setSelectedChildId(registro.id);
     setIsAddingNew(false);
     setIsModalOpen(true);
   };
@@ -85,6 +87,7 @@ export function RecreacaoAdminPage() {
   const handleAddNew = () => {
     setIsAddingNew(true);
     setSelectedParticipacaoId(null);
+    setSelectedChildId(null);
     setIsModalOpen(true);
   };
 
@@ -179,6 +182,10 @@ export function RecreacaoAdminPage() {
           </div>
         </div>
       </div>
+
+      <p style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600, color: 'var(--muted-text)' }}>
+        <strong style={{ color: 'var(--text-color)' }}>{registros.length}</strong> crianças cadastradas
+      </p>
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 opacity-50">
@@ -393,6 +400,7 @@ export function RecreacaoAdminPage() {
           onClose={() => {
             setIsModalOpen(false);
             setSelectedParticipacaoId(null);
+            setSelectedChildId(null);
             setIsAddingNew(false);
           }}
           participacaoId={selectedParticipacaoId || ''}
@@ -401,6 +409,7 @@ export function RecreacaoAdminPage() {
             loadRegistros();
           }}
           allowParticipantSelection={isAddingNew}
+          initialChildId={selectedChildId}
         />
       )}
 

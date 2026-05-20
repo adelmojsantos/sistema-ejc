@@ -9,6 +9,7 @@ import {
   Search,
   Trash2,
   User,
+  Users,
   X
 } from 'lucide-react';
 import { WhatsappLogo } from 'phosphor-react';
@@ -43,6 +44,7 @@ export function RecepcaoAdminPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
+  const [selectedGrupoId, setSelectedGrupoId] = useState<string>('');
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -124,6 +126,16 @@ export function RecepcaoAdminPage() {
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [registros]);
 
+  const duplasDisponiveis = useMemo(() => {
+    const map = new Map<string, string>();
+    registros.forEach(r => {
+      const grupoId = r.visita_participacao?.grupo_id;
+      const grupoNome = r.visita_participacao?.visita_grupos?.nome;
+      if (grupoId && grupoNome) map.set(grupoId, grupoNome);
+    });
+    return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [registros]);
+
   const filteredRegistros = useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
 
@@ -133,13 +145,18 @@ export function RecepcaoAdminPage() {
       filtered = filtered.filter(r => r.participacoes?.equipe_id === selectedEquipeId);
     }
 
+    if (selectedGrupoId) {
+      filtered = filtered.filter(r => r.visita_participacao?.grupo_id === selectedGrupoId);
+    }
+
     if (term) {
       filtered = filtered.filter(r => {
         const nome = r.participacoes?.pessoas?.nome_completo?.toLowerCase() || '';
         const equipe = r.participacoes?.equipes?.nome?.toLowerCase() || '';
+        const dupla = r.visita_participacao?.visita_grupos?.nome?.toLowerCase() || '';
         const placa = r.veiculo_placa?.toLowerCase() || '';
         const modelo = r.veiculo_modelo?.toLowerCase() || '';
-        return nome.includes(term) || equipe.includes(term) || placa.includes(term) || modelo.includes(term);
+        return nome.includes(term) || equipe.includes(term) || dupla.includes(term) || placa.includes(term) || modelo.includes(term);
       });
     }
 
@@ -148,7 +165,7 @@ export function RecepcaoAdminPage() {
       const nomeB = b.participacoes?.pessoas?.nome_completo || '';
       return nomeA.localeCompare(nomeB);
     });
-  }, [registros, debouncedSearch, selectedEquipeId]);
+  }, [registros, debouncedSearch, selectedEquipeId, selectedGrupoId]);
 
   return (
     <div className="fade-in">
@@ -175,7 +192,7 @@ export function RecepcaoAdminPage() {
             <label className="form-label">Encontro</label>
             <LiveSearchSelect<Encontro>
               value={selectedEncontroId}
-              onChange={(val) => { setSelectedEncontroId(val); setSelectedEquipeId(''); }}
+              onChange={(val) => { setSelectedEncontroId(val); setSelectedEquipeId(''); setSelectedGrupoId(''); }}
               fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
               getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
               getOptionValue={(e) => String(e.id)}
@@ -255,6 +272,45 @@ export function RecepcaoAdminPage() {
                     padding: '0.2rem',
                   }}
                   title="Limpar busca"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Dupla responsável</label>
+            <div className="form-input-wrapper">
+              <select
+                className="form-input"
+                value={selectedGrupoId}
+                onChange={e => setSelectedGrupoId(e.target.value)}
+                disabled={duplasDisponiveis.length === 0}
+              >
+                <option value="">Todas as duplas</option>
+                {duplasDisponiveis.map(([id, nome]) => (
+                  <option key={id} value={id}>{nome}</option>
+                ))}
+              </select>
+              {selectedGrupoId && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedGrupoId('')}
+                  style={{
+                    position: 'absolute',
+                    right: '2rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--muted-text)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0.2rem',
+                  }}
+                  title="Limpar filtro de dupla"
                 >
                   <X size={14} />
                 </button>
@@ -375,6 +431,14 @@ export function RecepcaoAdminPage() {
                       >
                         {reg.participacoes.pessoas.telefone}
                       </a>
+                    </div>
+                  )}
+                  {reg.visita_participacao?.visita_grupos?.nome && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: '120px' }}>
+                      <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.4, letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Users size={14} /> Dupla
+                      </div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{reg.visita_participacao.visita_grupos.nome}</div>
                     </div>
                   )}
                 </div>

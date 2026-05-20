@@ -1,6 +1,7 @@
 export interface RecepcaoDados {
   id: string;
   participacao_id: string;
+  visita_participacao_id?: string | null;
   veiculo_tipo: 'moto' | 'carro';
   veiculo_modelo: string;
   veiculo_cor: string;
@@ -11,7 +12,8 @@ export interface RecepcaoDados {
   // Enriched data
   participacoes?: {
     encontro_id: string;
-    equipe_id: string;
+    equipe_id: string | null;
+    participante?: boolean | null;
     pessoas: {
       nome_completo: string;
       telefone: string;
@@ -20,6 +22,14 @@ export interface RecepcaoDados {
       nome: string;
     };
   };
+  visita_participacao?: {
+    id: string;
+    grupo_id: string;
+    status?: string | null;
+    visita_grupos?: {
+      nome: string | null;
+    } | null;
+  } | null;
 }
 
-export type RecepcaoDadosFormData = Omit<RecepcaoDados, 'id' | 'participacao_id' | 'created_at' | 'updated_at'>;
+export type RecepcaoDadosFormData = Pick<RecepcaoDados, 'veiculo_tipo' | 'veiculo_modelo' | 'veiculo_cor' | 'veiculo_placa'>;

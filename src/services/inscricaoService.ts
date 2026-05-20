@@ -1,7 +1,27 @@
 import { supabase } from '../lib/supabase';
 import type { Inscricao, InscricaoFormData, InscricaoEnriched } from '../types/inscricao';
+import type { Pessoa } from '../types/pessoa';
 
 const TABLE = 'participacoes';
+
+export interface ParticipacaoCancelada {
+    id: string;
+    pessoa_id: string;
+    encontro_id: string;
+    grupo_id: string | null;
+    status_visita: string | null;
+    observacoes: string | null;
+    data_cancelamento: string | null;
+    cancelado_por: string | null;
+    dados_snapshot: {
+        participacao_id?: string;
+        visita_participacao_id?: string;
+        taxa_paga?: boolean;
+        data_registro?: string;
+    } | null;
+    motivo_cancelamento: string | null;
+    pessoas?: Pessoa | null;
+}
 
 export const inscricaoService = {
     async listar(): Promise<InscricaoEnriched[]> {
@@ -53,12 +73,12 @@ export const inscricaoService = {
 
     /**
      * Busca apenas os participantes (participante=true) de um encontro.
-     * Retorna os campos necessários para SecretariaParticipantesPage (inclui endereço e geo).
+     * Retorna os campos necessários para SecretariaParticipantesPage (inclui endereço, geo e recepcao_dados para filtro de veículo).
      */
     async listarParticipantesPorEncontro(encontroId: string): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('id, equipe_id, coordenador, participante, pessoa_id, origem, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome)')
+            .select('id, equipe_id, coordenador, participante, pessoa_id, origem, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome), recepcao_dados(*)')
             .eq('encontro_id', encontroId)
             .eq('participante', true);
 
@@ -317,6 +337,20 @@ export const inscricaoService = {
 
         if (error) throw error;
         return data || [];
+    },
+
+    async listarCanceladosPorEncontro(encontroId: string): Promise<ParticipacaoCancelada[]> {
+        const { data, error } = await supabase
+            .from('participacoes_canceladas')
+            .select(`
+                *,
+                pessoas:pessoa_id (*)
+            `)
+            .eq('encontro_id', encontroId)
+            .not('grupo_id', 'is', null)
+            .order('data_cancelamento', { ascending: false });
+
+        if (error) throw error;
+        return (data || []) as ParticipacaoCancelada[];
     }
 };
-

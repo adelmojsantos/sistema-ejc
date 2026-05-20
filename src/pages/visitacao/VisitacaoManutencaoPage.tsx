@@ -1,18 +1,22 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home, Heart, UtensilsCrossed, Pill, AlertTriangle, Upload, ImagePlus, Calendar, Shirt, Plus, Trash2, X } from 'lucide-react';
+import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home, Heart, UtensilsCrossed, Pill, AlertTriangle, Upload, ImagePlus, Calendar, Shirt, Plus, Trash2, X, Car, Pencil } from 'lucide-react';
 import { visitacaoService, type IntencaoCamisetaItem } from '../../services/visitacaoService';
 import { camisetaService } from '../../services/camisetaService';
 import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
 import { inscricaoService } from '../../services/inscricaoService';
+import { recepcaoService } from '../../services/recepcaoService';
 import { supabase } from '../../lib/supabase';
 import type { VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
+import type { RecepcaoDados, RecepcaoDadosFormData } from '../../types/recepcao';
 import { toast } from 'react-hot-toast';
 import { FormSection } from '../../components/ui/FormSection';
 import { FormRow } from '../../components/ui/FormRow';
 import { FormField } from '../../components/ui/FormField';
+import { RadioGroup } from '../../components/ui/RadioGroup';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatTelefone, formatCpf } from '../../utils/cpfUtils';
+import { cleanPlate, formatPlate } from '../../utils/plateUtils';
 
 /** Local type for the Supabase-joined participacoes field on this page's query */
 type ParticipacaoComPessoa = {
@@ -43,6 +47,10 @@ type ParticipacaoComPessoa = {
     } | null;
 };
 
+type CamisetaModeloComStatus = CamisetaModelo & {
+    esta_ativo_no_encontro?: boolean;
+};
+
 export function VisitacaoManutencaoPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -50,6 +58,16 @@ export function VisitacaoManutencaoPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [visita, setVisita] = useState<VisitaParticipacaoEnriched | null>(null);
+    const [recepcaoDados, setRecepcaoDados] = useState<RecepcaoDados | null>(null);
+    const [showRecepcaoForm, setShowRecepcaoForm] = useState(false);
+    const [savingRecepcao, setSavingRecepcao] = useState(false);
+    const [deletingRecepcao, setDeletingRecepcao] = useState(false);
+    const [recepcaoForm, setRecepcaoForm] = useState<RecepcaoDadosFormData>({
+        veiculo_tipo: 'carro',
+        veiculo_modelo: '',
+        veiculo_cor: '',
+        veiculo_placa: '',
+    });
 
     // Visit states
     const [status, setStatus] = useState<VisitaStatus>('pendente');
@@ -230,7 +248,7 @@ export function VisitacaoManutencaoPage() {
                     setTaxaPaga(data.taxa_paga || false);
 
                     // Photo is now in participacoes
-                    const part = data.participacoes as any;
+                    const part = data.participacoes as ParticipacaoComPessoa | null;
                     setFotoUrl(part?.foto_url || null);
 
                     const p = (data.participacoes as ParticipacaoComPessoa | null)?.pessoas;
@@ -263,15 +281,32 @@ export function VisitacaoManutencaoPage() {
                         } catch { /* silently ignore */ }
                     }
 
+                    if (!isHistoryRecord && data.participacao_id) {
+                        try {
+                            const dadosRecepcao = await recepcaoService.obterPorParticipacao(data.participacao_id);
+                            setRecepcaoDados(dadosRecepcao);
+                            if (dadosRecepcao) {
+                                setRecepcaoForm({
+                                    veiculo_tipo: dadosRecepcao.veiculo_tipo,
+                                    veiculo_modelo: dadosRecepcao.veiculo_modelo,
+                                    veiculo_cor: dadosRecepcao.veiculo_cor,
+                                    veiculo_placa: formatPlate(dadosRecepcao.veiculo_placa),
+                                });
+                            }
+                        } catch (error) {
+                            console.error('Erro ao carregar dados de recepção:', error);
+                        }
+                    }
+
                     // Load shirt models for the encontro
-                    const encontroId = (data.participacoes as any)?.encontro_id;
+                    const encontroId = part?.encontro_id;
                     if (encontroId) {
                         try {
                             const [mods, tams] = await Promise.all([
                                 camisetaService.listarModelos(encontroId),
                                 camisetaService.listarTamanhos()
                             ]);
-                            setModelosCamiseta(mods.filter((m: any) => m.esta_ativo_no_encontro !== false));
+                            setModelosCamiseta((mods as CamisetaModeloComStatus[]).filter(m => m.esta_ativo_no_encontro !== false));
                             setTamanhosCamiseta(tams);
                         } catch { /* silently ignore */ }
                     }
@@ -402,6 +437,73 @@ export function VisitacaoManutencaoPage() {
             toast.error('Erro ao salvar alterações.');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleSaveRecepcao = async () => {
+        if (!visita?.participacao_id) return;
+
+        if (!recepcaoForm.veiculo_modelo.trim()) {
+            toast.error('O modelo do veículo é obrigatório.');
+            return;
+        }
+        if (!recepcaoForm.veiculo_cor.trim()) {
+            toast.error('A cor do veículo é obrigatória.');
+            return;
+        }
+        if (!recepcaoForm.veiculo_placa.trim()) {
+            toast.error('A placa do veículo é obrigatória.');
+            return;
+        }
+
+        setSavingRecepcao(true);
+        try {
+            const result = await recepcaoService.salvar(
+                visita.participacao_id,
+                {
+                    ...recepcaoForm,
+                    veiculo_placa: cleanPlate(recepcaoForm.veiculo_placa),
+                },
+                visita.id
+            );
+            setRecepcaoDados(result);
+            setShowRecepcaoForm(false);
+            setRecepcaoForm({
+                veiculo_tipo: result.veiculo_tipo,
+                veiculo_modelo: result.veiculo_modelo,
+                veiculo_cor: result.veiculo_cor,
+                veiculo_placa: formatPlate(result.veiculo_placa),
+            });
+            toast.success('Dados do veículo salvos com sucesso!');
+        } catch (error) {
+            console.error('Erro ao salvar dados de recepção:', error);
+            toast.error('Erro ao salvar dados do veículo.');
+        } finally {
+            setSavingRecepcao(false);
+        }
+    };
+
+    const handleDeleteRecepcao = async () => {
+        if (!recepcaoDados) return;
+        if (!window.confirm('Deseja realmente remover os dados do veículo deste encontrista?')) return;
+
+        setDeletingRecepcao(true);
+        try {
+            await recepcaoService.excluir(recepcaoDados.id);
+            setRecepcaoDados(null);
+            setRecepcaoForm({
+                veiculo_tipo: 'carro',
+                veiculo_modelo: '',
+                veiculo_cor: '',
+                veiculo_placa: '',
+            });
+            setShowRecepcaoForm(false);
+            toast.success('Veículo removido com sucesso!');
+        } catch (error) {
+            console.error('Erro ao excluir dados de recepção:', error);
+            toast.error('Erro ao remover veículo.');
+        } finally {
+            setDeletingRecepcao(false);
         }
     };
 
@@ -544,7 +646,10 @@ export function VisitacaoManutencaoPage() {
                         </h2>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600, background: 'var(--secondary-bg)', border: '1px solid var(--border-color)' }}>
-                                <User size={12} /> {(visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.cpf ? formatCpf((visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.cpf!) : 'CPF não informado'}
+                                <User size={12} /> {(() => {
+                                    const cpf = (visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.cpf;
+                                    return cpf ? formatCpf(cpf) : 'CPF não informado';
+                                })()}
                             </span>
                             {(visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.telefone && (
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 600, background: 'var(--secondary-bg)', border: '1px solid var(--border-color)' }}>
@@ -656,6 +761,188 @@ export function VisitacaoManutencaoPage() {
                             }} />
                         </div>
                     </div>
+
+                    {!isHistory && (
+                        <div style={{
+                            marginTop: '2rem',
+                            padding: '1.5rem',
+                            borderRadius: '16px',
+                            background: recepcaoDados
+                                ? 'linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(37, 99, 235, 0.03) 100%)'
+                                : 'var(--secondary-bg)',
+                            border: recepcaoDados ? '1px solid rgba(37, 99, 235, 0.2)' : '1px solid var(--border-color)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '1rem'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
+                                    <div style={{
+                                        background: recepcaoDados ? '#2563eb' : 'var(--muted-text)',
+                                        color: 'white',
+                                        padding: '0.6rem',
+                                        borderRadius: '10px',
+                                        display: 'flex'
+                                    }}>
+                                        <Car size={20} />
+                                    </div>
+                                    <div style={{ minWidth: 0 }}>
+                                        <h4 style={{ margin: 0, color: recepcaoDados ? '#2563eb' : 'inherit' }}>Veículo para Recepção</h4>
+                                        <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>
+                                            {recepcaoDados
+                                                ? 'Dados vinculados a esta visita e ao encontrista.'
+                                                : 'Informe o veículo do encontrista para a recepção.'}
+                                        </p>
+                                    </div>
+                                </div>
+                                {recepcaoDados && (
+                                    <div
+                                        style={{
+                                            display: 'inline-block',
+                                            backgroundColor: '#2563eb',
+                                            color: 'white',
+                                            padding: '0.15rem 0.6rem',
+                                            borderRadius: '6px',
+                                            fontWeight: 600,
+                                            fontSize: '0.95rem',
+                                            textTransform: 'uppercase',
+                                            boxShadow: '0 2px 4px rgba(37, 99, 235, 0.3)',
+                                            letterSpacing: formatPlate(recepcaoDados.veiculo_placa).includes('-') ? '0.05em' : '0.15em'
+                                        }}
+                                    >
+                                        {formatPlate(recepcaoDados.veiculo_placa)}
+                                    </div>
+                                )}
+                            </div>
+
+                            {recepcaoDados && !showRecepcaoForm && (
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', fontSize: '0.82rem', borderCollapse: 'collapse' }}>
+                                        <thead>
+                                            <tr style={{ textAlign: 'left', opacity: 0.55 }}>
+                                                <th style={{ padding: '0.45rem 0.35rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.68rem' }}>Tipo</th>
+                                                <th style={{ padding: '0.45rem 0.35rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.68rem' }}>Modelo</th>
+                                                <th style={{ padding: '0.45rem 0.35rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.68rem' }}>Cor</th>
+                                                <th style={{ padding: '0.45rem 0.35rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.68rem' }}>Placa</th>
+                                                <th style={{ width: '88px' }}></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr style={{ borderTop: '1px solid var(--border-color)' }}>
+                                                <td style={{ padding: '0.55rem 0.35rem', textTransform: 'capitalize' }}>{recepcaoDados.veiculo_tipo}</td>
+                                                <td style={{ padding: '0.55rem 0.35rem', fontWeight: 600 }}>{recepcaoDados.veiculo_modelo}</td>
+                                                <td style={{ padding: '0.55rem 0.35rem' }}>{recepcaoDados.veiculo_cor}</td>
+                                                <td style={{ padding: '0.55rem 0.35rem', fontWeight: 700 }}>{formatPlate(recepcaoDados.veiculo_placa)}</td>
+                                                <td style={{ padding: '0.55rem 0.35rem', textAlign: 'right', verticalAlign: 'middle' }}>
+                                                    <div style={{ display: 'inline-flex', justifyContent: 'flex-end', gap: '0.4rem' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowRecepcaoForm(true)}
+                                                        className="icon-btn"
+                                                        disabled={deletingRecepcao}
+                                                        title="Editar veículo"
+                                                        aria-label="Editar veículo"
+                                                        style={{ width: '34px', height: '34px', padding: 0, color: 'var(--primary-color)' }}
+                                                    >
+                                                        <Pencil size={15} />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleDeleteRecepcao}
+                                                        className="icon-btn"
+                                                        disabled={deletingRecepcao}
+                                                        title="Excluir veículo"
+                                                        aria-label="Excluir veículo"
+                                                        style={{ width: '34px', height: '34px', padding: 0, color: '#ef4444' }}
+                                                    >
+                                                        {deletingRecepcao ? <Loader className="animate-spin" size={15} /> : <Trash2 size={15} />}
+                                                    </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+
+                            {!recepcaoDados && !showRecepcaoForm && (
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowRecepcaoForm(true)}
+                                        className="btn-secondary"
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                    >
+                                        <Car size={16} />
+                                        Adicionar veículo
+                                    </button>
+                                </div>
+                            )}
+
+                            {showRecepcaoForm && (
+                                <>
+                                    <RadioGroup
+                                        label="Tipo de veículo"
+                                        options={[
+                                            { label: 'Carro', value: 'carro' },
+                                            { label: 'Moto', value: 'moto' },
+                                        ]}
+                                        value={recepcaoForm.veiculo_tipo}
+                                        onChange={val => setRecepcaoForm(prev => ({ ...prev, veiculo_tipo: val as 'carro' | 'moto' }))}
+                                    />
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.9rem', alignItems: 'end' }}>
+                                        <FormField
+                                            label="Modelo"
+                                            required
+                                            floating={false}
+                                            value={recepcaoForm.veiculo_modelo}
+                                            onChange={e => setRecepcaoForm(prev => ({ ...prev, veiculo_modelo: e.target.value }))}
+                                            disabled={savingRecepcao}
+                                        />
+                                        <FormField
+                                            label="Cor"
+                                            required
+                                            floating={false}
+                                            value={recepcaoForm.veiculo_cor}
+                                            onChange={e => setRecepcaoForm(prev => ({ ...prev, veiculo_cor: e.target.value }))}
+                                            disabled={savingRecepcao}
+                                        />
+                                        <FormField
+                                            label="Placa"
+                                            required
+                                            floating={false}
+                                            placeholder="ABC-1234 ou ABC1D23"
+                                            value={recepcaoForm.veiculo_placa}
+                                            onChange={e => setRecepcaoForm(prev => ({ ...prev, veiculo_placa: formatPlate(e.target.value) }))}
+                                            disabled={savingRecepcao}
+                                        />
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowRecepcaoForm(false)}
+                                            className="btn-outline"
+                                            disabled={savingRecepcao}
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveRecepcao}
+                                            className="btn-secondary"
+                                            disabled={savingRecepcao}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '150px', justifyContent: 'center' }}
+                                        >
+                                            {savingRecepcao ? <Loader className="animate-spin" size={16} /> : <Car size={16} />}
+                                            Salvar veículo
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
 
                     {/* ---- INTENÇÃO DE CAMISETA ---- */}
                     {!isHistory && (

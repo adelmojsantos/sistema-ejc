@@ -12,6 +12,7 @@ import {
     Loader,
     LayoutGrid,
     Map as MapIcon,
+    Car,
     Heart,
     UtensilsCrossed,
     Pill,
@@ -27,6 +28,10 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { MyParticipantsMap } from '../../components/visitacao/MyParticipantsMap';
 import { formatPhone } from '../../utils/stringUtils';
 import { WhatsappLogo } from 'phosphor-react';
+
+type VisitaListItem = VisitaParticipacaoEnriched & {
+    is_history?: boolean;
+};
 
 export function VisitacaoMeusParticipantesPage() {
     const { userParticipacao, hasPermission } = useAuth();
@@ -44,6 +49,7 @@ export function VisitacaoMeusParticipantesPage() {
     });
     const [grupoNome, setGrupoNome] = useState('');
     const [filterStatus, setFilterStatus] = useState<'todos' | 'pendentes' | 'visitados' | 'ausentes' | 'cancelados'>('todos');
+    const [filterVeiculo, setFilterVeiculo] = useState(false);
 
     useEffect(() => {
         sessionStorage.setItem('visita_view_mode', viewMode);
@@ -178,19 +184,18 @@ export function VisitacaoMeusParticipantesPage() {
     }, [participantes]);
 
     const participantesFiltrados = useMemo(() => {
+        let lista = [...participantes];
         switch (filterStatus) {
-            case 'pendentes':
-                return participantes.filter(p => p.status === 'pendente');
-            case 'visitados':
-                return participantes.filter(p => p.status === 'realizada');
-            case 'ausentes':
-                return participantes.filter(p => p.status === 'ausente');
-            case 'cancelados':
-                return participantes.filter(p => p.status === 'cancelada');
-            default:
-                return participantes;
+            case 'pendentes': lista = lista.filter(p => p.status === 'pendente'); break;
+            case 'visitados': lista = lista.filter(p => p.status === 'realizada'); break;
+            case 'ausentes': lista = lista.filter(p => p.status === 'ausente'); break;
+            case 'cancelados': lista = lista.filter(p => p.status === 'cancelada'); break;
         }
-    }, [participantes, filterStatus]);
+        if (filterVeiculo) {
+            lista = lista.filter(p => !!(p as VisitaListItem).participacoes?.recepcao_dados);
+        }
+        return lista;
+    }, [participantes, filterStatus, filterVeiculo]);
 
     const urgentes = useMemo(() => {
         return participantes.filter(p => !p.taxa_paga && p.status === 'pendente');
@@ -396,6 +401,13 @@ export function VisitacaoMeusParticipantesPage() {
                                         style={{ padding: '0.3rem 0.8rem', borderRadius: '99px', fontSize: '0.75rem', fontWeight: 600, border: 'none', background: filterStatus === 'cancelados' ? '#ef4444' : 'var(--secondary-bg)', color: filterStatus === 'cancelados' ? 'white' : 'var(--text-color)', cursor: 'pointer', transition: '0.2s' }}
                                     >
                                         Desistentes
+                                    </button>
+                                    <button
+                                        onClick={() => setFilterVeiculo(v => !v)}
+                                        style={{ padding: '0.3rem 0.8rem', borderRadius: '99px', fontSize: '0.75rem', fontWeight: 600, border: filterVeiculo ? 'none' : '1px dashed var(--border-color)', background: filterVeiculo ? '#2563eb' : 'transparent', color: filterVeiculo ? 'white' : 'var(--text-color)', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                        title={filterVeiculo ? 'Remover filtro' : 'Mostrar apenas com veículo'}
+                                    >
+                                        <Car size={12} /> Com veículo
                                     </button>
                                 </div>
                             )}
