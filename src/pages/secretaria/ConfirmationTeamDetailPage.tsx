@@ -24,6 +24,11 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  UserPlus,
+  Plus,
+  Search,
+  X,
+  UserX,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -85,6 +90,15 @@ export function ConfirmationTeamDetailPage() {
   const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState<string>('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+
+  // Estados para Adicionar/Remover Integrantes
+  const [memberToRemove, setMemberToRemove] = useState<InscricaoEnriched | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [searchPessoa, setSearchPessoa] = useState('');
+  const [searchResults, setSearchResults] = useState<(Pessoa & { infoEquipe?: { id: string | null; nome: string } })[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [allInscricoesInEncontro, setAllInscricoesInEncontro] = useState<InscricaoEnriched[]>([]);
+  const [showQuickAddPerson, setShowQuickAddPerson] = useState(false);
 
   // Resolve encontroId caso acesso direto pela URL (sem route state), usando o contexto
   const { encontroAtivo } = useEncontros();
@@ -234,6 +248,122 @@ export function ConfirmationTeamDetailPage() {
     } catch (error) {
       console.error('Erro ao salvar:', error);
       toast.error('Erro ao salvar alterações.');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  // Carrega todas as inscrições do encontro ao abrir modal para checar duplicados
+  useEffect(() => {
+    if (showAddModal && encontroId) {
+      inscricaoService.listarResumoPorEncontro(encontroId)
+        .then(setAllInscricoesInEncontro)
+        .catch(err => console.error("Erro ao carregar participações:", err));
+    }
+  }, [showAddModal, encontroId]);
+
+  // Busca debounced de pessoas
+  useEffect(() => {
+    if (searchPessoa.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const handler = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const { data } = await pessoaService.buscarComPaginacao(searchPessoa, 1, 20);
+
+        // Mapear quem já está no encontro para saber a equipe
+        const inscricoesMap = new Map(
+          allInscricoesInEncontro.map(i => [
+            i.pessoa_id, 
+            { id: i.equipe_id, nome: i.equipes?.nome || (i.participante ? 'Participante' : 'Outra equipe') }
+          ])
+        );
+
+        const enrichedResults = data.map(p => ({
+          ...p,
+          infoEquipe: inscricoesMap.get(p.id)
+        }));
+
+        setSearchResults(enrichedResults as any);
+      } catch (error) {
+        console.error("Erro na busca de pessoas:", error);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [searchPessoa, allInscricoesInEncontro]);
+
+  const handleAddMember = async (pessoa: Pessoa) => {
+    if (!equipe_id || !encontroId) return;
+    setIsActionLoading(true);
+    try {
+      const payload = {
+        encontro_id: encontroId,
+        equipe_id: equipe_id,
+        pessoa_id: pessoa.id,
+        coordenador: false,
+        participante: false,
+        dados_confirmados: false,
+        confirmado_em: null,
+        pago_taxa: false
+      };
+      await inscricaoService.criar(payload);
+      toast.success(`${pessoa.nome_completo} adicionado(a) com sucesso!`);
+      setShowAddModal(false);
+      setSearchPessoa('');
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao adicionar integrante.');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleRemoveMember = async () => {
+    if (!memberToRemove) return;
+    setIsActionLoading(true);
+    try {
+      await inscricaoService.excluir(memberToRemove.id);
+      toast.success(`${memberToRemove.pessoas?.nome_completo} removido(a) com sucesso.`);
+      setMemberToRemove(null);
+      await loadData();
+    } catch {
+      toast.error('Erro ao remover integrante.');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleQuickAddPerson = async (formData: PessoaFormData, _shouldConfirm: boolean) => {
+    if (!equipe_id || !encontroId) return;
+    setIsActionLoading(true);
+    try {
+      const newPerson = await pessoaService.criar(formData);
+      const payload = {
+        encontro_id: encontroId,
+        equipe_id: equipe_id,
+        pessoa_id: newPerson.id,
+        coordenador: false,
+        participante: false,
+        dados_confirmados: false,
+        confirmado_em: null,
+        pago_taxa: false
+      };
+      await inscricaoService.criar(payload);
+      toast.success(`${newPerson.nome_completo} cadastrado(a) e adicionado(a) com sucesso!`);
+      setShowQuickAddPerson(false);
+      setShowAddModal(false);
+      setSearchPessoa('');
+      await loadData();
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao cadastrar e adicionar pessoa.');
     } finally {
       setIsActionLoading(false);
     }
@@ -415,6 +545,22 @@ export function ConfirmationTeamDetailPage() {
 
         {!isLoading && !isTeamConfirmed && (
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="btn-secondary flex items-center gap-2"
+              style={{
+                fontSize: '0.85rem',
+                padding: '0.6rem 1.25rem',
+                borderRadius: '12px',
+                fontWeight: 600,
+                border: '1px solid var(--border-color)',
+                cursor: 'pointer'
+              }}
+            >
+              <UserPlus size={16} />
+              <span>Adicionar Integrante</span>
+            </button>
+
             {/* Menu de Exportação Moderno */}
             <div style={{ position: 'relative' }}>
               <button
@@ -887,6 +1033,22 @@ export function ConfirmationTeamDetailPage() {
                     >
                       <Pencil size={18} style={{ flexShrink: 0 }} />
                     </button>
+                    {!isTeamConfirmed && (
+                      <button
+                        onClick={() => setMemberToRemove(p)}
+                        disabled={isActionLoading}
+                        className="btn-icon"
+                        style={{
+                          backgroundColor: 'rgba(239, 68, 68, 0.05)', color: '#ef4444',
+                          border: '1px solid rgba(239, 68, 68, 0.2)',
+                          width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer'
+                        }}
+                        title="Remover Integrante"
+                      >
+                        <UserX size={18} style={{ flexShrink: 0 }} />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1087,6 +1249,153 @@ export function ConfirmationTeamDetailPage() {
         participanteNome={recreacaoParticipanteNome}
         encontroId={encontroId}
       />
+      {/* Modal de remoção de integrante */}
+      <ConfirmDialog
+        isOpen={!!memberToRemove}
+        title="Remover Integrante da Equipe"
+        message={
+          <>
+            Tem certeza que deseja desvincular <strong style={{ color: 'var(--text-color)' }}>{memberToRemove?.pessoas?.nome_completo}</strong> desta equipe?
+            <br /><br />
+            Esta ação <strong style={{ color: 'var(--danger-text)' }}>removerá o vínculo</strong> da pessoa com este encontro/equipe.
+          </>
+        }
+        confirmText="Sim, remover"
+        cancelText="Cancelar"
+        onConfirm={handleRemoveMember}
+        onCancel={() => setMemberToRemove(null)}
+        isLoading={isActionLoading}
+        isDestructive={true}
+      />
+
+      {/* Modal para adicionar integrante */}
+      {showAddModal && (
+        <_Modal
+          isOpen={showAddModal}
+          onClose={() => { setShowAddModal(false); setSearchPessoa(''); }}
+          title="Adicionar Integrante"
+          maxWidth="600px"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="search-bar" style={{ background: 'var(--surface-1)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', padding: '0.5rem 1rem', borderRadius: '8px', gap: '0.5rem' }}>
+              <Search size={18} style={{ opacity: 0.5 }} />
+              <input
+                className="search-input"
+                placeholder="Buscar pessoa por nome ou CPF..."
+                value={searchPessoa}
+                onChange={e => setSearchPessoa(e.target.value)}
+                style={{ border: 'none', background: 'transparent', outline: 'none', width: '100%', color: 'var(--text-color)' }}
+              />
+              {searchPessoa && (
+                <button
+                  onClick={() => setSearchPessoa('')}
+                  style={{ background: 'none', border: 'none', color: 'var(--muted-text)', cursor: 'pointer' }}
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+
+            <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {isSearching ? (
+                <div style={{ padding: '2rem', textAlign: 'center' }}>
+                  <Loader size={24} className="animate-spin" style={{ margin: '0 auto', opacity: 0.3 }} />
+                </div>
+              ) : searchPessoa.length < 2 ? (
+                <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.5, fontSize: '0.875rem' }}>
+                  Digite pelo menos 2 caracteres para buscar...
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div style={{ padding: '2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+                  <span style={{ opacity: 0.5, fontSize: '0.875rem' }}>Nenhuma pessoa encontrada com este termo.</span>
+                  <button
+                    onClick={() => setShowQuickAddPerson(true)}
+                    className="btn-secondary flex items-center gap-2"
+                    style={{ fontSize: '0.8rem', padding: '0.5rem 1.25rem', cursor: 'pointer', borderRadius: '8px' }}
+                  >
+                    <UserPlus size={16} />
+                    <span>Cadastrar Nova Pessoa</span>
+                  </button>
+                </div>
+              ) : (
+                searchResults.map(p => {
+                  const info = p.infoEquipe;
+                  const isAlreadyInEncontro = !!info;
+                  
+                  return (
+                    <div
+                      key={p.id}
+                      style={{
+                        padding: '0.75rem 1rem',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'var(--surface-1)'
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1, marginRight: '1rem' }}>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {p.nome_completo}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+                          {isAlreadyInEncontro ? `Já vinculado: ${info?.nome}` : `CPF: ${p.cpf || 'Não informado'}`}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleAddMember(p)}
+                        disabled={isAlreadyInEncontro || isActionLoading}
+                        className="btn-primary"
+                        style={{
+                          fontSize: '0.75rem',
+                          padding: '0.4rem 0.8rem',
+                          opacity: isAlreadyInEncontro ? 0.5 : 1,
+                          cursor: isAlreadyInEncontro ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        {isAlreadyInEncontro ? 'Indisponível' : 'Adicionar'}
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              paddingTop: '1rem',
+              borderTop: '1px solid var(--border-color)',
+              marginTop: '0.5rem'
+            }}>
+              <button
+                onClick={() => setShowQuickAddPerson(true)}
+                className="btn-text flex items-center gap-2"
+                style={{ fontSize: '0.85rem', color: 'var(--primary-color)', cursor: 'pointer', fontWeight: 600 }}
+              >
+                <Plus size={16} />
+                <span>Não encontrou? Cadastrar nova pessoa</span>
+              </button>
+            </div>
+          </div>
+        </_Modal>
+      )}
+
+      {/* Modal de Cadastro Rápido de Pessoa */}
+      {showQuickAddPerson && (
+        <_Modal
+          isOpen={showQuickAddPerson}
+          onClose={() => setShowQuickAddPerson(false)}
+          title="Cadastrar Integrante"
+          maxWidth="800px"
+        >
+          <PessoaForm
+            onSubmit={handleQuickAddPerson}
+            onCancel={() => setShowQuickAddPerson(false)}
+            isLoading={isActionLoading}
+          />
+        </_Modal>
+      )}
     </div>
   );
 }
