@@ -330,7 +330,7 @@ export function RecepcaoAdminPage() {
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Vínculo</label>
+            <label className="form-label">Filtrar por</label>
             <div className="form-input-wrapper">
               <GroupedDropdown<VinculoFilterValue>
                 value={selectedVinculoFilter}
