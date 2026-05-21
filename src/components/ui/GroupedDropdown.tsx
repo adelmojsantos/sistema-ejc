@@ -99,7 +99,6 @@ export function GroupedDropdown<TValue extends string = string>({
   useEffect(() => {
     if (!isOpen) return;
 
-    updateMenuPosition();
     window.addEventListener('resize', updateMenuPosition);
     window.addEventListener('scroll', updateMenuPosition, true);
 
@@ -116,6 +115,13 @@ export function GroupedDropdown<TValue extends string = string>({
     setIsOpen(false);
   };
 
+  const handleTriggerClick = () => {
+    if (disabled) return;
+
+    if (!isOpen) updateMenuPosition();
+    setIsOpen(prev => !prev);
+  };
+
   const toggleGroup = (label: string) => {
     setOpenGroups(prev => ({ ...prev, [label]: !(prev[label] ?? true) }));
   };
@@ -125,7 +131,7 @@ export function GroupedDropdown<TValue extends string = string>({
       <button
         type="button"
         className="form-input grouped-dropdown-trigger"
-        onClick={() => !disabled && setIsOpen(prev => !prev)}
+        onClick={handleTriggerClick}
         disabled={disabled}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
