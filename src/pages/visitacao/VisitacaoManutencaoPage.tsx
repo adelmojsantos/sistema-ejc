@@ -51,6 +51,16 @@ type CamisetaModeloComStatus = CamisetaModelo & {
     esta_ativo_no_encontro?: boolean;
 };
 
+const formatVehicleText = (value: string | null | undefined) => {
+    if (!value) return '';
+
+    return value
+        .toLowerCase()
+        .split(' ')
+        .map(word => word ? `${word[0].toUpperCase()}${word.slice(1)}` : word)
+        .join(' ');
+};
+
 export function VisitacaoManutencaoPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -795,73 +805,51 @@ export function VisitacaoManutencaoPage() {
                                         </p>
                                     </div>
                                 </div>
-                                {recepcaoDados && (
-                                    <div
-                                        style={{
-                                            display: 'inline-block',
-                                            backgroundColor: '#2563eb',
-                                            color: 'white',
-                                            padding: '0.15rem 0.6rem',
-                                            borderRadius: '6px',
-                                            fontWeight: 600,
-                                            fontSize: '0.95rem',
-                                            textTransform: 'uppercase',
-                                            boxShadow: '0 2px 4px rgba(37, 99, 235, 0.3)',
-                                            letterSpacing: formatPlate(recepcaoDados.veiculo_placa).includes('-') ? '0.05em' : '0.15em'
-                                        }}
-                                    >
-                                        {formatPlate(recepcaoDados.veiculo_placa)}
-                                    </div>
-                                )}
                             </div>
 
                             {recepcaoDados && !showRecepcaoForm && (
-                                <div style={{ overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', fontSize: '0.82rem', borderCollapse: 'collapse' }}>
-                                        <thead>
-                                            <tr style={{ textAlign: 'left', opacity: 0.55 }}>
-                                                <th style={{ padding: '0.45rem 0.35rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.68rem' }}>Tipo</th>
-                                                <th style={{ padding: '0.45rem 0.35rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.68rem' }}>Modelo</th>
-                                                <th style={{ padding: '0.45rem 0.35rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.68rem' }}>Cor</th>
-                                                <th style={{ padding: '0.45rem 0.35rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.68rem' }}>Placa</th>
-                                                <th style={{ width: '88px' }}></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr style={{ borderTop: '1px solid var(--border-color)' }}>
-                                                <td style={{ padding: '0.55rem 0.35rem', textTransform: 'capitalize' }}>{recepcaoDados.veiculo_tipo}</td>
-                                                <td style={{ padding: '0.55rem 0.35rem', fontWeight: 600 }}>{recepcaoDados.veiculo_modelo}</td>
-                                                <td style={{ padding: '0.55rem 0.35rem' }}>{recepcaoDados.veiculo_cor}</td>
-                                                <td style={{ padding: '0.55rem 0.35rem', fontWeight: 700 }}>{formatPlate(recepcaoDados.veiculo_placa)}</td>
-                                                <td style={{ padding: '0.55rem 0.35rem', textAlign: 'right', verticalAlign: 'middle' }}>
-                                                    <div style={{ display: 'inline-flex', justifyContent: 'flex-end', gap: '0.4rem' }}>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowRecepcaoForm(true)}
-                                                        className="icon-btn"
-                                                        disabled={deletingRecepcao}
-                                                        title="Editar veículo"
-                                                        aria-label="Editar veículo"
-                                                        style={{ width: '34px', height: '34px', padding: 0, color: 'var(--primary-color)' }}
-                                                    >
-                                                        <Pencil size={15} />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={handleDeleteRecepcao}
-                                                        className="icon-btn"
-                                                        disabled={deletingRecepcao}
-                                                        title="Excluir veículo"
-                                                        aria-label="Excluir veículo"
-                                                        style={{ width: '34px', height: '34px', padding: 0, color: '#ef4444' }}
-                                                    >
-                                                        {deletingRecepcao ? <Loader className="animate-spin" size={15} /> : <Trash2 size={15} />}
-                                                    </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+                                    <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', minWidth: 0 }}>
+                                        {[
+                                            { label: 'Tipo', value: formatVehicleText(recepcaoDados.veiculo_tipo) },
+                                            { label: 'Modelo', value: recepcaoDados.veiculo_modelo },
+                                            { label: 'Cor', value: formatVehicleText(recepcaoDados.veiculo_cor) },
+                                            { label: 'Placa', value: formatPlate(recepcaoDados.veiculo_placa).toUpperCase() }
+                                        ].map(item => (
+                                            <div
+                                                key={item.label}
+                                                className={`visita-vehicle-badge${item.label === 'Placa' ? ' visita-vehicle-badge-plate' : ''}`}
+                                            >
+                                                <span>{item.label}</span>
+                                                <strong>{item.value}</strong>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="visita-vehicle-actions">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowRecepcaoForm(true)}
+                                            className="icon-btn"
+                                            disabled={deletingRecepcao}
+                                            title="Editar veículo"
+                                            aria-label="Editar veículo"
+                                            style={{ width: '34px', height: '34px', padding: 0, color: 'var(--primary-color)' }}
+                                        >
+                                            <Pencil size={15} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleDeleteRecepcao}
+                                            className="icon-btn"
+                                            disabled={deletingRecepcao}
+                                            title="Excluir veículo"
+                                            aria-label="Excluir veículo"
+                                            style={{ width: '34px', height: '34px', padding: 0, color: '#ef4444' }}
+                                        >
+                                            {deletingRecepcao ? <Loader className="animate-spin" size={15} /> : <Trash2 size={15} />}
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
@@ -1496,6 +1484,56 @@ export function VisitacaoManutencaoPage() {
                         min-width: 0;
                         display: flex;
                         flex-direction: column;
+                    }
+                    .visita-vehicle-badge {
+                        display: inline-flex;
+                        flex-direction: column;
+                        gap: 0.15rem;
+                        min-width: 96px;
+                        max-width: 180px;
+                        padding: 0.55rem 0.75rem;
+                        border-radius: 10px;
+                        background: var(--card-bg);
+                        border: 1px solid rgba(37, 99, 235, 0.18);
+                        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+                    }
+                    .visita-vehicle-badge span {
+                        font-size: 0.66rem;
+                        font-weight: 800;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                        opacity: 0.48;
+                    }
+                    .visita-vehicle-badge strong {
+                        font-size: 0.86rem;
+                        font-weight: 750;
+                        color: var(--text-color);
+                        overflow-wrap: anywhere;
+                    }
+                    .visita-vehicle-badge-plate {
+                        border-color: rgba(37, 99, 235, 0.35);
+                        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+                    }
+                    .visita-vehicle-badge-plate strong {
+                        color: #2563eb;
+                        text-transform: uppercase;
+                        letter-spacing: 0.05em;
+                    }
+                    .visita-vehicle-actions {
+                        display: inline-flex;
+                        justify-content: flex-end;
+                        gap: 0.4rem;
+                        flex-shrink: 0;
+                    }
+                    @media (max-width: 639px) {
+                        .visita-vehicle-badge {
+                            flex: 1 1 130px;
+                            max-width: none;
+                        }
+                        .visita-vehicle-actions {
+                            width: 100%;
+                            margin-left: auto;
+                        }
                     }
                     /* Action Sheet Styles */
                     .photo-actions-modal-overlay {

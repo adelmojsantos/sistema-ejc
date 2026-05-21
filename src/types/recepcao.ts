@@ -33,3 +33,15 @@ export interface RecepcaoDados {
 }
 
 export type RecepcaoDadosFormData = Pick<RecepcaoDados, 'veiculo_tipo' | 'veiculo_modelo' | 'veiculo_cor' | 'veiculo_placa'>;
+
+export interface RecepcaoContato {
+  id: string;
+  nome: string;
+  telefone: string | null;
+  papel: 'visitante' | 'coordenador';
+}
+
+export interface RecepcaoContatosDupla {
+  visitantes: RecepcaoContato[];
+  coordenadores: RecepcaoContato[];
+}

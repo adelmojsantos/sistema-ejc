@@ -27,10 +27,36 @@ import { toast } from 'react-hot-toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { MyParticipantsMap } from '../../components/visitacao/MyParticipantsMap';
 import { formatPhone } from '../../utils/stringUtils';
+import { formatPlate } from '../../utils/plateUtils';
 import { WhatsappLogo } from 'phosphor-react';
 
 type VisitaListItem = VisitaParticipacaoEnriched & {
     is_history?: boolean;
+};
+
+type VehicleData = {
+    veiculo_tipo: 'moto' | 'carro';
+    veiculo_modelo: string;
+    veiculo_cor: string;
+    veiculo_placa: string;
+};
+
+const getVehicleData = (recepcaoDados: unknown): VehicleData | null => {
+    if (Array.isArray(recepcaoDados)) {
+        return (recepcaoDados[0] as VehicleData | undefined) || null;
+    }
+
+    return (recepcaoDados as VehicleData | null) || null;
+};
+
+const formatVehicleText = (value: string | null | undefined) => {
+    if (!value) return '';
+
+    return value
+        .toLowerCase()
+        .split(' ')
+        .map(word => word ? `${word[0].toUpperCase()}${word.slice(1)}` : word)
+        .join(' ');
 };
 
 export function VisitacaoMeusParticipantesPage() {
@@ -130,7 +156,8 @@ export function VisitacaoMeusParticipantesPage() {
                             *,
                             participacoes:participacao_id (
                                 id,
-                                pessoas (*)
+                                pessoas (*),
+                                recepcao_dados (*)
                             )
                         `)
                         .eq('grupo_id', targetGrupoId)
@@ -192,7 +219,7 @@ export function VisitacaoMeusParticipantesPage() {
             case 'cancelados': lista = lista.filter(p => p.status === 'cancelada'); break;
         }
         if (filterVeiculo) {
-            lista = lista.filter(p => !!(p as VisitaListItem).participacoes?.recepcao_dados);
+            lista = lista.filter(p => !!getVehicleData((p as VisitaListItem).participacoes?.recepcao_dados));
         }
         return lista;
     }, [participantes, filterStatus, filterVeiculo]);
@@ -429,6 +456,7 @@ export function VisitacaoMeusParticipantesPage() {
                                 participantesFiltrados.map((p: any) => {
                                     const status = getStatusInfo(p.status);
                                     const pessoa = p.participacoes?.pessoas;
+                                    const veiculo = getVehicleData(p.participacoes?.recepcao_dados);
                                     return (
                                         <div key={p.id} className="card card-hover" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden', maxWidth: '100%' }}>
                                             {/* Indicador de status lateral (borda) */}
@@ -515,6 +543,31 @@ export function VisitacaoMeusParticipantesPage() {
                                                                 </span>
                                                             </span>
                                                         </a>
+                                                        {veiculo && (
+                                                            <div style={{ marginTop: '0.65rem', display: 'flex' }}>
+                                                                <span
+                                                                    style={{
+                                                                        padding: '0.45rem 0.75rem',
+                                                                        borderRadius: '10px',
+                                                                        fontSize: '0.82rem',
+                                                                        background: '#2563eb',
+                                                                        color: 'white',
+                                                                        fontWeight: 800,
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '0.45rem',
+                                                                        border: '1px solid #2563eb',
+                                                                        boxShadow: '0 4px 10px rgba(37, 99, 235, 0.22)',
+                                                                        maxWidth: '100%',
+                                                                        overflowWrap: 'anywhere'
+                                                                    }}
+                                                                    title={`${formatVehicleText(veiculo.veiculo_tipo)} ${veiculo.veiculo_modelo} ${veiculo.veiculo_cor} - ${formatPlate(veiculo.veiculo_placa)}`}
+                                                                >
+                                                                    <Car size={14} />
+                                                                    {formatVehicleText(veiculo.veiculo_tipo)} · {veiculo.veiculo_modelo} · {formatVehicleText(veiculo.veiculo_cor)} · {formatPlate(veiculo.veiculo_placa)}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
 
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: '1 1 200px' }}>
