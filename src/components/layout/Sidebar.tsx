@@ -12,15 +12,11 @@ import {
   Baby,
   ChevronLeft,
   ChevronRight,
-<<<<<<< HEAD
   Mic2,
-  X
-=======
   X,
   Folder,
   ShoppingBag,
   UsersRound
->>>>>>> master
 } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';

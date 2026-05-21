@@ -7,7 +7,6 @@ export const palestraService = {
     async listarPorEncontro(encontroId: string): Promise<Palestra[]> {
         const { data, error } = await supabase
             .from(TABLE)
-<<<<<<< HEAD
             .select('*, pessoas(*)')
             .eq('encontro_id', encontroId)
             .order('ordem', { ascending: true });
@@ -19,24 +18,10 @@ export const palestraService = {
         return data as Palestra[];
     },
 
-    async buscarPorId(id: string): Promise<Palestra> {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .select('*, pessoas(*)')
-=======
-            .select('*')
-            .eq('encontro_id', encontroId)
-            .order('ordem', { ascending: true });
-
-        if (error) throw error;
-        return data as Palestra[];
-    },
-
     async buscarPorId(id: string): Promise<Palestra | null> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('*')
->>>>>>> master
+            .select('*, pessoas(*)')
             .eq('id', id)
             .single();
 
@@ -76,14 +61,14 @@ export const palestraService = {
         if (error) throw error;
     },
 
-<<<<<<< HEAD
     async atualizarOrdem(palestras: { id: string, ordem: number }[]): Promise<void> {
         const { error } = await supabase
             .from(TABLE)
             .upsert(palestras);
 
         if (error) throw error;
-=======
+    },
+
     async uploadFoto(file: File): Promise<string> {
         const fileExt = file.name.split('.').pop();
         const fileName = `palestrante_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
@@ -100,6 +85,5 @@ export const palestraService = {
             .getPublicUrl(filePath);
 
         return data.publicUrl;
->>>>>>> master
     }
 };
