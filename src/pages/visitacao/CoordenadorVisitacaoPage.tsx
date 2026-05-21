@@ -1,4 +1,5 @@
 import {
+  ArrowLeftRight,
   Check,
   Edit2,
   ExternalLink,
@@ -15,16 +16,23 @@ import {
   Trash2,
   UserPlus,
   Users,
-  X
+  X,
+  TrendingUp,
+  CheckCircle,
+  Clock,
+  AlertTriangle,
+  ChevronRight
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { WhatsappLogo } from 'phosphor-react';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
 import { FormField } from '../../components/ui/FormField';
 import { FormRow } from '../../components/ui/FormRow';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { EncontristaMap } from '../../components/visitacao/EncontristaMap';
+import { TrocaDuplasModal } from '../../components/visitacao/TrocaDuplasModal';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { visitacaoService } from '../../services/visitacaoService';
@@ -33,14 +41,15 @@ import { useEquipes } from '../../contexts/EquipeContext';
 import type { Encontro } from '../../types/encontro';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { VisitaGrupo, VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
-import { normalizeString } from '../../utils/stringUtils';
+import type { ParticipacaoCancelada } from '../../services/inscricaoService';
+import { normalizeString, formatPhone } from '../../utils/stringUtils';
 import { pessoaService } from '../../services/pessoaService';
 import { geocodeWithFallback, getAddressByCEP } from '../../utils/geocoding';
 
 export function CoordenadorVisitacaoPage() {
   const { encontros } = useEncontros();
   const { equipes } = useEquipes();
-  const [activeTab, setActiveTab] = useState<'duplas' | 'vincular' | 'monitoramento'>('duplas');
+  const [activeTab, setActiveTab] = useState<'painel' | 'vincular'>('painel');
 
   // Data States
   const [grupos, setGrupos] = useState<VisitaGrupo[]>([]);
@@ -49,6 +58,7 @@ export function CoordenadorVisitacaoPage() {
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]); // jovens
   const [equipeVisitacao, setEquipeVisitacao] = useState<InscricaoEnriched[]>([]);
   const [vinculos, setVinculos] = useState<VisitaParticipacaoEnriched[]>([]);
+  const [participacoesCanceladas, setParticipacoesCanceladas] = useState<ParticipacaoCancelada[]>([]);
 
   // Selection states 
   const [selectedPessoa1, setSelectedPessoa1] = useState<string>('');
@@ -65,11 +75,15 @@ export function CoordenadorVisitacaoPage() {
   const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
   const [showOnlyLinkedToSelected, setShowOnlyLinkedToSelected] = useState(false);
   const [showOnlyUnlinkedGeral, setShowOnlyUnlinkedGeral] = useState(false);
+  const [monitorFilter, setMonitorFilter] = useState<'todos' | 'pendentes' | 'concluidos' | 'nao_iniciados'>('todos');
+  const [selectedDuoForDetails, setSelectedDuoForDetails] = useState<any>(null);
+  const [selectedDuoForCanceled, setSelectedDuoForCanceled] = useState<any>(null);
 
   // UI States
   const [isFetching, setIsFetching] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
   const [editingAddressPessoa, setEditingAddressPessoa] = useState<InscricaoEnriched | null>(null);
   const [addressForm, setAddressForm] = useState({
     endereco: '',
@@ -107,13 +121,15 @@ export function CoordenadorVisitacaoPage() {
         setEquipeVisitacao(encontreiros);
       }
 
-      const [gData, vData] = await Promise.all([
+      const [gData, vData, canceladosData] = await Promise.all([
         visitacaoService.listarGrupos(selectedEncontroId),
-        visitacaoService.listarParticipacaoPorEncontro(selectedEncontroId)
+        visitacaoService.listarParticipacaoPorEncontro(selectedEncontroId),
+        inscricaoService.listarCanceladosPorEncontro(selectedEncontroId)
       ]);
 
       setGrupos(gData);
       setVinculos(vData || []);
+      setParticipacoesCanceladas(canceladosData || []);
 
       if (gData.length > 0 && !selectedGrupoId) {
         setSelectedGrupoId(gData[0].id);
@@ -403,29 +419,66 @@ export function CoordenadorVisitacaoPage() {
   }, [vinculos]);
 
   const monitoramentoGrupos = useMemo(() => {
-    return grupos.map(g => {
+    const data = grupos.map(g => {
       const membrosVisita = vinculos.filter(v => v.grupo_id === g.id && !v.visitante);
       const visitantes = vinculos.filter(v => v.grupo_id === g.id && v.visitante);
+      const desistentes = participacoesCanceladas.filter(c => c.grupo_id === g.id);
+      const realizadas = membrosVisita.filter(m => m.status === 'realizada').length;
+      const ausentes = membrosVisita.filter(m => m.status === 'ausente').length;
+      const pendentes = membrosVisita.filter(m => m.status === 'pendente').length;
+
       return {
         ...g,
         visitantes,
         membrosVisita,
+        desistentes,
+        stats: {
+          total: membrosVisita.length,
+          realizadas,
+          ausentes,
+          canceladas: desistentes.length,
+          pendentes
+        },
         progresso: membrosVisita.length > 0
-          ? (membrosVisita.filter(m => m.status === 'realizada').length / membrosVisita.length) * 100
+          ? (realizadas / membrosVisita.length) * 100
           : 0
       };
     });
-  }, [grupos, vinculos]);
+
+    switch (monitorFilter) {
+      case 'pendentes':
+        return data.filter(g => g.progresso < 100 && g.membrosVisita.length > 0);
+      case 'concluidos':
+        return data.filter(g => g.progresso === 100 && g.membrosVisita.length > 0);
+      case 'nao_iniciados':
+        return data.filter(g => g.stats.realizadas === 0 && g.membrosVisita.length > 0);
+      default:
+        return data;
+    }
+  }, [grupos, vinculos, participacoesCanceladas, monitorFilter]);
 
   const getStatusBadge = (status: VisitaStatus) => {
     const config = {
       pendente: { label: 'Pendente', color: '#6b7280' },
       realizada: { label: 'Realizada', color: '#10b981' },
       ausente: { label: 'Ausente', color: '#f59e0b' },
-      cancelada: { label: 'Cancelada', color: '#ef4444' }
+      cancelada: { label: 'Desistente', color: '#ef4444' }
     };
     const s = config[status] || config.pendente;
     return <span style={{ padding: '2px 8px', borderRadius: '12px', fontSize: '0.7rem', background: s.color + '20', color: s.color, fontWeight: 600 }}>{s.label}</span>;
+  };
+
+  const formatCancelamentoDate = (date?: string | null) => {
+    if (!date) return null;
+    const parsedDate = new Date(date);
+    if (Number.isNaN(parsedDate.getTime())) return null;
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(parsedDate);
   };
 
   if (isFetching && encontros.length === 0) return <div>Carregando...</div>;
@@ -437,7 +490,7 @@ export function CoordenadorVisitacaoPage() {
         subtitle="Início / Visitação"
         backPath="/visitacao"
         actions={
-          <div style={{ width: '300px' }}>
+          <div style={{ width: '100%', maxWidth: '300px' }}>
             <LiveSearchSelect<Encontro>
               value={selectedEncontroId}
               onChange={(val) => setSelectedEncontroId(val)}
@@ -453,10 +506,10 @@ export function CoordenadorVisitacaoPage() {
         tabs={
           <div className="tabs-modern-container">
             <button
-              onClick={() => setActiveTab('duplas')}
-              className={`tab-btn-modern ${activeTab === 'duplas' ? 'active' : ''}`}
+              onClick={() => setActiveTab('painel')}
+              className={`tab-btn-modern ${activeTab === 'painel' ? 'active' : ''}`}
             >
-              <Users size={18} /> 1. Montagem de Duplas
+              <Monitor size={18} /> 1. Painel de Duplas
             </button>
             <button
               onClick={() => setActiveTab('vincular')}
@@ -464,90 +517,424 @@ export function CoordenadorVisitacaoPage() {
             >
               <UserPlus size={18} /> 2. Vínculo de Encontristas
             </button>
-            <button
-              onClick={() => setActiveTab('monitoramento')}
-              className={`tab-btn-modern ${activeTab === 'monitoramento' ? 'active' : ''}`}
-            >
-              <Monitor size={18} /> 3. Monitoramento
-            </button>
           </div>
         }
       />
 
-      {activeTab === 'duplas' && (
-        <div className="flex-col gap-6">
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button onClick={() => setIsCreateModalOpen(true)} className="btn-new-visita">
+      {activeTab === 'painel' && (
+        <div className="flex-col gap-8">
+          {/* GLOBAL HERO STATS */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="card" style={{ flex: 1, padding: '1.5rem', background: 'linear-gradient(135deg, var(--card-bg) 0%, rgba(59, 130, 246, 0.05) 100%)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800 }}>
+                      <TrendingUp size={22} /> Monitoramento Global
+                    </h3>
+                    <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', opacity: 0.7 }}>
+                      <strong>{stats.realizada}</strong> visitas realizadas de um total de <strong>{stats.totalP}</strong> encontristas.
+                    </p>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--primary-color)', lineHeight: 1 }}>
+                      {Math.round(stats.percent)}%
+                    </div>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.5, textTransform: 'uppercase' }}>Concluído</span>
+                  </div>
+                </div>
+                <div style={{ width: '100%', height: '14px', background: 'rgba(0,0,0,0.05)', borderRadius: '99px', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${stats.percent}%`,
+                    background: 'linear-gradient(90deg, #3b82f6 0%, #10b981 100%)',
+                    borderRadius: '99px',
+                    transition: 'width 1.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                  }} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: '1rem' }}>
+              <div className="card" style={{ padding: '1.25rem', borderLeft: '4px solid #10b981', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ background: '#10b98115', color: '#10b981', padding: '0.75rem', borderRadius: '12px' }}>
+                  <CheckCircle size={24} />
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 600, opacity: 0.6 }}>Visitas Realizadas</p>
+                  <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{stats.realizada}</h3>
+                </div>
+              </div>
+              <div className="card" style={{ padding: '1.25rem', borderLeft: '4px solid #f59e0b', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ background: '#f59e0b15', color: '#f59e0b', padding: '0.75rem', borderRadius: '12px' }}>
+                  <Clock size={24} />
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 600, opacity: 0.6 }}>Aguardando Visita</p>
+                  <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{stats.pendente}</h3>
+                </div>
+              </div>
+              <div className="card" style={{ padding: '1.25rem', borderLeft: '4px solid #6366f1', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ background: '#6366f115', color: '#6366f1', padding: '0.75rem', borderRadius: '12px' }}>
+                  <Users size={24} />
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 600, opacity: 0.6 }}>Duplas Ativas</p>
+                  <h3 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{grupos.length}</h3>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* FILTERS & ADD BUTTON */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+              <button
+                onClick={() => setMonitorFilter('todos')}
+                className={`filter-chip-modern ${monitorFilter === 'todos' ? 'active' : ''}`}
+              >
+                Todas as Duplas
+              </button>
+              <button
+                onClick={() => setMonitorFilter('pendentes')}
+                className={`filter-chip-modern ${monitorFilter === 'pendentes' ? 'active' : ''}`}
+              >
+                Em Andamento
+              </button>
+              <button
+                onClick={() => setMonitorFilter('concluidos')}
+                className={`filter-chip-modern ${monitorFilter === 'concluidos' ? 'active' : ''}`}
+              >
+                Concluídas
+              </button>
+              <button
+                onClick={() => setMonitorFilter('nao_iniciados')}
+                className={`filter-chip-modern ${monitorFilter === 'nao_iniciados' ? 'active' : ''}`}
+              >
+                <AlertTriangle size={14} /> Não Iniciadas
+              </button>
+            </div>
+
+            <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary" style={{ padding: '0.6rem 1.25rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Plus size={20} /> Montar Nova Dupla
             </button>
           </div>
 
-          <div className="visita-grid">
-            {grupos.map(g => {
-              const visitantes = vinculos.filter(v => v.grupo_id === g.id && v.visitante);
-              const count = vinculos.filter(v => v.grupo_id === g.id && !v.visitante).length;
-              return (
-                <div key={g.id} className="visita-grupo-card">
-                  <div className="visita-card-header">
-                    {editingName === g.id ? (
-                      <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
-                        <input
-                          className="form-input"
-                          style={{ height: '32px', fontSize: '0.9rem', padding: '0 8px' }}
-                          value={tempName}
-                          onChange={e => setTempName(e.target.value)}
-                          autoFocus
-                          onKeyDown={e => e.key === 'Enter' && handleRenameGroup()}
-                        />
-                        <button onClick={handleRenameGroup} className="icon-btn text-primary" title="Salvar">
-                          <Check size={16} />
-                        </button>
-                        <button onClick={() => setEditingName(null)} className="icon-btn" title="Cancelar">
-                          <X size={16} />
-                        </button>
+          {/* DUOS GRID */}
+          <div className="duo-grid">
+            {monitoramentoGrupos.length === 0 ? (
+              <div className="card" style={{ gridColumn: '1 / -1', padding: '4rem', textAlign: 'center', opacity: 0.5 }}>
+                <Monitor size={48} style={{ marginBottom: '1rem' }} />
+                <p>Nenhuma dupla encontrada para este filtro.</p>
+              </div>
+            ) : (
+              monitoramentoGrupos.map(g => (
+                <div key={g.id} className="card duo-monitor-card" style={{ padding: 0, overflow: 'hidden' }}>
+                  <div style={{ padding: '1.25rem', overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+                        <div style={{
+                          width: '40px', height: '40px', borderRadius: '10px',
+                          background: 'var(--primary-color)15', color: 'var(--primary-color)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
+                          flexShrink: 0
+                        }}>
+                          {g.nome?.charAt(0)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {editingName === g.id ? (
+                            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                              <input
+                                className="form-input"
+                                style={{ height: '32px', fontSize: '0.9rem', padding: '0 8px' }}
+                                value={tempName}
+                                onChange={e => setTempName(e.target.value)}
+                                autoFocus
+                                onKeyDown={e => e.key === 'Enter' && handleRenameGroup()}
+                              />
+                              <button onClick={handleRenameGroup} className="icon-btn text-primary" title="Salvar">
+                                <Check size={16} />
+                              </button>
+                              <button onClick={() => setEditingName(null)} className="icon-btn" title="Cancelar">
+                                <X size={16} />
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.nome}</h4>
+                              <div className="duo-actions-on-hover" style={{ display: 'flex', gap: '4px' }}>
+                                <button
+                                  onClick={() => { setEditingName(g.id); setTempName(g.nome || ''); }}
+                                  className="icon-btn" style={{ padding: '2px', opacity: 0.5 }}
+                                >
+                                  <Edit2 size={12} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteGroup(g.id)}
+                                  className="icon-btn text-danger" style={{ padding: '2px', opacity: 0.5 }}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: '4px', marginTop: '2px', flexWrap: 'wrap', overflow: 'hidden' }}>
+                            {g.visitantes.map(v => (
+                              <span key={v.id} style={{ fontSize: '0.7rem', opacity: 0.6 }}>
+                                {v.participacoes?.pessoas?.nome_completo?.split(' ')[0]}
+                                {g.visitantes.indexOf(v) < g.visitantes.length - 1 ? ' • ' : ''}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    ) : (
-                      <>
-                        <h4 className="visita-card-title">{g.nome}</h4>
-                        <div className="visita-card-actions">
-                          <button
-                            onClick={() => { setEditingName(g.id); setTempName(g.nome || ''); }}
-                            className="icon-btn"
-                            title="Editar Nome"
-                          >
-                            <Edit2 size={14} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteGroup(g.id)}
-                            className="icon-btn text-danger"
-                            title="Excluir Dupla"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </>
-                    )}
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <span style={{
+                          fontSize: '0.7rem', fontWeight: 800, padding: '3px 8px', borderRadius: '8px',
+                          background: g.progresso === 100 ? '#10b98120' : g.progresso > 0 ? '#3b82f620' : '#6b728020',
+                          color: g.progresso === 100 ? '#10b981' : g.progresso > 0 ? '#3b82f6' : '#6b7280'
+                        }}>
+                          {g.progresso === 100 ? 'CONCLUÍDO' : g.progresso > 0 ? 'EM ANDAMENTO' : 'PENDENTE'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '1.25rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.8rem' }}>
+                        <span style={{ opacity: 0.7, fontWeight: 600 }}>Status da Dupla</span>
+                        <span style={{ fontWeight: 800 }}>{Math.round(g.progresso)}%</span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', background: 'var(--secondary-bg)', borderRadius: '99px', overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${g.progresso}%`, height: '100%',
+                          background: g.progresso === 100 ? '#10b981' : 'var(--primary-color)',
+                          borderRadius: '99px', transition: 'width 0.5s ease'
+                        }} />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                      <div style={{ background: 'var(--secondary-bg)', padding: '0.75rem', borderRadius: '10px', textAlign: 'center' }}>
+                        <p style={{ margin: 0, fontSize: '0.65rem', opacity: 0.5, fontWeight: 700, textTransform: 'uppercase' }}>Visitados</p>
+                        <p style={{ margin: '0.2rem 0 0', fontSize: '1.1rem', fontWeight: 800, color: '#10b981' }}>{g.stats.realizadas}</p>
+                      </div>
+                      <div style={{ background: 'var(--secondary-bg)', padding: '0.75rem', borderRadius: '10px', textAlign: 'center' }}>
+                        <p style={{ margin: 0, fontSize: '0.65rem', opacity: 0.5, fontWeight: 700, textTransform: 'uppercase' }}>Ausentes</p>
+                        <p style={{ margin: '0.2rem 0 0', fontSize: '1.1rem', fontWeight: 800, color: '#f59e0b' }}>{g.stats.ausentes}</p>
+                      </div>
+                      <div style={{ background: 'var(--secondary-bg)', padding: '0.75rem', borderRadius: '10px', textAlign: 'center' }}>
+                        <p style={{ margin: 0, fontSize: '0.65rem', opacity: 0.5, fontWeight: 700, textTransform: 'uppercase' }}>Total</p>
+                        <p style={{ margin: '0.2rem 0 0', fontSize: '1.1rem', fontWeight: 800 }}>{g.stats.total}</p>
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="visita-card-info-row">
-                    <div className="visita-card-visitors-inline">
-                      {visitantes.map(v => (
-                        <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <Shield size={14} />
-                          <span>{v.participacoes?.pessoas?.nome_completo}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="visita-card-stats-inline">
-                      <Users size={14} />
-                      <span>{count}</span>
-                    </div>
+                  <div style={{
+                    borderTop: '1px solid var(--border-color)', padding: '0.75rem 1.25rem',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    background: 'rgba(0,0,0,0.01)', gap: '0.5rem', flexWrap: 'wrap'
+                  }}>
+                    {g.stats.canceladas > 0 ? (
+                      <button
+                        onClick={() => setSelectedDuoForCanceled(g)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          color: '#ef4444',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        {g.stats.canceladas} desistente(s)
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: '0.75rem', opacity: 0.5, fontStyle: 'italic' }}>
+                        Nenhuma desistência
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setSelectedDuoForDetails(g)}
+                      style={{
+                        background: 'none', border: 'none', color: 'var(--primary-color)',
+                        fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '4px'
+                      }}
+                    >
+                      Ver Participantes <ChevronRight size={14} />
+                    </button>
                   </div>
                 </div>
-              );
-            })}
+              ))
+            )}
           </div>
+
+          {/* DUO DETAILS MODAL */}
+          <Modal
+            isOpen={!!selectedDuoForDetails}
+            onClose={() => setSelectedDuoForDetails(null)}
+            title={`Participantes: ${selectedDuoForDetails?.nome}`}
+            maxWidth="800px"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                {selectedDuoForDetails?.visitantes.map((v: any) => (
+                  <div key={v.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    background: 'var(--primary-color)10', padding: '6px 12px',
+                    borderRadius: '99px', fontSize: '0.85rem', color: 'var(--primary-color)',
+                    fontWeight: 600
+                  }}>
+                    <Shield size={14} />
+                    Visitante: {v.participacoes?.pessoas?.nome_completo}
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {selectedDuoForDetails?.membrosVisita.length === 0 ? (
+                  <p style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>Nenhum encontrista vinculado a esta dupla.</p>
+                ) : (
+                  selectedDuoForDetails?.membrosVisita.map((m: any) => (
+                    <div key={m.id} className="card modal-participant-card" style={{ padding: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                        <div style={{ flex: 1 }}>
+                          <h5 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>{m.participacoes?.pessoas?.nome_completo}</h5>
+                          <p style={{ margin: '4px 0 0', fontSize: '0.8rem', opacity: 0.7, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <MapPin size={12} /> {m.participacoes?.pessoas?.bairro}
+                          </p>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                          {getStatusBadge(m.status)}
+                          {m.participacoes?.pessoas?.telefone && (
+                            <a
+                              href={`https://wa.me/55${m.participacoes.pessoas.telefone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                color: '#25D366', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700
+                              }}
+                            >
+                              <WhatsappLogo size={16} weight="fill" />
+                              {formatPhone(m.participacoes.pessoas.telefone)}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '0.75rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                        {m.participacoes?.pessoas?.telefone_pai && (
+                          <a
+                            href={`https://wa.me/55${m.participacoes.pessoas.telefone_pai.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: '0.75rem', opacity: 0.8, color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <WhatsappLogo size={14} weight="fill" color="#25D366" />
+                            Pai: {formatPhone(m.participacoes.pessoas.telefone_pai)}
+                          </a>
+                        )}
+                        {m.participacoes?.pessoas?.telefone_mae && (
+                          <a
+                            href={`https://wa.me/55${m.participacoes.pessoas.telefone_mae.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: '0.75rem', opacity: 0.8, color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            <WhatsappLogo size={14} weight="fill" color="#25D366" />
+                            Mãe: {formatPhone(m.participacoes.pessoas.telefone_mae)}
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button
+                  onClick={() => {
+                    setSelectedGrupoId(selectedDuoForDetails.id);
+                    setVincularSubTab('lista');
+                    setActiveTab('vincular');
+                    setSelectedDuoForDetails(null);
+                  }}
+                  className="btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <Link2 size={18} /> Gerenciar Vínculos
+                </button>
+              </div>
+            </div>
+          </Modal>
+
+          <Modal
+            isOpen={!!selectedDuoForCanceled}
+            onClose={() => setSelectedDuoForCanceled(null)}
+            title={`Desistentes: ${selectedDuoForCanceled?.nome}`}
+            maxWidth="720px"
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {selectedDuoForCanceled?.desistentes?.length === 0 ? (
+                <p style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>Nenhuma desistência registrada para esta dupla.</p>
+              ) : (
+                selectedDuoForCanceled?.desistentes?.map((cancelado: ParticipacaoCancelada) => {
+                  const pessoa = cancelado.pessoas;
+                  const dataCancelamento = formatCancelamentoDate(cancelado.data_cancelamento);
+
+                  return (
+                    <div key={cancelado.id} className="card modal-participant-card" style={{ padding: '1rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                        <div style={{ flex: 1 }}>
+                          <h5 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>{pessoa?.nome_completo || 'Nome não informado'}</h5>
+                          {pessoa?.bairro && (
+                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', opacity: 0.7, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <MapPin size={12} /> {pessoa.bairro}
+                            </p>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                          {getStatusBadge('cancelada')}
+                          {pessoa?.telefone && (
+                            <a
+                              href={`https://wa.me/55${pessoa.telefone.replace(/\D/g, '')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                color: '#25D366', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 700
+                              }}
+                            >
+                              <WhatsappLogo size={16} weight="fill" />
+                              {formatPhone(pessoa.telefone)}
+                            </a>
+                          )}
+                        </div>
+                      </div>
+
+                      {(cancelado.observacoes || dataCancelamento) && (
+                        <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {cancelado.observacoes && (
+                            <div style={{ fontSize: '0.85rem', lineHeight: 1.5 }}>
+                              <strong>Observação:</strong> {cancelado.observacoes}
+                            </div>
+                          )}
+                          {dataCancelamento && (
+                            <span style={{ fontSize: '0.75rem', opacity: 0.65 }}>
+                              Cancelado em {dataCancelamento}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </Modal>
 
           <Modal
             isOpen={isCreateModalOpen}
@@ -614,6 +1001,77 @@ export function CoordenadorVisitacaoPage() {
               </div>
             </div>
           </Modal>
+
+          <style>{`
+                .duo-grid {
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    gap: 1.25rem;
+                }
+                @media (min-width: 640px) {
+                    .duo-grid {
+                        grid-template-columns: repeat(2, 1fr);
+                    }
+                }
+                @media (min-width: 1200px) {
+                    .duo-grid {
+                        grid-template-columns: repeat(3, 1fr);
+                    }
+                }
+                .filter-chip-modern {
+                    padding: 0.5rem 1rem;
+                    border-radius: 12px;
+                    font-size: 0.85rem;
+                    font-weight: 600;
+                    border: 1px solid var(--border-color);
+                    background: var(--card-bg);
+                    color: var(--text-color);
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                }
+                .filter-chip-modern:hover {
+                    border-color: var(--primary-color);
+                    background: var(--primary-color)05;
+                }
+                .filter-chip-modern.active {
+                    background: var(--primary-color);
+                    color: white;
+                    border-color: var(--primary-color);
+                    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.2);
+                }
+                .duo-monitor-card {
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    border: 1px solid var(--border-color);
+                    min-width: 0;
+                    overflow: hidden;
+                }
+                .duo-monitor-card * {
+                    min-width: 0;
+                }
+                .duo-monitor-card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+                    border-color: rgba(var(--primary-rgb), 0.2);
+                }
+                .duo-actions-on-hover {
+                    opacity: 0;
+                    transition: opacity 0.2s ease;
+                }
+                .duo-monitor-card:hover .duo-actions-on-hover {
+                    opacity: 1;
+                }
+                .modal-participant-card {
+                    background: var(--card-bg);
+                    border: 1px solid color-mix(in srgb, var(--border-color) 78%, var(--primary-color) 22%);
+                    box-shadow: 0 8px 22px -14px rgba(15, 23, 42, 0.32), 0 2px 8px -4px rgba(15, 23, 42, 0.14);
+                }
+                .dark .modal-participant-card {
+                    box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.02);
+                }
+            `}</style>
         </div>
       )}
 
@@ -621,8 +1079,8 @@ export function CoordenadorVisitacaoPage() {
         <div className="vincular-container">
           {/* Sidebar / Duo Selector */}
           <aside className={`vincular-sidebar ${isSidebarOpen ? 'open' : ''}`}>
-            <div className="card" style={{ padding: '0.5rem', height: '100%' }}>
-              <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="card" style={{ padding: '0.5rem', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                 <h3 style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <Users size={16} /> Duplas
                 </h3>
@@ -630,7 +1088,7 @@ export function CoordenadorVisitacaoPage() {
                   <X size={18} />
                 </button>
               </div>
-              <div style={{ padding: '0.5rem', maxHeight: '100%', overflowY: 'auto' }}>
+              <div style={{ padding: '0.5rem', flex: 1, overflowY: 'auto', minHeight: 0 }}>
                 {grupos.map(g => (
                   <div
                     key={g.id}
@@ -681,6 +1139,15 @@ export function CoordenadorVisitacaoPage() {
                 >
                   <MapPin size={16} /> Mapa
                 </button>
+                <div style={{ marginLeft: 'auto' }}>
+                  <button
+                    onClick={() => setIsSwapModalOpen(true)}
+                    className="btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 600 }}
+                  >
+                    <ArrowLeftRight size={16} /> Trocar entre Duplas
+                  </button>
+                </div>
               </div>
 
               <div className="vincular-scroll-content">
@@ -1033,11 +1500,11 @@ export function CoordenadorVisitacaoPage() {
                                   <Link2OffIcon size={18} />
                                 </button>
                               )}
-                               {item.status === 'in_other_group' && (
-                                 <div className="busy-badge">
-                                   <Lock size={16} />
-                                 </div>
-                               )}
+                              {item.status === 'in_other_group' && (
+                                <div className="busy-badge">
+                                  <Lock size={16} />
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1061,105 +1528,6 @@ export function CoordenadorVisitacaoPage() {
                   />
                 )}
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'monitoramento' && (
-        <div className="flex-col gap-6">
-          <div className="monitoramento-grid">
-            <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid var(--primary-color)' }}>
-              <div style={{ background: 'var(--primary-color)15', color: 'var(--primary-color)', padding: '0.75rem', borderRadius: '10px' }}><Users size={20} /></div>
-              <div>
-                <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>Total Participantes</p>
-                <h3 style={{ margin: 0 }}>{stats.totalP}</h3>
-              </div>
-            </div>
-            <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #10b981' }}>
-              <div style={{ background: '#10b98115', color: '#10b981', padding: '0.75rem', borderRadius: '10px' }}><Check size={20} /></div>
-              <div>
-                <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>Visitas Realizadas</p>
-                <h3 style={{ margin: 0 }}>{stats.realizada}</h3>
-              </div>
-            </div>
-            <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '4px solid #f59e0b' }}>
-              <div style={{ background: '#f59e0b15', color: '#f59e0b', padding: '0.75rem', borderRadius: '10px' }}><Loader size={20} /></div>
-              <div>
-                <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6 }}>Visitas Pendentes</p>
-                <h3 style={{ margin: 0 }}>{stats.pendente}</h3>
-              </div>
-            </div>
-            <div className="card" style={{ padding: '1.25rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Progresso Geral</span>
-                <span style={{ fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 700 }}>{Math.round(stats.percent)}%</span>
-              </div>
-              <div style={{ height: '6px', background: 'var(--secondary-bg)', borderRadius: '3px', overflow: 'hidden' }}>
-                <div style={{ width: `${stats.percent}%`, height: '100%', background: 'var(--primary-color)' }} />
-              </div>
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div className="table-container">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Dupla</th>
-                    <th>Visitantes</th>
-                    <th>Participantes</th>
-                    <th>Progresso</th>
-                    <th>Status Relatado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {monitoramentoGrupos.map(g => (
-                    <tr key={g.id}>
-                      <td><span style={{ fontWeight: 600 }}>{g.nome}</span></td>
-                      <td>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                          {g.visitantes.map(v => (
-                            <span key={v.id} style={{
-                              fontSize: '0.75rem',
-                              background: 'color-mix(in srgb, var(--primary-color) 15%, transparent)',
-                              color: 'var(--primary-color)',
-                              fontWeight: 600,
-                              padding: '4px 10px',
-                              borderRadius: '12px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}>
-                              <Shield size={12} />
-                              {v.participacoes?.pessoas?.nome_completo?.split(' ')[0]}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td><span style={{ fontSize: '0.9rem' }}>{g.membrosVisita.length} pessoas</span></td>
-                      <td style={{ width: '160px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ flex: 1, height: '8px', background: 'var(--secondary-bg)', borderRadius: '4px', overflow: 'hidden' }}>
-                            <div style={{ width: `${g.progresso}%`, height: '100%', background: '#10b981', transition: 'width 0.5s ease-in-out' }} />
-                          </div>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, width: '30px' }}>{Math.round(g.progresso)}%</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                          {g.membrosVisita.map(m => (
-                            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{m.participacoes?.pessoas?.nome_completo?.split(' ')[0]}:</span>
-                              {getStatusBadge(m.status)}
-                            </div>
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </div>
         </div>
@@ -1259,6 +1627,15 @@ export function CoordenadorVisitacaoPage() {
           </div>
         </div>
       </Modal>
+
+      {/* ── Modal de Troca entre Duplas ── */}
+      <TrocaDuplasModal
+        isOpen={isSwapModalOpen}
+        onClose={() => setIsSwapModalOpen(false)}
+        grupos={grupos}
+        vinculos={vinculos}
+        onSuccess={loadData}
+      />
     </>
   );
 }

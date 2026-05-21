@@ -10,6 +10,13 @@ export interface ResumoCamisetas {
   valor_total: number;
 }
 
+export interface ResumoIntencoes {
+  modelo_id: string;
+  modelo_nome: string;
+  tamanhos: { [tamanho: string]: number };
+  total: number;
+}
+
 export interface TaxaReport {
   equipe_id: string;
   equipe_nome: string;
@@ -194,5 +201,45 @@ export const comprasService = {
     });
 
     return relatorio;
+  },
+
+  async listarResumoIntencoes(encontroId: string): Promise<ResumoIntencoes[]> {
+    // Busca intenções via visita_participacao -> participacoes -> encontro_id
+    const { data, error } = await supabase
+      .from('visita_intencao_camiseta')
+      .select(`
+        modelo_id, tamanho, quantidade,
+        camiseta_modelos(nome),
+        visita_participacao!inner(
+          participacao_id,
+          participacoes!inner(encontro_id)
+        )
+      `)
+      .eq('visita_participacao.participacoes.encontro_id', encontroId);
+
+    if (error) throw error;
+
+    const resumoMap = new Map<string, ResumoIntencoes>();
+
+    (data as any[] || []).forEach(item => {
+      const modeloId = item.modelo_id;
+      const modeloNome = item.camiseta_modelos?.nome || 'Modelo Desconhecido';
+
+      if (!resumoMap.has(modeloId)) {
+        resumoMap.set(modeloId, {
+          modelo_id: modeloId,
+          modelo_nome: modeloNome,
+          tamanhos: {},
+          total: 0
+        });
+      }
+
+      const entry = resumoMap.get(modeloId)!;
+      const size = item.tamanho || 'Não Informado';
+      entry.tamanhos[size] = (entry.tamanhos[size] || 0) + item.quantidade;
+      entry.total += item.quantidade;
+    });
+
+    return Array.from(resumoMap.values());
   }
 };

@@ -134,6 +134,7 @@ export const equipeService = {
         confirmado_por_email?: string | null;
         confirmado_em?: string;
         coordenadores: { nome: string; email: string | null; confirmou: boolean }[];
+        acesso_plenario: string;
     }[]> {
         // Busca as participações somente com campos necessários para o resumo
         const { data: parts, error: partsError } = await supabase
@@ -172,13 +173,13 @@ export const equipeService = {
         // Busca lista de equipes (apenas id e nome)
         const { data: equipes, error: equipesError } = await supabase
             .from('equipes')
-            .select('id, nome')
+            .select('id, nome, acesso_plenario')
             .is('deleted_at', null)
             .order('nome', { ascending: true });
 
         if (equipesError) throw equipesError;
 
-        return (equipes as { id: string; nome: string }[]).map(eq => {
+        return (equipes as { id: string; nome: string; acesso_plenario: string }[]).map(eq => {
             const teamParts = (parts as any[]).filter(p => p.equipe_id === eq.id);
             const membrosConfirmados = teamParts.filter(p => p.dados_confirmados).length;
             const totalMembros = teamParts.length;
@@ -211,6 +212,7 @@ export const equipeService = {
                 confirmado_por_email: confEmail,
                 confirmado_em: conf?.confirmado_em,
                 coordenadores,
+                acesso_plenario: eq.acesso_plenario || 'verde',
             };
         });
     },

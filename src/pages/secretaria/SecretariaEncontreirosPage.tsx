@@ -245,105 +245,72 @@ export function SecretariaEncontreirosPage() {
             <Loader size={32} className="animate-spin" style={{ display: 'inline-block', marginBottom: '1rem' }} />
             <p>Carregando encontreiros...</p>
           </div>
-        ) : (
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h2 style={{ margin: 0, fontSize: '1.1rem' }}>
-                {filteredParticipantes.length} Registro(s) Encontrado(s)
-              </h2>
-            </div>
-
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ backgroundColor: 'rgba(0,0,0,0.02)', textAlign: 'left' }}>
-                    <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Nome</th>
-                    <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Contato</th>
-                    <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Equipe</th>
-                    <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Função</th>
-                    {selectedEncontro?.ativo && (
-                      <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6, textAlign: 'center', width: '80px' }}>Ações</th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredParticipantes.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} style={{ padding: '3rem', textAlign: 'center', opacity: 0.5 }}>
-                        <Users size={40} style={{ marginBottom: '0.75rem', opacity: 0.3, display: 'inline-block' }} />
-                        <p style={{ margin: 0 }}>Nenhum encontreiro encontrado.</p>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredParticipantes.map((p, idx) => (
-                      <tr key={p.id} style={{ borderBottom: idx === filteredParticipantes.length - 1 ? 'none' : '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '1rem 1.25rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <div style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '50%',
-                              backgroundColor: 'rgba(var(--primary-rgb, 0, 0, 254), 0.1)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: 'var(--primary-color)'
-                            }}>
-                              <User size={16} />
-                            </div>
-                            <div>
-                              <span style={{ fontWeight: 600, display: 'block' }}>{p.pessoas?.nome_completo}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ padding: '1rem 1.25rem' }}>
-                          <div style={{ fontSize: '0.85rem' }}>
-                            <span style={{ display: 'block' }}>{formatTelefone(p.pessoas?.telefone)}</span>
-                          </div>
-                        </td>
-                        <td style={{ padding: '1rem 1.25rem' }}>
-                          <span style={{
-                            padding: '0.25rem 0.6rem',
-                            borderRadius: '4px',
-                            fontSize: '0.75rem',
-                            fontWeight: 'bold',
-                            backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                            color: 'var(--primary-color)',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem'
-                          }}>
-                            <Users size={12} /> {p.equipes?.nome || 'Sem Equipe'}
-                          </span>
-                        </td>
-                        <td style={{ padding: '1rem 1.25rem' }}>
-                          {p.coordenador ? (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#f59e0b', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                              <Shield size={14} /> Coordenador
-                            </span>
-                          ) : (
-                            <span style={{ opacity: 0.6, fontSize: '0.85rem' }}>Membro</span>
-                          )}
-                        </td>
-                        {selectedEncontro?.ativo && (
-                          <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
-                              className="icon-btn action-btn-hover"
-                              style={{ color: 'var(--danger-text)', margin: '0 auto', display: 'flex' }}
-                              title="Desvincular do encontro"
-                            >
-                              <UserMinus size={18} />
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+        ) : filteredParticipantes.length === 0 ? (
+          <div className="empty-state">
+            <Users size={48} style={{ opacity: 0.3 }} />
+            <p>Nenhum encontreiro encontrado.</p>
           </div>
+        ) : (
+          <>
+            <p style={{ fontSize: '0.85rem', opacity: 0.6, margin: '0 0 0.75rem' }}>
+              Mostrando <strong>{filteredParticipantes.length}</strong> de <strong>{participantes.length}</strong> {participantes.length === 1 ? 'encontreiro encontrado' : 'encontreiros encontrados'}
+            </p>
+
+            <div className="pessoa-grid secretaria-encontreiros-grid">
+              {filteredParticipantes.map((p) => (
+                <div key={p.id} className="pessoa-row secretaria-encontreiro-row">
+                  <div className="pessoa-row-main">
+                    <div className="pessoa-avatar small">
+                      <User size={18} />
+                    </div>
+                    <div className="pessoa-row-info">
+                      <h3 className="pessoa-row-name">{p.pessoas?.nome_completo || 'Nome não informado'}</h3>
+                      <span className="pessoa-row-sub">
+                        <span style={{ opacity: 0.6 }}>{p.equipes?.nome || 'Sem Equipe'}</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pessoa-row-col">
+                    <span className="pessoa-row-label">Contato</span>
+                    <span className="pessoa-row-value">{formatTelefone(p.pessoas?.telefone)}</span>
+                  </div>
+
+                  <div className="pessoa-row-col">
+                    <span className="pessoa-row-label">Equipe</span>
+                    <span className="secretaria-team-badge">
+                      <Users size={12} /> {p.equipes?.nome || 'Sem Equipe'}
+                    </span>
+                  </div>
+
+                  <div className="pessoa-row-col">
+                    <span className="pessoa-row-label">Função</span>
+                    {p.coordenador ? (
+                      <span className="secretaria-role-badge coordinator">
+                        <Shield size={14} /> Coordenador
+                      </span>
+                    ) : (
+                      <span className="secretaria-role-badge">Membro</span>
+                    )}
+                  </div>
+
+                  <div className="pessoa-row-actions secretaria-pessoa-actions">
+                    {selectedEncontro?.ativo && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
+                        className="secretaria-unlink-button"
+                        title="Desvincular do encontro"
+                        aria-label="Desvincular do encontro"
+                      >
+                        <UserMinus size={16} />
+                        <span>Desvincular</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
@@ -399,6 +366,99 @@ export function SecretariaEncontreirosPage() {
         }
         .action-btn-hover:hover {
           background-color: rgba(239, 68, 68, 0.1);
+        }
+        .secretaria-encontreiro-row {
+          grid-template-columns: minmax(260px, 1.35fr) minmax(170px, 0.75fr) minmax(190px, 0.9fr) minmax(140px, 0.7fr) auto;
+        }
+        .secretaria-team-badge {
+          width: fit-content;
+          max-width: 100%;
+          padding: 0.25rem 0.6rem;
+          border-radius: 4px;
+          font-size: 0.75rem;
+          font-weight: 700;
+          background-color: rgba(37, 99, 235, 0.1);
+          color: var(--primary-color);
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          overflow-wrap: anywhere;
+        }
+        .secretaria-role-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          font-size: 0.85rem;
+          color: var(--muted-text);
+        }
+        .secretaria-role-badge.coordinator {
+          color: #f59e0b;
+          font-weight: 700;
+        }
+        .secretaria-unlink-button {
+          width: 34px;
+          height: 34px;
+          border-radius: 9px;
+          border: 1px solid rgba(239, 68, 68, 0.7);
+          background: transparent;
+          color: #ef4444;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.45rem;
+          cursor: pointer;
+          transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .secretaria-unlink-button svg {
+          display: block;
+          width: 16px;
+          height: 16px;
+          color: #ef4444;
+          stroke: #ef4444;
+          flex-shrink: 0;
+        }
+        .secretaria-unlink-button:hover {
+          background: rgba(239, 68, 68, 0.08);
+          border-color: #ef4444;
+          transform: translateY(-1px);
+        }
+        .secretaria-unlink-button span {
+          display: none;
+          font-size: 0.85rem;
+          font-weight: 700;
+        }
+        .secretaria-pessoa-actions {
+          justify-content: flex-end;
+        }
+        @media (max-width: 900px) {
+          .secretaria-encontreiros-grid {
+            gap: 0.85rem;
+            border: none;
+            overflow: visible;
+          }
+          .secretaria-encontreiro-row {
+            grid-template-columns: 1fr;
+            align-items: stretch;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.9rem;
+            gap: 0.8rem;
+          }
+          .secretaria-encontreiro-row:last-child {
+            border-bottom: 1px solid var(--border-color);
+          }
+          .secretaria-pessoa-actions {
+            justify-content: flex-start;
+            padding-top: 0.35rem;
+            border-top: 1px solid var(--border-color);
+          }
+          .secretaria-unlink-button {
+            width: 100%;
+            height: 40px;
+          }
+          .secretaria-unlink-button span {
+            display: inline;
+          }
         }
       `}</style>
     </>

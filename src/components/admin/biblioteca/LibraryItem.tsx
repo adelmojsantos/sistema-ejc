@@ -74,6 +74,17 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
   const isPasta = type === 'pasta';
   const pasta = item as BibliotecaPasta;
   const arquivo = item as BibliotecaArquivo;
+  const [openUpwards, setOpenUpwards] = React.useState(false);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+
+  React.useEffect(() => {
+    if (isActiveDropdown && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+      // Se estiver nos últimos 300px da tela, abre para cima
+      setOpenUpwards(rect.bottom > windowHeight - 300);
+    }
+  }, [isActiveDropdown]);
 
   const handleDoubleClick = () => {
     if (isPasta) onNavigate(pasta.id);
@@ -211,8 +222,9 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
               {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
             </div>
             <button
+              ref={buttonRef}
               onClick={(e) => { e.stopPropagation(); onToggleDropdown(isActiveDropdown ? null : item.id); }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', opacity: 0.6, display: isReadOnly && isPasta ? 'none' : 'block' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--text-color)', opacity: 0.6, display: isReadOnly && isPasta ? 'none' : 'block' }}
             >
               <MoreVertical size={16} />
             </button>
@@ -227,10 +239,14 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
 
         {isActiveDropdown && (
           <div style={{
-            position: 'absolute', top: '3rem', right: '10px',
+            position: 'absolute', 
+            top: openUpwards ? 'auto' : '3rem',
+            bottom: openUpwards ? '100%' : 'auto',
+            right: '10px',
+            marginBottom: openUpwards ? '0.5rem' : '0',
             backgroundColor: 'var(--surface-2)', border: '1px solid var(--border-color)',
-            borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            zIndex: 10, minWidth: '160px', padding: '0.5rem 0'
+            borderRadius: '8px', boxShadow: 'var(--shadow-lg)',
+            zIndex: 100, minWidth: '180px', padding: '0.5rem 0'
           }}>
             {isPasta ? (
               <>
@@ -343,18 +359,23 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
             </>
           )}
           <button 
+            ref={buttonRef}
             onClick={(e) => { e.stopPropagation(); onToggleDropdown(isActiveDropdown ? null : item.id); }} 
-            style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.6 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-color)', opacity: 0.6 }}
           >
             <MoreVertical size={16} />
           </button>
         </div>
         {isActiveDropdown && (
           <div style={{
-            position: 'absolute', top: '100%', right: '10px',
+            position: 'absolute', 
+            top: openUpwards ? 'auto' : '100%',
+            bottom: openUpwards ? '100%' : 'auto',
+            right: '10px',
+            marginBottom: openUpwards ? '0.5rem' : '0',
             backgroundColor: 'var(--surface-2)', border: '1px solid var(--border-color)',
-            borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            zIndex: 10, minWidth: '160px', padding: '0.5rem 0'
+            borderRadius: '8px', boxShadow: 'var(--shadow-lg)',
+            zIndex: 100, minWidth: '180px', padding: '0.5rem 0'
           }}>
             {isPasta ? (
               <>

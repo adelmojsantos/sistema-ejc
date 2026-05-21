@@ -78,7 +78,14 @@ export function InscricaoPage() {
       }
 
       toast.success(isNew ? 'Pessoa cadastrada e inscrita com sucesso!' : 'Pessoa vinculada ao encontro com sucesso!');
-      navigate('/');
+      
+      // Reset form and state for next registration instead of navigating away
+      setSelectedPreCadastro(null);
+      setInitialFormData(undefined);
+      setPendingData(null);
+      setPotentialMatches([]);
+      setSelectedMatch(null);
+      setPessoaFormKey(prev => prev + 1); // Force form reset
     } catch {
       toast.error('Erro ao realizar inscrição.');
     } finally {

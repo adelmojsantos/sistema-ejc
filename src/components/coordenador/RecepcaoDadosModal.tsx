@@ -20,6 +20,7 @@ interface RecepcaoDadosModalProps {
   onSave?: () => void;
   allowParticipantSelection?: boolean;
   encontroId?: string;
+  visitaParticipacaoId?: string | null;
 }
 
 export function RecepcaoDadosModal({ 
@@ -30,7 +31,8 @@ export function RecepcaoDadosModal({
   equipeNome: initialEquipeNome,
   onSave,
   allowParticipantSelection,
-  encontroId
+  encontroId,
+  visitaParticipacaoId
 }: RecepcaoDadosModalProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -180,7 +182,7 @@ export function RecepcaoDadosModal({
         ...formData,
         veiculo_placa: cleanPlate(formData.veiculo_placa)
       };
-      const result = await recepcaoService.salvar(currentParticipacaoId, cleanedData);
+      const result = await recepcaoService.salvar(currentParticipacaoId, cleanedData, visitaParticipacaoId);
       setRecordId(result.id);
       toast.success('Dados da recepção salvos com sucesso!');
       if (onSave) onSave();

@@ -191,7 +191,7 @@ export function ConfiguracaoCamisetasPage() {
         </div>
       </div>
 
-      <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
+      <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(400px, 100%), 1fr))', gap: '2rem' }}>
         {/* Seção de Modelos */}
         <section>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -231,13 +231,13 @@ export function ConfiguracaoCamisetasPage() {
                       </td>
                       <td style={{ padding: '1rem', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-                          <button className="icon-btn" onClick={(e) => { 
-                            e.stopPropagation(); 
-                            setEditingModelo(m); 
-                            setNomeModelo(m.nome); 
-                            setValorModelo(m.valor || 0); 
+                          <button className="icon-btn" onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingModelo(m);
+                            setNomeModelo(m.nome);
+                            setValorModelo(m.valor || 0);
                             setAtivoNoEncontro((m as any).esta_ativo_no_encontro ?? true);
-                            setIsModalOpen(true); 
+                            setIsModalOpen(true);
                           }}><Edit2 size={16} /></button>
                           <button className="icon-btn text-danger" onClick={(e) => { e.stopPropagation(); setModeloToDelete(m); }}><Trash2 size={16} /></button>
                         </div>
@@ -342,10 +342,10 @@ export function ConfiguracaoCamisetasPage() {
                 </div>
                 {selectedEncontroId && editingModelo && (
                   <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1rem' }}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       id="ativo_no_encontro"
-                      checked={ativoNoEncontro} 
+                      checked={ativoNoEncontro}
                       onChange={e => setAtivoNoEncontro(e.target.checked)}
                       style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                     />
@@ -389,16 +389,17 @@ export function ConfiguracaoCamisetasPage() {
                   <input type="number" className="form-input" value={ordemTamanho} onChange={e => setOrdemTamanho(parseInt(e.target.value))} required />
                 </div>
               </div>
-              <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setIsSizeModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="btn-primary" disabled={saving}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem', padding: '0 1.5rem 1.5rem' }}>
+                <button type="button" style={{ flex: 1 }} className="btn-secondary" onClick={() => setIsSizeModalOpen(false)}>Cancelar</button>
+                <button type="submit" style={{ flex: 1 }} className="btn-primary" disabled={saving}>
                   {saving ? <Loader className="animate-spin" size={16} /> : <Save size={16} />} Salvar
                 </button>
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </div >
+      )
+      }
 
       <ConfirmDialog
         isOpen={!!modeloToDelete}
@@ -419,6 +420,6 @@ export function ConfiguracaoCamisetasPage() {
         isLoading={saving}
         isDestructive={true}
       />
-    </div>
+    </div >
   );
 }

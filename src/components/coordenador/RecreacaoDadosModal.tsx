@@ -20,6 +20,7 @@ interface RecreacaoDadosModalProps {
   encontroId: string;
   onSave?: () => void;
   allowParticipantSelection?: boolean;
+  initialChildId?: string | null;
 }
 
 export function RecreacaoDadosModal({
@@ -29,7 +30,8 @@ export function RecreacaoDadosModal({
   participanteNome: initialParticipanteNome,
   encontroId,
   onSave,
-  allowParticipantSelection
+  allowParticipantSelection,
+  initialChildId
 }: RecreacaoDadosModalProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -44,6 +46,7 @@ export function RecreacaoDadosModal({
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [autoOpenedChildId, setAutoOpenedChildId] = useState<string | null>(null);
   const [idToDelete, setIdToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState<RecreacaoDadosFormData>({
@@ -95,6 +98,26 @@ export function RecreacaoDadosModal({
     try {
       const data = await recreacaoService.listarPorResponsavel(currentParticipacaoId);
       setChildren(data);
+
+      if (initialChildId && autoOpenedChildId !== initialChildId) {
+        const childToEdit = data.find(child => child.id === initialChildId);
+        if (childToEdit) {
+          setFormData({
+            nome_crianca: childToEdit.nome_crianca,
+            idade: childToEdit.idade,
+            outro_responsavel_id: childToEdit.outro_responsavel_id || '',
+            observacoes: childToEdit.observacoes || ''
+          });
+
+          if (childToEdit.outro_responsavel?.equipe_id) {
+            setSelectedTeamId(childToEdit.outro_responsavel.equipe_id);
+          }
+
+          setEditingId(childToEdit.id);
+          setShowForm(true);
+          setAutoOpenedChildId(childToEdit.id);
+        }
+      }
     } catch (error) {
       console.error('Erro ao carregar crianças:', error);
       toast.error('Não foi possível carregar os dados. Verifique sua conexão ou permissões.');
@@ -184,6 +207,7 @@ export function RecreacaoDadosModal({
     });
     setSelectedTeamId('');
     setEditingId(null);
+    setAutoOpenedChildId(null);
     setShowForm(false);
   };
 

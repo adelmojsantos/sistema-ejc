@@ -10,7 +10,7 @@ import { useLoading } from '../../contexts/LoadingContext';
 import { useDebounce } from '../../hooks/useDebounce';
 import { supabase } from '../../lib/supabase';
 import { camisetaService } from '../../services/camisetaService';
-import { comprasService, type CamisetaEquipeReport, type ResumoCamisetas } from '../../services/comprasService';
+import { comprasService, type CamisetaEquipeReport, type ResumoCamisetas, type ResumoIntencoes } from '../../services/comprasService';
 import { equipeService } from '../../services/equipeService';
 import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
 import type { Equipe } from '../../types/equipe';
@@ -30,6 +30,8 @@ export function PedidosCamisetasPage() {
   const [selectedEquipeId, setSelectedEquipeId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showResumo, setShowResumo] = useState(false);
+  const [showIntencoes, setShowIntencoes] = useState(false);
+  const [resumoIntencoes, setResumoIntencoes] = useState<ResumoIntencoes[]>([]);
   const [viewDetailsConfig, setViewDetailsConfig] = useState<{ modeloId: string, tamanho: string, modeloNome: string } | null>(null);
   const debouncedSearch = useDebounce(searchTerm, 400);
 
@@ -72,18 +74,20 @@ export function PedidosCamisetasPage() {
     setLoading(true);
     setGlobalLoading(true);
     try {
-      const [pedData, resData, eqData, relEqData, modsData, tamsData] = await Promise.all([
+      const [pedData, resData, eqData, relEqData, modsData, tamsData, intData] = await Promise.all([
         comprasService.listarPedidosDetalhados(selectedEncontroId),
         comprasService.listarResumoCamisetas(selectedEncontroId),
         equipeService.listar(),
         comprasService.listarRelatorioCamisetasPorEquipe(selectedEncontroId),
         camisetaService.listarModelos(selectedEncontroId),
-        camisetaService.listarTamanhos()
+        camisetaService.listarTamanhos(),
+        comprasService.listarResumoIntencoes(selectedEncontroId).catch(() => [] as ResumoIntencoes[])
       ]);
       setPedidos(pedData);
       setResumo(resData);
       setEquipes(eqData);
       setRelatorioEquipes(relEqData);
+      setResumoIntencoes(intData);
       // Filtra apenas modelos ativos para este encontro
       setModelosCamiseta(modsData.filter((m: any) => m.esta_ativo_no_encontro !== false));
       setTamanhosCamiseta(tamsData);
@@ -337,7 +341,7 @@ export function PedidosCamisetasPage() {
               </div>
               <div style={{ textAlign: 'left' }}>
                 <h2 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-color)', fontWeight: 600 }}>
-                  Resumo de Pedidos
+                  Resumo de Pedidos (Equipes)
                 </h2>
                 <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6, marginTop: '2px' }}>
                   {showResumo ? 'Clique para ocultar o quadro de totais' : 'Clique para expandir e ver o total de produção por modelo e tamanho'}
@@ -390,6 +394,103 @@ export function PedidosCamisetasPage() {
               {resumo.length === 0 && !loading && (
                 <div className="card" style={{ padding: '2rem', textAlign: 'center', opacity: 0.5, gridColumn: '1 / -1' }}>
                   Nenhum pedido registrado para este encontro.
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* ---- INTENÇÕES DE VISITA ---- */}
+        <section style={{ marginBottom: '1.5rem' }}>
+          <button
+            onClick={() => setShowIntencoes(!showIntencoes)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '1rem',
+              cursor: 'pointer',
+              backgroundColor: 'rgba(99, 102, 241, 0.05)',
+              border: '1px solid rgba(99, 102, 241, 0.2)',
+              borderRadius: '12px',
+              transition: 'all 0.2s ease-in-out'
+            }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.1)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.05)'}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ padding: '0.6rem', backgroundColor: '#6366f1', color: 'white', borderRadius: '10px', display: 'flex' }}>
+                <Shirt size={20} />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <h2 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-color)', fontWeight: 600 }}>
+                  Intenções de Compra (Encontristas)
+                  {resumoIntencoes.length > 0 && (
+                    <span style={{
+                      marginLeft: '0.5rem', fontSize: '0.72rem', fontWeight: 700,
+                      background: '#6366f1', color: 'white', padding: '2px 8px', borderRadius: '999px'
+                    }}>
+                      {resumoIntencoes.reduce((s, m) => s + m.total, 0)} un. estimadas
+                    </span>
+                  )}
+                </h2>
+                <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6, marginTop: '2px' }}>
+                  Estimativa coletada durante as visitas — não são pedidos formais
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.6, color: '#6366f1' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                {showIntencoes ? 'Ocultar' : 'Expandir'}
+              </span>
+              {showIntencoes ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+            </div>
+          </button>
+
+          {showIntencoes && (
+            <div style={{ marginTop: '1rem' }}>
+              {resumoIntencoes.length === 0 ? (
+                <div className="card" style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>
+                  Nenhuma intenção registrada nas visitas deste encontro.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+                  {resumoIntencoes.map(m => (
+                    <div key={m.modelo_id} className="card" style={{ padding: '1.25rem', border: '1px solid rgba(99,102,241,0.2)' }}>
+                      <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Shirt size={16} color="#6366f1" />
+                          <h3 style={{ fontSize: '1rem', margin: 0 }}>{m.modelo_nome}</h3>
+                        </div>
+                        <span style={{
+                          fontSize: '0.8rem', fontWeight: 700, padding: '3px 10px',
+                          background: 'rgba(99,102,241,0.1)', color: '#6366f1', borderRadius: '999px'
+                        }}>
+                          {m.total} estimadas
+                        </span>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                        {Object.entries(m.tamanhos)
+                          .sort(([tamA], [tamB]) => {
+                            const orderA = tamanhosCamiseta.find(t => t.sigla === tamA && (t.modelo_id === m.modelo_id || !t.modelo_id))?.ordem ?? 999;
+                            const orderB = tamanhosCamiseta.find(t => t.sigla === tamB && (t.modelo_id === m.modelo_id || !t.modelo_id))?.ordem ?? 999;
+                            return orderA - orderB;
+                          })
+                          .map(([tam, qtd]) => (
+                            <div key={`${m.modelo_id}-${tam}`} style={{
+                              textAlign: 'center', padding: '0.5rem',
+                              background: 'rgba(99,102,241,0.06)',
+                              border: '1px solid rgba(99,102,241,0.15)',
+                              borderRadius: '8px'
+                            }}>
+                              <div style={{ fontSize: '0.7rem', opacity: 0.5, fontWeight: 700 }}>{tam}</div>
+                              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#6366f1' }}>{qtd}</div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

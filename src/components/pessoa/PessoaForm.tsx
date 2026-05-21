@@ -35,14 +35,12 @@ function formatCep(value: string): string {
     return value.replace(/\D/g, '').slice(0, 8).replace(/(\d{5})(\d{0,3})/, '$1-$2');
 }
 
-function validate(data: PessoaFormData, requireBirthDate: boolean = false, requireFezEjc: boolean = false, requireEmail: boolean = false): FormErrors {
+function validate(data: PessoaFormData, requireBirthDate: boolean = false, requireFezEjc: boolean = false): FormErrors {
     const errors: FormErrors = {};
 
     if (!data.nome_completo.trim()) errors.nome_completo = 'Nome completo é obrigatório.';
  
-    if (requireEmail && !data.email?.trim()) {
-        errors.email = 'E-mail é obrigatório.';
-    }
+
 
     if (data.cpf && data.cpf.trim().length > 0) {
         if (!isValidCpf(data.cpf)) {
@@ -155,7 +153,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
         if (e) e.preventDefault();
 
         if (!skipValidation) {
-            const erros = validate(form, isConfirmationContext || requireBirthDate, requireFezEjc, isConfirmationContext);
+            const erros = validate(form, isConfirmationContext || requireBirthDate, requireFezEjc);
 
             // For confirmation, also validate address
             if (isConfirmationContext && !form.endereco?.trim()) {
@@ -249,7 +247,6 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         value={form.email || ''}
                         onChange={(e) => handleChange('email', e.target.value)}
                         error={errors.email}
-                        required
                         colSpan={8}
                         autoComplete="email"
                         placeholder="joao@email.com"

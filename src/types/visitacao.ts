@@ -27,7 +27,16 @@ export interface VisitaParticipacaoEnriched extends VisitaParticipacao {
     participacoes?: {
         id: string;
         encontro_id: string;
+        foto_url: string | null;
         pessoas: Pessoa | null;
+        recepcao_dados?: {
+            id: string;
+            participacao_id?: string;
+            veiculo_tipo: 'moto' | 'carro';
+            veiculo_modelo: string;
+            veiculo_cor: string;
+            veiculo_placa: string;
+        } | null;
     };
     visita_grupos?: {
         nome: string;

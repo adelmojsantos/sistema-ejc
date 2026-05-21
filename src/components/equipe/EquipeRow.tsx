@@ -13,25 +13,28 @@ interface EquipeRowProps {
 export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
     const [isEditing, setIsEditing] = useState(false);
     const [editNome, setEditNome] = useState(equipe.nome || '');
+    const [editAcesso, setEditAcesso] = useState<'verde' | 'amarela' | 'vermelha'>(equipe.acesso_plenario || 'verde');
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleSave = async () => {
         const trimmedNome = editNome.trim();
-        if (!trimmedNome || trimmedNome === equipe.nome) {
+        if (!trimmedNome || (trimmedNome === equipe.nome && editAcesso === (equipe.acesso_plenario || 'verde'))) {
             setIsEditing(false);
             setEditNome(equipe.nome || '');
+            setEditAcesso(equipe.acesso_plenario || 'verde');
             return;
         }
 
         setIsSaving(true);
         try {
-            await onUpdate(equipe.id, { nome: trimmedNome, foto_url: equipe.foto_url });
+            await onUpdate(equipe.id, { nome: trimmedNome, foto_url: equipe.foto_url, acesso_plenario: editAcesso });
             setIsEditing(false);
         } catch (error) {
             console.error('Erro ao atualizar equipe:', error);
             setEditNome(equipe.nome || '');
+            setEditAcesso(equipe.acesso_plenario || 'verde');
         } finally {
             setIsSaving(false);
         }
@@ -39,6 +42,7 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
 
     const handleCancel = () => {
         setEditNome(equipe.nome || '');
+        setEditAcesso(equipe.acesso_plenario || 'verde');
         setIsEditing(false);
     };
 
@@ -49,7 +53,7 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
         setIsUploading(true);
         try {
             const url = await equipeService.uploadFoto(equipe.id, file);
-            await onUpdate(equipe.id, { nome: equipe.nome || '', foto_url: url });
+            await onUpdate(equipe.id, { nome: equipe.nome || '', foto_url: url, acesso_plenario: equipe.acesso_plenario || 'verde' });
             toast.success('Foto da equipe atualizada!');
         } catch (error) {
             console.error('Erro no upload da foto da equipe:', error);
@@ -62,9 +66,9 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
     return (
         <div className="pessoa-row">
             <div className="pessoa-row-main" style={{ width: '100%' }}>
-                <div 
-                    className="pessoa-avatar small" 
-                    style={{ 
+                <div
+                    className="pessoa-avatar small"
+                    style={{
                         backgroundColor: '#6366f1',
                         cursor: 'pointer',
                         position: 'relative',
@@ -83,39 +87,75 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
                     <div className="avatar-overlay">
                         <Camera size={12} color="white" />
                     </div>
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        style={{ display: 'none' }} 
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
                         accept="image/*"
                         onChange={handleFileChange}
                     />
                 </div>
-                <div className="pessoa-row-info" style={{ width: '100%' }}>
+                <div className="pessoa-row-info" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {isEditing ? (
-                        <input
-                            autoFocus
-                            className="search-input"
-                            style={{
-                                padding: '0.6rem 0.8rem',
-                                height: 'auto',
-                                fontSize: '0.9rem',
-                                border: '2px solid var(--primary-color)',
-                                boxShadow: '0 0 10px rgba(99, 102, 241, 0.15)',
-                                outline: 'none',
-                                borderRadius: '8px',
-                                width: '100%',
-                                flex: 1
-                            }}
-                            value={editNome}
-                            onChange={(e) => setEditNome(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-                            disabled={isSaving}
-                        />
+                        <>
+                            <input
+                                autoFocus
+                                className="search-input"
+                                style={{
+                                    padding: '0.6rem 0.8rem',
+                                    height: 'auto',
+                                    fontSize: '0.9rem',
+                                    border: '2px solid var(--primary-color)',
+                                    boxShadow: '0 0 10px rgba(99, 102, 241, 0.15)',
+                                    outline: 'none',
+                                    borderRadius: '8px',
+                                    width: '100%',
+                                    flex: 1
+                                }}
+                                value={editNome}
+                                onChange={(e) => setEditNome(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+                                disabled={isSaving}
+                            />
+                            <select
+                                className="search-input"
+                                style={{
+                                    padding: '0.5rem',
+                                    fontSize: '0.85rem',
+                                    border: '1px solid var(--border-color)',
+                                    outline: 'none',
+                                    borderRadius: '6px',
+                                    background: 'var(--secondary-bg)',
+                                    color: editAcesso === 'verde' ? '#10b981' : editAcesso === 'amarela' ? '#f59e0b' : '#f25353ff',
+                                    fontWeight: 600
+                                }}
+                                value={editAcesso}
+                                onChange={(e) => setEditAcesso(e.target.value as 'verde' | 'amarela' | 'vermelha')}
+                                disabled={isSaving}
+                            >
+                                <option value="verde" style={{ color: '#10b981' }}>🟢 Acesso Total (Plenário + Encontristas)</option>
+                                <option value="amarela" style={{ color: '#f59e0b' }}>🟡 Acesso Parcial (Encontristas apenas)</option>
+                                <option value="vermelha" style={{ color: '#dc2626' }}>🔴 Escondida</option>
+                            </select>
+                        </>
                     ) : (
-                        <h3 className="pessoa-row-name">{equipe.nome}</h3>
+                        <div>
+                            <h3 className="pessoa-row-name">{equipe.nome}</h3>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                <span className="pessoa-row-sub">Equipe de Trabalho</span>
+                                <span style={{
+                                    fontSize: '0.7rem',
+                                    fontWeight: 600,
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    backgroundColor: (equipe.acesso_plenario || 'verde') === 'verde' ? 'rgba(16, 185, 129, 0.1)' : (equipe.acesso_plenario || 'verde') === 'amarela' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(220, 38, 38, 0.1)',
+                                    color: (equipe.acesso_plenario || 'verde') === 'verde' ? '#10b981' : (equipe.acesso_plenario || 'verde') === 'amarela' ? '#f59e0b' : '#dc2626'
+                                }}>
+                                    {(equipe.acesso_plenario || 'verde') === 'verde' ? '🟢 Acesso Total' : (equipe.acesso_plenario || 'verde') === 'amarela' ? '🟡 Acesso Parcial' : '🔴 Escondida'}
+                                </span>
+                            </div>
+                        </div>
                     )}
-                    <span className="pessoa-row-sub">Equipe de Trabalho</span>
                 </div>
             </div>
 

@@ -6,7 +6,7 @@ import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X } from 'lucide-react';
+import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
@@ -45,6 +45,7 @@ export function SecretariaParticipantesPage() {
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterVeiculo, setFilterVeiculo] = useState(false);
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [pendingGeoCount, setPendingGeoCount] = useState(0);
   const [geoProgressItems, setGeoProgressItems] = useState<GeoProgressItem[]>([]);
@@ -87,15 +88,16 @@ export function SecretariaParticipantesPage() {
 
   const filteredParticipantes = React.useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
-    if (!term) {
-      return [...participantes].sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
-    }
-
     const normalize = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
     const termDigits = normalize(term);
 
     return participantes
       .filter(p => {
+        // Filtro de veículo
+        if (filterVeiculo && !p.recepcao_dados) return false;
+
+        if (!term) return true;
+
         const pData = p.pessoas;
         if (!pData) return false;
 
@@ -110,7 +112,7 @@ export function SecretariaParticipantesPage() {
         return !!(matchNome || matchCpf || matchEmail || matchTelefone || matchComunidade || matchBairro || matchCidade);
       })
       .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
-  }, [participantes, debouncedSearch]);
+  }, [participantes, debouncedSearch, filterVeiculo]);
 
   const selectedEncontro = encontros.find(e => e.id === selectedEncontroId);
 
@@ -236,6 +238,7 @@ export function SecretariaParticipantesPage() {
         'CEP': pData?.cep || '—',
         'Comunidade': pData?.comunidade || '—',
         'Origem': origemTexto,
+        'Veículo': p.recepcao_dados ? `${p.recepcao_dados.veiculo_tipo === 'moto' ? 'Moto' : 'Carro'} - ${p.recepcao_dados.veiculo_modelo} (${p.recepcao_dados.veiculo_placa})` : '—',
       };
     });
   };
@@ -250,7 +253,7 @@ export function SecretariaParticipantesPage() {
       doc.text(`Participantes: ${selectedEncontro?.nome || 'Encontro'}`, 14, 18);
       
       autoTable(doc, {
-        head: [['#', 'Nome', 'Nasc.', 'Idade', 'Telefone', 'Endereço', 'Bairro', 'Cidade', 'Origem']],
+        head: [['#', 'Nome', 'Nasc.', 'Idade', 'Telefone', 'Endereço', 'Bairro', 'Cidade', 'Origem', 'Veículo']],
         body: data.map(d => [
           d['#'], 
           d['Nome Completo'], 
@@ -260,7 +263,8 @@ export function SecretariaParticipantesPage() {
           `${d['Logradouro']}${d['Número'] !== '—' ? `, ${d['Número']}` : ''}`, 
           d['Bairro'], 
           d['Cidade'],
-          d['Origem']
+          d['Origem'],
+          d['Veículo'],
         ]),
         startY: 25,
         styles: { fontSize: 8 },
@@ -306,6 +310,12 @@ export function SecretariaParticipantesPage() {
       setIsExporting(false);
     }
   };
+
+  // Contagem de participantes com veículo (para exibir no botão)
+  const countComVeiculo = React.useMemo(
+    () => participantes.filter(p => !!p.recepcao_dados).length,
+    [participantes]
+  );
 
   return (
     <>
@@ -456,6 +466,33 @@ export function SecretariaParticipantesPage() {
                   )}
                 </div>
               </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  Filtros
+                  {countComVeiculo > 0 && !isLoading && (
+                    <span style={{ fontSize: '0.7rem', opacity: 0.55, fontWeight: 400 }}>
+                      ({countComVeiculo} com veículo)
+                    </span>
+                  )}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setFilterVeiculo(v => !v)}
+                  className={filterVeiculo ? 'btn-primary flex items-center gap-2' : 'btn-secondary flex items-center gap-2'}
+                  style={{
+                    fontSize: '0.85rem',
+                    padding: '0.55rem 1rem',
+                    width: '100%',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s ease',
+                  }}
+                  title={filterVeiculo ? 'Remover filtro de veículo' : 'Mostrar apenas participantes com veículo'}
+                >
+                  <Car size={16} />
+                  <span>Com veículo{filterVeiculo ? ' ✓' : ''}</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -464,98 +501,108 @@ export function SecretariaParticipantesPage() {
               <Loader size={32} className="animate-spin" style={{ display: 'inline-block', marginBottom: '1rem' }} />
               <p>Carregando participantes...</p>
             </div>
-          ) : (
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ margin: 0, fontSize: '1.1rem' }}>
-                  {filteredParticipantes.length} Registro(s) Encontrado(s)
-                </h2>
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: 'rgba(0,0,0,0.02)', textAlign: 'left' }}>
-                      <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Participante</th>
-                      <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Contato</th>
-                      <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6 }}>Endereço / Bairro</th>
-                      <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6, textAlign: 'center' }}>Mapa</th>
-                      {selectedEncontro?.ativo && (
-                        <th style={{ padding: '1rem 1.25rem', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.6, textAlign: 'center', width: '80px' }}>Ações</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredParticipantes.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} style={{ padding: '3rem', textAlign: 'center', opacity: 0.5 }}>
-                          <Users size={40} style={{ marginBottom: '0.75rem', opacity: 0.3, display: 'inline-block' }} />
-                          <p style={{ margin: 0 }}>Nenhum participante encontrado.</p>
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredParticipantes.map((p, idx) => (
-                        <tr key={p.id} style={{ borderBottom: idx === filteredParticipantes.length - 1 ? 'none' : '1px solid var(--border-color)' }}>
-                          <td style={{ padding: '1rem 1.25rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                              <div style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                backgroundColor: 'rgba(var(--primary-rgb, 0, 0, 254), 0.1)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: 'var(--primary-color)'
-                              }}>
-                                <User size={16} />
-                              </div>
-                              <div>
-                                <span style={{ fontWeight: 600, display: 'block' }}>{p.pessoas?.nome_completo}</span>
-                                {p.pessoas?.comunidade && (
-                                  <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>{p.pessoas.comunidade}</span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td style={{ padding: '1rem 1.25rem' }}>
-                            <div style={{ fontSize: '0.85rem' }}>
-                              <span style={{ display: 'block' }}>{formatTelefone(p.pessoas?.telefone)}</span>
-                              {p.pessoas?.email && (
-                                <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>{p.pessoas.email}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td style={{ padding: '1rem 1.25rem' }}>
-                            <div style={{ fontSize: '0.85rem' }}>
-                              <span style={{ display: 'block' }}>{p.pessoas?.endereco}{p.pessoas?.numero ? `, ${p.pessoas.numero}` : ''}</span>
-                              <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>{p.pessoas?.bairro} - {p.pessoas?.cidade}</span>
-                            </div>
-                          </td>
-                          <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                            <div style={{ color: p.pessoas?.latitude ? 'var(--success-border)' : 'var(--danger-border)', opacity: p.pessoas?.latitude ? 1 : 0.3 }}>
-                              <MapPin size={18} style={{ margin: '0 auto' }} />
-                            </div>
-                          </td>
-                          {selectedEncontro?.ativo && (
-                            <td style={{ padding: '1rem 1.25rem', textAlign: 'center' }}>
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
-                                className="icon-btn action-btn-hover"
-                                style={{ color: 'var(--danger-text)', margin: '0 auto', display: 'flex' }}
-                                title="Desvincular do encontro"
-                              >
-                                <UserMinus size={18} />
-                              </button>
-                            </td>
-                          )}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+          ) : filteredParticipantes.length === 0 ? (
+            <div className="empty-state">
+              <Users size={48} style={{ opacity: 0.3 }} />
+              <p>
+                {filterVeiculo && participantes.length > 0
+                  ? 'Nenhum participante com veículo encontrado.'
+                  : 'Nenhum participante encontrado.'}
+              </p>
+              {filterVeiculo && (
+                <button
+                  type="button"
+                  onClick={() => setFilterVeiculo(false)}
+                  className="btn-secondary"
+                  style={{ marginTop: '1rem', fontSize: '0.85rem' }}
+                >
+                  Remover filtro de veículo
+                </button>
+              )}
             </div>
+          ) : (
+            <>
+              <p style={{ fontSize: '0.85rem', opacity: 0.6, margin: '0 0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span>Mostrando <strong>{filteredParticipantes.length}</strong> de <strong>{participantes.length}</strong> {participantes.length === 1 ? 'participante encontrado' : 'participantes encontrados'}</span>
+                {filterVeiculo && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--primary-color)', borderRadius: '20px', padding: '0.15rem 0.6rem', fontSize: '0.75rem', fontWeight: 600, border: '1px solid rgba(37,99,235,0.25)' }}>
+                    <Car size={12} /> Filtro: com veículo
+                    <button type="button" onClick={() => setFilterVeiculo(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex', alignItems: 'center', padding: 0, marginLeft: '0.1rem' }}><X size={11} /></button>
+                  </span>
+                )}
+              </p>
+
+              <div className="pessoa-grid secretaria-pessoa-grid">
+                {filteredParticipantes.map((p) => {
+                  const hasGeo = !!(p.pessoas?.latitude && p.pessoas?.longitude);
+                  const endereco = p.pessoas?.endereco
+                    ? `${p.pessoas.endereco}${p.pessoas.numero ? `, ${p.pessoas.numero}` : ''}`
+                    : 'Endereço não informado';
+                  const localidade = [p.pessoas?.bairro, p.pessoas?.cidade].filter(Boolean).join(' - ') || 'Bairro/Cidade não informados';
+
+                  return (
+                    <div key={p.id} className="pessoa-row secretaria-pessoa-row">
+                      <div className="pessoa-row-main secretaria-pessoa-main">
+                        <div className="pessoa-avatar small">
+                          <User size={18} />
+                        </div>
+                        <div className="pessoa-row-info">
+                          <h3 className="pessoa-row-name">{p.pessoas?.nome_completo || 'Nome não informado'}</h3>
+                          <span className="pessoa-row-sub" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span style={{ opacity: 0.6 }}>{p.pessoas?.comunidade || formatTelefone(p.pessoas?.telefone)}</span>
+                            {p.recepcao_dados && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(37,99,235,0.08)', color: 'var(--primary-color)', borderRadius: '12px', padding: '0.1rem 0.5rem', fontSize: '0.7rem', fontWeight: 600, border: '1px solid rgba(37,99,235,0.2)', flexShrink: 0 }}>
+                                <Car size={10} />
+                                {p.recepcao_dados.veiculo_tipo === 'moto' ? 'Moto' : 'Carro'} · {p.recepcao_dados.veiculo_placa}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pessoa-row-col secretaria-pessoa-contact">
+                        <span className="pessoa-row-label">Contato</span>
+                        <div className="pessoa-row-value-group">
+                          <span className="pessoa-row-value">{formatTelefone(p.pessoas?.telefone)}</span>
+                          {p.pessoas?.email && (
+                            <span className="pessoa-row-sub" style={{ opacity: 0.65, fontSize: '0.75rem' }}>
+                              {p.pessoas.email}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pessoa-row-col secretaria-pessoa-address">
+                        <span className="pessoa-row-label">Endereço</span>
+                        <span className="pessoa-row-value secretaria-address-main" style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <MapPin size={12} style={{ flexShrink: 0, color: hasGeo ? 'var(--success-border)' : 'var(--danger-border)', opacity: hasGeo ? 1 : 0.45 }} />
+                          <span>
+                            {endereco}
+                          </span>
+                        </span>
+                        <span className="pessoa-row-sub secretaria-address-sub" style={{ opacity: 0.65, fontSize: '0.75rem' }}>
+                          {localidade}
+                        </span>
+                      </div>
+
+                      <div className="pessoa-row-actions secretaria-pessoa-actions">
+                        {selectedEncontro?.ativo && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
+                            className="secretaria-unlink-button"
+                            title="Desvincular do encontro"
+                            aria-label="Desvincular do encontro"
+                          >
+                            <UserMinus size={16} />
+                            <span>Desvincular</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 
@@ -731,6 +778,110 @@ export function SecretariaParticipantesPage() {
         }
         .action-btn-hover:hover {
           background-color: rgba(239, 68, 68, 0.1);
+        }
+        .secretaria-unlink-button {
+          width: 34px;
+          height: 34px;
+          border-radius: 9px;
+          border: 1px solid rgba(239, 68, 68, 0.7);
+          background: transparent;
+          color: #ef4444;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.45rem;
+          cursor: pointer;
+          transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .secretaria-unlink-button svg {
+          display: block;
+          width: 16px;
+          height: 16px;
+          color: #ef4444;
+          stroke: #ef4444;
+          flex-shrink: 0;
+        }
+        .secretaria-unlink-button:hover {
+          background: rgba(239, 68, 68, 0.08);
+          border-color: #ef4444;
+          transform: translateY(-1px);
+        }
+        .secretaria-unlink-button span {
+          display: none;
+          font-size: 0.85rem;
+          font-weight: 700;
+        }
+        .secretaria-pessoa-row {
+          display: grid;
+          grid-template-columns: minmax(260px, 1.45fr) minmax(190px, 0.85fr) minmax(280px, 1.25fr) auto;
+          align-items: center;
+        }
+        .secretaria-pessoa-main,
+        .secretaria-pessoa-contact,
+        .secretaria-pessoa-address {
+          min-width: 0;
+        }
+        .secretaria-pessoa-contact,
+        .secretaria-pessoa-address {
+          display: flex;
+        }
+        .secretaria-pessoa-contact .pessoa-row-value,
+        .secretaria-pessoa-contact .pessoa-row-sub,
+        .secretaria-pessoa-address .pessoa-row-value,
+        .secretaria-pessoa-address .pessoa-row-sub {
+          overflow-wrap: anywhere;
+        }
+        .secretaria-address-main span {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .secretaria-address-sub {
+          display: block;
+        }
+        .secretaria-pessoa-actions {
+          justify-content: flex-end;
+          margin-left: 0;
+        }
+        @media (max-width: 900px) {
+          .secretaria-pessoa-grid {
+            gap: 0.85rem;
+            border: none;
+            overflow: visible;
+          }
+          .secretaria-pessoa-row {
+            grid-template-columns: 1fr;
+            align-items: stretch;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.9rem;
+            gap: 0.8rem;
+          }
+          .secretaria-pessoa-row:last-child {
+            border-bottom: 1px solid var(--border-color);
+          }
+          .secretaria-pessoa-contact,
+          .secretaria-pessoa-address {
+            display: flex;
+          }
+          .secretaria-address-main span,
+          .secretaria-pessoa-contact .pessoa-row-sub {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+          }
+          .secretaria-pessoa-actions {
+            justify-content: flex-start;
+            padding-top: 0.35rem;
+            border-top: 1px solid var(--border-color);
+          }
+          .secretaria-unlink-button {
+            width: 100%;
+            height: 40px;
+          }
+          .secretaria-unlink-button span {
+            display: inline;
+          }
         }
       `}</style>
     </>

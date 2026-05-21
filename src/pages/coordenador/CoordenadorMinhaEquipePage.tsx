@@ -30,6 +30,7 @@ import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosMo
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
 import { BulkShirtOrderModal } from '../../components/coordenador/BulkShirtOrderModal';
 import { TeamShirtSummaryModal } from '../../components/coordenador/TeamShirtSummaryModal';
+import { TeamTaxaSummaryModal } from '../../components/coordenador/TeamTaxaSummaryModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -59,6 +60,7 @@ interface EquipeMember {
   participante: boolean;
   dados_confirmados: boolean;
   pago_taxa: boolean;
+  pago_camiseta: boolean;
   pessoas: Pessoa;
   recepcao_dados: RecepcaoDados | null;
   recreacao_dados: RecreacaoDados[];
@@ -79,6 +81,7 @@ export function CoordenadorMinhaEquipePage() {
   const [members, setMembers] = useState<EquipeMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [equipeNome, setEquipeNome] = useState('');
+  const [equipeAcesso, setEquipeAcesso] = useState<'verde' | 'amarela' | 'vermelha'>('verde');
   const [editingPessoa, setEditingPessoa] = useState<Pessoa | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -101,6 +104,7 @@ export function CoordenadorMinhaEquipePage() {
   const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
   const [showBulkShirtModal, setShowBulkShirtModal] = useState(false);
   const [showShirtSummaryModal, setShowShirtSummaryModal] = useState(false);
+  const [showTaxaSummaryModal, setShowTaxaSummaryModal] = useState(false);
   const [comprovanteCamisetasUrl, setComprovanteCamisetasUrl] = useState<string | null>(null);
   const [pixTaxa, setPixTaxa] = useState<{
     chave: string | null;
@@ -190,6 +194,14 @@ export function CoordenadorMinhaEquipePage() {
     try {
       if (userParticipacao.equipes?.nome) {
         setEquipeNome(userParticipacao.equipes.nome);
+        if ((userParticipacao.equipes as any).acesso_plenario) {
+          setEquipeAcesso((userParticipacao.equipes as any).acesso_plenario);
+        } else if (userParticipacao.equipe_id) {
+          const equipeFull = await equipeService.buscarPorId(userParticipacao.equipe_id);
+          if (equipeFull?.acesso_plenario) {
+             setEquipeAcesso(equipeFull.acesso_plenario);
+          }
+        }
       }
 
       if (userParticipacao?.encontro_id && userParticipacao?.equipe_id) {
@@ -392,6 +404,21 @@ export function CoordenadorMinhaEquipePage() {
       // Rollback
       setMembers(prev => prev.map(m => m.id === member.id ? { ...m, pago_taxa: !newStatus } : m));
       toast.error('Erro ao atualizar status de pagamento.');
+    }
+  };
+
+  const handleToggleShirtPayment = async (member: EquipeMember) => {
+    const newStatus = !member.pago_camiseta;
+    try {
+      // Optimistic update
+      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, pago_camiseta: newStatus } : m));
+
+      await inscricaoService.alterarStatusPagamentoCamiseta(member.id, newStatus);
+      toast.success(newStatus ? 'Pagamento das camisetas confirmado!' : 'Pagamento das camisetas removido!');
+    } catch {
+      // Rollback
+      setMembers(prev => prev.map(m => m.id === member.id ? { ...m, pago_camiseta: !newStatus } : m));
+      toast.error('Erro ao atualizar status de pagamento das camisetas.');
     }
   };
 
@@ -648,8 +675,24 @@ export function CoordenadorMinhaEquipePage() {
             <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Equipe
             </p>
-            <h1 className="page-title text-gradient" style={{ margin: 0, fontSize: '1.75rem' }}>
+            <h1 className="page-title text-gradient" style={{ margin: 0, fontSize: '1.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
               {equipeNome || 'Minha Equipe'}
+              <span
+                style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  backgroundColor: equipeAcesso === 'verde' ? '#10b981' : equipeAcesso === 'amarela' ? '#f59e0b' : '#dc2626',
+                  color: '#ffffff',
+                  WebkitTextFillColor: '#ffffff',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  boxShadow: `0 2px 4px ${equipeAcesso === 'verde' ? 'rgba(16, 185, 129, 0.3)' : equipeAcesso === 'amarela' ? 'rgba(245, 158, 11, 0.3)' : 'rgba(220, 38, 38, 0.3)'}`
+                }}
+              >
+                {equipeAcesso === 'verde' ? 'Verde' : equipeAcesso === 'amarela' ? 'Amarelo' : 'Vermelho'}
+              </span>
             </h1>
           </div>
         </div>
@@ -863,23 +906,32 @@ export function CoordenadorMinhaEquipePage() {
               alignItems: 'center',
               justifyContent: 'center',
               color: comprovanteUrl ? '#10b981' : 'var(--primary-color)',
+              flexShrink: 0
             }}>
               <FileText size={22} />
             </div>
-            <div style={{ flex: 1 }}>
-              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Taxas da Equipe</h3>
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.2rem', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-                  {members.filter(m => m.pago_taxa).length}/{members.length} pagas
-                </span>
-                <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
-                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }}>
-                  {formatBRL(members.filter(m => m.pago_taxa).length * valorTaxa)}/{formatBRL(members.length * valorTaxa)}
-                </span>
-              </div>
-            </div>
+            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, flex: 1 }}>Taxas da Equipe</h3>
+            <button 
+              onClick={() => setShowTaxaSummaryModal(true)}
+              className="btn-text" 
+              style={{ fontSize: '0.75rem', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
+            >
+              <LayoutGrid size={14} />
+              <span>Resumo</span>
+            </button>
           </div>
 
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.2rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                {members.filter(m => m.pago_taxa).length}/{members.length} pagas
+              </span>
+              <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                {formatBRL(members.filter(m => m.pago_taxa).length * valorTaxa)}/{formatBRL(members.length * valorTaxa)}
+              </span>
+            </div>
+          </div>
 
           <div style={{ margin: '0.25rem 0' }}>
             <PixPaymentInfo
@@ -899,7 +951,7 @@ export function CoordenadorMinhaEquipePage() {
             )}
             <label className={`btn ${comprovanteUrl ? 'btn-secondary' : 'btn-primary'}`} style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', cursor: isUploadingProof === 'taxas' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center', margin: 0 }}>
               {isUploadingProof === 'taxas' ? <Loader className="animate-spin" size={14} /> : <Upload size={14} />}
-              <span>{comprovanteUrl ? 'Trocar' : 'Enviar'}</span>
+              <span>{comprovanteUrl ? 'Trocar' : 'Enviar Comprovante'}</span>
               <input type="file" onChange={(e) => handleUploadProof(e, 'taxas')} accept="image/*,.pdf" style={{ display: 'none' }} disabled={isUploadingProof === 'taxas'} />
             </label>
           </div>
@@ -928,38 +980,60 @@ export function CoordenadorMinhaEquipePage() {
             }}>
               <ShirtIcon size={22} />
             </div>
-            <div style={{ flex: 1 }}>
-              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>Camisetas da Equipe</h3>
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.2rem', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
-                  {(() => {
-                    const memberIds = new Set(members.map(m => m.id));
-                    const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
-                    const total = teamPedidos.reduce((acc, curr) => acc + (curr.quantidade || 1), 0);
-                    return `${total} ${total === 1 ? 'camiseta' : 'camisetas'}`;
-                  })()}
-                </span>
-                <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
-                <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }}>
-                  {(() => {
-                    const memberIds = new Set(members.map(m => m.id));
-                    const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
-                    const total = teamPedidos.reduce((acc, curr) => {
-                      const modeloEncontro = modelosCamiseta.find(m => m.id === curr.modelo_id);
-                      return acc + ((modeloEncontro?.valor || 0) * (curr.quantidade || 1));
-                    }, 0);
-                    return formatBRL(total);
-                  })()}
-                </span>
-                <button 
-                  onClick={() => setShowShirtSummaryModal(true)}
-                  className="btn-text" 
-                  style={{ fontSize: '0.75rem', padding: '2px 8px', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}
-                >
-                  <LayoutGrid size={14} />
-                  <span>Resumo</span>
-                </button>
-              </div>
+            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, flex: 1 }}>Camisetas da Equipe</h3>
+            <button 
+              onClick={() => setShowShirtSummaryModal(true)}
+              className="btn-text" 
+              style={{ fontSize: '0.75rem', padding: '4px 8px', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
+            >
+              <LayoutGrid size={14} />
+              <span>Resumo</span>
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.2rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                {(() => {
+                  const memberIds = new Set(members.map(m => m.id));
+                  const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
+                  const total = teamPedidos.reduce((acc, curr) => acc + (curr.quantidade || 1), 0);
+                  return `${total} ${total === 1 ? 'camiseta' : 'camisetas'}`;
+                })()}
+              </span>
+              <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
+              <span style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                {(() => {
+                  const membersWithShirts = members.filter(m => {
+                    const memberOrders = pedidosCamisetas.filter(pc => pc.participacao_id === m.id);
+                    return memberOrders.length > 0;
+                  });
+                  const paidMembersWithShirts = membersWithShirts.filter(m => m.pago_camiseta);
+                  return `${paidMembersWithShirts.length}/${membersWithShirts.length} pagas`;
+                })()}
+              </span>
+              <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: 'currentColor', opacity: 0.3 }}></span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                {(() => {
+                  const memberIds = new Set(members.map(m => m.id));
+                  const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
+                  
+                  const total = teamPedidos.reduce((acc, curr) => {
+                    const modeloEncontro = modelosCamiseta.find(m => m.id === curr.modelo_id);
+                    return acc + ((modeloEncontro?.valor || 0) * (curr.quantidade || 1));
+                  }, 0);
+
+                  const paidMembersIds = new Set(members.filter(m => m.pago_camiseta).map(m => m.id));
+                  const paidTeamPedidos = teamPedidos.filter(p => paidMembersIds.has(p.participacao_id));
+
+                  const totalPago = paidTeamPedidos.reduce((acc, curr) => {
+                    const modeloEncontro = modelosCamiseta.find(m => m.id === curr.modelo_id);
+                    return acc + ((modeloEncontro?.valor || 0) * (curr.quantidade || 1));
+                  }, 0);
+
+                  return `${formatBRL(totalPago)}/${formatBRL(total)}`;
+                })()}
+              </span>
             </div>
           </div>
 
@@ -982,14 +1056,14 @@ export function CoordenadorMinhaEquipePage() {
             )}
             <label className={`btn ${comprovanteCamisetasUrl ? 'btn-secondary' : 'btn-primary'}`} style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', cursor: isUploadingProof === 'camisetas' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center', margin: 0 }}>
               {isUploadingProof === 'camisetas' ? <Loader className="animate-spin" size={14} /> : <Upload size={14} />}
-              <span>{comprovanteCamisetasUrl ? 'Trocar' : 'Enviar'}</span>
+              <span>{comprovanteCamisetasUrl ? 'Trocar' : 'Enviar Comprovante'}</span>
               <input type="file" onChange={(e) => handleUploadProof(e, 'camisetas')} accept="image/*,.pdf" style={{ display: 'none' }} disabled={isUploadingProof === 'camisetas'} />
             </label>
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         <div
           onClick={() => setActiveFilter('all')}
           className="card"
@@ -997,20 +1071,24 @@ export function CoordenadorMinhaEquipePage() {
             padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
             border: activeFilter === 'all' ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
             transform: activeFilter === 'all' ? 'translateY(-2px)' : 'none',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between'
           }}
         >
-          <div style={{
-            width: '40px', height: '40px', borderRadius: '10px',
-            backgroundColor: 'rgba(37, 99, 235, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)',
-          }}>
-            <Users size={20} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: '100px' }}>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              backgroundColor: 'rgba(37, 99, 235, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)',
+            }}>
+              <Users size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.length}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
+            </div>
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.length}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--primary-color)', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--primary-color)', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7, marginLeft: 'auto', padding: '0.25rem 0' }}>
             <span>FILTRAR</span>
             <ChevronRight size={10} />
           </div>
@@ -1023,20 +1101,24 @@ export function CoordenadorMinhaEquipePage() {
             padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
             border: activeFilter === 'confirmed' ? '2px solid #10b981' : '1px solid var(--border-color)',
             transform: activeFilter === 'confirmed' ? 'translateY(-2px)' : 'none',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between'
           }}
         >
-          <div style={{
-            width: '40px', height: '40px', borderRadius: '10px',
-            backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981',
-          }}>
-            <CheckCircle size={20} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: '100px' }}>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981',
+            }}>
+              <CheckCircle size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.filter(m => m.dados_confirmados).length}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Confirmados</div>
+            </div>
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.filter(m => m.dados_confirmados).length}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Confirmados</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#10b981', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#10b981', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7, marginLeft: 'auto', padding: '0.25rem 0' }}>
             <span>FILTRAR</span>
             <ChevronRight size={10} />
           </div>
@@ -1049,20 +1131,24 @@ export function CoordenadorMinhaEquipePage() {
             padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
             border: activeFilter === 'pending' ? '2px solid #f59e0b' : '1px solid var(--border-color)',
             transform: activeFilter === 'pending' ? 'translateY(-2px)' : 'none',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between'
           }}
         >
-          <div style={{
-            width: '40px', height: '40px', borderRadius: '10px',
-            backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b',
-          }}>
-            <AlertCircle size={20} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: '100px' }}>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b',
+            }}>
+              <AlertCircle size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.filter(m => !m.dados_confirmados).length}</div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Pendentes</div>
+            </div>
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{members.filter(m => !m.dados_confirmados).length}</div>
-            <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Pendentes</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#f59e0b', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#f59e0b', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7, marginLeft: 'auto', padding: '0.25rem 0' }}>
             <span>FILTRAR</span>
             <ChevronRight size={10} />
           </div>
@@ -1455,37 +1541,74 @@ export function CoordenadorMinhaEquipePage() {
                         Nenhum pedido
                       </div>
                     ) : (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Mod</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>T</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'center' }}>Q</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'right' }}>Valor</th>
-                              <th style={{ width: '20px' }}></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {memberOrders.map((order) => (
-                              <tr key={order.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                                <td style={{ padding: '0.4rem 0.25rem' }}>{order.camiseta_modelos?.nome}</td>
-                                <td style={{ padding: '0.4rem 0.25rem' }}>{order.tamanho}</td>
-                                <td style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>{order.quantidade}</td>
-                                <td style={{ padding: '0.4rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>
-                                  {(() => {
-                                    const modeloEncontro = modelosCamiseta.find(m => m.id === order.modelo_id);
-                                    const val = (modeloEncontro?.valor || 0) * (order.quantidade || 1);
-                                    return formatBRL(val);
-                                  })()}
-                                </td>
-                                <td style={{ padding: '0.25rem', textAlign: 'right' }}>
-                                  <button onClick={() => handleDeleteShirt(order.id)} style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.4, cursor: 'pointer' }}><X size={12} /></button>
-                                </td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ textAlign: 'left', opacity: 0.5 }}>
+                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Mod</th>
+                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>T</th>
+                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'center' }}>Q</th>
+                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'right' }}>Valor</th>
+                                <th style={{ width: '20px' }}></th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {memberOrders.map((order) => (
+                                <tr key={order.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                                  <td style={{ padding: '0.4rem 0.25rem' }}>{order.camiseta_modelos?.nome}</td>
+                                  <td style={{ padding: '0.4rem 0.25rem' }}>{order.tamanho}</td>
+                                  <td style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>{order.quantidade}</td>
+                                  <td style={{ padding: '0.4rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>
+                                    {(() => {
+                                      const modeloEncontro = modelosCamiseta.find(m => m.id === order.modelo_id);
+                                      const val = (modeloEncontro?.valor || 0) * (order.quantidade || 1);
+                                      return formatBRL(val);
+                                    })()}
+                                  </td>
+                                  <td style={{ padding: '0.25rem', textAlign: 'right' }}>
+                                    <button onClick={() => handleDeleteShirt(order.id)} style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.4, cursor: 'pointer' }}><X size={12} /></button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'space-between', 
+                          paddingTop: '0.5rem', 
+                          borderTop: '1px dashed var(--border-color)',
+                          marginTop: '0.25rem',
+                          gap: '1rem'
+                        }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.8 }}>
+                            Pagamento:
+                          </span>
+                          <button
+                            onClick={() => handleToggleShirtPayment(m)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              padding: '0.35rem 0.75rem',
+                              borderRadius: '8px',
+                              border: m.pago_camiseta ? 'none' : '1px dashed var(--border-color)',
+                              backgroundColor: m.pago_camiseta ? '#10b981' : 'rgba(0,0,0,0.02)',
+                              color: m.pago_camiseta ? '#fff' : 'var(--text-color)',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              fontSize: '0.7rem',
+                              fontWeight: 800,
+                              textTransform: 'uppercase'
+                            }}
+                          >
+                            {m.pago_camiseta ? <CheckCircle size={12} /> : <DollarSign size={12} />}
+                            {m.pago_camiseta ? 'Pago' : 'Marcar Pago'}
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1650,6 +1773,19 @@ export function CoordenadorMinhaEquipePage() {
         onClose={() => setShowShirtSummaryModal(false)}
         resumo={teamShirtSummary}
         equipeNome={equipeNome}
+      />
+
+      <TeamTaxaSummaryModal
+        isOpen={showTaxaSummaryModal}
+        onClose={() => setShowTaxaSummaryModal(false)}
+        members={members.map(m => ({
+          id: m.id,
+          nome: m.pessoas?.nome_completo || 'Sem nome',
+          pago: !!m.pago_taxa,
+          telefone: m.pessoas?.telefone || undefined
+        }))}
+        equipeNome={equipeNome}
+        valorTaxa={valorTaxa}
       />
 
       <ConfirmDialog

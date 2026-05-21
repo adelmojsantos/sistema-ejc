@@ -94,7 +94,13 @@ export default function FormRecreacaoPage() {
 
     setIsSubmitting(true);
     try {
-      await recreacaoService.salvar(session.participacao_id, formData, editingId || undefined);
+      const cleanedData = {
+        ...formData,
+        outro_responsavel_id: formData.outro_responsavel_id || null,
+        observacoes: formData.observacoes || null
+      };
+
+      await recreacaoService.salvar(session.participacao_id, cleanedData, editingId || undefined);
       toast.success(editingId ? 'Dados atualizados!' : 'Criança cadastrada com sucesso!');
       await loadData();
       resetForm();
