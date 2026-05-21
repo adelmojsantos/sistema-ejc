@@ -3,9 +3,6 @@ import {
     Plus, 
     Settings, 
     Trash2, 
-    MoreHorizontal, 
-    ArrowLeft,
-    Search,
     User
 } from 'lucide-react';
 import { useEffect, useState } from 'react';

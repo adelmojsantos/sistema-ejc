@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { type QuadranteData } from './quadranteService';
 import { type Palestra } from '../types/palestra';
+import { quadranteVisibilityDefault, type QuadranteVisibilityConfig } from '../types/encontro';
 
 interface EncontroInfo {
     id: string;
@@ -11,6 +12,7 @@ interface EncontroInfo {
     simbologia_texto?: string | null;
     tematica_texto?: string | null;
     musica_letra?: string | null;
+    quadrante_visibilidade?: QuadranteVisibilityConfig | null;
 }
 
 /**
@@ -36,10 +38,32 @@ export const quadrantePdfService = {
         }
     },
 
+    htmlToText(html?: string | null): string {
+        if (!html) return '';
+        return html
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n')
+            .replace(/<\/li>/gi, '\n')
+            .replace(/<li>/gi, '- ')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+    },
+
     /**
      * Generates the complete Yearbook PDF (7 Sections)
      */
     async generateYearbook(encontro: EncontroInfo, data: QuadranteData[], palestras: Palestra[] = []) {
+        const visibility = {
+            ...quadranteVisibilityDefault,
+            ...(encontro.quadrante_visibilidade || {})
+        };
         const doc = new jsPDF({
             orientation: 'portrait',
             unit: 'mm',
@@ -86,59 +110,65 @@ export const quadrantePdfService = {
         doc.text(new Date().getFullYear().toString(), pageWidth / 2, pageHeight - 24, { align: 'center' });
 
         // --- 2. SIMBOLOGIA ---
-        doc.addPage();
-        this.renderSectionHeader(doc, 'Simbologia');
-        
-        // Simbologia Logo
-        const simbologiaLogo = 'https://portaldafamilia.com.br/wp-content/uploads/2018/11/logo_ejc.png';
-        const sLogoBase64 = await this.getImageAsBase64(simbologiaLogo);
-        if (sLogoBase64) {
-            doc.addImage(sLogoBase64, 'PNG', (pageWidth - 40) / 2, 45, 40, 40);
-        }
+        if (visibility.simbologia) {
+            doc.addPage();
+            this.renderSectionHeader(doc, 'Simbologia');
+            
+            // Simbologia Logo
+            const simbologiaLogo = 'https://portaldafamilia.com.br/wp-content/uploads/2018/11/logo_ejc.png';
+            const sLogoBase64 = await this.getImageAsBase64(simbologiaLogo);
+            if (sLogoBase64) {
+                doc.addImage(sLogoBase64, 'PNG', (pageWidth - 40) / 2, 45, 40, 40);
+            }
 
-        doc.setTextColor(60, 60, 60);
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        const sText = encontro.simbologia_texto || 'O Jovem no mundo...';
-        const splitSText = doc.splitTextToSize(sText, pageWidth - (margin * 2));
-        doc.text(splitSText, margin, 100, { align: 'justify' });
+            doc.setTextColor(60, 60, 60);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            const sText = this.htmlToText(encontro.simbologia_texto) || 'O Jovem no mundo...';
+            const splitSText = doc.splitTextToSize(sText, pageWidth - (margin * 2));
+            doc.text(splitSText, margin, 100, { align: 'justify' });
+        }
 
         // --- 3. TEMÁTICA ---
-        doc.addPage();
-        this.renderSectionHeader(doc, encontro.tema || 'Temática');
-        
-        if (encontro.logo_url) {
-            const tLogoBase64 = await this.getImageAsBase64(encontro.logo_url);
-            if (tLogoBase64) {
-                doc.addImage(tLogoBase64, 'PNG', (pageWidth - 40) / 2, 45, 40, 40);
+        if (visibility.tematica) {
+            doc.addPage();
+            this.renderSectionHeader(doc, encontro.tema || 'Temática');
+            
+            if (encontro.logo_url) {
+                const tLogoBase64 = await this.getImageAsBase64(encontro.logo_url);
+                if (tLogoBase64) {
+                    doc.addImage(tLogoBase64, 'PNG', (pageWidth - 40) / 2, 45, 40, 40);
+                }
             }
+
+            doc.setTextColor(60, 60, 60);
+            doc.setFontSize(11);
+            const tText = this.htmlToText(encontro.tematica_texto) || 'Referências do tema...';
+            const splitTText = doc.splitTextToSize(tText, pageWidth - (margin * 2));
+            doc.text(splitTText, margin, 100, { align: 'justify' });
         }
 
-        doc.setTextColor(60, 60, 60);
-        doc.setFontSize(11);
-        const tText = encontro.tematica_texto || 'Referências do tema...';
-        const splitTText = doc.splitTextToSize(tText, pageWidth - (margin * 2));
-        doc.text(splitTText, margin, 100, { align: 'justify' });
-
         // --- 4. MÚSICA TEMA ---
-        doc.addPage();
-        this.renderSectionHeader(doc, 'Música Tema');
-        
-        doc.setTextColor(15, 23, 42);
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text(encontro.tema || 'Letra da Música', pageWidth / 2, 55, { align: 'center' });
+        if (visibility.musica) {
+            doc.addPage();
+            this.renderSectionHeader(doc, 'Música Tema');
+            
+            doc.setTextColor(15, 23, 42);
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.text(encontro.tema || 'Letra da Música', pageWidth / 2, 55, { align: 'center' });
 
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(80, 80, 80);
-        const mText = encontro.musica_letra || 'Letra não disponível';
-        const splitMText = doc.splitTextToSize(mText, pageWidth - (margin * 4));
-        doc.text(splitMText, pageWidth / 2, 70, { align: 'center' });
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(80, 80, 80);
+            const mText = this.htmlToText(encontro.musica_letra) || 'Letra não disponível';
+            const splitMText = doc.splitTextToSize(mText, pageWidth - (margin * 4));
+            doc.text(splitMText, pageWidth / 2, 70, { align: 'center' });
+        }
 
         // --- 5. ENCONTRISTAS (GRID) ---
         const encontristas = data.filter(d => d.participante);
-        if (encontristas.length > 0) {
+        if (visibility.encontristas && encontristas.length > 0) {
             doc.addPage();
             doc.setTextColor(15, 23, 42);
             doc.setFont('helvetica', 'bold');
@@ -199,7 +229,7 @@ export const quadrantePdfService = {
 
         const sortedTeams = Object.entries(teams).sort(([a], [b]) => a.localeCompare(b));
 
-        for (const [teamName, members] of sortedTeams) {
+        if (visibility.encontreiros) for (const [teamName, members] of sortedTeams) {
             doc.addPage();
             doc.setFillColor(15, 23, 42);
             doc.rect(margin, 20, pageWidth - (margin * 2), 40, 'F');
@@ -239,7 +269,7 @@ export const quadrantePdfService = {
         }
 
         // --- 7. PALESTRAS ---
-        if (palestras && palestras.length > 0) {
+        if (visibility.palestras && palestras && palestras.length > 0) {
             doc.addPage();
             this.renderSectionHeader(doc, 'Palestras');
             
@@ -275,7 +305,7 @@ export const quadrantePdfService = {
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(60, 60, 60);
                 doc.setFontSize(9);
-                const pResumo = p.resumo || '';
+                const pResumo = this.htmlToText(p.resumo) || '';
                 const splitPResumo = doc.splitTextToSize(pResumo, pageWidth - margin - 35 - margin);
                 doc.text(splitPResumo, margin + 35, pY + 18, { align: 'justify' });
 

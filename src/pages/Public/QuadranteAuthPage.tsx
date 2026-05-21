@@ -26,14 +26,10 @@ export function QuadranteAuthPage() {
                 const { data: { session } } = await supabase.auth.getSession();
                 const isAdmin = !!session;
 
-                const { data, error } = await supabase
-                    .from('encontros')
-                    .select('nome, quadrante_ativo, quadrante_pin')
-                    .eq('quadrante_token', token)
-                    .single();
+                const data = await quadranteService.obterInfoPublica(token);
 
                 // Token inválido para todos
-                if (error || !data) {
+                if (!data) {
                     toast.error('Este link é inválido ou não encontrado.');
                     navigate('/');
                     return;
@@ -55,7 +51,7 @@ export function QuadranteAuthPage() {
                 }
 
                 // Público sem PIN definido também pula a autenticação
-                if (!data.quadrante_pin) {
+                if (!data.tem_pin) {
                     navigate(`/quadrante/${token}`, { state: { authorized: true } });
                 }
             } catch (error) {

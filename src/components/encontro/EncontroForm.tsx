@@ -1,5 +1,6 @@
 import { Calendar, Check, Copy, Info, LinkIcon, Loader, Plus, QrCode, Shirt, Tag, X, FileText, Download } from 'lucide-react';
 import React, { useState } from 'react';
+import { supabase } from '../../lib/supabase';
 import type { Encontro, EncontroFormData } from '../../types/encontro';
 import { FormField } from '../ui/FormField';
 import { CurrencyFormField } from '../ui/CurrencyFormField';
@@ -439,7 +440,6 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                                                 const file = e.target.files?.[0]; if (!file) return;
                                                 setIsSubmitting(true);
                                                 try {
-                                                    const { supabase } = await import('../../lib/supabase');
                                                     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
                                                     const filePath = `taxas_${Date.now()}_${sanitizedName}`;
                                                     const { error } = await supabase.storage.from('financeiro').upload(filePath, file);
@@ -551,7 +551,6 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                                                 const file = e.target.files?.[0]; if (!file) return;
                                                 setIsSubmitting(true);
                                                 try {
-                                                    const { supabase } = await import('../../lib/supabase');
                                                     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
                                                     const filePath = `camisetas_${Date.now()}_${sanitizedName}`;
                                                     const { error } = await supabase.storage.from('financeiro').upload(filePath, file);

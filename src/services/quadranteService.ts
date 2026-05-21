@@ -19,7 +19,30 @@ export interface QuadranteData {
     }[];
 }
 
+export interface QuadrantePublicInfo {
+    nome: string;
+    quadrante_ativo: boolean;
+    tem_pin: boolean;
+}
+
 export const quadranteService = {
+    /**
+     * Obtém metadados seguros para decidir o fluxo de acesso sem expor o PIN.
+     */
+    async obterInfoPublica(token: string): Promise<QuadrantePublicInfo | null> {
+        const { data, error } = await supabase.rpc('get_quadrante_public_info', {
+            p_token: token
+        });
+
+        if (error) {
+            console.error('Erro ao buscar informações públicas do quadrante:', error);
+            return null;
+        }
+
+        const row = Array.isArray(data) ? data[0] : data;
+        return (row as QuadrantePublicInfo | undefined) || null;
+    },
+
     /**
      * Valida o acesso ao quadrante usando o token e PIN
      */

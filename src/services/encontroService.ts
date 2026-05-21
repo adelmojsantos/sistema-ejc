@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { Encontro, EncontroFormData } from '../types/encontro';
+import type { Encontro, EncontroFormData, QuadranteVisibilityConfig } from '../types/encontro';
 
 const TABLE = 'encontros';
 
@@ -14,6 +14,21 @@ export const encontroService = {
             throw error;
         }
         return data as Encontro[];
+    },
+
+    async listarTodos(): Promise<Encontro[]> {
+        return this.listar();
+    },
+
+    async obterPorId(id: string): Promise<Encontro> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (error) throw error;
+        return data as Encontro;
     },
 
     async buscarComPaginacao(busca: string = '', pagina: number = 0, limite: number = 5): Promise<Encontro[]> {
@@ -84,6 +99,7 @@ export const encontroService = {
         simbologia_texto?: string | null;
         tematica_texto?: string | null;
         musica_letra?: string | null;
+        quadrante_visibilidade?: QuadranteVisibilityConfig;
     }): Promise<void> {
         const { error } = await supabase
             .from(TABLE)
@@ -91,6 +107,30 @@ export const encontroService = {
             .eq('id', id);
 
         if (error) throw error;
+    },
+
+    async uploadLogoQuadrante(encontroId: string, file: File): Promise<string> {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError || !user) {
+            throw new Error('Sessão expirada. Faça login novamente para enviar a logo.');
+        }
+
+        const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
+        const filePath = `fotos/quadrante/${encontroId}-${Date.now()}.${extension}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('galeria')
+            .upload(filePath, file);
+
+        if (uploadError) {
+            throw new Error(uploadError.message || 'Erro ao enviar a logo.');
+        }
+
+        const { data } = supabase.storage
+            .from('galeria')
+            .getPublicUrl(filePath);
+
+        return data.publicUrl;
     },
 
     async rotacionarTokenQuadrante(id: string): Promise<string> {

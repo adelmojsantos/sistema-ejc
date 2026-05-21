@@ -22,6 +22,7 @@ import { quadranteService, type QuadranteData } from '../../services/quadranteSe
 import { quadrantePdfService } from '../../services/quadrantePdfService';
 import { palestraService } from '../../services/palestraService';
 import type { Palestra } from '../../types/palestra';
+import { quadranteVisibilityDefault, type QuadranteVisibilityConfig } from '../../types/encontro';
 
 // Import Google Fonts
 const fontLink = document.createElement('link');
@@ -33,7 +34,6 @@ interface EncontroInfo {
     id: string;
     nome: string;
     tema: string | null;
-    quadrante_pin: string | null;
     quadrante_ativo: boolean;
     logo_url: string | null;
     simbologia_texto: string | null;
@@ -41,6 +41,7 @@ interface EncontroInfo {
     musica_letra: string | null;
     link_youtube: string | null;
     link_musica: string | null;
+    quadrante_visibilidade: QuadranteVisibilityConfig | null;
 }
 
 // --- Sub-componente para Cartões de Participantes ---
@@ -123,33 +124,41 @@ export function QuadrantePage() {
                 // Verificar se o usuário está logado como admin
                 const { data: { session } } = await supabase.auth.getSession();
                 const isAdmin = !!session;
+                const publicInfo = await quadranteService.obterInfoPublica(token);
+
+                if (!publicInfo) throw new Error('Encontro não encontrado');
+
+                // Bypass Admin: Se estiver logado, ignora as restrições de PIN e Ativo
+                if (!isAdmin) {
+                    if (!publicInfo.quadrante_ativo) {
+                        toast.error('Este Quadrante ainda não foi publicado pelo administrador.', { duration: 5000 });
+                        setLoading(false);
+                        return;
+                    }
+
+                    if (publicInfo.tem_pin && !pin) {
+                        navigate(`/q/${token}`);
+                        return;
+                    }
+                } else if (!publicInfo.quadrante_ativo) {
+                    toast('Modo Visualização (Administrador)', { icon: '🛡️' });
+                }
 
                 const { data: eData } = await supabase
                     .from('encontros')
-                    .select('id, nome, tema, quadrante_pin, quadrante_ativo, logo_url, simbologia_texto, tematica_texto, musica_letra, link_youtube, link_musica')
+                    .select('id, nome, tema, quadrante_ativo, logo_url, simbologia_texto, tematica_texto, musica_letra, link_youtube, link_musica, quadrante_visibilidade')
                     .eq('quadrante_token', token)
                     .single();
 
                 if (!eData) throw new Error('Encontro não encontrado');
 
-                // Bypass Admin: Se estiver logado, ignora as restrições de PIN e Ativo
-                if (!isAdmin) {
-                    if (!eData.quadrante_ativo) {
-                        toast.error('Este Quadrante ainda não foi publicado pelo administrador.', { duration: 5000 });
-                        setEncontro(eData);
-                        setLoading(false);
-                        return;
+                setEncontro({
+                    ...eData,
+                    quadrante_visibilidade: {
+                        ...quadranteVisibilityDefault,
+                        ...(eData.quadrante_visibilidade || {})
                     }
-
-                    if (eData.quadrante_pin && !pin) {
-                        navigate(`/q/${token}`);
-                        return;
-                    }
-                } else if (!eData.quadrante_ativo) {
-                    toast('Modo Visualização (Administrador)', { icon: '🛡️' });
-                }
-
-                setEncontro(eData);
+                });
 
                 const [quadranteData, palestrasData] = await Promise.all([
                     quadranteService.obterDados(token, isAdmin),
@@ -182,6 +191,8 @@ export function QuadrantePage() {
             setExporting(false);
         }
     };
+
+    const visibility = encontro?.quadrante_visibilidade || quadranteVisibilityDefault;
 
     // Organizar dados por seções
     const { encontristasPorCirculo, encontreirosPorEquipe } = useMemo(() => {
@@ -293,40 +304,52 @@ export function QuadrantePage() {
                     
                     <div className="nav-group">
                         <div className="nav-item-label" style={{ fontSize: '0.7rem', opacity: 0.5, letterSpacing: '0.1em', fontWeight: 800, padding: '0.5rem 1rem' }}>CONTEÚDO</div>
-                        <button onClick={() => scrollToSection('simbologia')} className="nav-item sub-item">
-                            Simbologia
-                        </button>
-                        <button onClick={() => scrollToSection('tematica')} className="nav-item sub-item">
-                            Temática
-                        </button>
-                        <button onClick={() => scrollToSection('musica')} className="nav-item sub-item">
-                            Música Tema
-                        </button>
+                        {visibility.simbologia && (
+                            <button onClick={() => scrollToSection('simbologia')} className="nav-item sub-item">
+                                Simbologia
+                            </button>
+                        )}
+                        {visibility.tematica && (
+                            <button onClick={() => scrollToSection('tematica')} className="nav-item sub-item">
+                                Temática
+                            </button>
+                        )}
+                        {visibility.musica && (
+                            <button onClick={() => scrollToSection('musica')} className="nav-item sub-item">
+                                Música Tema
+                            </button>
+                        )}
                     </div>
 
-                    <div className="nav-group">
-                        <button onClick={() => scrollToSection('encontristas')} className="nav-item">
-                            <Users size={18} /> Encontristas
-                        </button>
-                    </div>
+                    {visibility.encontristas && (
+                        <div className="nav-group">
+                            <button onClick={() => scrollToSection('encontristas')} className="nav-item">
+                                <Users size={18} /> Encontristas
+                            </button>
+                        </div>
+                    )}
 
-                    <div className="nav-group">
-                        <button
-                            className="nav-item"
-                            onClick={() => scrollToSection('encontreiros')}
-                        >
-                            <ScrollText size={20} style={{ minWidth: '20px' }} /> Encontreiros
-                        </button>
-                    </div>
+                    {visibility.encontreiros && (
+                        <div className="nav-group">
+                            <button
+                                className="nav-item"
+                                onClick={() => scrollToSection('encontreiros')}
+                            >
+                                <ScrollText size={20} style={{ minWidth: '20px' }} /> Encontreiros
+                            </button>
+                        </div>
+                    )}
 
-                    <div className="nav-group">
-                        <button
-                            className="nav-item"
-                            onClick={() => scrollToSection('palestras')}
-                        >
-                            <Mic2 size={20} style={{ minWidth: '20px' }} /> Palestras
-                        </button>
-                    </div>
+                    {visibility.palestras && (
+                        <div className="nav-group">
+                            <button
+                                className="nav-item"
+                                onClick={() => scrollToSection('palestras')}
+                            >
+                                <Mic2 size={20} style={{ minWidth: '20px' }} /> Palestras
+                            </button>
+                        </div>
+                    )}
                 </nav>
 
                 <div className="sidebar-footer">
@@ -390,90 +413,83 @@ export function QuadrantePage() {
                     </motion.div>
                 </section>
 
-                {/* Simbologia */}
-                <section id="simbologia" className="content-editorial-section" data-section-name="Simbologia">
-                    <div className="editorial-container">
-                        <div className="editorial-visual">
-                            <div className="simbol-logo">
-                                <img src="/logo-ejc-simbolo.png" alt="Símbolo EJC" onError={(e) => e.currentTarget.src = 'https://portaldafamilia.com.br/wp-content/uploads/2018/11/logo_ejc.png'} />
+                {visibility.simbologia && (
+                    <section id="simbologia" className="content-editorial-section" data-section-name="Simbologia">
+                        <div className="editorial-container">
+                            <div className="editorial-visual">
+                                <div className="simbol-logo">
+                                    <img src="/logo-ejc-simbolo.png" alt="Símbolo EJC" onError={(e) => e.currentTarget.src = 'https://portaldafamilia.com.br/wp-content/uploads/2018/11/logo_ejc.png'} />
+                                </div>
+                            </div>
+                            <div className="editorial-content">
+                                <div className="section-header">
+                                    <h2>Simbologia</h2>
+                                    <div className="divider"></div>
+                                </div>
+                                <div className="editorial-text rich-editorial-output" dangerouslySetInnerHTML={{ __html: encontro?.simbologia_texto || '' }} />
                             </div>
                         </div>
-                        <div className="editorial-content">
-                            <div className="section-header">
-                                <h2>Simbologia</h2>
-                                <div className="divider"></div>
-                            </div>
-                            <div className="editorial-text">
-                                {encontro?.simbologia_texto?.split('\n').map((para, i) => (
-                                    <p key={i}>{para}</p>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                    </section>
+                )}
 
                 {/* Temática do Encontro */}
-                <section id="tematica" className="content-editorial-section reverse" data-section-name="Temática">
-                    <div className="editorial-container">
-                        <div className="editorial-visual">
-                            {encontro?.logo_url ? (
-                                <img src={encontro.logo_url} alt="Logo Tema" className="theme-logo" />
-                            ) : (
-                                <div className="logo-stub">EJC</div>
-                            )}
-                        </div>
-                        <div className="editorial-content">
-                            <div className="section-header">
-                                <h2>{encontro?.tema || 'Temática'}</h2>
-                                <div className="divider"></div>
-                            </div>
-                            <div className="editorial-text">
-                                {encontro?.tematica_texto ? (
-                                    encontro.tematica_texto.split('\n').map((para, i) => <p key={i}>{para}</p>)
+                {visibility.tematica && (
+                    <section id="tematica" className="content-editorial-section reverse" data-section-name="Temática">
+                        <div className="editorial-container">
+                            <div className="editorial-visual">
+                                {encontro?.logo_url ? (
+                                    <img src={encontro.logo_url} alt="Logo Tema" className="theme-logo" />
                                 ) : (
-                                    <p>As referências e inspirações que deram vida ao tema deste encontro.</p>
+                                    <div className="logo-stub">EJC</div>
                                 )}
                             </div>
+                            <div className="editorial-content">
+                                <div className="section-header">
+                                    <h2>{encontro?.tema || 'Temática'}</h2>
+                                    <div className="divider"></div>
+                                </div>
+                                <div
+                                    className="editorial-text rich-editorial-output"
+                                    dangerouslySetInnerHTML={{ __html: encontro?.tematica_texto || '<p>As referências e inspirações que deram vida ao tema deste encontro.</p>' }}
+                                />
+                            </div>
                         </div>
-                    </div>
-                </section>
+                    </section>
+                )}
 
                 {/* Música Tema */}
-                <section id="musica" className="content-music-section" data-section-name="Música">
-                    <div className="music-container">
-                        <div className="music-header">
-                            <Music size={40} className="music-icon" />
-                            <h2>Música Tema</h2>
-                            <div className="music-links">
-                                {encontro?.link_musica && (
-                                    <a href={encontro.link_musica} target="_blank" rel="noopener noreferrer" className="music-link-btn">
-                                        <Music size={16} /> Ouvir Música
-                                    </a>
-                                )}
-                                {encontro?.link_youtube && (
-                                    <a href={encontro.link_youtube} target="_blank" rel="noopener noreferrer" className="music-link-btn yt">
-                                        <ExternalLink size={16} /> Vídeo no YouTube
-                                    </a>
-                                )}
+                {visibility.musica && (
+                    <section id="musica" className="content-music-section" data-section-name="Música">
+                        <div className="music-container">
+                            <div className="music-header">
+                                <Music size={40} className="music-icon" />
+                                <h2>Música Tema</h2>
+                                <div className="music-links">
+                                    {encontro?.link_musica && (
+                                        <a href={encontro.link_musica} target="_blank" rel="noopener noreferrer" className="music-link-btn">
+                                            <Music size={16} /> Ouvir Música
+                                        </a>
+                                    )}
+                                    {encontro?.link_youtube && (
+                                        <a href={encontro.link_youtube} target="_blank" rel="noopener noreferrer" className="music-link-btn yt">
+                                            <ExternalLink size={16} /> Vídeo no YouTube
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="lyrics-wrapper">
+                                <div
+                                    className="lyrics-content rich-editorial-output"
+                                    dangerouslySetInnerHTML={{ __html: encontro?.musica_letra || '<p class="opacity-50 italic">Letra da música não cadastrada.</p>' }}
+                                />
                             </div>
                         </div>
-                        <div className="lyrics-wrapper">
-                            <div className="lyrics-content">
-                                {encontro?.musica_letra ? (
-                                    encontro.musica_letra.split('\n').map((line, i) => (
-                                        <p key={i}>{line || <br />}</p>
-                                    ))
-                                ) : (
-                                    <p className="opacity-50 italic">Letra da música não cadastrada.</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                    </section>
+                )}
 
                 {/* Encontristas Sections grouped by Circle */}
-                <div id="encontristas" style={{ paddingBottom: '1px' }}></div>
-                {encontristasPorCirculo.map(([circle, members]) => (
+                {visibility.encontristas && <div id="encontristas" style={{ paddingBottom: '1px' }}></div>}
+                {visibility.encontristas && encontristasPorCirculo.map(([circle, members]) => (
                     <section key={circle} id={`circulo-${slugify(circle)}`} className="content-section" data-section-name={circle}>
                         <div className="section-header">
                             <h2><Users size={24} /> {circle}</h2>
@@ -489,8 +505,8 @@ export function QuadrantePage() {
                 ))}
 
                 {/* Encontreiros Sections (Team Layout 50/50) */}
-                <div id="encontreiros" style={{ paddingBottom: '1px' }}></div>
-                {encontreirosPorEquipe.map(([team, members]) => (
+                {visibility.encontreiros && <div id="encontreiros" style={{ paddingBottom: '1px' }}></div>}
+                {visibility.encontreiros && encontreirosPorEquipe.map(([team, members]) => (
                     <section key={team} id={`equipe-${slugify(team)}`} className="content-team-section" data-section-name={team}>
                         <div className="team-layout">
                             <div className="team-visual">
@@ -534,7 +550,7 @@ export function QuadrantePage() {
                 ))}
 
                 {/* Palestras Section — MOVED INSIDE main */}
-                <section id="palestras" className="content-palestras-section" data-section-name="Palestras">
+                {visibility.palestras && <section id="palestras" className="content-palestras-section" data-section-name="Palestras">
                     <div className="section-header center">
                         <Mic2 size={32} />
                         <h2>Palestras do Encontro</h2>
@@ -564,16 +580,17 @@ export function QuadrantePage() {
                                         <span className="p-nome">{p.palestrante_nome}</span>
                                     </div>
                                 </div>
-                                <div className="palestra-body">
-                                    <p>{p.resumo || 'Resumo não disponível para esta palestra.'}</p>
-                                </div>
+                                <div
+                                    className="palestra-body rich-editorial-output"
+                                    dangerouslySetInnerHTML={{ __html: p.resumo || '<p>Resumo não disponível para esta palestra.</p>' }}
+                                />
                             </motion.div>
                         ))}
                     </div>
                     {palestras.length === 0 && (
                         <div className="opacity-40 text-center py-10">Nenhuma palestra registrada para este encontro.</div>
                     )}
-                </section>
+                </section>}
 
                 <footer className="spa-footer">
                     <p>© {new Date().getFullYear()} EJC • Capelinha</p>
@@ -945,6 +962,33 @@ export function QuadrantePage() {
                     margin-bottom: 1.5rem;
                 }
 
+                .rich-editorial-output ul,
+                .rich-editorial-output ol {
+                    margin: 1rem 0 1rem 1.5rem;
+                    padding-left: 1.25rem;
+                    text-align: left;
+                }
+
+                .rich-editorial-output ul {
+                    list-style: disc;
+                }
+
+                .rich-editorial-output ol {
+                    list-style: decimal;
+                }
+
+                .rich-editorial-output li {
+                    margin-bottom: 0.4rem;
+                }
+
+                .rich-editorial-output strong {
+                    font-weight: 800;
+                }
+
+                .rich-editorial-output em {
+                    font-style: italic;
+                }
+
                 /* Music Section */
                 .content-music-section {
                     background: var(--hero-gradient);
@@ -1079,7 +1123,8 @@ export function QuadrantePage() {
                     font-weight: 500;
                 }
 
-                .palestra-body p {
+                .palestra-body p,
+                .palestra-body li {
                     line-height: 1.6;
                     opacity: 0.8;
                     font-size: 1rem;

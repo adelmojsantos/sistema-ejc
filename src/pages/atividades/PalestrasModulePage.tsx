@@ -1,6 +1,5 @@
-import { 
-    Mic2, 
-    ChevronRight, 
+import {
+    ChevronRight,
     Settings, 
     FileText,
     Calendar

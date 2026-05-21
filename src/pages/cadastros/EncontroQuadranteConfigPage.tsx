@@ -10,18 +10,31 @@ import {
     QrCode,
     RefreshCw,
     Shield,
-    Type
+    Type,
+    Upload,
+    X
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { supabase } from '../../lib/supabase';
 import { encontroService } from '../../services/encontroService';
+import { palestraService } from '../../services/palestraService';
 import { quadrantePdfService } from '../../services/quadrantePdfService';
 import { quadranteService } from '../../services/quadranteService';
-import type { Encontro } from '../../types/encontro';
+import { quadranteVisibilityDefault, type Encontro, type QuadranteVisibilityConfig } from '../../types/encontro';
+
+const visibilityOptions: { key: keyof QuadranteVisibilityConfig; label: string; description: string }[] = [
+    { key: 'simbologia', label: 'Simbologia', description: 'Texto institucional e símbolo do EJC.' },
+    { key: 'tematica', label: 'Temática', description: 'Logo e referências do tema do encontro.' },
+    { key: 'musica', label: 'Música Tema', description: 'Letra e links de música/vídeo.' },
+    { key: 'encontristas', label: 'Encontristas', description: 'Cards dos participantes por círculo.' },
+    { key: 'encontreiros', label: 'Encontreiros', description: 'Composição das equipes de trabalho.' },
+    { key: 'palestras', label: 'Palestras', description: 'Lista de palestras e resumos.' },
+];
 
 export function EncontroQuadranteConfigPage() {
     const { id } = useParams<{ id: string }>();
@@ -33,6 +46,7 @@ export function EncontroQuadranteConfigPage() {
     const [showPin, setShowPin] = useState(false);
     const [activeTab, setActiveTab] = useState<'acesso' | 'conteudo'>('acesso');
     const qrRef = useRef<HTMLDivElement>(null);
+    const logoInputRef = useRef<HTMLInputElement>(null);
 
     // Form states - Acesso
     const [ativo, setAtivo] = useState(false);
@@ -43,6 +57,8 @@ export function EncontroQuadranteConfigPage() {
     const [simbologiaTexto, setSimbologiaTexto] = useState('');
     const [tematicaTexto, setTematicaTexto] = useState('');
     const [musicaLetra, setMusicaLetra] = useState('');
+    const [visibilityConfig, setVisibilityConfig] = useState<QuadranteVisibilityConfig>(quadranteVisibilityDefault);
+    const [uploadingLogo, setUploadingLogo] = useState(false);
 
 
     useEffect(() => {
@@ -64,6 +80,10 @@ export function EncontroQuadranteConfigPage() {
                     setSimbologiaTexto(data.simbologia_texto || '');
                     setTematicaTexto(data.tematica_texto || '');
                     setMusicaLetra(data.musica_letra || '');
+                    setVisibilityConfig({
+                        ...quadranteVisibilityDefault,
+                        ...(data.quadrante_visibilidade || {})
+                    });
                 }
             } catch (error) {
                 console.error('Erro ao buscar encontro:', error);
@@ -101,8 +121,17 @@ export function EncontroQuadranteConfigPage() {
                 logo_url: logoUrl || null,
                 simbologia_texto: simbologiaTexto || null,
                 tematica_texto: tematicaTexto || null,
-                musica_letra: musicaLetra || null
+                musica_letra: musicaLetra || null,
+                quadrante_visibilidade: visibilityConfig
             });
+            setEncontro(prev => prev ? {
+                ...prev,
+                logo_url: logoUrl || null,
+                simbologia_texto: simbologiaTexto || null,
+                tematica_texto: tematicaTexto || null,
+                musica_letra: musicaLetra || null,
+                quadrante_visibilidade: visibilityConfig
+            } : prev);
             toast.success('Conteúdo do Quadrante atualizado!');
         } catch (error) {
             console.error('Erro ao salvar editorial:', error);
@@ -110,6 +139,31 @@ export function EncontroQuadranteConfigPage() {
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleLogoUpload = async (file?: File) => {
+        if (!id || !file) return;
+        if (!file.type.startsWith('image/')) {
+            toast.error('Selecione um arquivo de imagem.');
+            return;
+        }
+
+        setUploadingLogo(true);
+        try {
+            const url = await encontroService.uploadLogoQuadrante(id, file);
+            setLogoUrl(url);
+            toast.success('Logo enviada com sucesso.');
+        } catch (error) {
+            console.error('Erro ao enviar logo:', error);
+            toast.error(error instanceof Error ? error.message : 'Erro ao enviar a logo.');
+        } finally {
+            setUploadingLogo(false);
+            if (logoInputRef.current) logoInputRef.current.value = '';
+        }
+    };
+
+    const updateVisibility = (key: keyof QuadranteVisibilityConfig, value: boolean) => {
+        setVisibilityConfig(prev => ({ ...prev, [key]: value }));
     };
 
 
@@ -137,12 +191,24 @@ export function EncontroQuadranteConfigPage() {
 
         try {
             // ignorarAtivo=true pois admin pode gerar PDF mesmo antes de publicar
-            const data = await quadranteService.obterDados(encontro.quadrante_token, true);
+            const [data, palestras] = await Promise.all([
+                quadranteService.obterDados(encontro.quadrante_token, true),
+                palestraService.listarPorEncontro(id!)
+            ]);
 
-            // @ts-ignore
             await quadrantePdfService.generateYearbook(
-                { id: id!, nome: encontro.nome, tema: encontro.tema },
-                data
+                {
+                    id: id!,
+                    nome: encontro.nome,
+                    tema: encontro.tema,
+                    logo_url: logoUrl || null,
+                    simbologia_texto: simbologiaTexto || null,
+                    tematica_texto: tematicaTexto || null,
+                    musica_letra: musicaLetra || null,
+                    quadrante_visibilidade: visibilityConfig
+                },
+                data,
+                palestras
             );
             toast.success('Quadrante PDF gerado com sucesso!', { id: loadingToast });
         } catch (error) {
@@ -281,31 +347,29 @@ export function EncontroQuadranteConfigPage() {
                                     </div>
                                 </div>
 
-                                <div className="config-item" style={{ marginTop: '1.5rem' }}>
-                                    <h4 style={{ margin: 0, marginBottom: '0.5rem' }}>Código PIN de Acesso</h4>
-                                    <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6, marginBottom: '0.75rem' }}>
-                                        Deixe em branco para acesso livre. Se preenchido, será solicitado no primeiro acesso.
-                                    </p>
+                                <div className="config-item config-item-pin">
+                                    <div>
+                                        <h4 style={{ margin: 0, marginBottom: '0.5rem' }}>Código PIN de Acesso</h4>
+                                        <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6 }}>
+                                            Deixe em branco para acesso livre. Se preenchido, será solicitado no primeiro acesso.
+                                        </p>
+                                    </div>
                                     <div className="pin-input-wrapper">
                                         <input
                                             type={showPin ? "text" : "password"}
-                                            className="form-input"
-                                            placeholder="Ex: 1234"
+                                            className="form-input pin-input"
+                                            placeholder="1234"
                                             value={pin}
                                             onChange={e => setPin(e.target.value)}
                                             maxLength={6}
-                                            style={{
-                                                letterSpacing: (showPin || !pin) ? 'normal' : '0.4em',
-                                                height: '46px',
-                                                fontWeight: 600,
-                                                fontSize: '1.2rem',
-                                                textAlign: 'center'
-                                            }}
+                                            inputMode="numeric"
+                                            style={{ letterSpacing: (showPin || !pin) ? 'normal' : '0.35em' }}
                                         />
                                         <button
                                             type="button"
                                             onClick={() => setShowPin(!showPin)}
                                             className="pin-toggle-btn"
+                                            title={showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
                                         >
                                             {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
@@ -323,75 +387,151 @@ export function EncontroQuadranteConfigPage() {
 
                     {/* ABA 2: CONTEÚDO VISUAL */}
                     {activeTab === 'conteudo' && (
-                        <div className="card" style={{ padding: '2rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
-                                <div className="icon-badge pink">
-                                    <ImageIcon size={24} />
+                        <div className="quadrante-config-stack">
+                            <section className="card config-section-card">
+                                <div className="section-title-row">
+                                    <div className="icon-badge pink">
+                                        <ImageIcon size={24} />
+                                    </div>
+                                    <div>
+                                        <h3>Identidade visual</h3>
+                                        <p>Configure a marca usada na capa, na temática e na exportação em PDF.</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 style={{ margin: 0 }}>Identidade & Textos</h3>
-                                    <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6 }}>Configure as logos e os textos que aparecerão no Quadrante.</p>
-                                </div>
-                            </div>
 
-                            <div className="form-grid">
-                                <div className="form-group">
-                                    <label>Logo do Encontro (URL)</label>
-                                    <div className="url-input-combined">
-                                        <input
-                                            type="text"
-                                            placeholder="https://..."
-                                            value={logoUrl}
-                                            onChange={e => setLogoUrl(e.target.value)}
-                                        />
-                                        {logoUrl && (
-                                            <div className="logo-preview-mini">
-                                                <img src={logoUrl} alt="Preview" />
+                                <div className="logo-upload-panel">
+                                    <div className="logo-preview-large">
+                                        {logoUrl ? (
+                                            <img src={logoUrl} alt="Logo do encontro" />
+                                        ) : (
+                                            <div className="logo-empty-state">
+                                                <ImageIcon size={34} />
+                                                <span>Sem logo</span>
                                             </div>
                                         )}
                                     </div>
-                                    <p className="field-hint">Aparece na Capa e na seção da Temática.</p>
+
+                                    <div className="logo-upload-actions">
+                                        <input
+                                            ref={logoInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            hidden
+                                            onChange={(event) => handleLogoUpload(event.target.files?.[0])}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="btn-secondary"
+                                            onClick={() => logoInputRef.current?.click()}
+                                            disabled={uploadingLogo}
+                                        >
+                                            <Upload size={16} /> {uploadingLogo ? 'Enviando...' : logoUrl ? 'Trocar logo' : 'Enviar logo'}
+                                        </button>
+                                        {logoUrl && (
+                                            <button
+                                                type="button"
+                                                className="btn-outline compact-danger"
+                                                onClick={() => setLogoUrl('')}
+                                            >
+                                                <X size={16} /> Remover
+                                            </button>
+                                        )}
+                                        <p className="field-hint">Use uma imagem quadrada ou com fundo transparente para melhor resultado.</p>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section className="card config-section-card">
+                                <div className="section-title-row">
+                                    <div className="icon-badge secondary">
+                                        <Eye size={24} />
+                                    </div>
+                                    <div>
+                                        <h3>Seções exibidas</h3>
+                                        <p>Escolha quais partes entram no Quadrante público e na exportação em PDF.</p>
+                                    </div>
                                 </div>
 
-                                <div className="form-group">
-                                    <label>Simbologia (Texto)</label>
-                                    <textarea
-                                        rows={4}
-                                        value={simbologiaTexto}
-                                        onChange={e => setSimbologiaTexto(e.target.value)}
-                                        placeholder="O texto que explica a simbologia do EJC..."
-                                    />
-                                    <p className="field-hint">Explicação sobre a logo e os símbolos do movimento.</p>
+                                <div className="visibility-grid">
+                                    {visibilityOptions.map(option => (
+                                        <div key={option.key} className="visibility-option">
+                                            <div>
+                                                <strong>{option.label}</strong>
+                                                <span>{option.description}</span>
+                                            </div>
+                                            <div className="sim-nao-toggle visibility-toggle">
+                                                <button
+                                                    type="button"
+                                                    className={`toggle-btn ${!visibilityConfig[option.key] ? 'active-nao' : ''}`}
+                                                    onClick={() => updateVisibility(option.key, false)}
+                                                >
+                                                    Não
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className={`toggle-btn ${visibilityConfig[option.key] ? 'active-sim' : ''}`}
+                                                    onClick={() => updateVisibility(option.key, true)}
+                                                >
+                                                    Sim
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+
+                            <section className="card config-section-card">
+                                <div className="section-title-row">
+                                    <div className="icon-badge">
+                                        <Type size={24} />
+                                    </div>
+                                    <div>
+                                        <h3>Textos editoriais</h3>
+                                        <p>Use o mesmo padrão de caixa de texto do resumo das palestras.</p>
+                                    </div>
                                 </div>
 
-                                <div className="form-group">
-                                    <label>Temática do Encontro (Referências)</label>
-                                    <textarea
-                                        rows={4}
-                                        value={tematicaTexto}
-                                        onChange={e => setTematicaTexto(e.target.value)}
-                                        placeholder="Explicação sobre o tema escolhido para este encontro..."
-                                    />
-                                    <p className="field-hint">Aparece na página do Nome do Encontro.</p>
+                                <div className="editorial-fields">
+                                    <div className="form-group">
+                                        <label>Simbologia</label>
+                                        <RichTextEditor
+                                            content={simbologiaTexto}
+                                            onChange={setSimbologiaTexto}
+                                            disabled={saving}
+                                            minHeight="180px"
+                                        />
+                                        <p className="field-hint">Explicação sobre a logo e os símbolos do movimento.</p>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Temática do Encontro</label>
+                                        <RichTextEditor
+                                            content={tematicaTexto}
+                                            onChange={setTematicaTexto}
+                                            disabled={saving}
+                                            minHeight="180px"
+                                        />
+                                        <p className="field-hint">Referências e inspirações do tema escolhido para este encontro.</p>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Música Tema</label>
+                                        <RichTextEditor
+                                            content={musicaLetra}
+                                            onChange={setMusicaLetra}
+                                            disabled={saving}
+                                            minHeight="220px"
+                                        />
+                                        <p className="field-hint">Links de vídeo/áudio são pegos do cadastro geral do encontro.</p>
+                                    </div>
                                 </div>
 
-                                <div className="form-group">
-                                    <label>Música Tema (Letra)</label>
-                                    <textarea
-                                        rows={6}
-                                        value={musicaLetra}
-                                        onChange={e => setMusicaLetra(e.target.value)}
-                                        placeholder="Cole aqui a letra completa da música..."
-                                    />
-                                    <p className="field-hint">Links de vídeo/áudio são pegos do cadastro geral do encontro.</p>
+                                <div className="card-footer-actions">
+                                    <button className="btn-primary" onClick={handleSaveEditorial} disabled={saving || uploadingLogo}>
+                                        {saving ? 'Salvando...' : <><Check size={18} /> Salvar conteúdo e seções</>}
+                                    </button>
                                 </div>
-                            </div>
-
-                            <div className="card-footer-actions">
-                                <button className="btn-primary" onClick={handleSaveEditorial} disabled={saving}>
-                                    {saving ? 'Salvando...' : <><Check size={18} /> Salvar Conteúdo</>}
-                                </button>
-                            </div>
+                            </section>
                         </div>
                     )}
                 </div>
@@ -545,6 +685,186 @@ export function EncontroQuadranteConfigPage() {
                     color: #8b5cf6;
                 }
 
+                .icon-badge.pink {
+                    background: #ec489920;
+                    color: #ec4899;
+                }
+
+                .quadrante-config-stack {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.25rem;
+                }
+
+                .config-section-card {
+                    padding: 1.5rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                }
+
+                .section-title-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                }
+
+                .section-title-row h3 {
+                    margin: 0;
+                }
+
+                .section-title-row p {
+                    margin: 0.25rem 0 0;
+                    font-size: 0.85rem;
+                    color: var(--muted-text);
+                }
+
+                .config-item-pin {
+                    display: grid;
+                    grid-template-columns: minmax(0, 1fr) auto;
+                    align-items: center;
+                    gap: 1.25rem;
+                    margin-top: 1.5rem;
+                }
+
+                .pin-input-wrapper {
+                    position: relative;
+                    width: 180px;
+                    flex-shrink: 0;
+                }
+
+                .pin-input {
+                    height: 44px;
+                    width: 100%;
+                    padding-right: 44px;
+                    font-weight: 700;
+                    font-size: 1rem;
+                    text-align: center;
+                }
+
+                .pin-toggle-btn {
+                    position: absolute;
+                    top: 50%;
+                    right: 6px;
+                    transform: translateY(-50%);
+                    width: 34px;
+                    height: 34px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 8px;
+                    border: 1px solid transparent;
+                    background: transparent;
+                    color: var(--muted-text);
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .pin-toggle-btn:hover {
+                    color: var(--primary-color);
+                    background: var(--surface-2);
+                    border-color: var(--border-color);
+                }
+
+                .logo-upload-panel {
+                    display: grid;
+                    grid-template-columns: 180px minmax(0, 1fr);
+                    gap: 1.25rem;
+                    align-items: center;
+                    padding: 1rem;
+                    border: 1px dashed var(--border-color);
+                    border-radius: 14px;
+                    background: var(--surface-1);
+                }
+
+                .logo-preview-large {
+                    width: 180px;
+                    aspect-ratio: 1;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 16px;
+                    border: 1px solid var(--border-color);
+                    background: var(--bg-color);
+                    overflow: hidden;
+                }
+
+                .logo-preview-large img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                    padding: 1rem;
+                }
+
+                .logo-empty-state {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 0.5rem;
+                    color: var(--muted-text);
+                    font-size: 0.85rem;
+                    font-weight: 700;
+                }
+
+                .logo-upload-actions {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    flex-wrap: wrap;
+                }
+
+                .logo-upload-actions .field-hint {
+                    flex-basis: 100%;
+                    margin: 0.25rem 0 0;
+                }
+
+                .compact-danger {
+                    color: #ef4444;
+                    border-color: rgba(239, 68, 68, 0.45);
+                    background: transparent;
+                }
+
+                .visibility-grid {
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 0.9rem;
+                }
+
+                .visibility-option {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 1rem;
+                    padding: 1rem;
+                    border: 1px solid var(--border-color);
+                    border-radius: 12px;
+                    background: var(--surface-1);
+                }
+
+                .visibility-option strong {
+                    display: block;
+                    font-size: 0.9rem;
+                }
+
+                .visibility-option span {
+                    display: block;
+                    margin-top: 0.2rem;
+                    font-size: 0.75rem;
+                    color: var(--muted-text);
+                    line-height: 1.35;
+                }
+
+                .visibility-toggle {
+                    margin-left: 0;
+                    flex-shrink: 0;
+                }
+
+                .editorial-fields {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                }
+
                 .arrow-icon { opacity: 0.3; transition: all 0.3s; }
                 .option-entry-card:hover .arrow-icon { opacity: 1; color: var(--primary-color); }
 
@@ -619,6 +939,41 @@ export function EncontroQuadranteConfigPage() {
                 .btn-danger-outline:hover {
                     background: #fef2f2;
                     transform: translateY(-1px);
+                }
+
+                @media (max-width: 760px) {
+                    .config-section-card {
+                        padding: 1.25rem;
+                    }
+
+                    .section-title-row {
+                        align-items: flex-start;
+                    }
+
+                    .config-item-pin,
+                    .logo-upload-panel,
+                    .visibility-grid {
+                        grid-template-columns: 1fr;
+                    }
+
+                    .pin-input-wrapper,
+                    .logo-preview-large {
+                        width: 100%;
+                        max-width: none;
+                    }
+
+                    .visibility-option {
+                        align-items: flex-start;
+                        flex-direction: column;
+                    }
+
+                    .visibility-toggle {
+                        width: 100%;
+                    }
+
+                    .visibility-toggle .toggle-btn {
+                        flex: 1;
+                    }
                 }
             `}</style>
         </div>
