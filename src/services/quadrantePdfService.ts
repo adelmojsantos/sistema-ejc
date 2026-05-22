@@ -343,6 +343,9 @@ export const quadrantePdfService = {
         const encontristas = data.filter(d => d.participante);
         if (visibility.encontristas && encontristas.length > 0) {
             doc.addPage();
+            this.renderSubCover(doc, 'Encontristas');
+
+            doc.addPage();
             this.renderSectionHeader(doc, 'Encontristas');
 
             const gridCols = 3;
@@ -399,9 +402,13 @@ export const quadrantePdfService = {
 
         const sortedTeams = Object.entries(teams).sort(([a], [b]) => a.localeCompare(b));
 
-        if (visibility.encontreiros) for (const [teamName, members] of sortedTeams) {
+        if (visibility.encontreiros && sortedTeams.length > 0) {
             doc.addPage();
-            doc.setFillColor(...this.colors.navy);
+            this.renderSubCover(doc, 'Equipes de Trabalho');
+
+            for (const [teamName, members] of sortedTeams) {
+                doc.addPage();
+                doc.setFillColor(...this.colors.navy);
             doc.roundedRect(margin, 20, contentWidth, 36, 3, 3, 'F');
             doc.setTextColor(...this.colors.white);
             doc.setFontSize(18);
@@ -493,6 +500,30 @@ export const quadrantePdfService = {
         }
 
         doc.save(`Quadrante_${encontro.nome.replace(/\s+/g, '_')}.pdf`);
+    },
+
+    /**
+     * Helper to render a section sub-cover page
+     */
+    renderSubCover(doc: jsPDF, title: string) {
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+
+        // Sub-cover has a light background
+        doc.setFillColor(...this.colors.white);
+        doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
+        // Centralized section title
+        doc.setTextColor(...this.colors.navy);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(28);
+        doc.text(title.toUpperCase(), pageWidth / 2, (pageHeight / 2) - 10, { align: 'center' });
+
+        // Centered accent divider line below the title
+        doc.setFillColor(...this.colors.blue);
+        const lineWidth = 30;
+        const lineHeight = 1.5;
+        doc.rect((pageWidth - lineWidth) / 2, (pageHeight / 2) + 2, lineWidth, lineHeight, 'F');
     },
 
     /**

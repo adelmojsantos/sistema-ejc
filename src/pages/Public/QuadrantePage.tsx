@@ -573,7 +573,17 @@ export function QuadrantePage() {
                 )}
 
                 {/* Encontristas Sections grouped by Circle */}
-                {visibility.encontristas && <div id="encontristas" style={{ paddingBottom: '1px' }}></div>}
+                {visibility.encontristas && <div id="encontristas" className="no-print" style={{ paddingBottom: '1px' }}></div>}
+                {visibility.encontristas && (
+                    <section className="section-sub-cover print-only">
+                        <div className="section-print-wrapper">
+                            <div className="sub-cover-content">
+                                <h1 className="sub-cover-title">Encontristas</h1>
+                                <div className="sub-cover-divider"></div>
+                            </div>
+                        </div>
+                    </section>
+                )}
                 {visibility.encontristas && encontristasPorCirculo.map(([circle, members], sectionIndex) => (
                     <section key={circle} id={`circulo-${slugify(circle)}`} className={`content-section section-band ${sectionIndex % 2 === 0 ? 'section-band-base' : 'section-band-alt'}`} data-section-name={circle}>
                         <div className="section-print-wrapper">
@@ -592,7 +602,17 @@ export function QuadrantePage() {
                 ))}
 
                 {/* Encontreiros Sections (Team Layout 50/50) */}
-                {visibility.encontreiros && <div id="encontreiros" style={{ paddingBottom: '1px' }}></div>}
+                {visibility.encontreiros && <div id="encontreiros" className="no-print" style={{ paddingBottom: '1px' }}></div>}
+                {visibility.encontreiros && (
+                    <section className="section-sub-cover print-only">
+                        <div className="section-print-wrapper">
+                            <div className="sub-cover-content">
+                                <h1 className="sub-cover-title">Equipes de Trabalho</h1>
+                                <div className="sub-cover-divider"></div>
+                            </div>
+                        </div>
+                    </section>
+                )}
                 {visibility.encontreiros && encontreirosPorEquipe.map(([team, members], sectionIndex) => (
                     <section key={team} id={`equipe-${slugify(team)}`} className={`content-team-section section-band ${sectionIndex % 2 === 0 ? 'section-band-alt' : 'section-band-base'}`} data-section-name={team}>
                         <div className="section-print-wrapper">
@@ -2002,6 +2022,10 @@ export function QuadrantePage() {
                     .stats-pills { flex-direction: column; align-items: center; gap: 0.5rem; }
                 }
 
+                .print-only {
+                    display: none !important;
+                }
+
                 .section-print-wrapper {
                     display: contents;
                 }
@@ -2013,6 +2037,47 @@ export function QuadrantePage() {
 
                     /* ── Página A4 sem margens ───────────────────── */
                     @page { size: A4 portrait; margin: 0; }
+
+                    .print-only {
+                        display: block !important;
+                    }
+
+                    .section-sub-cover.print-only {
+                        display: table !important;
+                        break-before: page !important;
+                        page-break-before: always !important;
+                        height: 297mm !important;
+                        min-height: 297mm !important;
+                        width: 100% !important;
+                        box-sizing: border-box !important;
+                        background: #ffffff !important;
+                        padding: 0 !important;
+                    }
+
+                    .sub-cover-content {
+                        display: flex !important;
+                        flex-direction: column !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        text-align: center !important;
+                        height: 100% !important;
+                    }
+
+                    .sub-cover-title {
+                        font-size: 32pt !important;
+                        font-weight: 800 !important;
+                        color: #0f172a !important;
+                        margin-bottom: 1rem !important;
+                        text-transform: uppercase !important;
+                        letter-spacing: 0.1em !important;
+                    }
+
+                    .sub-cover-divider {
+                        height: 6px !important;
+                        width: 100px !important;
+                        background: #2563eb !important;
+                        border-radius: 3px !important;
+                    }
 
                     /* ── Evitar corte de páginas e rolagem oculta na impressão ── */
                     html, body {
@@ -2026,6 +2091,7 @@ export function QuadrantePage() {
                     .mobile-header,
                     .sidebar-overlay,
                     .music-link-btn,
+                    .no-print,
                     footer {
                         display: none !important;
                     }
