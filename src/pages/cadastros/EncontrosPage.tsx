@@ -125,7 +125,7 @@ export function EncontrosPage() {
             />
 
             {(mode === 'create' || mode === 'edit') && (
-                <div className="card" style={{ marginTop: '1rem' }}>
+                <div className="card encontro-form-shell" style={{ marginTop: '1rem' }}>
                     {formError && <div className="error-message" style={{ marginBottom: '1rem' }}>{formError}</div>}
                     <EncontroForm
                         title={mode === 'create' ? 'Novo Encontro' : `Editando: ${selected?.nome}`}
@@ -199,6 +199,14 @@ export function EncontrosPage() {
                 isLoading={isDeleting}
                 isDestructive={true}
             />
+
+            <style>{`
+                .encontro-form-shell {
+                    background: transparent;
+                    border: 1px solid rgba(148, 163, 184, 0.28);
+                    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16);
+                }
+            `}</style>
         </div>
     );
 }

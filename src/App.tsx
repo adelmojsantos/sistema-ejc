@@ -25,6 +25,9 @@ import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
 import { ResumoPalestrasPage } from './pages/circulos/ResumoPalestrasPage';
 import { MontagemPage } from './pages/cadastros/MontagemPage';
 import { PessoasPage } from './pages/cadastros/PessoasPage';
+import { PalestrasGestaoPage } from './pages/cadastros/PalestrasGestaoPage';
+import { PalestrasResumoPage } from './pages/cadastros/PalestrasResumoPage';
+import { PalestrasModulePage } from './pages/atividades/PalestrasModulePage';
 import { PalestrasPage } from './pages/cadastros/PalestrasPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
@@ -177,6 +180,9 @@ function AnimatedRoutes() {
             <Route path="confirmacoes/:equipe_id" element={<ConfirmationTeamDetailPage />} />
             <Route path="participantes" element={<SecretariaParticipantesPage />} />
             <Route path="encontreiros" element={<SecretariaEncontreirosPage />} />
+            <Route path="atividades/recepcao" element={<RecepcaoAdminPage />} />
+            <Route path="atividades/palestras" element={<PalestrasModulePage />} />
+            <Route path="atividades/recreacao" element={<RecreacaoAdminPage />} />
             <Route path="lista-espera" element={<GerenciarListaEsperaPage />} />
             <Route path="fotos-equipes" element={<SecretariaFotosPage />} />
           </Route>
@@ -285,6 +291,8 @@ function AnimatedRoutes() {
             <Route path="pessoas" element={<PessoasPage />} />
             <Route path="encontros" element={<EncontrosPage />} />
             <Route path="encontros/:id/quadrante" element={<EncontroQuadranteConfigPage />} />
+            <Route path="encontros/:id/palestras" element={<PalestrasGestaoPage />} />
+            <Route path="encontros/:id/palestras-resumo" element={<PalestrasResumoPage />} />
             <Route path="encontros/participantes" element={<EncontroParticipantesPage />} />
             <Route path="equipes" element={<EquipesPage />} />
             <Route path="circulos" element={<CirculosPage />} />

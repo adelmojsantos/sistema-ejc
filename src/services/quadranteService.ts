@@ -19,7 +19,30 @@ export interface QuadranteData {
     }[];
 }
 
+export interface QuadrantePublicInfo {
+    nome: string;
+    quadrante_ativo: boolean;
+    tem_pin: boolean;
+}
+
 export const quadranteService = {
+    /**
+     * Obtém metadados seguros para decidir o fluxo de acesso sem expor o PIN.
+     */
+    async obterInfoPublica(token: string): Promise<QuadrantePublicInfo | null> {
+        const { data, error } = await supabase.rpc('get_quadrante_public_info', {
+            p_token: token
+        });
+
+        if (error) {
+            console.error('Erro ao buscar informações públicas do quadrante:', error);
+            return null;
+        }
+
+        const row = Array.isArray(data) ? data[0] : data;
+        return (row as QuadrantePublicInfo | undefined) || null;
+    },
+
     /**
      * Valida o acesso ao quadrante usando o token e PIN
      */
@@ -38,16 +61,23 @@ export const quadranteService = {
     },
 
     /**
-     * Obtém os dados resumidos para exibição no Quadrante público
+     * Obtém os dados resumidos para exibição no Quadrante público.
+     * @param ignorarAtivo - Se true, retorna dados mesmo que o quadrante não esteja publicado
+     *                       (usar apenas para usuários logados — admin/secretaria)
      */
-    async obterDados(token: string): Promise<QuadranteData[]> {
+    async obterDados(token: string, ignorarAtivo = false): Promise<QuadranteData[]> {
         // Primeiro pegamos o encontro_id pelo token
-        const { data: encontro, error: eError } = await supabase
+        let query = supabase
             .from('encontros')
             .select('id')
-            .eq('quadrante_token', token)
-            .eq('quadrante_ativo', true)
-            .single();
+            .eq('quadrante_token', token);
+
+        // Apenas o público geral precisa do filtro de ativo
+        if (!ignorarAtivo) {
+            query = query.eq('quadrante_ativo', true);
+        }
+
+        const { data: encontro, error: eError } = await query.single();
 
         if (eError || !encontro) return [];
 

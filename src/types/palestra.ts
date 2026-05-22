@@ -1,3 +1,5 @@
+import type { Pessoa } from './pessoa';
+
 export interface Palestra {
     id: string;
     encontro_id: string;
@@ -9,6 +11,7 @@ export interface Palestra {
     ordem: number;
     created_at?: string;
     updated_at?: string;
+    pessoas?: Pessoa;
 }
 
 export interface PalestraFormData {

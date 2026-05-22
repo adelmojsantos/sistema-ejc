@@ -22,22 +22,36 @@ export function QuadranteAuthPage() {
         async function checkToken() {
             if (!token) return;
             try {
-                const { data, error } = await supabase
-                    .from('encontros')
-                    .select('nome, quadrante_ativo, quadrante_pin')
-                    .eq('quadrante_token', token)
-                    .single();
+                // Verificar sessão — admins/secretaria podem acessar mesmo sem publicar
+                const { data: { session } } = await supabase.auth.getSession();
+                const isAdmin = !!session;
 
-                if (error || !data || !data.quadrante_ativo) {
+                const data = await quadranteService.obterInfoPublica(token);
+
+                // Token inválido para todos
+                if (!data) {
+                    toast.error('Este link é inválido ou não encontrado.');
+                    navigate('/');
+                    return;
+                }
+
+                // Quadrante inativo — apenas admins logados podem continuar
+                if (!data.quadrante_ativo && !isAdmin) {
                     toast.error('Este link é inválido ou foi desativado.');
                     navigate('/');
                     return;
                 }
 
                 setEncontroNome(data.nome);
-                
-                // Se não houver PIN definido, podemos pular a autenticação
-                if (!data.quadrante_pin) {
+
+                // Admin vai direto, sem precisar de PIN
+                if (isAdmin) {
+                    navigate(`/quadrante/${token}`);
+                    return;
+                }
+
+                // Público sem PIN definido também pula a autenticação
+                if (!data.tem_pin) {
                     navigate(`/quadrante/${token}`, { state: { authorized: true } });
                 }
             } catch (error) {
@@ -77,10 +91,11 @@ export function QuadranteAuthPage() {
 
     if (validating) {
         return (
-            <div className="auth-container">
-                <div className="auth-card loading">
-                    <RefreshIcon className="animate-spin" />
-                    <p>Verificando link...</p>
+            <div className="auth-page-wrapper">
+                <div className="auth-card-premium" style={{ alignItems: 'center', justifyContent: 'center', minHeight: '200px' }}>
+                    <RefreshIcon className="animate-spin" style={{ width: 32, height: 32, opacity: 0.6 }} />
+                    <p style={{ fontSize: '0.85rem', opacity: 0.6, marginTop: '1rem', letterSpacing: '0.05em' }}>Verificando link...</p>
+                    <style>{`.auth-page-wrapper { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 2rem; color: white; } .auth-card-premium { width: 100%; max-width: 400px; background: rgba(255,255,255,0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 2.5rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); display: flex; flex-direction: column; } .animate-spin { animation: spin 1s linear infinite; } @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
                 </div>
             </div>
         );
@@ -276,8 +291,8 @@ export function QuadranteAuthPage() {
     );
 }
 
-function RefreshIcon({ className }: { className?: string }) {
+function RefreshIcon({ className, style }: { className?: string, style?: React.CSSProperties }) {
     return (
-        <svg className={className} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path><polyline points="22 4 22 10 16 10"></polyline></svg>
+        <svg className={className} style={style} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path><polyline points="22 4 22 10 16 10"></polyline></svg>
     );
 }

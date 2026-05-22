@@ -1,17 +1,35 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { type QuadranteData } from './quadranteService';
+import { type Palestra } from '../types/palestra';
+import { quadranteVisibilityDefault, type QuadranteVisibilityConfig } from '../types/encontro';
 
 interface EncontroInfo {
     id: string;
     nome: string;
     tema?: string | null;
+    musica?: string | null;
+    logo_url?: string | null;
+    simbologia_texto?: string | null;
+    tematica_texto?: string | null;
+    musica_letra?: string | null;
+    quadrante_visibilidade?: QuadranteVisibilityConfig | null;
 }
 
 /**
  * Service to generate a professional PDF Yearbook (Quadrante)
  */
 export const quadrantePdfService = {
+    colors: {
+        navy: [15, 23, 42] as [number, number, number],
+        blue: [37, 99, 235] as [number, number, number],
+        slate: [71, 85, 105] as [number, number, number],
+        muted: [100, 116, 139] as [number, number, number],
+        line: [226, 232, 240] as [number, number, number],
+        soft: [248, 250, 252] as [number, number, number],
+        white: [255, 255, 255] as [number, number, number],
+    },
+
     /**
      * Converts a URL to a Base64 string for jsPDF
      */
@@ -31,10 +49,168 @@ export const quadrantePdfService = {
         }
     },
 
+    async loadImage(url: string): Promise<HTMLImageElement | null> {
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+
+            return await new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve(img);
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve(null);
+                };
+                img.src = objectUrl;
+            });
+        } catch (e) {
+            console.error('Error loading image for PDF:', e);
+            return null;
+        }
+    },
+
+    async prepareImage(
+        url: string,
+        options: { width: number; height: number; fit?: 'cover' | 'contain'; background?: string; mimeType?: 'image/jpeg' | 'image/png' }
+    ): Promise<string | null> {
+        const img = await this.loadImage(url);
+        if (!img) return null;
+
+        const canvas = document.createElement('canvas');
+        const scale = 3;
+        canvas.width = Math.round(options.width * scale);
+        canvas.height = Math.round(options.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return null;
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        if (options.background) {
+            ctx.fillStyle = options.background;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        const sourceWidth = img.naturalWidth || img.width;
+        const sourceHeight = img.naturalHeight || img.height;
+        const targetRatio = canvas.width / canvas.height;
+        const sourceRatio = sourceWidth / sourceHeight;
+
+        if (options.fit === 'contain') {
+            const drawScale = Math.min(canvas.width / sourceWidth, canvas.height / sourceHeight);
+            const drawWidth = sourceWidth * drawScale;
+            const drawHeight = sourceHeight * drawScale;
+            ctx.drawImage(img, (canvas.width - drawWidth) / 2, (canvas.height - drawHeight) / 2, drawWidth, drawHeight);
+        } else {
+            let sx = 0;
+            let sy = 0;
+            let sw = sourceWidth;
+            let sh = sourceHeight;
+
+            if (sourceRatio > targetRatio) {
+                sw = sourceHeight * targetRatio;
+                sx = (sourceWidth - sw) / 2;
+            } else {
+                sh = sourceWidth / targetRatio;
+                sy = (sourceHeight - sh) / 2;
+            }
+
+            ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+        }
+
+        return canvas.toDataURL(options.mimeType || 'image/jpeg', 0.9);
+    },
+
+    async addPreparedImage(
+        doc: jsPDF,
+        url: string,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        options: { fit?: 'cover' | 'contain'; background?: string; radius?: number; fallbackLabel?: string } = {}
+    ): Promise<boolean> {
+        const image = await this.prepareImage(url, {
+            width,
+            height,
+            fit: options.fit || 'cover',
+            background: options.background,
+            mimeType: options.fit === 'contain' ? 'image/png' : 'image/jpeg'
+        });
+
+        if (!image) return false;
+
+        try {
+            if (options.radius) {
+                doc.setFillColor(...this.colors.white);
+                doc.roundedRect(x, y, width, height, options.radius, options.radius, 'F');
+            }
+            doc.addImage(image, options.fit === 'contain' ? 'PNG' : 'JPEG', x, y, width, height, undefined, 'FAST');
+            return true;
+        } catch (e) {
+            console.warn(`Image add error${options.fallbackLabel ? ` (${options.fallbackLabel})` : ''}`, e);
+            return false;
+        }
+    },
+
+    htmlToText(html?: string | null): string {
+        if (!html) return '';
+        return html
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n')
+            .replace(/<\/li>/gi, '\n')
+            .replace(/<li>/gi, '- ')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+    },
+
+    renderTextPanel(
+        doc: jsPDF,
+        text: string,
+        options: { x: number; y: number; width: number; maxHeight?: number; fontSize?: number; lineHeight?: number }
+    ): number {
+        const fontSize = options.fontSize || 9.5;
+        const lineHeight = options.lineHeight || (fontSize * 0.45);
+        const padding = 6;
+        const usableWidth = options.width - (padding * 2);
+        const lines = doc.splitTextToSize(text, usableWidth);
+        const maxLines = options.maxHeight ? Math.floor((options.maxHeight - (padding * 2)) / lineHeight) : lines.length;
+        const visibleLines = lines.slice(0, maxLines);
+        const panelHeight = (visibleLines.length * lineHeight) + (padding * 2);
+
+        doc.setFillColor(...this.colors.soft);
+        doc.setDrawColor(...this.colors.line);
+        doc.roundedRect(options.x, options.y, options.width, panelHeight, 3, 3, 'FD');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(fontSize);
+        doc.setTextColor(...this.colors.slate);
+        doc.text(visibleLines, options.x + padding, options.y + padding + 3, {
+            align: 'left',
+            lineHeightFactor: lineHeight / (fontSize * 0.3528)
+        });
+
+        return options.y + panelHeight;
+    },
+
     /**
-     * Generates the complete Yearbook PDF
+     * Generates the complete Yearbook PDF (7 Sections)
      */
-    async generateYearbook(encontro: EncontroInfo, data: QuadranteData[]) {
+    async generateYearbook(encontro: EncontroInfo, data: QuadranteData[], palestras: Palestra[] = []) {
+        const visibility = {
+            ...quadranteVisibilityDefault,
+            ...(encontro.quadrante_visibilidade || {})
+        };
         const doc = new jsPDF({
             orientation: 'portrait',
             unit: 'mm',
@@ -43,93 +219,165 @@ export const quadrantePdfService = {
 
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
-        const margin = 15;
+        const margin = 20;
+        const contentWidth = pageWidth - (margin * 2);
 
         // --- 1. COVER PAGE ---
-        doc.setFillColor(15, 23, 42); // Deep Navy
+        doc.setFillColor(...this.colors.navy);
         doc.rect(0, 0, pageWidth, pageHeight, 'F');
+        doc.setFillColor(37, 99, 235);
+        doc.rect(0, 0, pageWidth, 7, 'F');
 
-        doc.setTextColor(255, 255, 255);
+        // Logo on Cover
+        if (encontro.logo_url) {
+            const logoSize = 58;
+            await this.addPreparedImage(doc, encontro.logo_url, (pageWidth - logoSize) / 2, 38, logoSize, logoSize, {
+                fit: 'contain',
+                background: '#0f172a',
+                radius: 8,
+                fallbackLabel: 'cover logo'
+            });
+        }
+
+        doc.setTextColor(...this.colors.white);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(12);
-        doc.text('QUADRANTE OFICIAL', pageWidth / 2, 80, { align: 'center' });
+        doc.setFontSize(14);
+        doc.text('QUADRANTE OFICIAL', pageWidth / 2, 112, { align: 'center' });
 
-        doc.setFontSize(28);
-        doc.text(encontro.nome.toUpperCase(), pageWidth / 2, 105, { align: 'center' });
+        doc.setFontSize(32);
+        const splitNome = doc.splitTextToSize(encontro.nome.toUpperCase(), pageWidth - 40);
+        doc.text(splitNome, pageWidth / 2, 132, { align: 'center' });
 
         if (encontro.tema) {
             doc.setFont('helvetica', 'italic');
-            doc.setFontSize(16);
-            doc.text(`"${encontro.tema}"`, pageWidth / 2, 120, { align: 'center' });
+            doc.setFontSize(18);
+            doc.text(`"${encontro.tema}"`, pageWidth / 2, 158, { align: 'center' });
         }
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
+        doc.setFontSize(11);
         doc.text('EJC CAPELINHA', pageWidth / 2, pageHeight - 30, { align: 'center' });
         doc.text(new Date().getFullYear().toString(), pageWidth / 2, pageHeight - 24, { align: 'center' });
 
-        // --- 2. ENCONTRISTAS (GRID) ---
-        const encontristas = data.filter(d => d.participante);
-        if (encontristas.length > 0) {
+        // --- 2. SIMBOLOGIA ---
+        if (visibility.simbologia) {
             doc.addPage();
-            doc.setTextColor(15, 23, 42);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(22);
-            doc.text('Encontristas', margin, 25);
-            doc.setDrawColor(37, 99, 235);
-            doc.setLineWidth(1);
-            doc.line(margin, 28, margin + 40, 28);
+            this.renderSectionHeader(doc, 'Simbologia');
+            
+            // Simbologia Logo
+            const simbologiaLogo = `${window.location.origin}/logo-ejc.jpg`;
+            await this.addPreparedImage(doc, simbologiaLogo, (pageWidth - 42) / 2, 42, 42, 42, {
+                fit: 'contain',
+                background: '#ffffff',
+                radius: 6,
+                fallbackLabel: 'simbologia logo'
+            });
 
-            const gridCols = 4;
-            const cardWidth = (pageWidth - (margin * 2) - ((gridCols - 1) * 5)) / gridCols;
-            const cardHeight = cardWidth + 10; // Extra for name
+            const sText = this.htmlToText(encontro.simbologia_texto) || 'O Jovem no mundo...';
+            this.renderTextPanel(doc, sText, {
+                x: margin,
+                y: 96,
+                width: contentWidth,
+                maxHeight: pageHeight - 116,
+                fontSize: 9.2,
+                lineHeight: 4.7
+            });
+        }
+
+        // --- 3. TEMÁTICA ---
+        if (visibility.tematica) {
+            doc.addPage();
+            this.renderSectionHeader(doc, encontro.tema || 'Temática');
+            
+            if (encontro.logo_url) {
+                await this.addPreparedImage(doc, encontro.logo_url, (pageWidth - 48) / 2, 40, 48, 48, {
+                    fit: 'contain',
+                    background: '#ffffff',
+                    radius: 6,
+                    fallbackLabel: 'tema logo'
+                });
+            }
+
+            const tText = this.htmlToText(encontro.tematica_texto) || 'Referências do tema...';
+            this.renderTextPanel(doc, tText, {
+                x: margin,
+                y: 100,
+                width: contentWidth,
+                maxHeight: pageHeight - 120,
+                fontSize: 9.5,
+                lineHeight: 4.8
+            });
+        }
+
+        // --- 4. MÚSICA TEMA ---
+        if (visibility.musica) {
+            doc.addPage();
+            this.renderSectionHeader(doc, 'Música Tema');
+            
+            doc.setTextColor(...this.colors.navy);
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.text(encontro.musica || 'Letra da Música', pageWidth / 2, 55, { align: 'center' });
+
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(...this.colors.slate);
+            const mText = this.htmlToText(encontro.musica_letra) || 'Letra não disponível';
+            const splitMText = doc.splitTextToSize(mText, pageWidth - (margin * 4));
+            doc.text(splitMText, pageWidth / 2, 70, { align: 'center' });
+        }
+
+        // --- 5. ENCONTRISTAS (GRID) ---
+        const encontristas = data.filter(d => d.participante);
+        if (visibility.encontristas && encontristas.length > 0) {
+            doc.addPage();
+            this.renderSectionHeader(doc, 'Encontristas');
+
+            const gridCols = 3;
+            const gap = 7;
+            const cardWidth = (contentWidth - ((gridCols - 1) * gap)) / gridCols;
+            const imageHeight = 38;
+            const cardHeight = 56;
             let currentX = margin;
             let currentY = 40;
 
             for (let i = 0; i < encontristas.length; i++) {
                 const item = encontristas[i];
-
-                // Page break check
                 if (currentY + cardHeight > pageHeight - margin) {
                     doc.addPage();
                     currentY = 20;
                 }
 
-                // Placeholder / Photo
-                doc.setFillColor(241, 245, 249);
-                doc.setDrawColor(226, 232, 240);
-                doc.roundedRect(currentX, currentY, cardWidth, cardWidth, 2, 2, 'F');
+                doc.setFillColor(...this.colors.white);
+                doc.setDrawColor(...this.colors.line);
+                doc.roundedRect(currentX, currentY, cardWidth, cardHeight, 3, 3, 'FD');
+                doc.setFillColor(...this.colors.soft);
+                doc.roundedRect(currentX + 2, currentY + 2, cardWidth - 4, imageHeight, 2, 2, 'F');
                 
                 if (item.foto_url) {
-                    const base64 = await this.getImageAsBase64(item.foto_url);
-                    if (base64) {
-                        try {
-                            doc.addImage(base64, 'JPEG', currentX + 0.5, currentY + 0.5, cardWidth - 1, cardWidth - 1);
-                        } catch (err) {
-                            console.warn('Error adding image to PDF', err);
-                        }
-                    }
+                    await this.addPreparedImage(doc, item.foto_url, currentX + 2, currentY + 2, cardWidth - 4, imageHeight, {
+                        fit: 'cover',
+                        fallbackLabel: item.pessoas?.nome_completo
+                    });
                 }
 
-                // Name
                 doc.setFontSize(7);
                 doc.setFont('helvetica', 'bold');
+                doc.setTextColor(...this.colors.navy);
                 const name = item.pessoas.nome_completo;
                 const splitName = doc.splitTextToSize(name, cardWidth - 2);
-                doc.text(splitName, currentX + (cardWidth / 2), currentY + cardWidth + 4, { align: 'center' });
+                doc.text(splitName.slice(0, 2), currentX + (cardWidth / 2), currentY + imageHeight + 8, { align: 'center' });
 
-                // Move to next position
                 if ((i + 1) % gridCols === 0) {
                     currentX = margin;
-                    currentY += cardHeight + 10;
+                    currentY += cardHeight + gap;
                 } else {
-                    currentX += cardWidth + 5;
+                    currentX += cardWidth + gap;
                 }
             }
         }
 
-        // --- 3. TEAMS (VERTICAL LAYOUT) ---
-        // Group by team
+        // --- 6. EQUIPES ---
         const teams: Record<string, QuadranteData[]> = {};
         data.filter(d => !d.participante).forEach(item => {
             const t = item.equipes?.nome || 'Equipe Geral';
@@ -139,36 +387,29 @@ export const quadrantePdfService = {
 
         const sortedTeams = Object.entries(teams).sort(([a], [b]) => a.localeCompare(b));
 
-        for (const [teamName, members] of sortedTeams) {
+        if (visibility.encontreiros) for (const [teamName, members] of sortedTeams) {
             doc.addPage();
-            
-            // Team Header
-            doc.setFillColor(15, 23, 42);
-            doc.rect(margin, 20, pageWidth - (margin * 2), 40, 'F');
-            
-            doc.setTextColor(255, 255, 255);
+            doc.setFillColor(...this.colors.navy);
+            doc.roundedRect(margin, 20, contentWidth, 36, 3, 3, 'F');
+            doc.setTextColor(...this.colors.white);
             doc.setFontSize(18);
             doc.setFont('helvetica', 'bold');
-            doc.text(teamName.toUpperCase(), margin + 10, 45);
+            doc.text(teamName.toUpperCase(), margin + 10, 43);
 
-            // Team Photo (if exists)
-            let listStartY = 70;
+            let listStartY = 66;
             const teamPhotoUrl = members[0]?.equipes?.foto_url;
             if (teamPhotoUrl) {
-                const base64 = await this.getImageAsBase64(teamPhotoUrl);
-                if (base64) {
-                    try {
-                        const imgHeight = 60;
-                        doc.addImage(base64, 'JPEG', margin, 70, pageWidth - (margin * 2), imgHeight, undefined, 'FAST');
-                        listStartY = 70 + imgHeight + 10;
-                    } catch (err) {
-                        console.warn('Error adding team photo', err);
-                    }
+                const imgHeight = 58;
+                const added = await this.addPreparedImage(doc, teamPhotoUrl, margin, 66, contentWidth, imgHeight, {
+                    fit: 'cover',
+                    fallbackLabel: teamName
+                });
+                if (added) {
+                    listStartY = 66 + imgHeight + 10;
                 }
             }
 
-            // Members Table
-            doc.setTextColor(15, 23, 42);
+            doc.setTextColor(...this.colors.navy);
             doc.setFontSize(12);
             doc.text('Composição da Equipe:', margin, listStartY);
 
@@ -180,10 +421,54 @@ export const quadrantePdfService = {
                 head: [['#', 'Nome Completo']],
                 body: tableRows,
                 startY: listStartY + 5,
-                styles: { fontSize: 9, cellPadding: 2 },
-                headStyles: { fillColor: [15, 23, 42] },
+                styles: { fontSize: 9, cellPadding: 2.3, lineColor: this.colors.line },
+                alternateRowStyles: { fillColor: this.colors.soft },
+                headStyles: { fillColor: this.colors.navy },
                 margin: { left: margin, right: margin }
             });
+        }
+
+        // --- 7. PALESTRAS ---
+        if (visibility.palestras && palestras && palestras.length > 0) {
+            doc.addPage();
+            this.renderSectionHeader(doc, 'Palestras');
+            
+            let pY = 50;
+            for (const p of palestras) {
+                if (pY + 50 > pageHeight - margin) {
+                    doc.addPage();
+                    pY = 30;
+                }
+
+                // Speaker Photo
+                doc.setFillColor(...this.colors.soft);
+                doc.roundedRect(margin, pY, 30, 30, 3, 3, 'F');
+                if (p.palestrante_foto_url) {
+                    await this.addPreparedImage(doc, p.palestrante_foto_url, margin + 0.5, pY + 0.5, 29, 29, {
+                        fit: 'cover',
+                        fallbackLabel: p.palestrante_nome || p.titulo
+                    });
+                }
+
+                // Lecture Text
+                doc.setTextColor(...this.colors.navy);
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(12);
+                doc.text(p.titulo, margin + 35, pY + 5);
+                
+                doc.setFontSize(9);
+                doc.setTextColor(...this.colors.muted);
+                doc.text(p.palestrante_nome || '', margin + 35, pY + 11);
+
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(...this.colors.slate);
+                doc.setFontSize(9);
+                const pResumo = this.htmlToText(p.resumo) || '';
+                const splitPResumo = doc.splitTextToSize(pResumo, pageWidth - margin - 35 - margin);
+                doc.text(splitPResumo.slice(0, 6), margin + 35, pY + 18, { align: 'left' });
+
+                pY += 45;
+            }
         }
 
         // Global Footer (Page Numbers)
@@ -196,5 +481,18 @@ export const quadrantePdfService = {
         }
 
         doc.save(`Quadrante_${encontro.nome.replace(/\s+/g, '_')}.pdf`);
+    },
+
+    /**
+     * Helper to render a consistent section header
+     */
+    renderSectionHeader(doc: jsPDF, title: string) {
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(22);
+        doc.text(title, 20, 25);
+        doc.setDrawColor(37, 99, 235);
+        doc.setLineWidth(1);
+        doc.line(20, 28, 60, 28);
     }
 };

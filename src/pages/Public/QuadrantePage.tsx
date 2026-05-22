@@ -8,7 +8,10 @@ import {
     ScrollText,
     Sun,
     User,
-    Users
+    Users,
+    Mic2,
+    Music,
+    ExternalLink
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -17,6 +20,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { quadranteService, type QuadranteData } from '../../services/quadranteService';
 import { quadrantePdfService } from '../../services/quadrantePdfService';
+import { palestraService } from '../../services/palestraService';
+import type { Palestra } from '../../types/palestra';
+import { quadranteVisibilityDefault, type QuadranteVisibilityConfig } from '../../types/encontro';
 
 // Import Google Fonts
 const fontLink = document.createElement('link');
@@ -28,14 +34,21 @@ interface EncontroInfo {
     id: string;
     nome: string;
     tema: string | null;
-    quadrante_pin: string | null;
     quadrante_ativo: boolean;
+    logo_url: string | null;
+    simbologia_texto: string | null;
+    tematica_texto: string | null;
+    musica: string | null;
+    musica_letra: string | null;
+    link_youtube: string | null;
+    link_musica: string | null;
+    quadrante_visibilidade: QuadranteVisibilityConfig | null;
 }
 
 // --- Sub-componente para Cartões de Participantes ---
 function ParticipantCard({ item, index }: { item: QuadranteData; index: number }) {
     const { theme } = useTheme();
-    
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -69,13 +82,21 @@ export function QuadrantePage() {
     const [data, setData] = useState<QuadranteData[]>([]);
     const [search] = useState('');
     const [encontro, setEncontro] = useState<EncontroInfo | null>(null);
-    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [palestras, setPalestras] = useState<Palestra[]>([]);
+    const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia('(min-width: 1025px)').matches);
     const [scrolled, setScrolled] = useState(false);
     const [activeSection, setActiveSection] = useState<string>('');
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         const handleScroll = () => {
             setScrolled(window.scrollY > 90);
+        };
+
+        const handleResize = () => {
+            if (window.matchMedia('(max-width: 1024px)').matches) {
+                setSidebarOpen(false);
+            }
         };
 
         // Observer para detectar seção ativa
@@ -95,8 +116,11 @@ export function QuadrantePage() {
         });
 
         window.addEventListener('scroll', handleScroll);
+        window.addEventListener('resize', handleResize);
+        handleResize();
         return () => {
             window.removeEventListener('scroll', handleScroll);
+            window.removeEventListener('resize', handleResize);
             observer.disconnect();
         };
     }, []);
@@ -107,30 +131,52 @@ export function QuadrantePage() {
             const pin = sessionStorage.getItem(`q_auth_${token}`);
 
             try {
+                // Verificar se o usuário está logado como admin
+                const { data: { session } } = await supabase.auth.getSession();
+                const isAdmin = !!session;
+                const publicInfo = await quadranteService.obterInfoPublica(token);
+
+                if (!publicInfo) throw new Error('Encontro não encontrado');
+
+                // Bypass Admin: Se estiver logado, ignora as restrições de PIN e Ativo
+                if (!isAdmin) {
+                    if (!publicInfo.quadrante_ativo) {
+                        toast.error('Este Quadrante ainda não foi publicado pelo administrador.', { duration: 5000 });
+                        setLoading(false);
+                        return;
+                    }
+
+                    if (publicInfo.tem_pin && !pin) {
+                        navigate(`/q/${token}`);
+                        return;
+                    }
+                } else if (!publicInfo.quadrante_ativo) {
+                    toast('Modo Visualização (Administrador)', { icon: '🛡️' });
+                }
+
                 const { data: eData } = await supabase
                     .from('encontros')
-                    .select('id, nome, tema, quadrante_pin, quadrante_ativo')
+                    .select('id, nome, tema, quadrante_ativo, logo_url, simbologia_texto, tematica_texto, musica, musica_letra, link_youtube, link_musica, quadrante_visibilidade')
                     .eq('quadrante_token', token)
                     .single();
 
                 if (!eData) throw new Error('Encontro não encontrado');
 
-                if (!eData.quadrante_ativo) {
-                    toast.error('Este Quadrante ainda não foi publicado pelo administrador.', { duration: 5000 });
-                    setEncontro(eData);
-                    setLoading(false);
-                    return;
-                }
+                setEncontro({
+                    ...eData,
+                    quadrante_visibilidade: {
+                        ...quadranteVisibilityDefault,
+                        ...(eData.quadrante_visibilidade || {})
+                    }
+                });
 
-                setEncontro(eData);
+                const [quadranteData, palestrasData] = await Promise.all([
+                    quadranteService.obterDados(token, isAdmin),
+                    palestraService.listarPorEncontro(eData.id)
+                ]);
 
-                if (eData.quadrante_pin && !pin) {
-                    navigate(`/q/${token}`);
-                    return;
-                }
-
-                const quadranteData = await quadranteService.obterDados(token);
                 setData(quadranteData);
+                setPalestras(palestrasData);
             } catch (error) {
                 console.error('Erro ao carregar quadrante:', error);
                 toast.error('Não foi possível carregar os dados.');
@@ -141,6 +187,22 @@ export function QuadrantePage() {
 
         loadQuadrante();
     }, [token, navigate]);
+
+    const handleExportPDF = async () => {
+        if (!encontro) return;
+        setExporting(true);
+        try {
+            await quadrantePdfService.generateYearbook(encontro, data, palestras);
+            toast.success('PDF gerado com sucesso!');
+        } catch (error) {
+            console.error('Erro ao gerar PDF:', error);
+            toast.error('Erro ao gerar o PDF do Quadrante.');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    const visibility = encontro?.quadrante_visibilidade || quadranteVisibilityDefault;
 
     // Organizar dados por seções
     const { encontristasPorCirculo, encontreirosPorEquipe } = useMemo(() => {
@@ -199,27 +261,6 @@ export function QuadrantePage() {
         }
     };
 
-    const [exporting, setExporting] = useState(false);
-
-    const handleExportPDF = async () => {
-        if (!encontro) return;
-        setExporting(true);
-        const loadingToast = toast.loading('Gerando Quadrante PDF...');
-
-        try {
-            await quadrantePdfService.generateYearbook(
-                { id: encontro.id, nome: encontro.nome, tema: encontro.tema },
-                data
-            );
-            toast.success('Quadrante PDF gerado com sucesso!', { id: loadingToast });
-        } catch (error) {
-            console.error('Erro ao gerar PDF:', error);
-            toast.error('Erro ao gerar o PDF. Tente novamente.', { id: loadingToast });
-        } finally {
-            setExporting(false);
-        }
-    };
-
     if (loading) {
         return (
             <div className="loading-screen" style={{
@@ -264,47 +305,59 @@ export function QuadrantePage() {
                         <ArrowLeft size={18} /> Fechar
                     </button>
                 </div>
-
                 <nav className="sidebar-nav">
                     <button onClick={() => scrollToSection('inicio')} className="nav-item">
                         <Home size={18} /> Início
                     </button>
-                    <div className="nav-group">
-                        <button onClick={() => scrollToSection('encontristas')} className="nav-item">
-                            <Users size={18} /> Encontristas
-                        </button>
-                        <div className="sub-menu">
-                            {encontristasPorCirculo.map(([circle]) => (
-                                <button
-                                    key={circle}
-                                    onClick={() => scrollToSection(`circulo-${slugify(circle)}`)}
-                                    className="nav-item sub-item"
-                                >
-                                    {circle}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
 
                     <div className="nav-group">
-                        <button
-                            className="nav-item"
-                            onClick={() => scrollToSection('encontreiros')}
-                        >
-                            <ScrollText size={20} style={{ minWidth: '20px' }} /> Encontreiros
-                        </button>
-                        <div className="sub-menu">
-                            {encontreirosPorEquipe.map(([team]) => (
-                                <button
-                                    key={team}
-                                    onClick={() => scrollToSection(`equipe-${slugify(team)}`)}
-                                    className="nav-item sub-item"
-                                >
-                                    {team}
-                                </button>
-                            ))}
-                        </div>
+                        <div className="nav-item-label" style={{ fontSize: '0.7rem', opacity: 0.5, letterSpacing: '0.1em', fontWeight: 800, padding: '0.5rem 1rem' }}>CONTEÚDO</div>
+                        {visibility.simbologia && (
+                            <button onClick={() => scrollToSection('simbologia')} className="nav-item sub-item">
+                                Simbologia
+                            </button>
+                        )}
+                        {visibility.tematica && (
+                            <button onClick={() => scrollToSection('tematica')} className="nav-item sub-item">
+                                Temática
+                            </button>
+                        )}
+                        {visibility.musica && (
+                            <button onClick={() => scrollToSection('musica')} className="nav-item sub-item">
+                                Música Tema
+                            </button>
+                        )}
                     </div>
+
+                    {visibility.encontristas && (
+                        <div className="nav-group">
+                            <button onClick={() => scrollToSection('encontristas')} className="nav-item">
+                                <Users size={18} /> Encontristas
+                            </button>
+                        </div>
+                    )}
+
+                    {visibility.encontreiros && (
+                        <div className="nav-group">
+                            <button
+                                className="nav-item"
+                                onClick={() => scrollToSection('encontreiros')}
+                            >
+                                <ScrollText size={20} style={{ minWidth: '20px' }} /> Encontreiros
+                            </button>
+                        </div>
+                    )}
+
+                    {visibility.palestras && (
+                        <div className="nav-group">
+                            <button
+                                className="nav-item"
+                                onClick={() => scrollToSection('palestras')}
+                            >
+                                <Mic2 size={20} style={{ minWidth: '20px' }} /> Palestras
+                            </button>
+                        </div>
+                    )}
                 </nav>
 
                 <div className="sidebar-footer">
@@ -352,19 +405,14 @@ export function QuadrantePage() {
                         animate={{ opacity: 1, y: 0 }}
                         className="hero-card"
                     >
-                        <span className="tag">QUADRANTE</span>
-                        <h1>{encontro?.nome}</h1>
+                        {encontro?.logo_url && (
+                            <div className="hero-logo" style={{ marginBottom: '2rem' }}>
+                                <img src={encontro.logo_url} alt="Logo do Encontro" style={{ maxWidth: '180px', maxHeight: '180px', objectFit: 'contain', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.3))' }} />
+                            </div>
+                        )}
+                        <span className="tag">QUADRANTE OFICIAL</span>
+                        <h1 style={{ lineHeight: 1.1 }}>{encontro?.nome}</h1>
                         <p>{encontro?.tema || 'Bem-vindo ao registro visual de nossa jornada.'}</p>
-
-                        {/* <div className="hero-search">
-                            <Search size={20} />
-                            <input
-                                type="text"
-                                placeholder="Quem você está procurando?"
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                            />
-                        </div> */}
 
                         <div className="stats-pills">
                             <div className="pill"><strong>{data.filter(i => i.participante).length}</strong> Encontristas</div>
@@ -373,10 +421,85 @@ export function QuadrantePage() {
                     </motion.div>
                 </section>
 
+                {visibility.simbologia && (
+                    <section id="simbologia" className="content-editorial-section section-band section-band-base section-simbologia" data-section-name="Simbologia">
+                        <div className="editorial-container">
+                            <div className="editorial-visual">
+                                <div className="simbol-logo">
+                                    <img src="/logo-ejc.jpg" alt="Símbolo EJC" onError={(e) => e.currentTarget.src = '/logo-ejc-recriado.png'} />
+                                </div>
+                            </div>
+                            <div className="editorial-content">
+                                <div className="section-header">
+                                    <h2>Simbologia</h2>
+                                    <div className="divider"></div>
+                                </div>
+                                <div className="editorial-text rich-editorial-output" dangerouslySetInnerHTML={{ __html: encontro?.simbologia_texto || '' }} />
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* Temática do Encontro */}
+                {visibility.tematica && (
+                    <section id="tematica" className="content-editorial-section reverse section-band section-band-alt section-tematica" data-section-name="Temática">
+                        <div className="editorial-container">
+                            <div className="editorial-visual">
+                                {encontro?.logo_url ? (
+                                    <img src={encontro.logo_url} alt="Logo Tema" className="theme-logo" />
+                                ) : (
+                                    <div className="logo-stub">EJC</div>
+                                )}
+                            </div>
+                            <div className="editorial-content">
+                                <div className="section-header">
+                                    <h2>{encontro?.tema || 'Temática'}</h2>
+                                    <div className="divider"></div>
+                                </div>
+                                <div
+                                    className="editorial-text rich-editorial-output"
+                                    dangerouslySetInnerHTML={{ __html: encontro?.tematica_texto || '<p>As referências e inspirações que deram vida ao tema deste encontro.</p>' }}
+                                />
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* Música Tema */}
+                {visibility.musica && (
+                    <section id="musica" className="content-music-section section-band section-band-strong" data-section-name="Música">
+                        <div className="music-container">
+                            <div className="music-header">
+                                <Music size={40} className="music-icon" />
+                                <h2>Música Tema</h2>
+                                {encontro?.musica && <h3>{encontro.musica}</h3>}
+                                <div className="music-links">
+                                    {encontro?.link_musica && (
+                                        <a href={encontro.link_musica} target="_blank" rel="noopener noreferrer" className="music-link-btn">
+                                            <Music size={16} /> Ouvir Música
+                                        </a>
+                                    )}
+                                    {encontro?.link_youtube && (
+                                        <a href={encontro.link_youtube} target="_blank" rel="noopener noreferrer" className="music-link-btn yt">
+                                            <ExternalLink size={16} /> Vídeo no YouTube
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="lyrics-wrapper">
+                                <div
+                                    className="lyrics-content rich-editorial-output"
+                                    dangerouslySetInnerHTML={{ __html: encontro?.musica_letra || '<p class="opacity-50 italic">Letra da música não cadastrada.</p>' }}
+                                />
+                            </div>
+                        </div>
+                    </section>
+                )}
+
                 {/* Encontristas Sections grouped by Circle */}
-                <div id="encontristas" style={{ paddingBottom: '1px' }}></div>
-                {encontristasPorCirculo.map(([circle, members]) => (
-                    <section key={circle} id={`circulo-${slugify(circle)}`} className="content-section" data-section-name={circle}>
+                {visibility.encontristas && <div id="encontristas" style={{ paddingBottom: '1px' }}></div>}
+                {visibility.encontristas && encontristasPorCirculo.map(([circle, members], sectionIndex) => (
+                    <section key={circle} id={`circulo-${slugify(circle)}`} className={`content-section section-band ${sectionIndex % 2 === 0 ? 'section-band-base' : 'section-band-alt'}`} data-section-name={circle}>
                         <div className="section-header">
                             <h2><Users size={24} /> {circle}</h2>
                             <div className="divider"></div>
@@ -391,17 +514,17 @@ export function QuadrantePage() {
                 ))}
 
                 {/* Encontreiros Sections (Team Layout 50/50) */}
-                <div id="encontreiros" style={{ paddingBottom: '1px' }}></div>
-                {encontreirosPorEquipe.map(([team, members]) => (
-                    <section key={team} id={`equipe-${slugify(team)}`} className="content-team-section" data-section-name={team}>
+                {visibility.encontreiros && <div id="encontreiros" style={{ paddingBottom: '1px' }}></div>}
+                {visibility.encontreiros && encontreirosPorEquipe.map(([team, members], sectionIndex) => (
+                    <section key={team} id={`equipe-${slugify(team)}`} className={`content-team-section section-band ${sectionIndex % 2 === 0 ? 'section-band-alt' : 'section-band-base'}`} data-section-name={team}>
                         <div className="team-layout">
                             <div className="team-visual">
                                 <div className="team-photo-container">
                                     {members[0]?.equipes?.foto_url ? (
-                                        <img 
-                                            src={members[0].equipes.foto_url} 
-                                            alt={team} 
-                                            loading="lazy" 
+                                        <img
+                                            src={members[0].equipes.foto_url}
+                                            alt={team}
+                                            loading="lazy"
                                             style={{ objectPosition: `center ${members[0].equipes.foto_posicao_y ?? 50}%` }}
                                         />
                                     ) : (
@@ -435,6 +558,49 @@ export function QuadrantePage() {
                     </section>
                 ))}
 
+                {/* Palestras Section — MOVED INSIDE main */}
+                {visibility.palestras && <section id="palestras" className="content-palestras-section section-band section-band-base" data-section-name="Palestras">
+                    <div className="section-header center">
+                        <Mic2 size={32} />
+                        <h2>Palestras do Encontro</h2>
+                        <div className="divider mx-auto"></div>
+                    </div>
+
+                    <div className="palestras-grid">
+                        {palestras.map((p, pIdx) => (
+                            <motion.div
+                                key={p.id}
+                                className="palestra-card"
+                                initial={{ opacity: 0, y: 30 }}
+                                whileInView={{ opacity: 1, y: 0 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: pIdx * 0.1 }}
+                            >
+                                <div className="palestra-speaker">
+                                    <div className="speaker-avatar">
+                                        {p.palestrante_foto_url ? (
+                                            <img src={p.palestrante_foto_url} alt={p.palestrante_nome || ''} />
+                                        ) : (
+                                            <User size={40} />
+                                        )}
+                                    </div>
+                                    <div className="speaker-info">
+                                        <h3>{p.titulo}</h3>
+                                        <span className="p-nome">{p.palestrante_nome}</span>
+                                    </div>
+                                </div>
+                                <div
+                                    className="palestra-body rich-editorial-output"
+                                    dangerouslySetInnerHTML={{ __html: p.resumo || '<p>Resumo não disponível para esta palestra.</p>' }}
+                                />
+                            </motion.div>
+                        ))}
+                    </div>
+                    {palestras.length === 0 && (
+                        <div className="opacity-40 text-center py-10">Nenhuma palestra registrada para este encontro.</div>
+                    )}
+                </section>}
+
                 <footer className="spa-footer">
                     <p>© {new Date().getFullYear()} EJC • Capelinha</p>
                 </footer>
@@ -462,6 +628,8 @@ export function QuadrantePage() {
                     --border-color: #e2e8f0;
                     --primary-color: #2563eb;
                     --hero-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+                    --section-base-bg: #f8fafc;
+                    --section-alt-bg: #eef4ff;
                     --glass-bg: rgba(255, 255, 255, 0.7);
                     --glass-border: rgba(255, 255, 255, 0.4);
                     --font-main: 'Outfit', sans-serif;
@@ -475,6 +643,8 @@ export function QuadrantePage() {
                     --border-color: #1e293b;
                     --primary-color: #3b82f6;
                     --hero-gradient: linear-gradient(135deg, #0f172a 0%, #020617 100%);
+                    --section-base-bg: #020617;
+                    --section-alt-bg: #07111f;
                     --glass-bg: rgba(15, 23, 42, 0.7);
                     --glass-border: rgba(255, 255, 255, 0.05);
                 }
@@ -489,6 +659,27 @@ export function QuadrantePage() {
                     background: var(--bg-color);
                     color: var(--text-color);
                     transition: all 0.3s ease;
+                }
+
+                .section-band {
+                    --section-bg: var(--section-base-bg);
+                    background: var(--section-bg);
+                    box-shadow: 0 0 0 100vmax var(--section-bg);
+                    clip-path: inset(0 -100vmax);
+                }
+
+                .section-band-base {
+                    --section-bg: var(--section-base-bg);
+                }
+
+                .section-band-alt {
+                    --section-bg: var(--section-alt-bg);
+                }
+
+                .section-band-strong {
+                    --section-bg: var(--hero-gradient);
+                    background: var(--hero-gradient);
+                    box-shadow: none;
                 }
 
                 /* Sidebar Styles */
@@ -663,9 +854,23 @@ export function QuadrantePage() {
                     flex: 1;
                     margin-left: 0;
                     padding: 0;
-                    padding-top: 64px; /* Adicionado padding para o header colapsado */
+                    padding-top: 64px;
                     scroll-behavior: smooth;
                     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+
+                /* Desktop: sidebar visible by default, push content */
+                @media (min-width: 1025px) {
+                    .spa-sidebar {
+                        transform: translateX(0) !important;
+                    }
+                    .spa-main-content {
+                        margin-left: 280px;
+                        padding-top: 0;
+                    }
+                    .mobile-header {
+                        left: 280px;
+                    }
                 }
 
                 .spa-main-content.sidebar-open {
@@ -726,6 +931,293 @@ export function QuadrantePage() {
                     letter-spacing: 0.1em;
                     margin-bottom: 1.5rem;
                     display: inline-block;
+                }
+
+                .hero-card h1 {
+                    font-size: clamp(2.2rem, 6vw, 4rem);
+                    margin: 0 0 1rem;
+                    color: white;
+                    font-weight: 800;
+                    letter-spacing: -0.02em;
+                }
+
+                .hero-logo img {
+                    animation: float-logo 4s ease-in-out infinite;
+                }
+
+                @keyframes float-logo {
+                    0%, 100% { transform: translateY(0); }
+                    50% { transform: translateY(-10px); }
+                }
+
+                /* Editorial Sections */
+                .content-editorial-section {
+                    padding: 4.25rem 8%;
+                    display: flex;
+                    justify-content: center;
+                }
+
+                .editorial-container {
+                    max-width: 1080px;
+                    display: grid;
+                    grid-template-columns: 1fr 1.5fr;
+                    gap: 3rem;
+                    align-items: center;
+                }
+
+                .content-editorial-section.reverse .editorial-container {
+                    grid-template-columns: 1.5fr 1fr;
+                }
+
+                .content-editorial-section.reverse .editorial-visual {
+                    order: 2;
+                }
+
+                .editorial-visual {
+                    display: flex;
+                    justify-content: center;
+                }
+
+                .simbol-logo img, .theme-logo {
+                    max-width: 100%;
+                    max-height: 320px;
+                    object-fit: contain;
+                    border-radius: 28px;
+                    box-shadow:
+                        0 22px 55px rgba(15, 23, 42, 0.16),
+                        0 0 0 1px rgba(148, 163, 184, 0.18);
+                }
+
+                .dark-mode .simbol-logo img,
+                .dark-mode .theme-logo {
+                    box-shadow:
+                        0 22px 55px rgba(255, 255, 255, 0.12),
+                        0 0 0 1px rgba(255, 255, 255, 0.18),
+                        0 0 32px rgba(59, 130, 246, 0.12);
+                }
+
+                .editorial-text {
+                    font-size: 1rem;
+                    line-height: 1.58;
+                    opacity: 0.85;
+                    color: var(--text-color);
+                }
+
+                .editorial-text p {
+                    margin-bottom: 0.85rem;
+                }
+
+                .rich-editorial-output ul,
+                .rich-editorial-output ol {
+                    margin: 1rem 0 1rem 1.5rem;
+                    padding-left: 1.25rem;
+                    text-align: left;
+                }
+
+                .rich-editorial-output ul {
+                    list-style: disc;
+                }
+
+                .rich-editorial-output ol {
+                    list-style: decimal;
+                }
+
+                .rich-editorial-output li {
+                    margin-bottom: 0.25rem;
+                }
+
+                .rich-editorial-output strong {
+                    font-weight: 800;
+                }
+
+                .rich-editorial-output em {
+                    font-style: italic;
+                }
+
+                /* Music Section */
+                .content-music-section {
+                    background: var(--hero-gradient);
+                    color: white;
+                    padding: 4.25rem 8%;
+                    text-align: center;
+                }
+
+                .music-container {
+                    max-width: 720px;
+                    margin: 0 auto;
+                }
+
+                .music-header h2 {
+                    font-size: 2rem;
+                    margin: 0.75rem 0 1.35rem;
+                }
+
+                .music-title-name {
+                    margin: -0.8rem 0 1.35rem;
+                    font-size: 1.05rem;
+                    font-weight: 700;
+                    letter-spacing: 0.01em;
+                    opacity: 0.88;
+                }
+
+                .music-icon {
+                    opacity: 0.3;
+                    margin-bottom: 0.5rem;
+                }
+
+                .music-links {
+                    display: flex;
+                    gap: 1rem;
+                    justify-content: center;
+                    margin-bottom: 2rem;
+                }
+
+                .music-link-btn {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.6rem;
+                    padding: 0.8rem 1.5rem;
+                    background: rgba(255,255,255,0.1);
+                    border: 1px solid rgba(255,255,255,0.2);
+                    border-radius: 100px;
+                    color: white;
+                    text-decoration: none;
+                    font-size: 0.9rem;
+                    font-weight: 600;
+                    transition: 0.3s;
+                }
+
+                .music-link-btn:hover {
+                    background: white;
+                    color: #0f172a;
+                }
+
+                .lyrics-wrapper {
+                    background: rgba(0,0,0,0.2);
+                    padding: 2.25rem 1.75rem;
+                    border-radius: 28px;
+                    border: 1px solid rgba(255,255,255,0.05);
+                }
+
+                .lyrics-content {
+                    font-size: 1.02rem;
+                    line-height: 1.45;
+                    font-style: italic;
+                    opacity: 0.9;
+                }
+
+                .lyrics-content p {
+                    margin-bottom: 0.25rem;
+                }
+
+                /* Palestras Section */
+                .content-palestras-section {
+                    padding: 4.25rem 8%;
+                    max-width: 1080px;
+                    margin: 0 auto;
+                }
+
+                .palestras-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+                    gap: 1.4rem;
+                    margin-top: 2.5rem;
+                }
+
+                .palestra-card {
+                    background: var(--card-bg);
+                    border: 1px solid var(--border-color);
+                    border-radius: 24px;
+                    padding: 1.5rem;
+                    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+                    transition: 0.3s;
+                }
+
+                .palestra-card:hover {
+                    transform: translateY(-5px);
+                    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+                    border-color: var(--primary-color)40;
+                }
+
+                .palestra-speaker {
+                    display: flex;
+                    align-items: center;
+                    gap: 1.25rem;
+                    margin-bottom: 1rem;
+                }
+
+                .speaker-avatar {
+                    width: 58px;
+                    height: 58px;
+                    border-radius: 20px;
+                    overflow: hidden;
+                    background: var(--primary-color)10;
+                    color: var(--primary-color);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border: 1px solid var(--border-color);
+                }
+
+                .speaker-avatar img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
+
+                .speaker-info h3 {
+                    font-size: 1.05rem;
+                    margin: 0;
+                }
+
+                .speaker-info .p-nome {
+                    font-size: 0.9rem;
+                    opacity: 0.6;
+                    font-weight: 500;
+                }
+
+                .palestra-body p,
+                .palestra-body li {
+                    line-height: 1.48;
+                    opacity: 0.8;
+                    font-size: 0.94rem;
+                }
+
+                @media (max-width: 1024px) {
+                    .editorial-container {
+                        grid-template-columns: 1fr;
+                        gap: 1.5rem;
+                        text-align: center;
+                        max-width: 760px;
+                    }
+                    .content-editorial-section.reverse .editorial-container {
+                        grid-template-columns: 1fr;
+                    }
+                    .content-editorial-section.reverse .editorial-visual {
+                        order: -1;
+                    }
+                    .palestras-grid {
+                        grid-template-columns: 1fr;
+                    }
+
+                    .content-editorial-section,
+                    .content-music-section,
+                    .content-palestras-section {
+                        padding-top: 3rem;
+                        padding-bottom: 3rem;
+                    }
+
+                    .simbol-logo img,
+                    .theme-logo {
+                        max-height: 240px;
+                    }
+                }
+
+                .section-header.center {
+                    text-align: center;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
                 }
 
                 .hero-card h1 {
@@ -1215,7 +1707,105 @@ export function QuadrantePage() {
                     .sidebar-overlay { display: block; }
                 }
 
-                @media (max-width: 640px) {
+                @media (max-width: 768px) {
+                    .quadrante-spa-container {
+                        font-size: 0.9rem;
+                    }
+
+                    .hero-card h1 {
+                        font-size: clamp(1.75rem, 9vw, 2.35rem);
+                    }
+
+                    .hero-card p {
+                        font-size: 1.15rem;
+                        margin-bottom: 1.75rem;
+                    }
+
+                    .section-header h2,
+                    .music-header h2 {
+                        font-size: 1.22rem;
+                    }
+
+                    .editorial-text,
+                    .lyrics-content,
+                    .palestra-body p,
+                    .palestra-body li {
+                        font-size: 0.88rem;
+                        line-height: 1.42;
+                    }
+
+                    .editorial-text p {
+                        margin-bottom: 0.65rem;
+                    }
+
+                    .speaker-info h3,
+                    .list-header h3 {
+                        font-size: 1.08rem;
+                    }
+
+                    .content-editorial-section,
+                    .content-music-section,
+                    .content-section,
+                    .content-team-section,
+                    .content-palestras-section {
+                        padding-left: 1rem;
+                        padding-right: 1rem;
+                    }
+
+                    .content-editorial-section,
+                    .content-music-section,
+                    .content-palestras-section {
+                        padding-top: 2rem;
+                        padding-bottom: 2rem;
+                    }
+
+                    .editorial-container {
+                        gap: 1rem;
+                    }
+
+                    .simbol-logo img,
+                    .theme-logo {
+                        max-height: 150px;
+                    }
+
+                    .music-icon {
+                        width: 28px;
+                        height: 28px;
+                    }
+
+                    .music-links {
+                        margin-bottom: 1.25rem;
+                        flex-direction: column;
+                        align-items: stretch;
+                        gap: 0.6rem;
+                    }
+
+                    .music-link-btn {
+                        justify-content: center;
+                        padding: 0.65rem 1rem;
+                    }
+
+                    .lyrics-wrapper {
+                        padding: 1.2rem 1rem;
+                        border-radius: 18px;
+                    }
+
+                    .palestras-grid {
+                        margin-top: 1.5rem;
+                        gap: 1rem;
+                    }
+
+                    .palestra-card {
+                        padding: 1rem;
+                        border-radius: 18px;
+                    }
+
+                    .speaker-avatar {
+                        width: 48px;
+                        height: 48px;
+                        border-radius: 14px;
+                    }
+
                     .quadrante-grid {
                         grid-template-columns: repeat(2, 1fr);
                         gap: 1rem;

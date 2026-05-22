@@ -1,5 +1,6 @@
 import { Calendar, Check, Copy, Info, LinkIcon, Loader, Plus, QrCode, Shirt, Tag, X, FileText, Download } from 'lucide-react';
 import React, { useState } from 'react';
+import { supabase } from '../../lib/supabase';
 import type { Encontro, EncontroFormData } from '../../types/encontro';
 import { FormField } from '../ui/FormField';
 import { CurrencyFormField } from '../ui/CurrencyFormField';
@@ -120,25 +121,10 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginBottom: '2.5rem' }}>
                 <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>{title}</h2>
 
-                <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '1.25rem',
-                    width: '100%',
-                    backgroundColor: 'var(--surface-2)',
-                    padding: '1.25rem',
-                    borderRadius: '16px',
-                    border: '1px solid var(--border-color)',
-                }}>
+                <div className="encontro-toggle-panel">
                     {/* Toggle: Ativo */}
-                    <div style={{
-                        flex: '1 1 280px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '1rem'
-                    }}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div className="encontro-toggle-card">
+                        <div className="encontro-toggle-copy">
                             <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Encontro Ativo</span>
                             <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Status principal do sistema</span>
                         </div>
@@ -164,20 +150,14 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                     <div style={{ width: '1px', height: '40px', backgroundColor: 'var(--border-color)', opacity: 0.5 }} className="desktop-only" />
 
                     {/* Toggle: Form Público */}
-                    <div style={{
-                        flex: '1 1 280px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '1rem'
-                    }}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <div className="encontro-toggle-card">
+                        <div className="encontro-toggle-copy">
                             <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>Liberar Formulários</span>
                             <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Recepção e Recreação</span>
                             {initialData && initialData.formulario_publico_ativo && (
-                                <div className="encontro-detail-item" style={{ marginTop: '0.4rem', gap: '0.5rem' }}>
+                                <div className="encontro-detail-item encontro-form-link-copy">
                                     <LinkIcon size={12} className="icon-dim" />
-                                    <span style={{ fontSize: '0.75rem', opacity: 0.8, fontWeight: 500 }}>Link Formulários Recepção e Recreação</span>
+                                    <span>Link Formulários Recepção e Recreação</span>
                                     <div className="musica-actions">
                                         <button
                                             type="button"
@@ -214,7 +194,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
 
 
             <FormSection title="Dados Básicos" icon={<Info size={18} />} columns={0}>
-                <FormRow>
+                <FormRow className="encontro-basic-row">
                     <FormField
                         label="Nome do Encontro"
                         name="nome"
@@ -340,12 +320,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
             </FormSection>
 
             <FormSection title="Informações de Pagamento" icon={<Info size={18} />} columns={0}>
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
-                    gap: '1.5rem',
-                    marginTop: '0.5rem'
-                }}>
+                <div className="payment-config-grid">
                     {/* Painel Taxas */}
                     <div className="payment-config-card">
                         <div className="payment-card-header">
@@ -439,7 +414,6 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                                                 const file = e.target.files?.[0]; if (!file) return;
                                                 setIsSubmitting(true);
                                                 try {
-                                                    const { supabase } = await import('../../lib/supabase');
                                                     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
                                                     const filePath = `taxas_${Date.now()}_${sanitizedName}`;
                                                     const { error } = await supabase.storage.from('financeiro').upload(filePath, file);
@@ -551,7 +525,6 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                                                 const file = e.target.files?.[0]; if (!file) return;
                                                 setIsSubmitting(true);
                                                 try {
-                                                    const { supabase } = await import('../../lib/supabase');
                                                     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
                                                     const filePath = `camisetas_${Date.now()}_${sanitizedName}`;
                                                     const { error } = await supabase.storage.from('financeiro').upload(filePath, file);
@@ -574,7 +547,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
 
 
 
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+            <div className="encontro-form-actions">
                 <button type="button" className="btn-cancel" onClick={onCancel} disabled={isLoading}>
                     <X size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
                     Cancelar
@@ -588,7 +561,73 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                 </button>
             </div>
             <style>{`
-                .payment-config-card { background: var(--surface-1); border: 1px solid var(--border-color); border-radius: 16px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; transition: all 0.2s ease; }
+                .payment-config-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+                    gap: 1.25rem;
+                    margin-top: 0.5rem;
+                }
+
+                .encontro-basic-row {
+                    grid-template-columns: minmax(0, 6fr) minmax(96px, 2fr) minmax(120px, 2fr) minmax(110px, 2fr);
+                }
+
+                .encontro-basic-row > .form-group {
+                    grid-column: auto !important;
+                }
+
+                .encontro-form-actions {
+                    display: flex;
+                    gap: 1rem;
+                    justify-content: flex-end;
+                    margin-top: 0.5rem;
+                    flex-wrap: wrap;
+                }
+
+                .encontro-toggle-panel {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 1.25rem;
+                    width: 100%;
+                    background: transparent;
+                    padding: 1.25rem;
+                    border-radius: 16px;
+                    border: 1px solid rgba(148, 163, 184, 0.28);
+                    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+                }
+
+                .encontro-toggle-card {
+                    flex: 1 1 280px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 1rem;
+                    min-width: 0;
+                }
+
+                .encontro-toggle-copy {
+                    display: flex;
+                    flex-direction: column;
+                    min-width: 0;
+                }
+
+                .encontro-form-link-copy {
+                    margin-top: 0.4rem;
+                    gap: 0.5rem;
+                    min-width: 0;
+                }
+
+                .encontro-form-link-copy span {
+                    min-width: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    font-size: 0.75rem;
+                    opacity: 0.8;
+                    font-weight: 500;
+                }
+
+                .payment-config-card { background: transparent; border: 1px solid rgba(148, 163, 184, 0.28); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12); border-radius: 16px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; transition: all 0.2s ease; }
                 .payment-config-card:hover { border-color: var(--primary-color); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
                 .payment-card-header { display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 0.25rem; }
                 .payment-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
@@ -621,6 +660,94 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                 @keyframes check-pop {
                     0% { transform: scale(0.5) rotate(-20deg); opacity: 0; }
                     100% { transform: scale(1) rotate(0); opacity: 1; }
+                }
+
+                @media (max-width: 980px) and (min-width: 769px) {
+                    .encontro-basic-row {
+                        grid-template-columns: repeat(6, minmax(0, 1fr));
+                    }
+
+                    .encontro-basic-row > .form-group {
+                        grid-column: span 3 / span 3;
+                    }
+                }
+
+                @media (max-width: 640px) {
+                    .encontro-toggle-panel {
+                        padding: 0;
+                        gap: 0.85rem;
+                        background: transparent;
+                        border: none;
+                        border-radius: 0;
+                    }
+
+                    .encontro-toggle-card {
+                        flex: 1 1 100%;
+                        align-items: stretch;
+                        flex-direction: column;
+                        gap: 0.75rem;
+                        padding: 1rem;
+                        background: transparent;
+                        border: 1px solid rgba(148, 163, 184, 0.22);
+                        border-radius: 12px;
+                    }
+
+                    .encontro-toggle-card .toggle-sim-nao {
+                        width: 100%;
+                        min-width: 0;
+                    }
+
+                    .encontro-toggle-card .toggle-sim-nao-item {
+                        min-width: 0;
+                    }
+
+                    .encontro-form-link-copy {
+                        display: grid;
+                        grid-template-columns: auto minmax(0, 1fr) auto;
+                        align-items: center;
+                        width: 100%;
+                    }
+
+                    .payment-config-card {
+                        padding: 1rem;
+                    }
+
+                    .form-row-compact {
+                        flex-direction: column;
+                    }
+
+                    .form-row-compact .form-group {
+                        width: 100%;
+                        flex-basis: auto !important;
+                    }
+
+                    .qrcode-upload-container {
+                        flex-direction: column;
+                        align-items: stretch;
+                        gap: 1rem;
+                    }
+
+                    .qrcode-preview {
+                        align-self: center;
+                    }
+
+                    .qrcode-actions {
+                        align-items: stretch;
+                    }
+
+                    .qr-upload-label,
+                    .qrcode-actions button {
+                        justify-content: center;
+                        width: 100%;
+                    }
+
+                    .encontro-form-actions {
+                        flex-direction: column-reverse;
+                    }
+
+                    .encontro-form-actions button {
+                        width: 100%;
+                    }
                 }
             `}</style>
         </form>

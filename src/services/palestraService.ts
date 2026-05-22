@@ -7,18 +7,21 @@ export const palestraService = {
     async listarPorEncontro(encontroId: string): Promise<Palestra[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('*')
+            .select('*, pessoas(*)')
             .eq('encontro_id', encontroId)
             .order('ordem', { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+            console.error('Erro ao buscar palestras:', error);
+            throw error;
+        }
         return data as Palestra[];
     },
 
     async buscarPorId(id: string): Promise<Palestra | null> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('*')
+            .select('*, pessoas(*)')
             .eq('id', id)
             .single();
 
@@ -54,6 +57,14 @@ export const palestraService = {
             .from(TABLE)
             .delete()
             .eq('id', id);
+
+        if (error) throw error;
+    },
+
+    async atualizarOrdem(palestras: { id: string, ordem: number }[]): Promise<void> {
+        const { error } = await supabase
+            .from(TABLE)
+            .upsert(palestras);
 
         if (error) throw error;
     },
