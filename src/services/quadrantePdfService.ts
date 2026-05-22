@@ -409,42 +409,43 @@ export const quadrantePdfService = {
             for (const [teamName, members] of sortedTeams) {
                 doc.addPage();
                 doc.setFillColor(...this.colors.navy);
-            doc.roundedRect(margin, 20, contentWidth, 36, 3, 3, 'F');
-            doc.setTextColor(...this.colors.white);
-            doc.setFontSize(18);
-            doc.setFont('helvetica', 'bold');
-            doc.text(teamName.toUpperCase(), margin + 10, 43);
+                doc.roundedRect(margin, 20, contentWidth, 36, 3, 3, 'F');
+                doc.setTextColor(...this.colors.white);
+                doc.setFontSize(18);
+                doc.setFont('helvetica', 'bold');
+                doc.text(teamName.toUpperCase(), margin + 10, 43);
 
-            let listStartY = 66;
-            const teamPhotoUrl = members[0]?.equipes?.foto_url;
-            if (teamPhotoUrl) {
-                const imgHeight = 58;
-                const added = await this.addPreparedImage(doc, teamPhotoUrl, margin, 66, contentWidth, imgHeight, {
-                    fit: 'cover',
-                    fallbackLabel: teamName
-                });
-                if (added) {
-                    listStartY = 66 + imgHeight + 10;
+                let listStartY = 66;
+                const teamPhotoUrl = members[0]?.equipes?.foto_url;
+                if (teamPhotoUrl) {
+                    const imgHeight = 58;
+                    const added = await this.addPreparedImage(doc, teamPhotoUrl, margin, 66, contentWidth, imgHeight, {
+                        fit: 'cover',
+                        fallbackLabel: teamName
+                    });
+                    if (added) {
+                        listStartY = 66 + imgHeight + 10;
+                    }
                 }
+
+                doc.setTextColor(...this.colors.navy);
+                doc.setFontSize(12);
+                doc.text('Composição da Equipe:', margin, listStartY);
+
+                const tableRows = members
+                    .sort((a, b) => a.pessoas.nome_completo.localeCompare(b.pessoas.nome_completo))
+                    .map((m, idx) => [(idx + 1).toString().padStart(2, '0'), m.pessoas.nome_completo]);
+
+                autoTable(doc, {
+                    head: [['#', 'Nome Completo']],
+                    body: tableRows,
+                    startY: listStartY + 5,
+                    styles: { fontSize: 9, cellPadding: 2.3, lineColor: this.colors.line },
+                    alternateRowStyles: { fillColor: this.colors.soft },
+                    headStyles: { fillColor: this.colors.navy },
+                    margin: { left: margin, right: margin }
+                });
             }
-
-            doc.setTextColor(...this.colors.navy);
-            doc.setFontSize(12);
-            doc.text('Composição da Equipe:', margin, listStartY);
-
-            const tableRows = members
-                .sort((a, b) => a.pessoas.nome_completo.localeCompare(b.pessoas.nome_completo))
-                .map((m, idx) => [(idx + 1).toString().padStart(2, '0'), m.pessoas.nome_completo]);
-
-            autoTable(doc, {
-                head: [['#', 'Nome Completo']],
-                body: tableRows,
-                startY: listStartY + 5,
-                styles: { fontSize: 9, cellPadding: 2.3, lineColor: this.colors.line },
-                alternateRowStyles: { fillColor: this.colors.soft },
-                headStyles: { fillColor: this.colors.navy },
-                margin: { left: margin, right: margin }
-            });
         }
 
         // --- 7. PALESTRAS ---
