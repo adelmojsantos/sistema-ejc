@@ -46,4 +46,25 @@ export const circuloService = {
 
         if (error) throw error;
     },
+
+    async uploadImagem(file: File): Promise<string> {
+        const extension = file.name.split('.').pop() || 'jpg';
+        const randomId = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
+        const filePath = `fotos/circulos/circulo_${randomId}_${Date.now()}.${extension}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('galeria')
+            .upload(filePath, file, {
+                cacheControl: '3600',
+                upsert: false,
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+            .from('galeria')
+            .getPublicUrl(filePath);
+
+        return data.publicUrl;
+    },
 };

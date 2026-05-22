@@ -6,7 +6,7 @@ import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car } from 'lucide-react';
+import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car, Camera, SlidersHorizontal, Image as ImageIcon, Upload, Settings2, Minus, Plus as PlusIcon } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
@@ -51,6 +51,12 @@ export function SecretariaParticipantesPage() {
   const [geoProgressItems, setGeoProgressItems] = useState<GeoProgressItem[]>([]);
   const [geoDone, setGeoDone] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; nome: string } | null>(null);
+  const [photoActionsParticipant, setPhotoActionsParticipant] = useState<InscricaoEnriched | null>(null);
+  const [adjustingPhotoId, setAdjustingPhotoId] = useState<string | null>(null);
+  const [tempPhotoPosition, setTempPhotoPosition] = useState(50);
+  const photoActionsInputRef = useRef<HTMLInputElement>(null);
   const progressListRef = useRef<HTMLDivElement>(null);
 
   // Seleciona encontro ativo automaticamente quando o contexto carregar
@@ -218,11 +224,85 @@ export function SecretariaParticipantesPage() {
     }
   };
 
+  const updateParticipantPhotoState = (participacaoId: string, updates: Partial<InscricaoEnriched>) => {
+    setParticipantes((prev) => prev.map((p) => (p.id === participacaoId ? { ...p, ...updates } : p)));
+  };
+
+  const handlePhotoUpload = async (participante: InscricaoEnriched, file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione um arquivo de imagem válido.');
+      return;
+    }
+
+    setUploadingPhotoId(participante.id);
+    const loadingToast = toast.loading('Enviando foto do participante...');
+
+    try {
+      const fotoUrl = await inscricaoService.uploadFotoParticipante(participante.id, file);
+      await inscricaoService.atualizarFotoParticipante(participante.id, fotoUrl);
+      updateParticipantPhotoState(participante.id, { foto_url: fotoUrl, foto_posicao_y: 50 });
+      toast.success('Foto do participante atualizada!', { id: loadingToast });
+    } catch (error) {
+      console.error('Erro ao enviar foto do participante:', error);
+      toast.error('Erro ao enviar a foto.', { id: loadingToast });
+    } finally {
+      setUploadingPhotoId(null);
+    }
+  };
+
+  const handleStartPhotoAdjustment = (participante: InscricaoEnriched) => {
+    setAdjustingPhotoId(participante.id);
+    setTempPhotoPosition(participante.foto_posicao_y ?? 50);
+  };
+
+  const handleSavePhotoAdjustment = async (participante: InscricaoEnriched) => {
+    try {
+      await inscricaoService.atualizarPosicaoFotoParticipante(participante.id, tempPhotoPosition);
+      updateParticipantPhotoState(participante.id, { foto_posicao_y: tempPhotoPosition });
+      setPhotoActionsParticipant((current) => current?.id === participante.id ? { ...current, foto_posicao_y: tempPhotoPosition } : current);
+      setAdjustingPhotoId(null);
+      toast.success('Enquadramento salvo!');
+    } catch (error) {
+      console.error('Erro ao salvar enquadramento:', error);
+      toast.error('Erro ao salvar ajuste.');
+    }
+  };
+
+  const handlePhotoActionsUpload = (file: File) => {
+    if (!photoActionsParticipant) return;
+    handlePhotoUpload(photoActionsParticipant, file);
+  };
+
+  const nudgePhotoPosition = (delta: number) => {
+    setTempPhotoPosition((current) => Math.min(100, Math.max(0, current + delta)));
+  };
+
+  const handleDownloadPhoto = async (url: string, nome: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Falha ao baixar imagem');
+      const blob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `foto_${nome.toLowerCase().replace(/[^a-z0-9]+/gi, '_') || 'participante'}.${blob.type.split('/')[1] || 'jpg'}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error('Erro ao baixar foto:', error);
+      toast.error('Erro ao baixar foto.');
+    }
+  };
+
   const getExportData = () => {
     return filteredParticipantes.map((p, idx) => {
       const pData = p.pessoas;
       const origem = p.origem || pData?.origem || '—';
       const origemTexto = origem === 'online' ? 'Online' : (origem !== '—' ? 'Presencial' : '—');
+      const duplaVisitante = p.visita_participacao?.find((v) => !v.visitante)?.visita_grupos?.nome || '—';
+      const circuloVinculado = p.circulo_participacao?.[0]?.circulos?.nome || '—';
       
       return {
         '#': idx + 1,
@@ -237,6 +317,8 @@ export function SecretariaParticipantesPage() {
         'Estado': pData?.estado || '—',
         'CEP': pData?.cep || '—',
         'Comunidade': pData?.comunidade || '—',
+        'Dupla Visitante': duplaVisitante,
+        'Círculo': circuloVinculado,
         'Origem': origemTexto,
         'Veículo': p.recepcao_dados ? `${p.recepcao_dados.veiculo_tipo === 'moto' ? 'Moto' : 'Carro'} - ${p.recepcao_dados.veiculo_modelo} (${p.recepcao_dados.veiculo_placa})` : '—',
       };
@@ -253,7 +335,7 @@ export function SecretariaParticipantesPage() {
       doc.text(`Participantes: ${selectedEncontro?.nome || 'Encontro'}`, 14, 18);
       
       autoTable(doc, {
-        head: [['#', 'Nome', 'Nasc.', 'Idade', 'Telefone', 'Endereço', 'Bairro', 'Cidade', 'Origem', 'Veículo']],
+        head: [['#', 'Nome', 'Nasc.', 'Idade', 'Telefone', 'Endereço', 'Bairro', 'Cidade', 'Dupla', 'Círculo', 'Veículo']],
         body: data.map(d => [
           d['#'], 
           d['Nome Completo'], 
@@ -263,7 +345,8 @@ export function SecretariaParticipantesPage() {
           `${d['Logradouro']}${d['Número'] !== '—' ? `, ${d['Número']}` : ''}`, 
           d['Bairro'], 
           d['Cidade'],
-          d['Origem'],
+          d['Dupla Visitante'],
+          d['Círculo'],
           d['Veículo'],
         ]),
         startY: 25,
@@ -539,24 +622,57 @@ export function SecretariaParticipantesPage() {
                     ? `${p.pessoas.endereco}${p.pessoas.numero ? `, ${p.pessoas.numero}` : ''}`
                     : 'Endereço não informado';
                   const localidade = [p.pessoas?.bairro, p.pessoas?.cidade].filter(Boolean).join(' - ') || 'Bairro/Cidade não informados';
+                  const nomeParticipante = p.pessoas?.nome_completo || 'Nome não informado';
+                  const duplaVisitante = p.visita_participacao?.find((v) => !v.visitante)?.visita_grupos?.nome;
+                  const circuloVinculado = p.circulo_participacao?.[0]?.circulos?.nome;
+                  const isAdjustingPhoto = adjustingPhotoId === p.id;
+                  const photoPosition = isAdjustingPhoto ? tempPhotoPosition : (p.foto_posicao_y ?? 50);
 
                   return (
                     <div key={p.id} className="pessoa-row secretaria-pessoa-row">
                       <div className="pessoa-row-main secretaria-pessoa-main">
-                        <div className="pessoa-avatar small">
-                          <User size={18} />
+                        <div className="secretaria-photo-block">
+                          <button
+                            type="button"
+                            className="secretaria-participant-photo"
+                            onClick={() => setPhotoActionsParticipant(p)}
+                            title="Abrir opções da foto"
+                            aria-label={`Abrir opções da foto de ${nomeParticipante}`}
+                          >
+                            {uploadingPhotoId === p.id ? (
+                              <Loader size={18} className="animate-spin" />
+                            ) : p.foto_url ? (
+                              <img
+                                src={p.foto_url}
+                                alt={nomeParticipante}
+                                style={{ objectPosition: `center ${photoPosition}%` }}
+                              />
+                            ) : (
+                              <User size={20} />
+                            )}
+                            <span className="secretaria-photo-camera">
+                              <Settings2 size={12} />
+                            </span>
+                          </button>
                         </div>
                         <div className="pessoa-row-info">
-                          <h3 className="pessoa-row-name">{p.pessoas?.nome_completo || 'Nome não informado'}</h3>
-                          <span className="pessoa-row-sub" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            <span style={{ opacity: 0.6 }}>{p.pessoas?.comunidade || formatTelefone(p.pessoas?.telefone)}</span>
+                          <h3 className="pessoa-row-name">{nomeParticipante}</h3>
+                          <div className="secretaria-link-badges">
+                            <span className={`secretaria-context-badge circle${circuloVinculado ? '' : ' muted'}`}>
+                              <ImageIcon size={11} /> {circuloVinculado || 'Sem círculo'}
+                            </span>
+                            {duplaVisitante && (
+                              <span className="secretaria-context-badge">
+                                <Users size={11} /> {duplaVisitante}
+                              </span>
+                            )}
                             {p.recepcao_dados && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', backgroundColor: 'rgba(37,99,235,0.08)', color: 'var(--primary-color)', borderRadius: '12px', padding: '0.1rem 0.5rem', fontSize: '0.7rem', fontWeight: 600, border: '1px solid rgba(37,99,235,0.2)', flexShrink: 0 }}>
-                                <Car size={10} />
+                              <span className="secretaria-context-badge vehicle">
+                                <Car size={11} />
                                 {p.recepcao_dados.veiculo_tipo === 'moto' ? 'Moto' : 'Carro'} · {p.recepcao_dados.veiculo_placa}
                               </span>
                             )}
-                          </span>
+                          </div>
                         </div>
                       </div>
 
@@ -744,6 +860,135 @@ export function SecretariaParticipantesPage() {
         isDestructive={true}
       />
 
+      <Modal
+        isOpen={!!previewPhoto}
+        onClose={() => setPreviewPhoto(null)}
+        title={previewPhoto?.nome || 'Foto do participante'}
+        maxWidth="720px"
+      >
+        {previewPhoto && (
+          <div className="secretaria-photo-preview-modal">
+            <img src={previewPhoto.url} alt={previewPhoto.nome} />
+            <div className="secretaria-photo-preview-actions">
+              <button type="button" className="btn-secondary" onClick={() => handleDownloadPhoto(previewPhoto.url, previewPhoto.nome)}>
+                <Download size={16} /> Baixar
+              </button>
+              <button type="button" className="btn-primary" onClick={() => setPreviewPhoto(null)}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={!!photoActionsParticipant}
+        onClose={() => {
+          setPhotoActionsParticipant(null);
+          setAdjustingPhotoId(null);
+        }}
+        title={photoActionsParticipant?.pessoas?.nome_completo || 'Foto do participante'}
+        maxWidth="720px"
+      >
+        {photoActionsParticipant && (
+          <div className="secretaria-photo-options-modal">
+            <div className="secretaria-photo-options-frame">
+              {photoActionsParticipant.foto_url ? (
+                <img
+                  src={photoActionsParticipant.foto_url}
+                  alt={photoActionsParticipant.pessoas?.nome_completo || 'Participante'}
+                  className={adjustingPhotoId === photoActionsParticipant.id ? 'is-adjusting' : ''}
+                  style={{
+                    objectPosition: `center ${adjustingPhotoId === photoActionsParticipant.id ? tempPhotoPosition : (photoActionsParticipant.foto_posicao_y ?? 50)}%`,
+                  }}
+                />
+              ) : (
+                <div className="secretaria-photo-options-empty">
+                  <User size={34} />
+                  <span>Sem foto cadastrada</span>
+                </div>
+              )}
+              {uploadingPhotoId === photoActionsParticipant.id && (
+                <div className="secretaria-photo-options-loading">
+                  <Loader size={24} className="animate-spin" />
+                </div>
+              )}
+            </div>
+
+            {adjustingPhotoId === photoActionsParticipant.id && photoActionsParticipant.foto_url ? (
+              <div className="secretaria-photo-options-adjust">
+                <label>Ajustar enquadramento</label>
+                <div className="secretaria-photo-adjust-control">
+                  <button type="button" onClick={() => nudgePhotoPosition(-2)} aria-label="Subir enquadramento">
+                    <Minus size={15} />
+                  </button>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={tempPhotoPosition}
+                    onChange={(event) => setTempPhotoPosition(Number(event.target.value))}
+                  />
+                  <button type="button" onClick={() => nudgePhotoPosition(2)} aria-label="Descer enquadramento">
+                    <PlusIcon size={15} />
+                  </button>
+                </div>
+                <div className="secretaria-photo-options-actions">
+                  <button type="button" className="btn-secondary" onClick={() => setAdjustingPhotoId(null)}>
+                    Cancelar
+                  </button>
+                  <button type="button" className="btn-primary" onClick={() => handleSavePhotoAdjustment(photoActionsParticipant)}>
+                    Salvar ajuste
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="secretaria-photo-options-grid">
+                  {photoActionsParticipant.foto_url && (
+                    <>
+                      <button
+                        type="button"
+                        className="secretaria-photo-option"
+                        onClick={() => handleDownloadPhoto(photoActionsParticipant.foto_url!, photoActionsParticipant.pessoas?.nome_completo || 'Participante')}
+                      >
+                        <Download size={17} /> Baixar
+                      </button>
+                      <button
+                        type="button"
+                        className="secretaria-photo-option"
+                        onClick={() => handleStartPhotoAdjustment(photoActionsParticipant)}
+                      >
+                        <SlidersHorizontal size={17} /> Ajustar
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className="secretaria-photo-option primary"
+                    onClick={() => photoActionsInputRef.current?.click()}
+                  >
+                    {photoActionsParticipant.foto_url ? <Camera size={17} /> : <Upload size={17} />}
+                    {photoActionsParticipant.foto_url ? 'Alterar' : 'Adicionar'}
+                  </button>
+                </div>
+                <input
+                  ref={photoActionsInputRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) handlePhotoActionsUpload(file);
+                    event.target.value = '';
+                  }}
+                />
+              </>
+            )}
+          </div>
+        )}
+      </Modal>
+
       <style>{`
         .dropdown-item-custom {
           width: 100%;
@@ -813,8 +1058,245 @@ export function SecretariaParticipantesPage() {
         }
         .secretaria-pessoa-row {
           display: grid;
-          grid-template-columns: minmax(260px, 1.45fr) minmax(190px, 0.85fr) minmax(280px, 1.25fr) auto;
+          grid-template-columns: minmax(330px, 1.55fr) minmax(190px, 0.85fr) minmax(280px, 1.25fr) auto;
           align-items: center;
+        }
+        .secretaria-photo-block {
+          display: flex;
+          align-items: center;
+          flex: 0 0 auto;
+          width: 76px;
+        }
+        .secretaria-participant-photo {
+          width: 66px;
+          height: 66px;
+          border-radius: 14px;
+          border: 1px solid var(--border-color);
+          background: var(--secondary-bg);
+          color: var(--muted-text);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          flex-shrink: 0;
+          padding: 0;
+          cursor: pointer;
+          position: relative;
+        }
+        .secretaria-participant-photo img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+        .secretaria-photo-camera {
+          position: absolute;
+          right: 4px;
+          bottom: 4px;
+          width: 22px;
+          height: 22px;
+          border-radius: 7px;
+          border: 1px solid rgba(255, 255, 255, 0.55);
+          background: rgba(15, 23, 42, 0.72);
+          color: #fff;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .secretaria-link-badges {
+          display: flex;
+          align-items: center;
+          gap: 0.35rem;
+          flex-wrap: wrap;
+          margin-top: 0.4rem;
+        }
+        .secretaria-context-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          max-width: 100%;
+          border-radius: 999px;
+          padding: 0.15rem 0.5rem;
+          border: 1px solid rgba(37, 99, 235, 0.2);
+          background: rgba(37, 99, 235, 0.08);
+          color: var(--primary-color);
+          font-size: 0.7rem;
+          font-weight: 700;
+        }
+        .secretaria-context-badge.circle {
+          border-color: rgba(245, 158, 11, 0.25);
+          background: rgba(245, 158, 11, 0.1);
+          color: #d97706;
+        }
+        .secretaria-context-badge.circle.muted {
+          border-color: var(--border-color);
+          background: color-mix(in srgb, var(--muted-text) 8%, transparent);
+          color: var(--muted-text);
+        }
+        .secretaria-context-badge.vehicle {
+          border-color: rgba(37, 99, 235, 0.2);
+          background: rgba(37, 99, 235, 0.08);
+          color: var(--primary-color);
+        }
+        .secretaria-photo-preview-modal {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+        .secretaria-photo-preview-modal img {
+          width: 100%;
+          max-height: min(70vh, 620px);
+          object-fit: contain;
+          border-radius: 8px;
+          background: var(--secondary-bg);
+          border: 1px solid var(--border-color);
+        }
+        .secretaria-photo-preview-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.75rem;
+        }
+        .secretaria-photo-options-modal {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+        .secretaria-photo-options-frame {
+          position: relative;
+          width: min(100%, 560px);
+          height: min(58vh, 460px);
+          margin: 0 auto;
+          border-radius: 10px;
+          overflow: hidden;
+          border: 1px solid var(--border-color);
+          background: var(--secondary-bg);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .secretaria-photo-options-frame img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          display: block;
+        }
+        .secretaria-photo-options-frame img.is-adjusting {
+          object-fit: cover;
+        }
+        .secretaria-photo-options-empty {
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.65rem;
+          color: var(--muted-text);
+          font-weight: 700;
+        }
+        .secretaria-photo-options-loading {
+          position: absolute;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.48);
+          color: #fff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .secretaria-photo-options-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+          gap: 0.65rem;
+          width: 100%;
+        }
+        .secretaria-photo-option {
+          min-height: 42px;
+          border-radius: 8px;
+          border: 1px solid var(--border-color);
+          background: var(--card-bg);
+          color: var(--text-color);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.45rem;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .secretaria-photo-option svg,
+        .secretaria-photo-adjust-control button svg,
+        .secretaria-photo-options-actions button svg {
+          color: currentColor;
+          stroke: currentColor;
+          flex-shrink: 0;
+        }
+        .secretaria-photo-option:hover {
+          border-color: color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+          color: var(--primary-color);
+        }
+        .secretaria-photo-option.primary {
+          background: var(--primary-color);
+          border-color: var(--primary-color);
+          color: #fff;
+        }
+        .secretaria-photo-option.primary svg {
+          color: #fff;
+          stroke: #fff;
+        }
+        .secretaria-photo-options-adjust {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+          width: min(100%, 560px);
+          margin: 0 auto;
+        }
+        .secretaria-photo-options-adjust label {
+          font-weight: 800;
+          font-size: 0.85rem;
+        }
+        .secretaria-photo-options-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+        }
+        .secretaria-photo-adjust-control {
+          display: grid;
+          grid-template-columns: 38px 1fr 38px;
+          align-items: center;
+          gap: 0.55rem;
+        }
+        .secretaria-photo-adjust-control button {
+          width: 38px;
+          height: 38px;
+          border-radius: 8px;
+          border: 1px solid var(--border-color);
+          background: var(--card-bg);
+          color: var(--text-color);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+        .secretaria-photo-adjust-control button:hover {
+          color: var(--primary-color);
+          border-color: color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+        }
+        .secretaria-photo-adjust-control input[type="range"] {
+          width: 100%;
+          accent-color: var(--primary-color);
+        }
+        @media (max-width: 640px) {
+          .secretaria-photo-options-frame {
+            height: min(48vh, 360px);
+          }
+          .secretaria-photo-options-grid {
+            grid-template-columns: 1fr 1fr;
+          }
+          .secretaria-photo-options-actions {
+            justify-content: stretch;
+          }
+          .secretaria-photo-options-actions button {
+            flex: 1;
+          }
         }
         .secretaria-pessoa-main,
         .secretaria-pessoa-contact,
@@ -856,6 +1338,17 @@ export function SecretariaParticipantesPage() {
             border-radius: 8px;
             padding: 0.9rem;
             gap: 0.8rem;
+          }
+          .secretaria-pessoa-main {
+            align-items: flex-start;
+          }
+          .secretaria-photo-block {
+            width: 66px;
+          }
+          .secretaria-participant-photo {
+            width: 58px;
+            height: 58px;
+            border-radius: 12px;
           }
           .secretaria-pessoa-row:last-child {
             border-bottom: 1px solid var(--border-color);

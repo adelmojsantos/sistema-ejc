@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 export interface QuadranteData {
     id: string;
     foto_url: string | null;
+    foto_posicao_y?: number | null;
     participante: boolean; // Novo campo para separar encontristas de encontreiros
     pessoas: {
         nome_completo: string;
@@ -88,6 +89,7 @@ export const quadranteService = {
             .select(`
                 id,
                 foto_url,
+                foto_posicao_y,
                 participante,
                 equipe_id,
                 pessoas (nome_completo),

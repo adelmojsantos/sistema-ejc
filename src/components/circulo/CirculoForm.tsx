@@ -14,6 +14,7 @@ interface CirculoFormProps {
 
 export function CirculoForm({ initialData, onSubmit, onCancel, isLoading = false }: CirculoFormProps) {
     const [nome, setNome] = useState(initialData?.nome ?? '');
+    const [imagemUrl, setImagemUrl] = useState(initialData?.imagem_url ?? '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +33,7 @@ export function CirculoForm({ initialData, onSubmit, onCancel, isLoading = false
         
         setIsSubmitting(true);
         try {
-            await onSubmit({ nome });
+            await onSubmit({ nome, imagem_url: imagemUrl || null });
         } finally {
             setIsSubmitting(false);
         }
@@ -51,6 +52,16 @@ export function CirculoForm({ initialData, onSubmit, onCancel, isLoading = false
                         required
                         colSpan={12}
                         placeholder="Ex: Círculo Azul, Círculo Verde..."
+                    />
+                </FormRow>
+                <FormRow>
+                    <FormField
+                        label="URL da imagem"
+                        name="imagem_url"
+                        value={imagemUrl}
+                        onChange={(e) => setImagemUrl(e.target.value)}
+                        colSpan={12}
+                        placeholder="Imagem do círculo para uso futuro no quadrante"
                     />
                 </FormRow>
             </FormSection>

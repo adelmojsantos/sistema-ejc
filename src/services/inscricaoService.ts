@@ -78,7 +78,7 @@ export const inscricaoService = {
     async listarParticipantesPorEncontro(encontroId: string): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('id, equipe_id, coordenador, participante, pessoa_id, origem, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome), recepcao_dados(*)')
+            .select('id, equipe_id, coordenador, participante, pessoa_id, origem, foto_url, foto_posicao_y, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome), recepcao_dados(*), visita_participacao(id, visitante, visita_grupos(nome)), circulo_participacao(id, circulos(nome))')
             .eq('encontro_id', encontroId)
             .eq('participante', true);
 
@@ -205,6 +205,42 @@ export const inscricaoService = {
 
         if (error) throw error;
         return data as Inscricao;
+    },
+
+    async uploadFotoParticipante(participacaoId: string, file: File): Promise<string> {
+        const fileExt = file.name.split('.').pop() || 'jpg';
+        const fileName = `${participacaoId}_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+        const filePath = `fotos/participantes/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('galeria')
+            .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+            .from('galeria')
+            .getPublicUrl(filePath);
+
+        return data.publicUrl;
+    },
+
+    async atualizarFotoParticipante(participacaoId: string, fotoUrl: string | null): Promise<void> {
+        const { error } = await supabase
+            .from(TABLE)
+            .update({ foto_url: fotoUrl, foto_posicao_y: 50 })
+            .eq('id', participacaoId);
+
+        if (error) throw error;
+    },
+
+    async atualizarPosicaoFotoParticipante(participacaoId: string, fotoPosicaoY: number): Promise<void> {
+        const { error } = await supabase
+            .from(TABLE)
+            .update({ foto_posicao_y: fotoPosicaoY })
+            .eq('id', participacaoId);
+
+        if (error) throw error;
     },
 
     async verificarSeJaFoiParticipante(pessoaId: string): Promise<boolean> {

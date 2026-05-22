@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { to: '/inscricao', label: 'Inscrições', icon: UserPlus },
       { to: '/secretaria', label: 'Secretaria', icon: FileText },
       { to: '/cadastros', label: 'Cadastros', icon: Calendar },
-      { to: '/atividades/palestras', label: 'Palestras', icon: Mic2 },
+      { to: '/cadastros/palestras', label: 'Palestras', icon: Mic2 },
     );
   }
 

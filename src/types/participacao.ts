@@ -10,6 +10,7 @@ export interface Participacao {
     status: string;
     created_at: string;
     foto_url: string | null;
+    foto_posicao_y?: number | null;
 }
 
 export interface ParticipacaoEnriched extends Participacao {

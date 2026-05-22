@@ -264,9 +264,14 @@ export const quadrantePdfService = {
             doc.addPage();
             this.renderSectionHeader(doc, 'Simbologia');
             
+            const logoSize = 60;
+            const logoY = 35;
+            const logoX = (pageWidth - logoSize) / 2;
+            const textY = logoY + logoSize + 8; // 103mm
+
             // Simbologia Logo
             const simbologiaLogo = `${window.location.origin}/logo-ejc.jpg`;
-            await this.addPreparedImage(doc, simbologiaLogo, (pageWidth - 42) / 2, 42, 42, 42, {
+            await this.addPreparedImage(doc, simbologiaLogo, logoX, logoY, logoSize, logoSize, {
                 fit: 'contain',
                 background: '#ffffff',
                 radius: 6,
@@ -276,9 +281,9 @@ export const quadrantePdfService = {
             const sText = this.htmlToText(encontro.simbologia_texto) || 'O Jovem no mundo...';
             this.renderTextPanel(doc, sText, {
                 x: margin,
-                y: 96,
+                y: textY,
                 width: contentWidth,
-                maxHeight: pageHeight - 116,
+                maxHeight: pageHeight - textY - margin,
                 fontSize: 9.2,
                 lineHeight: 4.7
             });
@@ -289,21 +294,28 @@ export const quadrantePdfService = {
             doc.addPage();
             this.renderSectionHeader(doc, encontro.tema || 'Temática');
             
+            const logoSize = 60;
+            const logoY = 35;
+            let textY = logoY + logoSize + 8; // 103mm
+
             if (encontro.logo_url) {
-                await this.addPreparedImage(doc, encontro.logo_url, (pageWidth - 48) / 2, 40, 48, 48, {
+                const logoX = (pageWidth - logoSize) / 2;
+                await this.addPreparedImage(doc, encontro.logo_url, logoX, logoY, logoSize, logoSize, {
                     fit: 'contain',
                     background: '#ffffff',
                     radius: 6,
                     fallbackLabel: 'tema logo'
                 });
+            } else {
+                textY = 35;
             }
 
             const tText = this.htmlToText(encontro.tematica_texto) || 'Referências do tema...';
             this.renderTextPanel(doc, tText, {
                 x: margin,
-                y: 100,
+                y: textY,
                 width: contentWidth,
-                maxHeight: pageHeight - 120,
+                maxHeight: pageHeight - textY - margin,
                 fontSize: 9.5,
                 lineHeight: 4.8
             });

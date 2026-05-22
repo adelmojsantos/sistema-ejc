@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ChangeEvent } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { Search, UsersRound, Plus, X, Check, Loader } from 'lucide-react';
+import { Search, UsersRound, Plus, X, Check, Loader, Camera } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { CirculoRow } from '../../components/circulo/CirculoRow';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { Modal } from '../../components/ui/Modal';
 import { circuloService } from '../../services/circuloService';
 import { normalizeString } from '../../utils/stringUtils';
 import type { Circulo, CirculoFormData } from '../../types/circulo';
@@ -16,10 +17,13 @@ export function CirculosPage() {
     const [search, setSearch] = useState('');
     const [isAdding, setIsAdding] = useState(false);
     const [newNome, setNewNome] = useState('');
+    const [newImageFile, setNewImageFile] = useState<File | null>(null);
+    const [newImagePreview, setNewImagePreview] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Circulo | null>(null);
+    const [imagePreviewTarget, setImagePreviewTarget] = useState<Circulo | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
     const load = useCallback(async () => {
@@ -52,9 +56,12 @@ export function CirculosPage() {
         if (!newNome.trim()) return;
         setIsLoading(true);
         try {
-            const nova = await circuloService.criar({ nome: newNome });
+            const imageUrl = newImageFile ? await circuloService.uploadImagem(newImageFile) : null;
+            const nova = await circuloService.criar({ nome: newNome.trim(), imagem_url: imageUrl });
             setCirculos((prev) => [...prev, nova].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')));
             setNewNome('');
+            setNewImageFile(null);
+            setNewImagePreview('');
             setIsAdding(false);
             toast.success('Círculo criado com sucesso!');
         } catch {
@@ -62,6 +69,26 @@ export function CirculosPage() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleNewImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        setNewImageFile(file);
+        setNewImagePreview(URL.createObjectURL(file));
+        event.target.value = '';
+    };
+
+    const handleCancelCreate = () => {
+        setIsAdding(false);
+        setNewNome('');
+        setNewImageFile(null);
+        setNewImagePreview('');
+    };
+
+    const handleRemoveNewImage = () => {
+        setNewImageFile(null);
+        setNewImagePreview('');
     };
 
     const handleUpdate = async (id: number, data: CirculoFormData) => {
@@ -130,10 +157,27 @@ export function CirculosPage() {
             {isAdding && (
                 <div className="card" style={{ marginBottom: '1.5rem', borderLeft: '4px solid #f59e0b', padding: '1rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div className="pessoa-avatar small" style={{ backgroundColor: '#f59e0b15', color: '#f59e0b' }}>
-                            <UsersRound size={18} />
-                        </div>
-                        <div style={{ flex: 1 }}>
+                        <label
+                            className="pessoa-avatar small"
+                            style={{ backgroundColor: '#f59e0b15', color: '#f59e0b', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}
+                            title={newImagePreview ? 'Trocar imagem do círculo' : 'Adicionar imagem do círculo'}
+                        >
+                            {newImagePreview ? (
+                                <img src={newImagePreview} alt="Prévia do círculo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                                <UsersRound size={18} />
+                            )}
+                            <div className="avatar-overlay">
+                                <Camera size={12} color="white" />
+                            </div>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: 'none' }}
+                                onChange={handleNewImageChange}
+                            />
+                        </label>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <input
                                 autoFocus
                                 className="search-input"
@@ -146,6 +190,26 @@ export function CirculosPage() {
                                     if (e.key === 'Escape') setIsAdding(false);
                                 }}
                             />
+                            <label className="circulo-upload-action">
+                                <Camera size={14} />
+                                {newImageFile ? newImageFile.name : 'Adicionar imagem do círculo'}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    onChange={handleNewImageChange}
+                                />
+                            </label>
+                            {newImagePreview && (
+                                <button
+                                    type="button"
+                                    className="circulo-upload-action circulo-upload-action--danger"
+                                    onClick={handleRemoveNewImage}
+                                >
+                                    <X size={14} />
+                                    Remover imagem selecionada
+                                </button>
+                            )}
                         </div>
                         <div style={{ display: 'flex', gap: '0.25rem' }}>
                             <button
@@ -159,7 +223,7 @@ export function CirculosPage() {
                             </button>
                             <button
                                 className="icon-btn"
-                                onClick={() => { setIsAdding(false); setNewNome(''); }}
+                                onClick={handleCancelCreate}
                                 disabled={isLoading}
                                 style={{ color: '#ef4444' }}
                                 title="Cancelar"
@@ -168,6 +232,44 @@ export function CirculosPage() {
                             </button>
                         </div>
                     </div>
+                    <style>{`
+                        .avatar-overlay {
+                            position: absolute;
+                            inset: 0;
+                            background: rgba(0, 0, 0, 0.35);
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            opacity: 0;
+                            transition: opacity 0.2s;
+                        }
+
+                        .pessoa-avatar:hover .avatar-overlay {
+                            opacity: 1;
+                        }
+
+                        .circulo-upload-action {
+                            align-self: flex-start;
+                            color: var(--muted-text);
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 0.35rem;
+                            font-size: 0.78rem;
+                            font-weight: 700;
+                            cursor: pointer;
+                            max-width: 100%;
+                        }
+
+                        .circulo-upload-action:hover {
+                            color: var(--primary-color);
+                        }
+
+                        .circulo-upload-action {
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                            white-space: nowrap;
+                        }
+                    `}</style>
                 </div>
             )}
 
@@ -199,12 +301,48 @@ export function CirculosPage() {
                             circulo={e}
                             onUpdate={handleUpdate}
                             onDelete={setDeleteTarget}
+                            onPreviewImage={setImagePreviewTarget}
                         />
                     ))}
                 </div>
             )}
 
             <ConfirmDialog isOpen={!!deleteTarget} title="Excluir Círculo" message={`Deseja excluir "${deleteTarget?.nome}"?`} onConfirm={handleDeleteConfirm} onCancel={() => setDeleteTarget(null)} isLoading={isDeleting} isDestructive={true} />
+            <Modal
+                isOpen={!!imagePreviewTarget}
+                onClose={() => setImagePreviewTarget(null)}
+                title={imagePreviewTarget?.nome || 'Imagem do círculo'}
+                maxWidth="720px"
+            >
+                {imagePreviewTarget?.imagem_url && (
+                    <div className="circulo-image-preview-modal">
+                        <img src={imagePreviewTarget.imagem_url} alt={imagePreviewTarget.nome || 'Círculo'} />
+                    </div>
+                )}
+            </Modal>
+
+            <style>{`
+                .circulo-image-preview-modal {
+                    display: flex;
+                    justify-content: center;
+                }
+
+                .circulo-image-preview-modal img {
+                    width: 100%;
+                    max-height: min(70vh, 620px);
+                    object-fit: contain;
+                    border-radius: 8px;
+                    background: var(--secondary-bg);
+                    border: 1px solid var(--border-color);
+                }
+
+                .circulo-upload-action--danger {
+                    border: 0;
+                    background: transparent;
+                    color: #ef4444;
+                    padding: 0;
+                }
+            `}</style>
         </div>
     );
 }

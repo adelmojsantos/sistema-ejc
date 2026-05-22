@@ -494,7 +494,11 @@ export function MontagemCirculos() {
                   >
                     <div className="mc-accordion-card__header-left">
                       <div className={`mc-circulo-icon${hasMediadores ? ' mc-circulo-icon--active' : ''}`}>
-                        <Users size={15} />
+                        {circulo.imagem_url ? (
+                          <img src={circulo.imagem_url} alt={circulo.nome || 'Círculo'} />
+                        ) : (
+                          <Users size={15} />
+                        )}
                       </div>
                       <span className="mc-accordion-card__name">{circulo.nome}</span>
                     </div>

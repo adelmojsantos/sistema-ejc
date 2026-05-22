@@ -15,6 +15,8 @@ export interface Inscricao {
   pago_taxa: boolean | null;
   pago_camiseta?: boolean | null;
   origem?: string;
+  foto_url?: string | null;
+  foto_posicao_y?: number | null;
 }
 
 export interface InscricaoEnriched extends Inscricao {
@@ -28,6 +30,19 @@ export interface InscricaoEnriched extends Inscricao {
   recepcao_dados?: RecepcaoDados | null;
   recreacao_dados?: RecreacaoDados[];
   recreacao_dados_secundario?: RecreacaoDados[];
+  visita_participacao?: {
+    id: string;
+    visitante: boolean;
+    visita_grupos?: {
+      nome: string | null;
+    } | null;
+  }[];
+  circulo_participacao?: {
+    id: string;
+    circulos?: {
+      nome: string | null;
+    } | null;
+  }[];
 }
 
 export type InscricaoFormData = Omit<Inscricao, 'id' | 'data_inscricao'>;
@@ -42,4 +57,6 @@ export const inscricaoFormDataVazia = (): InscricaoFormData => ({
     confirmado_em: null,
     pago_taxa: false,
     pago_camiseta: false,
+    foto_url: null,
+    foto_posicao_y: 50,
 });

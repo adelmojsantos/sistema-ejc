@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     ArrowLeft,
-    FileText,
+    Printer,
     Home,
     Menu,
     Moon,
@@ -13,16 +13,18 @@ import {
     Music,
     ExternalLink
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useReactToPrint } from 'react-to-print';
 import { toast } from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { quadranteService, type QuadranteData } from '../../services/quadranteService';
-import { quadrantePdfService } from '../../services/quadrantePdfService';
+// quadrantePdfService substituído por react-to-print
 import { palestraService } from '../../services/palestraService';
 import type { Palestra } from '../../types/palestra';
 import { quadranteVisibilityDefault, type QuadranteVisibilityConfig } from '../../types/encontro';
+import logoCapelinha from '../../assets/logo_capelinha.png';
 
 // Import Google Fonts
 const fontLink = document.createElement('link');
@@ -34,6 +36,10 @@ interface EncontroInfo {
     id: string;
     nome: string;
     tema: string | null;
+    data_inicio: string | null;
+    data_fim: string | null;
+    local: string | null;
+    edicao: number | null;
     quadrante_ativo: boolean;
     logo_url: string | null;
     simbologia_texto: string | null;
@@ -58,7 +64,12 @@ function ParticipantCard({ item, index }: { item: QuadranteData; index: number }
         >
             <div className="card-photo-wrapper">
                 {item.foto_url ? (
-                    <img src={item.foto_url} alt={item.pessoas?.nome_completo} loading="lazy" />
+                    <img 
+                        src={item.foto_url} 
+                        alt={item.pessoas?.nome_completo} 
+                        loading="eager" 
+                        style={{ objectPosition: `center ${item.foto_posicao_y ?? 50}%` }}
+                    />
                 ) : (
                     <div className="photo-placeholder">
                         <User size={32} />
@@ -71,6 +82,41 @@ function ParticipantCard({ item, index }: { item: QuadranteData; index: number }
             </div>
         </motion.div>
     );
+}
+
+function formatarDatasEncontro(inicioStr?: string | null, fimStr?: string | null) {
+    if (!inicioStr || !fimStr) return '';
+    
+    const meses = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    
+    const parseDate = (str: string) => {
+        const parts = str.split('-');
+        return {
+            ano: parseInt(parts[0], 10),
+            mes: parseInt(parts[1], 10) - 1,
+            dia: parseInt(parts[2], 10)
+        };
+    };
+    
+    try {
+        const inicio = parseDate(inicioStr);
+        const fim = parseDate(fimStr);
+        
+        if (inicio.mes === fim.mes && inicio.ano === fim.ano) {
+            if (fim.dia - inicio.dia === 2) {
+                return `${inicio.dia}, ${inicio.dia + 1} e ${fim.dia} de ${meses[inicio.mes]} de ${inicio.ano}`;
+            }
+            return `${inicio.dia} a ${fim.dia} de ${meses[inicio.mes]} de ${inicio.ano}`;
+        }
+        
+        return `${inicio.dia} de ${meses[inicio.mes]} a ${fim.dia} de ${meses[fim.mes]} de ${inicio.ano}`;
+    } catch (e) {
+        console.error('Erro ao formatar datas:', e);
+        return '';
+    }
 }
 
 export function QuadrantePage() {
@@ -86,7 +132,17 @@ export function QuadrantePage() {
     const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia('(min-width: 1025px)').matches);
     const [scrolled, setScrolled] = useState(false);
     const [activeSection, setActiveSection] = useState<string>('');
-    const [exporting, setExporting] = useState(false);
+    const printRef = useRef<HTMLDivElement>(null);
+    const handlePrint = useReactToPrint({
+        contentRef: printRef,
+        documentTitle: `Quadrante - ${encontro?.nome || 'EJC'}`,
+        pageStyle: `
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+        `,
+    });
 
     useEffect(() => {
         const handleScroll = () => {
@@ -156,7 +212,7 @@ export function QuadrantePage() {
 
                 const { data: eData } = await supabase
                     .from('encontros')
-                    .select('id, nome, tema, quadrante_ativo, logo_url, simbologia_texto, tematica_texto, musica, musica_letra, link_youtube, link_musica, quadrante_visibilidade')
+                    .select('id, nome, tema, data_inicio, data_fim, local, edicao, quadrante_ativo, logo_url, simbologia_texto, tematica_texto, musica, musica_letra, link_youtube, link_musica, quadrante_visibilidade')
                     .eq('quadrante_token', token)
                     .single();
 
@@ -188,19 +244,7 @@ export function QuadrantePage() {
         loadQuadrante();
     }, [token, navigate]);
 
-    const handleExportPDF = async () => {
-        if (!encontro) return;
-        setExporting(true);
-        try {
-            await quadrantePdfService.generateYearbook(encontro, data, palestras);
-            toast.success('PDF gerado com sucesso!');
-        } catch (error) {
-            console.error('Erro ao gerar PDF:', error);
-            toast.error('Erro ao gerar o PDF do Quadrante.');
-        } finally {
-            setExporting(false);
-        }
-    };
+
 
     const visibility = encontro?.quadrante_visibilidade || quadranteVisibilityDefault;
 
@@ -270,8 +314,8 @@ export function QuadrantePage() {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: '#020617',
-                color: 'white',
+                background: theme === 'dark' ? '#020617' : '#f8fafc',
+                color: theme === 'dark' ? '#f8fafc' : '#0f172a',
                 zIndex: 9999,
                 fontFamily: 'sans-serif'
             }}>
@@ -366,11 +410,10 @@ export function QuadrantePage() {
                         <span>Tema {theme === 'dark' ? 'Claro' : 'Escuro'}</span>
                     </button>
                     <button
-                        onClick={handleExportPDF}
+                        onClick={handlePrint}
                         className="nav-item pdf-export-btn"
-                        disabled={exporting}
                     >
-                        <FileText size={18} /> {exporting ? 'Gerando...' : 'Exportar Quadrante (PDF)'}
+                        <Printer size={18} /> Imprimir / Salvar PDF
                     </button>
                     <button onClick={() => navigate('/login')} className="exit-btn">
                         <ArrowLeft size={18} /> Sair
@@ -389,15 +432,12 @@ export function QuadrantePage() {
                     {activeSection && <span className="active-section-name">{activeSection}</span>}
                 </h1>
                 <button onClick={toggleTheme} className="menu-btn">
-                    {theme === 'dark' ?
-                        <Sun size={20} style={{ width: 20, height: 20, flexShrink: 0 }} /> :
-                        <Moon size={20} style={{ width: 20, height: 20, flexShrink: 0 }} />
-                    }
+                    {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
             </div>
 
             {/* Content Area */}
-            <main className={`spa-main-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
+            <main ref={printRef} className={`spa-main-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
                 {/* Hero Section */}
                 <section id="inicio" className="hero-section" data-section-name="">
                     <motion.div
@@ -405,16 +445,46 @@ export function QuadrantePage() {
                         animate={{ opacity: 1, y: 0 }}
                         className="hero-card"
                     >
+                        {/* Cabeçalho da Capa estilo Paróquia */}
+                        <div className="capa-header">
+                            <div className="capa-header-logo-left">
+                                <img src={logoCapelinha} alt="Paróquia Nossa Senhora Aparecida" />
+                            </div>
+                            <div className="capa-header-center">
+                                <h2>PARÓQUIA NOSSA SENHORA APARECIDA</h2>
+                                <h3>{encontro?.local || 'CAPELINHA - FRANCA / SP'}</h3>
+                            </div>
+                            <div className="capa-header-logo-right">
+                                <img src="/logo-ejc.jpg" alt="EJC" onError={(e) => e.currentTarget.src = '/logo-ejc-recriado.png'} />
+                            </div>
+                        </div>
+
+                        {/* Título e Tema separados abaixo do header */}
+                        <div className="capa-titulos">
+                            <div className="capa-edicao">
+                                {encontro?.edicao ? `${encontro.edicao}° E.J.C` : encontro?.nome}
+                            </div>
+                            {encontro?.tema && (
+                                <div className="capa-tema">
+                                    “{encontro.tema}”
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Imagem Centralizada Grande da Arte do Tema */}
                         {encontro?.logo_url && (
-                            <div className="hero-logo" style={{ marginBottom: '2rem' }}>
-                                <img src={encontro.logo_url} alt="Logo do Encontro" style={{ maxWidth: '180px', maxHeight: '180px', objectFit: 'contain', filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.3))' }} />
+                            <div className="capa-central-logo">
+                                <img src={encontro.logo_url} alt="Arte do Tema" />
                             </div>
                         )}
-                        <span className="tag">QUADRANTE OFICIAL</span>
-                        <h1 style={{ lineHeight: 1.1 }}>{encontro?.nome}</h1>
-                        <p>{encontro?.tema || 'Bem-vindo ao registro visual de nossa jornada.'}</p>
 
-                        <div className="stats-pills">
+                        {/* Datas do Encontro */}
+                        <div className="capa-footer-dates">
+                            {formatarDatasEncontro(encontro?.data_inicio, encontro?.data_fim)}
+                        </div>
+
+                        {/* Estatísticas (visível apenas na tela, oculta no print) */}
+                        <div className="stats-pills no-print">
                             <div className="pill"><strong>{data.filter(i => i.participante).length}</strong> Encontristas</div>
                             <div className="pill"><strong>{data.length - data.filter(i => i.participante).length}</strong> Encontreiros</div>
                         </div>
@@ -423,18 +493,20 @@ export function QuadrantePage() {
 
                 {visibility.simbologia && (
                     <section id="simbologia" className="content-editorial-section section-band section-band-base section-simbologia" data-section-name="Simbologia">
-                        <div className="editorial-container">
-                            <div className="editorial-visual">
-                                <div className="simbol-logo">
-                                    <img src="/logo-ejc.jpg" alt="Símbolo EJC" onError={(e) => e.currentTarget.src = '/logo-ejc-recriado.png'} />
+                        <div className="section-print-wrapper">
+                            <div className="editorial-container">
+                                <div className="editorial-visual">
+                                    <div className="simbol-logo">
+                                        <img src="/logo-ejc.jpg" alt="Símbolo EJC" onError={(e) => e.currentTarget.src = '/logo-ejc-recriado.png'} />
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="editorial-content">
-                                <div className="section-header">
-                                    <h2>Simbologia</h2>
-                                    <div className="divider"></div>
+                                <div className="editorial-content">
+                                    <div className="section-header">
+                                        <h2>Simbologia</h2>
+                                        <div className="divider"></div>
+                                    </div>
+                                    <div className="editorial-text rich-editorial-output" dangerouslySetInnerHTML={{ __html: encontro?.simbologia_texto || '' }} />
                                 </div>
-                                <div className="editorial-text rich-editorial-output" dangerouslySetInnerHTML={{ __html: encontro?.simbologia_texto || '' }} />
                             </div>
                         </div>
                     </section>
@@ -443,23 +515,25 @@ export function QuadrantePage() {
                 {/* Temática do Encontro */}
                 {visibility.tematica && (
                     <section id="tematica" className="content-editorial-section reverse section-band section-band-alt section-tematica" data-section-name="Temática">
-                        <div className="editorial-container">
-                            <div className="editorial-visual">
-                                {encontro?.logo_url ? (
-                                    <img src={encontro.logo_url} alt="Logo Tema" className="theme-logo" />
-                                ) : (
-                                    <div className="logo-stub">EJC</div>
-                                )}
-                            </div>
-                            <div className="editorial-content">
-                                <div className="section-header">
-                                    <h2>{encontro?.tema || 'Temática'}</h2>
-                                    <div className="divider"></div>
+                        <div className="section-print-wrapper">
+                            <div className="editorial-container">
+                                <div className="editorial-visual">
+                                    {encontro?.logo_url ? (
+                                        <img src={encontro.logo_url} alt="Logo Tema" className="theme-logo" />
+                                    ) : (
+                                        <div className="logo-stub">EJC</div>
+                                    )}
                                 </div>
-                                <div
-                                    className="editorial-text rich-editorial-output"
-                                    dangerouslySetInnerHTML={{ __html: encontro?.tematica_texto || '<p>As referências e inspirações que deram vida ao tema deste encontro.</p>' }}
-                                />
+                                <div className="editorial-content">
+                                    <div className="section-header">
+                                        <h2>{encontro?.tema || 'Temática'}</h2>
+                                        <div className="divider"></div>
+                                    </div>
+                                    <div
+                                        className="editorial-text rich-editorial-output"
+                                        dangerouslySetInnerHTML={{ __html: encontro?.tematica_texto || '<p>As referências e inspirações que deram vida ao tema deste encontro.</p>' }}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </section>
@@ -468,29 +542,31 @@ export function QuadrantePage() {
                 {/* Música Tema */}
                 {visibility.musica && (
                     <section id="musica" className="content-music-section section-band section-band-strong" data-section-name="Música">
-                        <div className="music-container">
-                            <div className="music-header">
-                                <Music size={40} className="music-icon" />
-                                <h2>Música Tema</h2>
-                                {encontro?.musica && <h3>{encontro.musica}</h3>}
-                                <div className="music-links">
-                                    {encontro?.link_musica && (
-                                        <a href={encontro.link_musica} target="_blank" rel="noopener noreferrer" className="music-link-btn">
-                                            <Music size={16} /> Ouvir Música
-                                        </a>
-                                    )}
-                                    {encontro?.link_youtube && (
-                                        <a href={encontro.link_youtube} target="_blank" rel="noopener noreferrer" className="music-link-btn yt">
-                                            <ExternalLink size={16} /> Vídeo no YouTube
-                                        </a>
-                                    )}
+                        <div className="section-print-wrapper">
+                            <div className="music-container">
+                                <div className="music-header">
+                                    <Music size={40} className="music-icon" />
+                                    <h2>Música Tema</h2>
+                                    {encontro?.musica && <h3>{encontro.musica}</h3>}
+                                    <div className="music-links">
+                                        {encontro?.link_musica && (
+                                            <a href={encontro.link_musica} target="_blank" rel="noopener noreferrer" className="music-link-btn">
+                                                <Music size={16} /> Ouvir Música
+                                            </a>
+                                        )}
+                                        {encontro?.link_youtube && (
+                                            <a href={encontro.link_youtube} target="_blank" rel="noopener noreferrer" className="music-link-btn yt">
+                                                <ExternalLink size={16} /> Vídeo no YouTube
+                                            </a>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="lyrics-wrapper">
-                                <div
-                                    className="lyrics-content rich-editorial-output"
-                                    dangerouslySetInnerHTML={{ __html: encontro?.musica_letra || '<p class="opacity-50 italic">Letra da música não cadastrada.</p>' }}
-                                />
+                                <div className="lyrics-wrapper">
+                                    <div
+                                        className="lyrics-content rich-editorial-output"
+                                        dangerouslySetInnerHTML={{ __html: encontro?.musica_letra || '<p class="opacity-50 italic">Letra da música não cadastrada.</p>' }}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </section>
@@ -500,15 +576,17 @@ export function QuadrantePage() {
                 {visibility.encontristas && <div id="encontristas" style={{ paddingBottom: '1px' }}></div>}
                 {visibility.encontristas && encontristasPorCirculo.map(([circle, members], sectionIndex) => (
                     <section key={circle} id={`circulo-${slugify(circle)}`} className={`content-section section-band ${sectionIndex % 2 === 0 ? 'section-band-base' : 'section-band-alt'}`} data-section-name={circle}>
-                        <div className="section-header">
-                            <h2><Users size={24} /> {circle}</h2>
-                            <div className="divider"></div>
-                        </div>
+                        <div className="section-print-wrapper">
+                            <div className="section-header">
+                                <h2><Users size={24} /> {circle}</h2>
+                                <div className="divider"></div>
+                            </div>
 
-                        <div className="quadrante-grid">
-                            {members.map((item, idx) => (
-                                <ParticipantCard key={item.id} item={item} index={idx} />
-                            ))}
+                            <div className="quadrante-grid">
+                                {members.map((item, idx) => (
+                                    <ParticipantCard key={item.id} item={item} index={idx} />
+                                ))}
+                            </div>
                         </div>
                     </section>
                 ))}
@@ -517,42 +595,44 @@ export function QuadrantePage() {
                 {visibility.encontreiros && <div id="encontreiros" style={{ paddingBottom: '1px' }}></div>}
                 {visibility.encontreiros && encontreirosPorEquipe.map(([team, members], sectionIndex) => (
                     <section key={team} id={`equipe-${slugify(team)}`} className={`content-team-section section-band ${sectionIndex % 2 === 0 ? 'section-band-alt' : 'section-band-base'}`} data-section-name={team}>
-                        <div className="team-layout">
-                            <div className="team-visual">
-                                <div className="team-photo-container">
-                                    {members[0]?.equipes?.foto_url ? (
-                                        <img
-                                            src={members[0].equipes.foto_url}
-                                            alt={team}
-                                            loading="lazy"
-                                            style={{ objectPosition: `center ${members[0].equipes.foto_posicao_y ?? 50}%` }}
-                                        />
-                                    ) : (
-                                        <div className="team-photo-stub">
-                                            <Users size={60} />
-                                            <span>Foto da Equipe</span>
-                                        </div>
-                                    )}
-                                    {/* <div className="team-badge">{team}</div> */}
+                        <div className="section-print-wrapper">
+                            <div className="team-layout">
+                                <div className="team-visual">
+                                    <div className="team-photo-container">
+                                        {members[0]?.equipes?.foto_url ? (
+                                            <img
+                                                src={members[0].equipes.foto_url}
+                                                alt={team}
+                                                loading="eager"
+                                                style={{ objectPosition: `center ${members[0].equipes.foto_posicao_y ?? 50}%` }}
+                                            />
+                                        ) : (
+                                            <div className="team-photo-stub">
+                                                <Users size={60} />
+                                                <span>Foto da Equipe</span>
+                                            </div>
+                                        )}
+                                        {/* <div className="team-badge">{team}</div> */}
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="team-members-list">
-                                <div className="list-header">
-                                    <h3>{team}</h3>
-                                    <div className="line"></div>
+                                <div className="team-members-list">
+                                    <div className="list-header">
+                                        <h3>{team}</h3>
+                                        <div className="line"></div>
+                                    </div>
+                                    <ol className="numbered-list">
+                                        {members
+                                            .sort((a, b) => a.pessoas.nome_completo.localeCompare(b.pessoas.nome_completo))
+                                            .map((member, mIdx) => (
+                                                <li key={member.id} className="member-item">
+                                                    <span className="number">{(mIdx + 1).toString().padStart(2, '0')}</span>
+                                                    <span className="name">{member.pessoas.nome_completo}</span>
+                                                </li>
+                                            ))
+                                        }
+                                    </ol>
                                 </div>
-                                <ol className="numbered-list">
-                                    {members
-                                        .sort((a, b) => a.pessoas.nome_completo.localeCompare(b.pessoas.nome_completo))
-                                        .map((member, mIdx) => (
-                                            <li key={member.id} className="member-item">
-                                                <span className="number">{(mIdx + 1).toString().padStart(2, '0')}</span>
-                                                <span className="name">{member.pessoas.nome_completo}</span>
-                                            </li>
-                                        ))
-                                    }
-                                </ol>
                             </div>
                         </div>
                     </section>
@@ -560,45 +640,47 @@ export function QuadrantePage() {
 
                 {/* Palestras Section — MOVED INSIDE main */}
                 {visibility.palestras && <section id="palestras" className="content-palestras-section section-band section-band-base" data-section-name="Palestras">
-                    <div className="section-header center">
-                        <Mic2 size={32} />
-                        <h2>Palestras do Encontro</h2>
-                        <div className="divider mx-auto"></div>
-                    </div>
+                    <div className="section-print-wrapper">
+                        <div className="section-header center">
+                            <Mic2 size={32} />
+                            <h2>Palestras do Encontro</h2>
+                            <div className="divider mx-auto"></div>
+                        </div>
 
-                    <div className="palestras-grid">
-                        {palestras.map((p, pIdx) => (
-                            <motion.div
-                                key={p.id}
-                                className="palestra-card"
-                                initial={{ opacity: 0, y: 30 }}
-                                whileInView={{ opacity: 1, y: 0 }}
-                                viewport={{ once: true }}
-                                transition={{ delay: pIdx * 0.1 }}
-                            >
-                                <div className="palestra-speaker">
-                                    <div className="speaker-avatar">
-                                        {p.palestrante_foto_url ? (
-                                            <img src={p.palestrante_foto_url} alt={p.palestrante_nome || ''} />
-                                        ) : (
-                                            <User size={40} />
-                                        )}
+                        <div className={`palestras-grid ${palestras.length === 1 ? 'single-item' : ''}`}>
+                            {palestras.map((p, pIdx) => (
+                                <motion.div
+                                    key={p.id}
+                                    className="palestra-card"
+                                    initial={{ opacity: 0, y: 30 }}
+                                    whileInView={{ opacity: 1, y: 0 }}
+                                    viewport={{ once: true }}
+                                    transition={{ delay: pIdx * 0.1 }}
+                                >
+                                    <div className="palestra-speaker">
+                                        <div className="speaker-avatar">
+                                            {p.palestrante_foto_url ? (
+                                                <img src={p.palestrante_foto_url} alt={p.palestrante_nome || ''} />
+                                            ) : (
+                                                <User size={40} />
+                                            )}
+                                        </div>
+                                        <div className="speaker-info">
+                                            <h3>{p.titulo}</h3>
+                                            <span className="p-nome">{p.palestrante_nome}</span>
+                                        </div>
                                     </div>
-                                    <div className="speaker-info">
-                                        <h3>{p.titulo}</h3>
-                                        <span className="p-nome">{p.palestrante_nome}</span>
-                                    </div>
-                                </div>
-                                <div
-                                    className="palestra-body rich-editorial-output"
-                                    dangerouslySetInnerHTML={{ __html: p.resumo || '<p>Resumo não disponível para esta palestra.</p>' }}
-                                />
-                            </motion.div>
-                        ))}
+                                    <div
+                                        className="palestra-body rich-editorial-output"
+                                        dangerouslySetInnerHTML={{ __html: p.resumo || '<p>Resumo não disponível para esta palestra.</p>' }}
+                                    />
+                                </motion.div>
+                            ))}
+                        </div>
+                        {palestras.length === 0 && (
+                            <div className="opacity-40 text-center py-10">Nenhuma palestra registrada para este encontro.</div>
+                        )}
                     </div>
-                    {palestras.length === 0 && (
-                        <div className="opacity-40 text-center py-10">Nenhuma palestra registrada para este encontro.</div>
-                    )}
                 </section>}
 
                 <footer className="spa-footer">
@@ -627,7 +709,16 @@ export function QuadrantePage() {
                     --card-bg: #ffffff;
                     --border-color: #e2e8f0;
                     --primary-color: #2563eb;
-                    --hero-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+                    --hero-gradient: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+                    --hero-text: #0f172a;
+                    --hero-text-muted: #475569;
+                    --hero-border: #e2e8f0;
+                    --hero-accent: #2563eb;
+                    --music-card-bg: #ffffff;
+                    --music-card-border: #e2e8f0;
+                    --music-btn-bg: #f1f5f9;
+                    --music-btn-border: #cbd5e1;
+                    --music-btn-text: #0f172a;
                     --section-base-bg: #f8fafc;
                     --section-alt-bg: #eef4ff;
                     --glass-bg: rgba(255, 255, 255, 0.7);
@@ -643,6 +734,15 @@ export function QuadrantePage() {
                     --border-color: #1e293b;
                     --primary-color: #3b82f6;
                     --hero-gradient: linear-gradient(135deg, #0f172a 0%, #020617 100%);
+                    --hero-text: #ffffff;
+                    --hero-text-muted: rgba(255, 255, 255, 0.7);
+                    --hero-border: rgba(255, 255, 255, 0.1);
+                    --hero-accent: #93c5fd;
+                    --music-card-bg: rgba(0, 0, 0, 0.2);
+                    --music-card-border: rgba(255, 255, 255, 0.05);
+                    --music-btn-bg: rgba(255, 255, 255, 0.1);
+                    --music-btn-border: rgba(255, 255, 255, 0.2);
+                    --music-btn-text: #ffffff;
                     --section-base-bg: #020617;
                     --section-alt-bg: #07111f;
                     --glass-bg: rgba(15, 23, 42, 0.7);
@@ -907,42 +1007,111 @@ export function QuadrantePage() {
                 }
 
                 .hero-section {
-                    min-height: 50vh;
+                    min-height: 80vh;
                     background: var(--hero-gradient);
-                    color: white;
+                    color: var(--hero-text);
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     padding: 4rem 2rem;
                     text-align: center;
+                    border-bottom: 1px solid var(--border-color);
                 }
 
                 .hero-card {
-                    max-width: 700px;
+                    max-width: 800px;
                     width: 100%;
                 }
 
-                .hero-card .tag {
-                    background: var(--primary-color);
-                    padding: 4px 12px;
-                    border-radius: 100px;
-                    font-size: 0.7rem;
-                    font-weight: 800;
-                    letter-spacing: 0.1em;
-                    margin-bottom: 1.5rem;
-                    display: inline-block;
+                /* Cabeçalho da Capa estilo Paróquia */
+                .capa-header {
+                    display: grid;
+                    grid-template-columns: 80px 1fr 80px;
+                    align-items: center;
+                    gap: 1.5rem;
+                    margin-bottom: 2rem;
+                    width: 100%;
+                    text-align: center;
+                }
+                
+                .capa-header-logo-left img,
+                .capa-header-logo-right img {
+                    width: 70px;
+                    height: 70px;
+                    object-fit: contain;
+                    border-radius: 8px;
+                    background: var(--hero-border);
+                    padding: 4px;
                 }
 
-                .hero-card h1 {
-                    font-size: clamp(2.2rem, 6vw, 4rem);
-                    margin: 0 0 1rem;
-                    color: white;
+                .dark-mode .capa-header-logo-left img {
+                    background: #ffffff !important;
+                }
+                
+                .capa-header-center h2 {
+                    font-size: clamp(0.9rem, 2.5vw, 1.2rem);
                     font-weight: 800;
+                    margin: 0 0 2px 0;
+                    color: var(--hero-text);
+                    letter-spacing: 0.05em;
+                }
+                
+                .capa-header-center h3 {
+                    font-size: clamp(0.75rem, 2vw, 0.95rem);
+                    font-weight: 700;
+                    margin: 0 0 1rem 0;
+                    color: var(--hero-text-muted);
+                    letter-spacing: 0.05em;
+                }
+                
+                .capa-edicao {
+                    font-size: clamp(1.8rem, 5vw, 3rem);
+                    font-weight: 900;
+                    color: var(--hero-text);
+                    margin: 0 0 0.5rem 0;
                     letter-spacing: -0.02em;
                 }
+                
+                .capa-tema {
+                    font-size: clamp(1.1rem, 3vw, 1.6rem);
+                    font-weight: 700;
+                    color: var(--hero-accent);
+                    font-style: italic;
+                    margin: 0;
+                }
+                
+                .capa-central-logo {
+                    margin: 2rem auto;
+                    max-width: 400px;
+                    display: flex;
+                    justify-content: center;
+                }
+                
+                .capa-central-logo img {
+                    width: 100%;
+                    max-height: 400px;
+                    object-fit: contain;
+                    border-radius: 16px;
+                    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+                }
+                
+                .capa-footer-dates {
+                    font-size: clamp(0.9rem, 2vw, 1.2rem);
+                    font-weight: 700;
+                    color: var(--hero-text);
+                    margin-top: 2rem;
+                }
 
-                .hero-logo img {
-                    animation: float-logo 4s ease-in-out infinite;
+                @media (max-width: 640px) {
+                    .capa-header {
+                        grid-template-columns: 1fr;
+                        gap: 1rem;
+                    }
+                    .capa-header-logo-left,
+                    .capa-header-logo-right {
+                        display: flex;
+                        justify-content: center;
+                    }
                 }
 
                 @keyframes float-logo {
@@ -1037,7 +1206,7 @@ export function QuadrantePage() {
                 /* Music Section */
                 .content-music-section {
                     background: var(--hero-gradient);
-                    color: white;
+                    color: var(--hero-text);
                     padding: 4.25rem 8%;
                     text-align: center;
                 }
@@ -1050,6 +1219,7 @@ export function QuadrantePage() {
                 .music-header h2 {
                     font-size: 2rem;
                     margin: 0.75rem 0 1.35rem;
+                    color: var(--hero-text);
                 }
 
                 .music-title-name {
@@ -1058,11 +1228,13 @@ export function QuadrantePage() {
                     font-weight: 700;
                     letter-spacing: 0.01em;
                     opacity: 0.88;
+                    color: var(--hero-text-muted);
                 }
 
                 .music-icon {
                     opacity: 0.3;
                     margin-bottom: 0.5rem;
+                    color: var(--hero-text);
                 }
 
                 .music-links {
@@ -1077,10 +1249,10 @@ export function QuadrantePage() {
                     align-items: center;
                     gap: 0.6rem;
                     padding: 0.8rem 1.5rem;
-                    background: rgba(255,255,255,0.1);
-                    border: 1px solid rgba(255,255,255,0.2);
+                    background: var(--music-btn-bg);
+                    border: 1px solid var(--music-btn-border);
                     border-radius: 100px;
-                    color: white;
+                    color: var(--music-btn-text);
                     text-decoration: none;
                     font-size: 0.9rem;
                     font-weight: 600;
@@ -1088,15 +1260,16 @@ export function QuadrantePage() {
                 }
 
                 .music-link-btn:hover {
-                    background: white;
-                    color: #0f172a;
+                    background: var(--primary-color);
+                    color: white;
+                    border-color: var(--primary-color);
                 }
 
                 .lyrics-wrapper {
-                    background: rgba(0,0,0,0.2);
+                    background: var(--music-card-bg);
                     padding: 2.25rem 1.75rem;
                     border-radius: 28px;
-                    border: 1px solid rgba(255,255,255,0.05);
+                    border: 1px solid var(--music-card-border);
                 }
 
                 .lyrics-content {
@@ -1122,6 +1295,21 @@ export function QuadrantePage() {
                     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
                     gap: 1.4rem;
                     margin-top: 2.5rem;
+                }
+
+                .palestras-grid.single-item {
+                    display: flex !important;
+                    justify-content: center !important;
+                }
+
+                .palestras-grid.single-item .palestra-card {
+                    max-width: 500px;
+                    width: 100%;
+                }
+
+                .capa-titulos {
+                    margin: 1.5rem 0;
+                    text-align: center;
                 }
 
                 .palestra-card {
@@ -1357,18 +1545,18 @@ export function QuadrantePage() {
                 .team-photo-stub {
                     width: 100%;
                     height: 100%;
-                    background: radial-gradient(circle at center, #1e293b, #020617);
+                    background: #f1f5f9;
                     display: flex;
                     flex-direction: column;
                     align-items: center;
                     justify-content: center;
                     gap: 1.5rem;
                     color: var(--primary-color);
+                    border: 1px solid var(--border-color);
                 }
 
                 .team-photo-stub svg {
-                    opacity: 0.2;
-                    filter: drop-shadow(0 0 20px var(--primary-color));
+                    opacity: 0.3;
                 }
 
                 .team-photo-stub span {
@@ -1376,8 +1564,8 @@ export function QuadrantePage() {
                     font-weight: 600;
                     letter-spacing: 0.2em;
                     text-transform: uppercase;
-                    opacity: 0.4;
-                    color: white;
+                    opacity: 0.6;
+                    color: var(--text-color);
                 }
 
                 .team-badge {
@@ -1812,6 +2000,594 @@ export function QuadrantePage() {
                     }
                     .hero-section { padding: 3rem 1rem; }
                     .stats-pills { flex-direction: column; align-items: center; gap: 0.5rem; }
+                }
+
+                .section-print-wrapper {
+                    display: contents;
+                }
+
+                /* ═══════════════════════════════════════════════
+                   ESTILOS DE IMPRESSÃO / PDF — PREMIUM
+                   ═══════════════════════════════════════════════ */
+                @media print {
+
+                    /* ── Página A4 sem margens ───────────────────── */
+                    @page { size: A4 portrait; margin: 0; }
+
+                    /* ── Evitar corte de páginas e rolagem oculta na impressão ── */
+                    html, body {
+                        overflow: visible !important;
+                        height: auto !important;
+                        background: white !important;
+                    }
+
+                    /* ── Ocultar UI de navegação ─────────────────── */
+                    .spa-sidebar,
+                    .mobile-header,
+                    .sidebar-overlay,
+                    .music-link-btn,
+                    footer {
+                        display: none !important;
+                    }
+
+                    /* ── Preservar cores e desativar animações ────── */
+                    * {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        animation: none !important;
+                        transition: none !important;
+                    }
+
+                    /* ── Forçar visibilidade dos componentes animados do Framer Motion ── */
+                    .participant-card,
+                    .palestra-card,
+                    .team-layout,
+                    .hero-section,
+                    .hero-card,
+                    .lyrics-wrapper,
+                    .content-section,
+                    .content-team-section,
+                    .content-palestras-section,
+                    div[style*="opacity"],
+                    div[style*="transform"] {
+                        opacity: 1 !important;
+                        transform: none !important;
+                        visibility: visible !important;
+                    }
+
+                    /* ── Layout raiz ─────────────────────────────── */
+                    .quadrante-spa-container,
+                    .quadrante-spa-container.dark-mode {
+                        display: block !important;
+                        background: #ffffff !important;
+                        --bg-color: #f8fafc !important;
+                        --text-color: #0f172a !important;
+                        --sidebar-bg: #ffffff !important;
+                        --card-bg: #ffffff !important;
+                        --border-color: #e2e8f0 !important;
+                        --primary-color: #2563eb !important;
+                        --hero-gradient: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+                        --hero-text: #0f172a !important;
+                        --hero-text-muted: #475569 !important;
+                        --hero-border: #e2e8f0 !important;
+                        --hero-accent: #2563eb !important;
+                        --music-card-bg: #ffffff !important;
+                        --music-card-border: #e2e8f0 !important;
+                        --music-btn-bg: #f1f5f9 !important;
+                        --music-btn-border: #cbd5e1 !important;
+                        --music-btn-text: #0f172a !important;
+                        --section-base-bg: #f8fafc !important;
+                        --section-alt-bg: #eef4ff !important;
+                        --glass-bg: rgba(255, 255, 255, 0.7) !important;
+                        --glass-border: rgba(255, 255, 255, 0.4) !important;
+                    }
+
+                    .spa-main-content,
+                    .spa-main-content.sidebar-open {
+                        margin-left: 0 !important;
+                        padding: 0 !important;
+                        max-width: 100% !important;
+                        width: 100% !important;
+                    }
+
+                    .simbol-logo img,
+                    .theme-logo {
+                        box-shadow: 0 22px 55px rgba(15, 23, 42, 0.16) !important;
+                    }
+
+                    /* ── Forçar fundo branco em todas as seções e remover efeitos de faixa ── */
+                    .section-band,
+                    .section-band-base,
+                    .section-band-alt,
+                    .section-band-strong {
+                        background: #ffffff !important;
+                        box-shadow: none !important;
+                        clip-path: none !important;
+                        --section-bg: #ffffff !important;
+                    }
+
+                    /* ── Centralização de Páginas no Print ── */
+                    .content-editorial-section,
+                    .content-music-section,
+                    .content-palestras-section,
+                    .content-section,
+                    .content-team-section {
+                        break-before: page !important;
+                        page-break-before: always !important;
+                        height: 297mm !important;
+                        min-height: 297mm !important;
+                        display: table !important;
+                        width: 100% !important;
+                        box-sizing: border-box !important;
+                        background: #ffffff !important;
+                        padding: 0 !important;
+                    }
+
+                    .section-print-wrapper {
+                        display: table-cell !important;
+                        vertical-align: middle !important;
+                        width: 100% !important;
+                        padding: 20mm 15mm !important;
+                        box-sizing: border-box !important;
+                    }
+
+                    /* ── CAPA: Hero ocupa página inteira com fundo claro ─────────── */
+                    .hero-section {
+                        height: 297mm !important; /* Altura exata da folha A4 em milímetros */
+                        padding: 20mm 15mm !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        align-items: center !important;
+                        justify-content: space-between !important;
+                        background: #ffffff !important;
+                        break-after: page !important;
+                        page-break-after: always !important;
+                        box-sizing: border-box !important;
+                    }
+
+                    .hero-card {
+                        padding: 0 !important;
+                        max-width: 100% !important;
+                        width: 100% !important;
+                        height: 100% !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        justify-content: space-between !important;
+                        align-items: center !important;
+                        background: transparent !important;
+                        box-shadow: none !important;
+                        border: none !important;
+                    }
+
+                    .capa-header {
+                        display: grid !important;
+                        grid-template-columns: 100px 1fr 100px !important;
+                        align-items: center !important;
+                        gap: 1rem !important;
+                        width: 100% !important;
+                        text-align: center !important;
+                        margin-bottom: 0 !important;
+                    }
+
+                    .capa-header-logo-left,
+                    .capa-header-logo-right {
+                        display: flex !important;
+                        justify-content: center !important;
+                        align-items: center !important;
+                    }
+
+                    .capa-header-logo-left img,
+                    .capa-header-logo-right img {
+                        width: 85px !important;
+                        height: 85px !important;
+                        object-fit: contain !important;
+                        background: transparent !important;
+                        padding: 0 !important;
+                        border: none !important;
+                        box-shadow: none !important;
+                    }
+
+                    .capa-header-center {
+                        display: flex !important;
+                        flex-direction: column !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                    }
+
+                    .capa-header-center h2 {
+                        font-size: 13pt !important;
+                        font-weight: 800 !important;
+                        color: #000000 !important;
+                        margin: 0 0 2px 0 !important;
+                        letter-spacing: 0.02em !important;
+                        line-height: 1.2 !important;
+                    }
+
+                    .capa-header-center h3 {
+                        font-size: 10pt !important;
+                        font-weight: 700 !important;
+                        color: #000000 !important;
+                        margin: 0 0 10px 0 !important;
+                        letter-spacing: 0.02em !important;
+                        line-height: 1.2 !important;
+                    }
+
+                    .capa-edicao {
+                        font-size: 26pt !important;
+                        font-weight: 800 !important;
+                        color: #000000 !important;
+                        margin: 10px 0 5px 0 !important;
+                        letter-spacing: -0.01em !important;
+                        line-height: 1.1 !important;
+                    }
+
+                    .capa-tema {
+                        font-size: 16pt !important;
+                        font-weight: 700 !important;
+                        color: #000000 !important;
+                        font-style: italic !important;
+                        margin: 5px 0 0 0 !important;
+                        line-height: 1.2 !important;
+                    }
+
+                    .capa-central-logo {
+                        margin: 20px auto !important;
+                        width: 100% !important;
+                        max-width: 480px !important;
+                        height: 110mm !important;
+                        display: flex !important;
+                        justify-content: center !important;
+                        align-items: center !important;
+                    }
+
+                    .capa-central-logo img {
+                        max-width: 100% !important;
+                        max-height: 100% !important;
+                        object-fit: contain !important;
+                        border-radius: 0 !important;
+                        box-shadow: none !important;
+                    }
+
+                    .capa-footer-dates {
+                        font-size: 12pt !important;
+                        font-weight: 700 !important;
+                        color: #000000 !important;
+                        margin-top: 0 !important;
+                        margin-bottom: 10px !important;
+                        text-align: center !important;
+                        width: 100% !important;
+                    }
+
+                    /* ── Nova página para cada seção ─────────────── */
+                    .content-editorial-section,
+                    .content-music-section,
+                    .content-palestras-section,
+                    .content-section,
+                    .content-team-section {
+                        break-before: page !important;
+                        page-break-before: always !important;
+                    }
+
+                    /* ── SIMBOLOGIA & TEMÁTICA ───────────────────── */
+                    .content-editorial-section {
+                        background: #ffffff !important;
+                    }
+
+                    .editorial-container,
+                    .content-editorial-section.reverse .editorial-container {
+                        display: block !important;
+                        max-width: 100% !important;
+                        text-align: left !important;
+                    }
+
+                    .editorial-visual {
+                        display: flex !important;
+                        justify-content: center !important;
+                        align-items: center !important;
+                        margin-bottom: 2rem !important;
+                        width: 100% !important;
+                    }
+
+                    .simbol-logo img,
+                    .theme-logo {
+                        max-height: 260px !important;
+                        max-width: 260px !important;
+                        width: auto !important;
+                        height: auto !important;
+                        object-fit: contain !important;
+                        border-radius: 16px !important;
+                        box-shadow: 0 8px 30px rgba(0,0,0,0.06) !important;
+                    }
+
+                    .section-header h2 {
+                        font-size: 22pt !important;
+                        font-weight: 800 !important;
+                        color: #0f172a !important;
+                        margin-bottom: 0.5rem !important;
+                    }
+
+                    .section-header .divider {
+                        height: 4px !important;
+                        width: 50px !important;
+                        background: #2563eb !important;
+                        margin-bottom: 1.5rem !important;
+                    }
+
+                    .editorial-text,
+                    .rich-editorial-output {
+                        font-size: 10.5pt !important;
+                        line-height: 1.65 !important;
+                        color: #334155 !important;
+                    }
+
+                    /* ── MÚSICA TEMA ─────────────────────────────── */
+                    .content-music-section {
+                        background: #ffffff !important;
+                        color: #0f172a !important;
+                    }
+
+                    .music-container {
+                        max-width: 640px !important;
+                        margin: 0 auto !important;
+                    }
+
+                    .music-header h2 {
+                        font-size: 26pt !important;
+                        font-weight: 800 !important;
+                        color: #0f172a !important;
+                    }
+
+                    .music-header h3 {
+                        font-size: 14pt !important;
+                        color: #334155 !important;
+                        margin-bottom: 2rem !important;
+                    }
+
+                    .lyrics-wrapper {
+                        background: #f8fafc !important;
+                        border: 1px solid #e2e8f0 !important;
+                        border-radius: 20px !important;
+                        padding: 2rem 2.5rem !important;
+                    }
+
+                    .lyrics-content {
+                        font-size: 11pt !important;
+                        line-height: 1.6 !important;
+                        color: #334155 !important;
+                    }
+
+                    /* ── ENCONTRISTAS: layout inline-block super robusto para quebras de página ── */
+                    .content-section {
+                        padding: 0 !important;
+                        display: table !important;
+                        break-inside: auto !important;
+                        page-break-inside: auto !important;
+                    }
+
+                    .quadrante-grid {
+                        display: block !important;
+                        width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        text-align: center !important;
+                        break-inside: auto !important;
+                        page-break-inside: auto !important;
+                    }
+
+                    .participant-card {
+                        display: inline-block !important;
+                        width: calc(20% - 12px) !important; /* 5 colunas */
+                        margin: 6px 6px 14px 6px !important;
+                        vertical-align: top !important;
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                        border-radius: 12px !important;
+                        border: 1px solid #e2e8f0 !important;
+                        overflow: hidden !important;
+                        background: white !important;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+                    }
+
+                    .card-photo-wrapper {
+                        aspect-ratio: 1/1 !important;
+                        background: #f1f5f9 !important;
+                    }
+
+                    .card-info {
+                        padding: 8px !important;
+                    }
+
+                    .card-info h3 {
+                        font-size: 7.5pt !important;
+                        font-weight: 700 !important;
+                        color: #0f172a !important;
+                        line-height: 1.25 !important;
+                        margin: 0 !important;
+                    }
+
+                    .team-tag {
+                        font-size: 6pt !important;
+                        padding: 2px 5px !important;
+                        border-radius: 4px !important;
+                    }
+
+                    /* ── EQUIPES: foto widescreen + lista 3 colunas  */
+                    .content-team-section {
+                        padding: 0 !important;
+                        display: table !important;
+                        break-inside: auto !important;
+                        page-break-inside: auto !important;
+                    }
+
+                    .team-layout {
+                        display: flex !important;
+                        flex-direction: column !important;
+                        border-radius: 20px !important;
+                        overflow: hidden !important;
+                        border: 1px solid #e2e8f0 !important;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.06) !important;
+                        background: white !important;
+                    }
+
+                    .team-visual {
+                        width: 100% !important;
+                        height: 200px !important;
+                        max-height: 200px !important;
+                        overflow: hidden !important;
+                        position: relative !important;
+                        aspect-ratio: unset !important;
+                    }
+
+                    .team-photo-container {
+                        width: 100% !important;
+                        height: 100% !important;
+                    }
+
+                    .team-photo-container img {
+                        width: 100% !important;
+                        height: 100% !important;
+                        object-fit: cover !important;
+                    }
+
+                    .team-photo-stub {
+                        background: #f1f5f9 !important;
+                        color: #475569 !important;
+                        height: 100% !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        gap: 8px !important;
+                    }
+
+                    .team-photo-stub svg {
+                        color: #64748b !important;
+                    }
+
+                    .team-members-list {
+                        padding: 28px 32px !important;
+                    }
+
+                    .list-header {
+                        margin-bottom: 16px !important;
+                    }
+
+                    .list-header h3 {
+                        font-size: 18pt !important;
+                        font-weight: 800 !important;
+                        color: #0f172a !important;
+                        margin-bottom: 4px !important;
+                    }
+
+                    .list-header .line {
+                        height: 4px !important;
+                        width: 40px !important;
+                        background: #2563eb !important;
+                        border-radius: 2px !important;
+                    }
+
+                    .numbered-list {
+                        grid-template-columns: repeat(3, 1fr) !important;
+                        gap: 8px !important;
+                    }
+
+                    .member-item {
+                        padding: 8px 12px !important;
+                        border-radius: 10px !important;
+                        background: #f8fafc !important;
+                        border: 1px solid #e2e8f0 !important;
+                        break-inside: avoid !important;
+                    }
+
+                    .member-item .number {
+                        width: 26px !important;
+                        height: 26px !important;
+                        min-width: 26px !important;
+                        font-size: 7.5pt !important;
+                        background: rgba(37,99,235,0.1) !important;
+                        color: #1d4ed8 !important;
+                        border-radius: 6px !important;
+                    }
+
+                    .member-item .name {
+                        font-size: 9pt !important;
+                        font-weight: 600 !important;
+                        color: #0f172a !important;
+                    }
+
+                    /* ── PALESTRAS: layout inline-block de 2 colunas ── */
+                    .content-palestras-section {
+                        max-width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        display: table !important;
+                    }
+
+                    .palestras-grid {
+                        display: block !important;
+                        width: 100% !important;
+                        margin: 24px 0 0 0 !important;
+                        padding: 0 !important;
+                        text-align: left !important;
+                    }
+
+                    .palestras-grid.single-item {
+                        text-align: center !important;
+                        display: block !important;
+                    }
+
+                    .palestras-grid.single-item .palestra-card {
+                        display: inline-block !important;
+                        width: 100% !important;
+                        max-width: 500px !important;
+                        margin: 0 auto !important;
+                        text-align: left !important;
+                    }
+
+                    .palestra-card {
+                        display: inline-block !important;
+                        width: calc(50% - 18px) !important; /* 2 colunas */
+                        margin: 9px !important;
+                        vertical-align: top !important;
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                        border-radius: 14px !important;
+                        padding: 18px !important;
+                        border: 1px solid #e2e8f0 !important;
+                        background: white !important;
+                        box-shadow: none !important;
+                    }
+
+                    .speaker-avatar {
+                        width: 48px !important;
+                        height: 48px !important;
+                        border-radius: 12px !important;
+                        overflow: hidden !important;
+                        flex-shrink: 0 !important;
+                    }
+
+                    .speaker-info h3 {
+                        font-size: 11pt !important;
+                        font-weight: 700 !important;
+                        color: #0f172a !important;
+                    }
+
+                    .speaker-info .p-nome {
+                        font-size: 9pt !important;
+                        color: #64748b !important;
+                    }
+
+                    .palestra-body p,
+                    .palestra-body li {
+                        font-size: 9pt !important;
+                        line-height: 1.55 !important;
+                        color: #475569 !important;
+                    }
+
+                    /* ── Rodapé ──────────────────────────────────── */
+                    .spa-footer {
+                        display: none !important;
+                    }
                 }
             `}</style>
         </div>

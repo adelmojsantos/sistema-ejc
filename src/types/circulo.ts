@@ -2,10 +2,11 @@ export interface Circulo {
     id: number; // bigint
     created_at: string;
     nome: string | null;
+    imagem_url: string | null;
     deleted_at: string | null;
 }
 
-export type CirculoFormData = Pick<Circulo, 'nome'>;
+export type CirculoFormData = Pick<Circulo, 'nome' | 'imagem_url'>;
 
 export interface CirculoParticipacao {
     id: string; // uuid
@@ -27,4 +28,5 @@ export interface CirculoParticipacao {
 
 export const circuloFormDataVazio = (): CirculoFormData => ({
     nome: '',
+    imagem_url: null,
 });
