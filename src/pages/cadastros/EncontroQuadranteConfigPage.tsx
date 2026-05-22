@@ -304,13 +304,12 @@ export function EncontroQuadranteConfigPage() {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-                {/* Coluna Principal: Conteúdo das Abas */}
-                <div className="lg:col-span-2 flex flex-col gap-6">
+            <div className="quadrante-config-content">
 
-                    {/* ABA 1: ACESSO & SEGURANÇA */}
-                    {activeTab === 'acesso' && (
-                        <div className="card" style={{ padding: '2rem' }}>
+                {/* ABA 1: ACESSO & SEGURANÇA */}
+                {activeTab === 'acesso' && (
+                    <div className="quadrante-access-grid">
+                        <div className="card quadrante-access-card">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem' }}>
                                 <div className="icon-badge">
                                     <Shield size={24} />
@@ -324,8 +323,8 @@ export function EncontroQuadranteConfigPage() {
                             <div className="config-inner-card">
                                 <div className="config-item">
                                     <div className="config-label-area">
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
-                                            <h4 style={{ margin: 0 }}>Status do Quadrante</h4>
+                                        <div className="quadrante-status-row">
+                                            <h4 style={{ margin: 0 }}>Publicar Quadrante?</h4>
                                             <div className="sim-nao-toggle">
                                                 <button
                                                     className={`toggle-btn ${!ativo ? 'active-nao' : ''}`}
@@ -354,275 +353,279 @@ export function EncontroQuadranteConfigPage() {
                                             Deixe em branco para acesso livre. Se preenchido, será solicitado no primeiro acesso.
                                         </p>
                                     </div>
-                                    <div className="pin-input-wrapper">
-                                        <input
-                                            type={showPin ? "text" : "password"}
-                                            className="form-input pin-input"
-                                            placeholder="1234"
-                                            value={pin}
-                                            onChange={e => setPin(e.target.value)}
-                                            maxLength={6}
-                                            inputMode="numeric"
-                                            style={{ letterSpacing: (showPin || !pin) ? 'normal' : '0.35em' }}
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowPin(!showPin)}
-                                            className="pin-toggle-btn"
-                                            title={showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
-                                        >
-                                            {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="card-footer-actions">
-                                <button className="btn-primary" onClick={handleSaveAcesso} disabled={saving}>
-                                    {saving ? 'Salvando...' : <><RefreshCw size={18} /> Atualizar Acesso</>}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* ABA 2: CONTEÚDO VISUAL */}
-                    {activeTab === 'conteudo' && (
-                        <div className="quadrante-config-stack">
-                            <section className="card config-section-card">
-                                <div className="section-title-row">
-                                    <div className="icon-badge pink">
-                                        <ImageIcon size={24} />
-                                    </div>
-                                    <div>
-                                        <h3>Identidade visual</h3>
-                                        <p>Configure a marca usada na capa, na temática e na exportação em PDF.</p>
-                                    </div>
-                                </div>
-
-                                <div className="logo-upload-panel">
-                                    <div className="logo-preview-large">
-                                        {logoUrl ? (
-                                            <img src={logoUrl} alt="Logo do encontro" />
-                                        ) : (
-                                            <div className="logo-empty-state">
-                                                <ImageIcon size={34} />
-                                                <span>Sem logo</span>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="logo-upload-actions">
-                                        <input
-                                            ref={logoInputRef}
-                                            type="file"
-                                            accept="image/*"
-                                            hidden
-                                            onChange={(event) => handleLogoUpload(event.target.files?.[0])}
-                                        />
-                                        <button
-                                            type="button"
-                                            className="btn-secondary"
-                                            onClick={() => logoInputRef.current?.click()}
-                                            disabled={uploadingLogo}
-                                        >
-                                            <Upload size={16} /> {uploadingLogo ? 'Enviando...' : logoUrl ? 'Trocar logo' : 'Enviar logo'}
-                                        </button>
-                                        {logoUrl && (
+                                    <div className="pin-control-group">
+                                        <div className="pin-input-wrapper">
+                                            <input
+                                                type={showPin ? "text" : "password"}
+                                                className="form-input pin-input"
+                                                placeholder="1234"
+                                                value={pin}
+                                                onChange={e => setPin(e.target.value)}
+                                                maxLength={6}
+                                                inputMode="numeric"
+                                                style={{ letterSpacing: (showPin || !pin) ? 'normal' : '0.35em' }}
+                                            />
                                             <button
                                                 type="button"
-                                                className="btn-outline compact-danger"
-                                                onClick={() => setLogoUrl('')}
+                                                onClick={() => setShowPin(!showPin)}
+                                                className="pin-toggle-btn"
+                                                title={showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
                                             >
-                                                <X size={16} /> Remover
+                                                {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
                                             </button>
-                                        )}
-                                        <p className="field-hint">Use uma imagem quadrada ou com fundo transparente para melhor resultado.</p>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <section className="card config-section-card">
-                                <div className="section-title-row">
-                                    <div className="icon-badge secondary">
-                                        <Eye size={24} />
-                                    </div>
-                                    <div>
-                                        <h3>Seções exibidas</h3>
-                                        <p>Escolha quais partes entram no Quadrante público e na exportação em PDF.</p>
-                                    </div>
-                                </div>
-
-                                <div className="visibility-grid">
-                                    {visibilityOptions.map(option => (
-                                        <div key={option.key} className="visibility-option">
-                                            <div>
-                                                <strong>{option.label}</strong>
-                                                <span>{option.description}</span>
-                                            </div>
-                                            <div className="sim-nao-toggle visibility-toggle">
-                                                <button
-                                                    type="button"
-                                                    className={`toggle-btn ${!visibilityConfig[option.key] ? 'active-nao' : ''}`}
-                                                    onClick={() => updateVisibility(option.key, false)}
-                                                >
-                                                    Não
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className={`toggle-btn ${visibilityConfig[option.key] ? 'active-sim' : ''}`}
-                                                    onClick={() => updateVisibility(option.key, true)}
-                                                >
-                                                    Sim
-                                                </button>
-                                            </div>
                                         </div>
-                                    ))}
+                                        <button className="btn-primary pin-save-btn" onClick={handleSaveAcesso} disabled={saving}>
+                                            {saving ? 'Salvando...' : <><RefreshCw size={18} /> Atualizar Acesso</>}
+                                        </button>
+                                    </div>
                                 </div>
-                            </section>
+                            </div>
+                        </div>
 
-                            <section className="card config-section-card">
-                                <div className="section-title-row">
-                                    <div className="icon-badge">
-                                        <Type size={24} />
-                                    </div>
-                                    <div>
-                                        <h3>Textos editoriais</h3>
-                                        <p>Use o mesmo padrão de caixa de texto do resumo das palestras.</p>
-                                    </div>
+                        <div className="card quadrante-share-card">
+                            <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <QrCode size={18} /> Compartilhamento
+                            </h4>
+
+                            <div style={{ textAlign: 'center', padding: '1.5rem', background: '#fff', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                                <div ref={qrRef} style={{ background: '#fff', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-color)10' }}>
+                                    <QRCodeCanvas
+                                        value={publicUrl}
+                                        size={200}
+                                        level="H"
+                                        includeMargin={true}
+                                    />
                                 </div>
+                                <button
+                                    className="action-btn"
+                                    onClick={handleDownloadQRCode}
+                                    style={{
+                                        fontSize: '0.75rem',
+                                        color: '#fff',
+                                        background: 'var(--primary-color)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem',
+                                        border: 'none',
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: '8px',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        marginTop: '0.5rem',
+                                        transition: '0.2s'
+                                    }}
+                                >
+                                    <Download size={14} /> Baixar QR Code
+                                </button>
+                            </div>
+
+                            <div className="form-group">
+                                <label style={{ fontSize: '0.75rem' }}>Token de Segurança</label>
+                                <div style={{
+                                    padding: '0.75rem', background: 'var(--secondary-bg)', borderRadius: '8px',
+                                    fontSize: '0.7rem', fontFamily: 'monospace', wordBreak: 'break-all',
+                                    color: 'var(--primary-color)', border: '1px solid var(--border-color)'
+                                }}>
+                                    {encontro.quadrante_token}
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <button className="btn-outline" onClick={handleCopyLink} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                    {copied ? <Check size={16} /> : <Copy size={16} />}
+                                    {copied ? 'Copiado!' : 'Copiar Link Público'}
+                                </button>
+
+                                <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none' }}>
+                                    <ExternalLink size={16} /> Visualizar quadrante
+                                </a>
+
+                                <button
+                                    className="btn-outline"
+                                    onClick={handleExportPDF}
+                                    disabled={exporting}
+                                    style={{
+                                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                                        borderColor: 'var(--primary-color)', color: 'var(--primary-color)', background: 'var(--primary-color)05'
+                                    }}
+                                >
+                                    <FileText size={16} /> {exporting ? 'Gerando...' : 'Exportar Quadrante (PDF)'}
+                                </button>
+
+                                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                                    <button className="btn-danger-outline" onClick={handleRotateToken} style={{ width: '100%', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                        <RefreshCw size={14} /> Rotacionar Token de Segurança
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ABA 2: CONTEÚDO VISUAL */}
+                {activeTab === 'conteudo' && (
+                    <div className="quadrante-config-stack">
+                        <section className="card config-section-card">
+                            <div className="section-title-row">
+                                <div className="icon-badge pink">
+                                    <ImageIcon size={24} />
+                                </div>
+                                <div>
+                                    <h3>Logo temática</h3>
+                                    <p>Imagem própria deste encontro, usada na capa, na seção Temática e na exportação em PDF.</p>
+                                </div>
+                            </div>
+
+                            <div className="logo-upload-panel">
+                                <div className="logo-preview-large">
+                                    {logoUrl ? (
+                                        <img src={logoUrl} alt="Logo do encontro" />
+                                    ) : (
+                                        <div className="logo-empty-state">
+                                            <ImageIcon size={34} />
+                                            <span>Sem logo</span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="logo-upload-actions">
+                                    <input
+                                        ref={logoInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        hidden
+                                        onChange={(event) => handleLogoUpload(event.target.files?.[0])}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        onClick={() => logoInputRef.current?.click()}
+                                        disabled={uploadingLogo}
+                                    >
+                                        <Upload size={16} /> {uploadingLogo ? 'Enviando...' : logoUrl ? 'Trocar logo' : 'Enviar logo'}
+                                    </button>
+                                    {logoUrl && (
+                                        <button
+                                            type="button"
+                                            className="btn-outline compact-danger"
+                                            onClick={() => setLogoUrl('')}
+                                        >
+                                            <X size={16} /> Remover
+                                        </button>
+                                    )}
+                                    <p className="field-hint">Use uma imagem quadrada ou com fundo transparente para melhor resultado.</p>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="card config-section-card">
+                            <div className="section-title-row">
+                                <div className="icon-badge secondary">
+                                    <Eye size={24} />
+                                </div>
+                                <div>
+                                    <h3>Seções exibidas</h3>
+                                    <p>Escolha quais partes entram no Quadrante público e na exportação em PDF.</p>
+                                </div>
+                            </div>
+
+                            <div className="visibility-grid">
+                                {visibilityOptions.map(option => (
+                                    <div key={option.key} className="visibility-option">
+                                        <div>
+                                            <strong>{option.label}</strong>
+                                            <span>{option.description}</span>
+                                        </div>
+                                        <div className="sim-nao-toggle visibility-toggle">
+                                            <button
+                                                type="button"
+                                                className={`toggle-btn ${!visibilityConfig[option.key] ? 'active-nao' : ''}`}
+                                                onClick={() => updateVisibility(option.key, false)}
+                                            >
+                                                Não
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`toggle-btn ${visibilityConfig[option.key] ? 'active-sim' : ''}`}
+                                                onClick={() => updateVisibility(option.key, true)}
+                                            >
+                                                Sim
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+
+                        <section className="card config-section-card">
+                            <div className="section-title-row">
+                                <div className="icon-badge">
+                                    <Type size={24} />
+                                </div>
+                                <div>
+                                    <h3>Textos editoriais</h3>
+                                    <p>A Simbologia usa a logo oficial do EJC; a Temática usa a logo enviada acima.</p>
+                                </div>
+                            </div>
 
                                 <div className="editorial-fields">
-                                    <div className="form-group">
-                                        <label>Simbologia</label>
+                                    <div className="form-group editorial-field">
+                                        <div className="editorial-field-header">
+                                            <h4>Simbologia do Movimento</h4>
+                                            <p className="field-hint">Explique a logo oficial do EJC, os símbolos e os elementos do movimento.</p>
+                                        </div>
                                         <RichTextEditor
                                             content={simbologiaTexto}
                                             onChange={setSimbologiaTexto}
                                             disabled={saving}
                                             minHeight="180px"
                                         />
-                                        <p className="field-hint">Explicação sobre a logo e os símbolos do movimento.</p>
                                     </div>
 
-                                    <div className="form-group">
-                                        <label>Temática do Encontro</label>
+                                    <div className="form-group editorial-field">
+                                        <div className="editorial-field-header">
+                                            <h4>Inspiração do Tema</h4>
+                                            <p className="field-hint">Contextualize a logo temática enviada, as referências, inspirações e mensagem central deste encontro.</p>
+                                        </div>
                                         <RichTextEditor
                                             content={tematicaTexto}
                                             onChange={setTematicaTexto}
                                             disabled={saving}
                                             minHeight="180px"
                                         />
-                                        <p className="field-hint">Referências e inspirações do tema escolhido para este encontro.</p>
                                     </div>
 
-                                    <div className="form-group">
-                                        <label>Música Tema</label>
+                                    <div className="form-group editorial-field">
+                                        <div className="editorial-field-header">
+                                            <h4>Música Tema e Letra</h4>
+                                            <p className="field-hint">Registre a letra ou observações da música; links de vídeo e áudio vêm do cadastro geral.</p>
+                                        </div>
                                         <RichTextEditor
                                             content={musicaLetra}
                                             onChange={setMusicaLetra}
                                             disabled={saving}
                                             minHeight="220px"
                                         />
-                                        <p className="field-hint">Links de vídeo/áudio são pegos do cadastro geral do encontro.</p>
                                     </div>
                                 </div>
 
-                                <div className="card-footer-actions">
-                                    <button className="btn-primary" onClick={handleSaveEditorial} disabled={saving || uploadingLogo}>
-                                        {saving ? 'Salvando...' : <><Check size={18} /> Salvar conteúdo e seções</>}
-                                    </button>
-                                </div>
-                            </section>
-                        </div>
-                    )}
-                </div>
-
-                {/* Coluna Lateral: Compartilhamento (Visível em todas as abas) */}
-                <div className="lg:col-span-1 flex flex-col gap-6">
-                    <div className="card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        <h4 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <QrCode size={18} /> Compartilhamento
-                        </h4>
-
-                        <div style={{ textAlign: 'center', padding: '1.5rem', background: '#fff', borderRadius: '12px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-                            <div ref={qrRef} style={{ background: '#fff', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-color)10' }}>
-                                <QRCodeCanvas
-                                    value={publicUrl}
-                                    size={200}
-                                    level="H"
-                                    includeMargin={true}
-                                />
-                            </div>
-                            <button
-                                className="action-btn"
-                                onClick={handleDownloadQRCode}
-                                style={{
-                                    fontSize: '0.75rem',
-                                    color: '#fff',
-                                    background: 'var(--primary-color)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.4rem',
-                                    border: 'none',
-                                    padding: '0.5rem 1rem',
-                                    borderRadius: '8px',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    marginTop: '0.5rem',
-                                    transition: '0.2s'
-                                }}
-                            >
-                                <Download size={14} /> Baixar QR Code
-                            </button>
-                        </div>
-
-                        <div className="form-group">
-                            <label style={{ fontSize: '0.75rem' }}>Token de Segurança</label>
-                            <div style={{
-                                padding: '0.75rem', background: 'var(--secondary-bg)', borderRadius: '8px',
-                                fontSize: '0.7rem', fontFamily: 'monospace', wordBreak: 'break-all',
-                                color: 'var(--primary-color)', border: '1px solid var(--border-color)'
-                            }}>
-                                {encontro.quadrante_token}
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            <button className="btn-outline" onClick={handleCopyLink} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                                {copied ? <Check size={16} /> : <Copy size={16} />}
-                                {copied ? 'Copiado!' : 'Copiar Link Público'}
-                            </button>
-
-                            <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none' }}>
-                                <ExternalLink size={16} /> Visualizar quadrante
-                            </a>
-
-                            <button
-                                className="btn-outline"
-                                onClick={handleExportPDF}
-                                disabled={exporting}
-                                style={{
-                                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                                    borderColor: 'var(--primary-color)', color: 'var(--primary-color)', background: 'var(--primary-color)05'
-                                }}
-                            >
-                                <FileText size={16} /> {exporting ? 'Gerando...' : 'Exportar Quadrante (PDF)'}
-                            </button>
-
-                            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-                                <button className="btn-danger-outline" onClick={handleRotateToken} style={{ width: '100%', fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                                    <RefreshCw size={14} /> Rotacionar Token de Segurança
+                            <div className="card-footer-actions">
+                                <button className="btn-primary" onClick={handleSaveEditorial} disabled={saving || uploadingLogo}>
+                                    {saving ? 'Salvando...' : <><Check size={18} /> Salvar conteúdo e seções</>}
                                 </button>
                             </div>
-                        </div>
+                        </section>
                     </div>
-                </div>
-
+                )}
             </div>
 
             <style>{`
                 /* Tabs Style - Pill Pattern (Image 1) */
                 .tabs-container {
-                    display: inline-flex;
+                    display: flex;
+                    width: fit-content;
+                    max-width: 100%;
+                    flex-wrap: wrap;
                     gap: 6px;
                     padding: 6px;
                     background: rgba(15, 23, 42, 0.4);
@@ -647,6 +650,55 @@ export function EncontroQuadranteConfigPage() {
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                     opacity: 0.5;
                     white-space: nowrap;
+                    min-width: 0;
+                }
+
+                .quadrante-config-content {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                    margin-top: 1.5rem;
+                    min-width: 0;
+                    width: 100%;
+                }
+
+                .quadrante-access-grid {
+                    display: grid;
+                    grid-template-columns: 1fr;
+                    gap: 1.5rem;
+                    align-items: start;
+                    min-width: 0;
+                    width: 100%;
+                }
+
+                .quadrante-access-card,
+                .quadrante-share-card {
+                    padding: 1.5rem;
+                    border: 1px solid rgba(148, 163, 184, 0.28);
+                    background: transparent;
+                    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16);
+                }
+
+                .quadrante-share-card {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1.5rem;
+                    width: 100%;
+                }
+
+                .card-footer-actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 0.75rem;
+                    flex-wrap: wrap;
+                }
+
+                .quadrante-status-row {
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                    margin-bottom: 0.5rem;
+                    flex-wrap: wrap;
                 }
 
                 .tab-link:hover {
@@ -698,6 +750,9 @@ export function EncontroQuadranteConfigPage() {
 
                 .config-section-card {
                     padding: 1.5rem;
+                    border: 1px solid rgba(148, 163, 184, 0.28);
+                    background: transparent;
+                    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.16);
                     display: flex;
                     flex-direction: column;
                     gap: 1.5rem;
@@ -720,11 +775,29 @@ export function EncontroQuadranteConfigPage() {
                 }
 
                 .config-item-pin {
-                    display: grid;
-                    grid-template-columns: minmax(0, 1fr) auto;
-                    align-items: center;
-                    gap: 1.25rem;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: stretch;
+                    gap: 1rem;
                     margin-top: 1.5rem;
+                }
+
+                .pin-control-group {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    flex-wrap: wrap;
+                }
+
+                .pin-save-btn {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.45rem;
+                    min-height: 44px;
+                    height: auto;
+                    align-self: flex-start;
+                    flex: 0 0 auto;
                 }
 
                 .pin-input-wrapper {
@@ -865,6 +938,38 @@ export function EncontroQuadranteConfigPage() {
                     gap: 1.5rem;
                 }
 
+                .editorial-field {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.65rem;
+                }
+
+                .editorial-field-header {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.25rem;
+                }
+
+                .editorial-field-header h4 {
+                    margin: 0;
+                    font-size: 0.95rem;
+                    font-weight: 800;
+                    color: var(--text-color);
+                }
+
+                .editorial-field-header .field-hint {
+                    margin: 0;
+                    max-width: 680px;
+                    font-size: 0.78rem;
+                    line-height: 1.35;
+                    color: var(--muted-text);
+                }
+
+                .logo-upload-actions .field-hint {
+                    color: var(--muted-text);
+                    line-height: 1.35;
+                }
+
                 .arrow-icon { opacity: 0.3; transition: all 0.3s; }
                 .option-entry-card:hover .arrow-icon { opacity: 1; color: var(--primary-color); }
 
@@ -942,6 +1047,20 @@ export function EncontroQuadranteConfigPage() {
                 }
 
                 @media (max-width: 760px) {
+                    .tabs-container {
+                        width: 100%;
+                    }
+
+                    .tab-link {
+                        flex: 1 1 220px;
+                        justify-content: center;
+                        padding: 10px 14px;
+                    }
+
+                    .quadrante-access-grid {
+                        grid-template-columns: 1fr;
+                    }
+
                     .config-section-card {
                         padding: 1.25rem;
                     }
@@ -972,6 +1091,104 @@ export function EncontroQuadranteConfigPage() {
                     }
 
                     .visibility-toggle .toggle-btn {
+                        flex: 1;
+                    }
+
+                    .card-footer-actions {
+                        justify-content: stretch;
+                    }
+
+                    .card-footer-actions button {
+                        width: 100%;
+                        justify-content: center;
+                    }
+
+                    .pin-control-group {
+                        align-items: stretch;
+                    }
+
+                    .pin-control-group .pin-save-btn {
+                        flex: 1 1 220px;
+                        min-height: 44px;
+                        height: auto;
+                        justify-content: center;
+                    }
+
+                }
+
+                @media (max-width: 1100px) and (min-width: 761px) {
+                    .quadrante-access-grid {
+                        grid-template-columns: minmax(0, 1fr);
+                    }
+
+                    .config-item-pin,
+                    .visibility-grid {
+                        grid-template-columns: 1fr;
+                    }
+
+                    .visibility-option {
+                        align-items: flex-start;
+                    }
+                }
+
+                @media (max-width: 640px) {
+                    .quadrante-access-card,
+                    .quadrante-share-card {
+                        padding: 0;
+                        border: none;
+                        background: transparent;
+                        box-shadow: none;
+                    }
+
+                    .config-section-card {
+                        padding: 0;
+                        border: none;
+                        background: transparent;
+                        box-shadow: none;
+                    }
+
+                    .logo-upload-panel,
+                    .visibility-option {
+                        padding: 0.85rem;
+                    }
+
+                    .quadrante-share-card > div[style*="text-align: center"] {
+                        padding: 1rem !important;
+                    }
+                }
+
+                @media (max-width: 520px) {
+                    .section-title-row {
+                        gap: 0.75rem;
+                    }
+
+                    .icon-badge {
+                        width: 40px;
+                        height: 40px;
+                        border-radius: 10px;
+                        flex-shrink: 0;
+                    }
+
+                    .pin-input-wrapper {
+                        width: 100%;
+                    }
+
+                    .pin-control-group {
+                        flex-direction: column;
+                    }
+
+                    .pin-control-group .pin-save-btn {
+                        width: 100%;
+                        flex: 0 0 auto;
+                        min-height: 44px;
+                        height: auto;
+                    }
+
+                    .sim-nao-toggle {
+                        width: 100%;
+                    }
+
+                    .toggle-btn {
                         flex: 1;
                     }
                 }

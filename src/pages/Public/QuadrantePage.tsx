@@ -38,6 +38,7 @@ interface EncontroInfo {
     logo_url: string | null;
     simbologia_texto: string | null;
     tematica_texto: string | null;
+    musica: string | null;
     musica_letra: string | null;
     link_youtube: string | null;
     link_musica: string | null;
@@ -47,7 +48,7 @@ interface EncontroInfo {
 // --- Sub-componente para Cartões de Participantes ---
 function ParticipantCard({ item, index }: { item: QuadranteData; index: number }) {
     const { theme } = useTheme();
-    
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -82,7 +83,7 @@ export function QuadrantePage() {
     const [search] = useState('');
     const [encontro, setEncontro] = useState<EncontroInfo | null>(null);
     const [palestras, setPalestras] = useState<Palestra[]>([]);
-    const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
+    const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia('(min-width: 1025px)').matches);
     const [scrolled, setScrolled] = useState(false);
     const [activeSection, setActiveSection] = useState<string>('');
     const [exporting, setExporting] = useState(false);
@@ -90,6 +91,12 @@ export function QuadrantePage() {
     useEffect(() => {
         const handleScroll = () => {
             setScrolled(window.scrollY > 90);
+        };
+
+        const handleResize = () => {
+            if (window.matchMedia('(max-width: 1024px)').matches) {
+                setSidebarOpen(false);
+            }
         };
 
         // Observer para detectar seção ativa
@@ -109,8 +116,11 @@ export function QuadrantePage() {
         });
 
         window.addEventListener('scroll', handleScroll);
+        window.addEventListener('resize', handleResize);
+        handleResize();
         return () => {
             window.removeEventListener('scroll', handleScroll);
+            window.removeEventListener('resize', handleResize);
             observer.disconnect();
         };
     }, []);
@@ -146,7 +156,7 @@ export function QuadrantePage() {
 
                 const { data: eData } = await supabase
                     .from('encontros')
-                    .select('id, nome, tema, quadrante_ativo, logo_url, simbologia_texto, tematica_texto, musica_letra, link_youtube, link_musica, quadrante_visibilidade')
+                    .select('id, nome, tema, quadrante_ativo, logo_url, simbologia_texto, tematica_texto, musica, musica_letra, link_youtube, link_musica, quadrante_visibilidade')
                     .eq('quadrante_token', token)
                     .single();
 
@@ -164,7 +174,7 @@ export function QuadrantePage() {
                     quadranteService.obterDados(token, isAdmin),
                     palestraService.listarPorEncontro(eData.id)
                 ]);
-                
+
                 setData(quadranteData);
                 setPalestras(palestrasData);
             } catch (error) {
@@ -182,7 +192,7 @@ export function QuadrantePage() {
         if (!encontro) return;
         setExporting(true);
         try {
-            await quadrantePdfService.generateYearbook(encontro as any, data, palestras);
+            await quadrantePdfService.generateYearbook(encontro, data, palestras);
             toast.success('PDF gerado com sucesso!');
         } catch (error) {
             console.error('Erro ao gerar PDF:', error);
@@ -251,8 +261,6 @@ export function QuadrantePage() {
         }
     };
 
-
-
     if (loading) {
         return (
             <div className="loading-screen" style={{
@@ -301,7 +309,7 @@ export function QuadrantePage() {
                     <button onClick={() => scrollToSection('inicio')} className="nav-item">
                         <Home size={18} /> Início
                     </button>
-                    
+
                     <div className="nav-group">
                         <div className="nav-item-label" style={{ fontSize: '0.7rem', opacity: 0.5, letterSpacing: '0.1em', fontWeight: 800, padding: '0.5rem 1rem' }}>CONTEÚDO</div>
                         {visibility.simbologia && (
@@ -414,11 +422,11 @@ export function QuadrantePage() {
                 </section>
 
                 {visibility.simbologia && (
-                    <section id="simbologia" className="content-editorial-section" data-section-name="Simbologia">
+                    <section id="simbologia" className="content-editorial-section section-band section-band-base section-simbologia" data-section-name="Simbologia">
                         <div className="editorial-container">
                             <div className="editorial-visual">
                                 <div className="simbol-logo">
-                                    <img src="/logo-ejc-simbolo.png" alt="Símbolo EJC" onError={(e) => e.currentTarget.src = 'https://portaldafamilia.com.br/wp-content/uploads/2018/11/logo_ejc.png'} />
+                                    <img src="/logo-ejc.jpg" alt="Símbolo EJC" onError={(e) => e.currentTarget.src = '/logo-ejc-recriado.png'} />
                                 </div>
                             </div>
                             <div className="editorial-content">
@@ -434,7 +442,7 @@ export function QuadrantePage() {
 
                 {/* Temática do Encontro */}
                 {visibility.tematica && (
-                    <section id="tematica" className="content-editorial-section reverse" data-section-name="Temática">
+                    <section id="tematica" className="content-editorial-section reverse section-band section-band-alt section-tematica" data-section-name="Temática">
                         <div className="editorial-container">
                             <div className="editorial-visual">
                                 {encontro?.logo_url ? (
@@ -459,11 +467,12 @@ export function QuadrantePage() {
 
                 {/* Música Tema */}
                 {visibility.musica && (
-                    <section id="musica" className="content-music-section" data-section-name="Música">
+                    <section id="musica" className="content-music-section section-band section-band-strong" data-section-name="Música">
                         <div className="music-container">
                             <div className="music-header">
                                 <Music size={40} className="music-icon" />
                                 <h2>Música Tema</h2>
+                                {encontro?.musica && <h3>{encontro.musica}</h3>}
                                 <div className="music-links">
                                     {encontro?.link_musica && (
                                         <a href={encontro.link_musica} target="_blank" rel="noopener noreferrer" className="music-link-btn">
@@ -489,8 +498,8 @@ export function QuadrantePage() {
 
                 {/* Encontristas Sections grouped by Circle */}
                 {visibility.encontristas && <div id="encontristas" style={{ paddingBottom: '1px' }}></div>}
-                {visibility.encontristas && encontristasPorCirculo.map(([circle, members]) => (
-                    <section key={circle} id={`circulo-${slugify(circle)}`} className="content-section" data-section-name={circle}>
+                {visibility.encontristas && encontristasPorCirculo.map(([circle, members], sectionIndex) => (
+                    <section key={circle} id={`circulo-${slugify(circle)}`} className={`content-section section-band ${sectionIndex % 2 === 0 ? 'section-band-base' : 'section-band-alt'}`} data-section-name={circle}>
                         <div className="section-header">
                             <h2><Users size={24} /> {circle}</h2>
                             <div className="divider"></div>
@@ -506,16 +515,16 @@ export function QuadrantePage() {
 
                 {/* Encontreiros Sections (Team Layout 50/50) */}
                 {visibility.encontreiros && <div id="encontreiros" style={{ paddingBottom: '1px' }}></div>}
-                {visibility.encontreiros && encontreirosPorEquipe.map(([team, members]) => (
-                    <section key={team} id={`equipe-${slugify(team)}`} className="content-team-section" data-section-name={team}>
+                {visibility.encontreiros && encontreirosPorEquipe.map(([team, members], sectionIndex) => (
+                    <section key={team} id={`equipe-${slugify(team)}`} className={`content-team-section section-band ${sectionIndex % 2 === 0 ? 'section-band-alt' : 'section-band-base'}`} data-section-name={team}>
                         <div className="team-layout">
                             <div className="team-visual">
                                 <div className="team-photo-container">
                                     {members[0]?.equipes?.foto_url ? (
-                                        <img 
-                                            src={members[0].equipes.foto_url} 
-                                            alt={team} 
-                                            loading="lazy" 
+                                        <img
+                                            src={members[0].equipes.foto_url}
+                                            alt={team}
+                                            loading="lazy"
                                             style={{ objectPosition: `center ${members[0].equipes.foto_posicao_y ?? 50}%` }}
                                         />
                                     ) : (
@@ -550,7 +559,7 @@ export function QuadrantePage() {
                 ))}
 
                 {/* Palestras Section — MOVED INSIDE main */}
-                {visibility.palestras && <section id="palestras" className="content-palestras-section" data-section-name="Palestras">
+                {visibility.palestras && <section id="palestras" className="content-palestras-section section-band section-band-base" data-section-name="Palestras">
                     <div className="section-header center">
                         <Mic2 size={32} />
                         <h2>Palestras do Encontro</h2>
@@ -559,8 +568,8 @@ export function QuadrantePage() {
 
                     <div className="palestras-grid">
                         {palestras.map((p, pIdx) => (
-                            <motion.div 
-                                key={p.id} 
+                            <motion.div
+                                key={p.id}
                                 className="palestra-card"
                                 initial={{ opacity: 0, y: 30 }}
                                 whileInView={{ opacity: 1, y: 0 }}
@@ -619,6 +628,8 @@ export function QuadrantePage() {
                     --border-color: #e2e8f0;
                     --primary-color: #2563eb;
                     --hero-gradient: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+                    --section-base-bg: #f8fafc;
+                    --section-alt-bg: #eef4ff;
                     --glass-bg: rgba(255, 255, 255, 0.7);
                     --glass-border: rgba(255, 255, 255, 0.4);
                     --font-main: 'Outfit', sans-serif;
@@ -632,6 +643,8 @@ export function QuadrantePage() {
                     --border-color: #1e293b;
                     --primary-color: #3b82f6;
                     --hero-gradient: linear-gradient(135deg, #0f172a 0%, #020617 100%);
+                    --section-base-bg: #020617;
+                    --section-alt-bg: #07111f;
                     --glass-bg: rgba(15, 23, 42, 0.7);
                     --glass-border: rgba(255, 255, 255, 0.05);
                 }
@@ -646,6 +659,27 @@ export function QuadrantePage() {
                     background: var(--bg-color);
                     color: var(--text-color);
                     transition: all 0.3s ease;
+                }
+
+                .section-band {
+                    --section-bg: var(--section-base-bg);
+                    background: var(--section-bg);
+                    box-shadow: 0 0 0 100vmax var(--section-bg);
+                    clip-path: inset(0 -100vmax);
+                }
+
+                .section-band-base {
+                    --section-bg: var(--section-base-bg);
+                }
+
+                .section-band-alt {
+                    --section-bg: var(--section-alt-bg);
+                }
+
+                .section-band-strong {
+                    --section-bg: var(--hero-gradient);
+                    background: var(--hero-gradient);
+                    box-shadow: none;
                 }
 
                 /* Sidebar Styles */
@@ -918,16 +952,16 @@ export function QuadrantePage() {
 
                 /* Editorial Sections */
                 .content-editorial-section {
-                    padding: 6rem 8%;
+                    padding: 4.25rem 8%;
                     display: flex;
                     justify-content: center;
                 }
 
                 .editorial-container {
-                    max-width: 1200px;
+                    max-width: 1080px;
                     display: grid;
                     grid-template-columns: 1fr 1.5fr;
-                    gap: 4rem;
+                    gap: 3rem;
                     align-items: center;
                 }
 
@@ -946,20 +980,31 @@ export function QuadrantePage() {
 
                 .simbol-logo img, .theme-logo {
                     max-width: 100%;
-                    max-height: 400px;
+                    max-height: 320px;
                     object-fit: contain;
-                    filter: drop-shadow(0 20px 30px rgba(0,0,0,0.1));
+                    border-radius: 28px;
+                    box-shadow:
+                        0 22px 55px rgba(15, 23, 42, 0.16),
+                        0 0 0 1px rgba(148, 163, 184, 0.18);
+                }
+
+                .dark-mode .simbol-logo img,
+                .dark-mode .theme-logo {
+                    box-shadow:
+                        0 22px 55px rgba(255, 255, 255, 0.12),
+                        0 0 0 1px rgba(255, 255, 255, 0.18),
+                        0 0 32px rgba(59, 130, 246, 0.12);
                 }
 
                 .editorial-text {
-                    font-size: 1.15rem;
-                    line-height: 1.8;
+                    font-size: 1rem;
+                    line-height: 1.58;
                     opacity: 0.85;
                     color: var(--text-color);
                 }
 
                 .editorial-text p {
-                    margin-bottom: 1.5rem;
+                    margin-bottom: 0.85rem;
                 }
 
                 .rich-editorial-output ul,
@@ -978,7 +1023,7 @@ export function QuadrantePage() {
                 }
 
                 .rich-editorial-output li {
-                    margin-bottom: 0.4rem;
+                    margin-bottom: 0.25rem;
                 }
 
                 .rich-editorial-output strong {
@@ -993,18 +1038,26 @@ export function QuadrantePage() {
                 .content-music-section {
                     background: var(--hero-gradient);
                     color: white;
-                    padding: 6rem 8%;
+                    padding: 4.25rem 8%;
                     text-align: center;
                 }
 
                 .music-container {
-                    max-width: 800px;
+                    max-width: 720px;
                     margin: 0 auto;
                 }
 
                 .music-header h2 {
-                    font-size: 2.5rem;
-                    margin: 1rem 0 2rem;
+                    font-size: 2rem;
+                    margin: 0.75rem 0 1.35rem;
+                }
+
+                .music-title-name {
+                    margin: -0.8rem 0 1.35rem;
+                    font-size: 1.05rem;
+                    font-weight: 700;
+                    letter-spacing: 0.01em;
+                    opacity: 0.88;
                 }
 
                 .music-icon {
@@ -1016,7 +1069,7 @@ export function QuadrantePage() {
                     display: flex;
                     gap: 1rem;
                     justify-content: center;
-                    margin-bottom: 3rem;
+                    margin-bottom: 2rem;
                 }
 
                 .music-link-btn {
@@ -1041,41 +1094,41 @@ export function QuadrantePage() {
 
                 .lyrics-wrapper {
                     background: rgba(0,0,0,0.2);
-                    padding: 4rem 2rem;
-                    border-radius: 40px;
+                    padding: 2.25rem 1.75rem;
+                    border-radius: 28px;
                     border: 1px solid rgba(255,255,255,0.05);
                 }
 
                 .lyrics-content {
-                    font-size: 1.25rem;
-                    line-height: 1.6;
+                    font-size: 1.02rem;
+                    line-height: 1.45;
                     font-style: italic;
                     opacity: 0.9;
                 }
 
                 .lyrics-content p {
-                    margin-bottom: 0.5rem;
+                    margin-bottom: 0.25rem;
                 }
 
                 /* Palestras Section */
                 .content-palestras-section {
-                    padding: 6rem 8%;
-                    max-width: 1200px;
+                    padding: 4.25rem 8%;
+                    max-width: 1080px;
                     margin: 0 auto;
                 }
 
                 .palestras-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-                    gap: 2rem;
-                    margin-top: 4rem;
+                    gap: 1.4rem;
+                    margin-top: 2.5rem;
                 }
 
                 .palestra-card {
                     background: var(--card-bg);
                     border: 1px solid var(--border-color);
                     border-radius: 24px;
-                    padding: 2rem;
+                    padding: 1.5rem;
                     box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
                     transition: 0.3s;
                 }
@@ -1090,12 +1143,12 @@ export function QuadrantePage() {
                     display: flex;
                     align-items: center;
                     gap: 1.25rem;
-                    margin-bottom: 1.5rem;
+                    margin-bottom: 1rem;
                 }
 
                 .speaker-avatar {
-                    width: 70px;
-                    height: 70px;
+                    width: 58px;
+                    height: 58px;
                     border-radius: 20px;
                     overflow: hidden;
                     background: var(--primary-color)10;
@@ -1113,7 +1166,7 @@ export function QuadrantePage() {
                 }
 
                 .speaker-info h3 {
-                    font-size: 1.2rem;
+                    font-size: 1.05rem;
                     margin: 0;
                 }
 
@@ -1125,16 +1178,17 @@ export function QuadrantePage() {
 
                 .palestra-body p,
                 .palestra-body li {
-                    line-height: 1.6;
+                    line-height: 1.48;
                     opacity: 0.8;
-                    font-size: 1rem;
+                    font-size: 0.94rem;
                 }
 
                 @media (max-width: 1024px) {
                     .editorial-container {
                         grid-template-columns: 1fr;
-                        gap: 2rem;
+                        gap: 1.5rem;
                         text-align: center;
+                        max-width: 760px;
                     }
                     .content-editorial-section.reverse .editorial-container {
                         grid-template-columns: 1fr;
@@ -1144,6 +1198,18 @@ export function QuadrantePage() {
                     }
                     .palestras-grid {
                         grid-template-columns: 1fr;
+                    }
+
+                    .content-editorial-section,
+                    .content-music-section,
+                    .content-palestras-section {
+                        padding-top: 3rem;
+                        padding-bottom: 3rem;
+                    }
+
+                    .simbol-logo img,
+                    .theme-logo {
+                        max-height: 240px;
                     }
                 }
 
@@ -1641,7 +1707,105 @@ export function QuadrantePage() {
                     .sidebar-overlay { display: block; }
                 }
 
-                @media (max-width: 640px) {
+                @media (max-width: 768px) {
+                    .quadrante-spa-container {
+                        font-size: 0.9rem;
+                    }
+
+                    .hero-card h1 {
+                        font-size: clamp(1.75rem, 9vw, 2.35rem);
+                    }
+
+                    .hero-card p {
+                        font-size: 1.15rem;
+                        margin-bottom: 1.75rem;
+                    }
+
+                    .section-header h2,
+                    .music-header h2 {
+                        font-size: 1.22rem;
+                    }
+
+                    .editorial-text,
+                    .lyrics-content,
+                    .palestra-body p,
+                    .palestra-body li {
+                        font-size: 0.88rem;
+                        line-height: 1.42;
+                    }
+
+                    .editorial-text p {
+                        margin-bottom: 0.65rem;
+                    }
+
+                    .speaker-info h3,
+                    .list-header h3 {
+                        font-size: 1.08rem;
+                    }
+
+                    .content-editorial-section,
+                    .content-music-section,
+                    .content-section,
+                    .content-team-section,
+                    .content-palestras-section {
+                        padding-left: 1rem;
+                        padding-right: 1rem;
+                    }
+
+                    .content-editorial-section,
+                    .content-music-section,
+                    .content-palestras-section {
+                        padding-top: 2rem;
+                        padding-bottom: 2rem;
+                    }
+
+                    .editorial-container {
+                        gap: 1rem;
+                    }
+
+                    .simbol-logo img,
+                    .theme-logo {
+                        max-height: 150px;
+                    }
+
+                    .music-icon {
+                        width: 28px;
+                        height: 28px;
+                    }
+
+                    .music-links {
+                        margin-bottom: 1.25rem;
+                        flex-direction: column;
+                        align-items: stretch;
+                        gap: 0.6rem;
+                    }
+
+                    .music-link-btn {
+                        justify-content: center;
+                        padding: 0.65rem 1rem;
+                    }
+
+                    .lyrics-wrapper {
+                        padding: 1.2rem 1rem;
+                        border-radius: 18px;
+                    }
+
+                    .palestras-grid {
+                        margin-top: 1.5rem;
+                        gap: 1rem;
+                    }
+
+                    .palestra-card {
+                        padding: 1rem;
+                        border-radius: 18px;
+                    }
+
+                    .speaker-avatar {
+                        width: 48px;
+                        height: 48px;
+                        border-radius: 14px;
+                    }
+
                     .quadrante-grid {
                         grid-template-columns: repeat(2, 1fr);
                         gap: 1rem;

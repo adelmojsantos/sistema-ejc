@@ -81,113 +81,130 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
 
     return (
         <div className={`pessoa-row container-encontro-row ${encontro.ativo ? 'is-active' : ''}`}>
-            {/* Zona 1: Encontro + Data */}
-            <div className="pessoa-row-main" style={{ flex: '0 0 250px' }}>
-                <div className={`pessoa-avatar small ${encontro.ativo ? 'bg-active' : 'bg-dim'}`}>
-                    {encontro.edicao ?? '?'}
-                </div>
-                <div className="pessoa-row-info">
-                    <div className="title-with-badge">
-                        <h3 className="pessoa-row-name">{encontro.nome}</h3>
-                        {encontro.ativo && <span className="badge-ativo-pill">ATIVO</span>}
+            <div className="encontro-row-layout">
+                {/* Zona 1: Encontro + Data */}
+                <div className="pessoa-row-main" style={{ flex: '0 0 250px' }}>
+                    <div className={`pessoa-avatar small ${encontro.ativo ? 'bg-active' : 'bg-dim'}`}>
+                        {encontro.edicao ?? '?'}
                     </div>
-                    <div className="pessoa-row-sub">
-                        <span className="meta-info">
-                            <Calendar size={12} />
-                            {formatDateRange(encontro.data_inicio, encontro.data_fim)}
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Divisor Desktop */}
-            <div className="desktop-divider" />
-
-            {/* Zona 2: Local */}
-            <div className="encontro-local-zone">
-                <span className="section-label">LOCAL</span>
-                {encontro.local ? (
-                    <div className="meta-info">
-                        <MapPin size={14} className="icon-dim" />
-                        <span className="local-text">{encontro.local}</span>
-                    </div>
-                ) : (
-                    <span className="no-info">Não definido</span>
-                )}
-            </div>
-
-            {/* Divisor Desktop */}
-            <div className="desktop-divider" />
-
-            {/* Zona 3: Tema, Música e Link */}
-            <div className="encontro-mid-section">
-                {encontro.tema && (
-                    <div className="encontro-detail-item tema">
-                        <Quote size={12} className="icon-dim" />
-                        <span className="musica-nome">{encontro.tema}</span>
-                    </div>
-                )}
-                {encontro.musica && (
-                    <div className="encontro-detail-item musica">
-                        <Music size={12} className="icon-dim" />
-                        <span className="musica-nome">{encontro.musica}</span>
-                        <div className="musica-actions">
-                            {encontro.link_musica && (
-                                <a href={encontro.link_musica} target="_blank" rel="noopener noreferrer" className="mini-link-btn" title="Ouvir">
-                                    <Music size={12} />
-                                </a>
-                            )}
-                            {encontro.link_youtube && (
-                                <a href={encontro.link_youtube} target="_blank" rel="noopener noreferrer" className="mini-link-btn youtube" title="YouTube">
-                                    <Youtube size={12} />
-                                </a>
-                            )}
+                    <div className="pessoa-row-info">
+                        <div className="title-with-badge">
+                            <h3 className="pessoa-row-name">{encontro.nome}</h3>
+                            {encontro.ativo && <span className="badge-ativo-pill">ATIVO</span>}
+                        </div>
+                        <div className="pessoa-row-sub">
+                            <span className="meta-info">
+                                <Calendar size={12} />
+                                {formatDateRange(encontro.data_inicio, encontro.data_fim)}
+                            </span>
                         </div>
                     </div>
-                )}
-                {encontro.formulario_publico_ativo && (
-                    <div className="encontro-detail-item musica">
-                        <LinkIcon size={12} className="icon-dim" />
-                        <span className="musica-nome">Link Formulários Recepção e Recreação</span>
-                        <div className="musica-actions">
-                            <button 
-                                className={`mini-link-btn ${copied ? 'copied' : ''}`} 
-                                onClick={handleCopy}
-                                title="Copiar Link"
-                            >
-                                {copied ? <Check size={12} className="icon-check-anim" /> : <Copy size={12} />}
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
+                </div>
 
-            {/* Ações */}
-            <div className="pessoa-row-actions">
-                <button 
-                    className="icon-btn quadrante-btn" 
-                    onClick={() => navigate(`/cadastros/encontros/${encontro.id}/quadrante`)} 
-                    title="Configurar Quadrante"
-                >
-                    <LayoutGrid size={15} />
-                    <span>Quadrante</span>
-                    {encontro.quadrante_ativo ? (
-                        <span className="quadrante-status-dot active" />
+                {/* Divisor Desktop */}
+                <div className="desktop-divider" />
+
+                {/* Zona 2: Local */}
+                <div className="encontro-local-zone">
+                    <span className="section-label">LOCAL</span>
+                    {encontro.local ? (
+                        <div className="meta-info">
+                            <MapPin size={14} className="icon-dim" />
+                            <span className="local-text">{encontro.local}</span>
+                        </div>
                     ) : (
-                        <span className="quadrante-status-dot inactive" />
+                        <span className="no-info">Não definido</span>
                     )}
-                </button>
-                <button className="icon-btn" onClick={() => onEdit(encontro)} title="Editar">
-                    <Pencil size={16} />
-                </button>
-                <button className="icon-btn icon-btn-danger" onClick={() => onDelete(encontro)} title="Excluir">
-                    <Trash2 size={16} />
-                </button>
+                </div>
+
+                {/* Divisor Desktop */}
+                <div className="desktop-divider" />
+
+                {/* Zona 3: Tema, Música e Link */}
+                <div className="encontro-mid-section">
+                    {encontro.tema && (
+                        <div className="encontro-detail-item tema">
+                            <Quote size={12} className="icon-dim" />
+                            <span className="musica-nome">{encontro.tema}</span>
+                        </div>
+                    )}
+                    {encontro.musica && (
+                        <div className="encontro-detail-item musica">
+                            <Music size={12} className="icon-dim" />
+                            <span className="musica-nome">{encontro.musica}</span>
+                            <div className="musica-actions">
+                                {encontro.link_musica && (
+                                    <a href={encontro.link_musica} target="_blank" rel="noopener noreferrer" className="mini-link-btn" title="Ouvir">
+                                        <Music size={12} />
+                                    </a>
+                                )}
+                                {encontro.link_youtube && (
+                                    <a href={encontro.link_youtube} target="_blank" rel="noopener noreferrer" className="mini-link-btn youtube" title="YouTube">
+                                        <Youtube size={12} />
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    {encontro.formulario_publico_ativo && (
+                        <div className="encontro-detail-item musica">
+                            <LinkIcon size={12} className="icon-dim" />
+                            <span className="musica-nome">Link Formulários Recepção e Recreação</span>
+                            <div className="musica-actions">
+                                <button 
+                                    className={`mini-link-btn ${copied ? 'copied' : ''}`} 
+                                    onClick={handleCopy}
+                                    title="Copiar Link"
+                                >
+                                    {copied ? <Check size={12} className="icon-check-anim" /> : <Copy size={12} />}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Ações */}
+                <div className="pessoa-row-actions">
+                    <button 
+                        className="icon-btn quadrante-btn" 
+                        onClick={() => navigate(`/cadastros/encontros/${encontro.id}/quadrante`)} 
+                        title="Configurar Quadrante"
+                    >
+                        <LayoutGrid size={15} />
+                        <span>Quadrante</span>
+                        {encontro.quadrante_ativo ? (
+                            <span className="quadrante-status-dot active" />
+                        ) : (
+                            <span className="quadrante-status-dot inactive" />
+                        )}
+                    </button>
+                    <button className="icon-btn" onClick={() => onEdit(encontro)} title="Editar">
+                        <Pencil size={16} />
+                        <span className="encontro-action-label">Editar</span>
+                    </button>
+                    <button className="icon-btn icon-btn-danger" onClick={() => onDelete(encontro)} title="Excluir">
+                        <Trash2 size={16} />
+                        <span className="encontro-action-label">Excluir</span>
+                    </button>
+                </div>
             </div>
 
             <style>{`
-                .container-encontro-row { position: relative; gap: 1.5rem; }
+                .container-encontro-row {
+                    position: relative;
+                    display: block;
+                    overflow: visible;
+                    container-type: inline-size;
+                }
                 .container-encontro-row.is-active { border-left: 4px solid #10b981 !important; }
+                .encontro-row-layout {
+                    display: grid;
+                    grid-template-columns: minmax(180px, 1fr) 1px minmax(130px, 0.7fr) 1px minmax(200px, 1fr) max-content;
+                    align-items: center;
+                    gap: 1rem;
+                    min-width: 0;
+                    width: 100%;
+                }
                 
                 .title-with-badge { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
                 .badge-ativo-pill { background: #10b981; color: white; font-size: 0.6rem; font-weight: 800; padding: 1px 6px; border-radius: 4px; }
@@ -197,12 +214,12 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
                 .meta-info { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; opacity: 0.7; }
                 .desktop-divider { width: 1px; height: 32px; background: var(--border-color); opacity: 0.5; }
                 
-                .encontro-local-zone { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 150px; }
+                .encontro-local-zone { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
                 .section-label { font-size: 0.65rem; font-weight: 800; opacity: 0.5; letter-spacing: 0.05em; margin-bottom: 2px; }
                 .local-text { font-size: 0.85rem; font-weight: 500; opacity: 0.9; }
                 .no-info { font-size: 0.8rem; opacity: 0.4; font-style: italic; }
 
-                .encontro-mid-section { flex: 2; display: flex; flex-direction: column; gap: 4px; min-width: 250px; }
+                .encontro-mid-section { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
                 .encontro-detail-item { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; width: 100%; }
                 .encontro-detail-item.tema { font-style: italic; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; opacity: 0.8; }
                 .musica-nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -219,25 +236,61 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
                 .quadrante-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
                 .quadrante-status-dot.active { background: #10b981; box-shadow: 0 0 5px #10b981; }
                 .quadrante-status-dot.inactive { background: #94a3b8; }
+                .encontro-action-label { display: none; }
 
                 @keyframes check-pop {
                     0% { transform: scale(0.5) rotate(-20deg); opacity: 0; }
                     100% { transform: scale(1) rotate(0); opacity: 1; }
                 }
 
-                @media (max-width: 1100px) {
-                    .container-encontro-row { flex-direction: column; align-items: flex-start; padding: 1rem; gap: 0.75rem; border-radius: 12px !important; }
+                @container (max-width: 760px) {
+                    .encontro-row-layout {
+                        grid-template-columns: 1fr;
+                        align-items: stretch;
+                        gap: 0.75rem;
+                    }
                     .desktop-divider { display: none; }
                     .pessoa-row-main { width: 100%; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; flex: none !important; }
                     .encontro-local-zone { width: 100%; min-width: 0; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); }
                     .encontro-mid-section { width: 100%; min-width: 0; padding-top: 0.25rem; }
-                    .pessoa-row-actions { position: absolute; top: 0.75rem; right: 0.75rem; padding: 0; background: transparent; border: none; }
+                    .pessoa-row-actions {
+                        position: static;
+                        width: 100%;
+                        justify-content: flex-end;
+                        flex-wrap: wrap;
+                        padding-top: 0.25rem;
+                        background: transparent;
+                        border: none;
+                    }
                 }
 
-                @media (max-width: 640px) {
-                    .pessoa-row-actions { top: 0.75rem; right: 0.75rem; scale: 0.85; }
-                    .container-encontro-row { gap: 0.5rem; }
-                    .title-with-badge { padding-right: 4.5rem; } /* Avoid overlap with actions */
+                @container (max-width: 520px) {
+                    .pessoa-row-actions {
+                        display: grid;
+                        grid-template-columns: repeat(2, minmax(0, 1fr));
+                        justify-content: stretch;
+                        gap: 0.4rem;
+                    }
+                    .pessoa-row-actions .quadrante-btn {
+                        grid-column: 1 / -1;
+                        justify-content: center;
+                        width: 100% !important;
+                    }
+                    .pessoa-row-actions .icon-btn:not(.quadrante-btn) {
+                        width: 100%;
+                        height: auto;
+                        min-height: 36px;
+                        min-width: 0;
+                        gap: 0.45rem;
+                        padding: 0.45rem 0.65rem;
+                    }
+                    .encontro-action-label {
+                        display: inline;
+                        font-size: 0.75rem;
+                        font-weight: 700;
+                    }
+                    .encontro-row-layout { gap: 0.5rem; }
+                    .title-with-badge { padding-right: 0; }
                 }
             `}</style>
         </div>
