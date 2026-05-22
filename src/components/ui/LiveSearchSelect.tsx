@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, ChevronDown, Check } from 'lucide-react';
 
 export interface LiveSearchSelectProps<T> {
@@ -34,8 +35,10 @@ export function LiveSearchSelect<T>({
     const [page, setPage] = useState(0);
     const [loading, setLoading] = useState(false);
     const [hasMore, setHasMore] = useState(true);
+    const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
 
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
     const observer = useRef<IntersectionObserver | null>(null);
     const lastOptionElementRef = useCallback((node: HTMLDivElement | null) => {
         if (observer.current) observer.current.disconnect();
@@ -97,7 +100,13 @@ export function LiveSearchSelect<T>({
     // Close dropdown on click outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+            const target = event.target as Node;
+            if (
+                dropdownRef.current &&
+                !dropdownRef.current.contains(target) &&
+                menuRef.current &&
+                !menuRef.current.contains(target)
+            ) {
                 setIsOpen(false);
             }
         }
@@ -106,6 +115,30 @@ export function LiveSearchSelect<T>({
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
+
+    const updateDropdownPosition = useCallback(() => {
+        const rect = dropdownRef.current?.getBoundingClientRect();
+        if (!rect) return;
+        setDropdownPosition({
+            top: rect.bottom + 4,
+            left: rect.left,
+            width: rect.width
+        });
+    }, []);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const frame = window.requestAnimationFrame(updateDropdownPosition);
+        window.addEventListener('resize', updateDropdownPosition);
+        window.addEventListener('scroll', updateDropdownPosition, true);
+
+        return () => {
+            window.cancelAnimationFrame(frame);
+            window.removeEventListener('resize', updateDropdownPosition);
+            window.removeEventListener('scroll', updateDropdownPosition, true);
+        };
+    }, [isOpen, updateDropdownPosition]);
 
     const safeOptions = Array.isArray(options) ? options : [];
     const safeInitialOptions = Array.isArray(initialOptions) ? initialOptions : [];
@@ -128,7 +161,11 @@ export function LiveSearchSelect<T>({
                     padding: '0.5rem 0.75rem',
                     minHeight: '40px'
                 }}
-                onClick={() => !disabled && setIsOpen(!isOpen)}
+                onClick={() => {
+                    if (disabled) return;
+                    updateDropdownPosition();
+                    setIsOpen(!isOpen);
+                }}
             >
                 <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: displayValue ? 'var(--text-color)' : 'var(--muted-text)' }}>
                     {displayValue || placeholder}
@@ -137,13 +174,15 @@ export function LiveSearchSelect<T>({
             </div>
 
             {/* Dropdown */}
-            {isOpen && (
-                <div style={{
-                    position: 'absolute',
-                    top: 'calc(100% + 4px)',
-                    left: 0,
-                    right: 0,
-                    zIndex: 50,
+            {isOpen && createPortal(
+                <div
+                    ref={menuRef}
+                    style={{
+                    position: 'fixed',
+                    top: dropdownPosition.top,
+                    left: dropdownPosition.left,
+                    width: dropdownPosition.width,
+                    zIndex: 10000,
                     background: 'var(--surface-1)',
                     border: '1px solid var(--border-color)',
                     borderRadius: '0.5rem',
@@ -219,7 +258,8 @@ export function LiveSearchSelect<T>({
                             </div>
                         )}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

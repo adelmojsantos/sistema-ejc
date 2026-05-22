@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import type { Pessoa } from '../types/pessoa';
 
 export interface UserGrupoVinculo {
     grupo_id: string;
@@ -11,6 +12,35 @@ export interface AdminUserListItem {
     temporary_password: boolean;
     created_at: string;
     grupos: UserGrupoVinculo[];
+    nome?: string;
+    encontrosIds?: string[];
+    equipesNomes?: Record<string, string>;
+}
+
+export interface AdminUsersQuery {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    grupoId?: string;
+    encontroId?: string;
+    tempPassword?: 'all' | 'sim' | 'nao';
+    targetEncontroId?: string | null;
+}
+
+export interface AdminUsersSummary {
+    totalUsers: number;
+    totalTemporaryPassword: number;
+    totalWithoutPerson: number;
+    totalWithTargetAccess: number;
+    filteredTotal: number;
+}
+
+export interface AdminUsersListResponse {
+    users: AdminUserListItem[];
+    total: number;
+    page: number;
+    pageSize: number;
+    summary: AdminUsersSummary;
 }
 
 interface CreateAdminUserPayload {
@@ -37,12 +67,20 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 export const adminUserService = {
-    async listUsers(): Promise<AdminUserListItem[]> {
+    async listUsers(query: AdminUsersQuery = {}): Promise<AdminUsersListResponse> {
         const headers = await getAuthHeaders();
 
-        // Fetch base users profile data via Edge Function (safe from strict RLS block without service role)
         const { data: edgeData, error: edgeError } = await supabase.functions.invoke('admin-users', {
-            body: { action: 'list' },
+            body: {
+                action: 'list',
+                page: query.page ?? 0,
+                pageSize: query.pageSize ?? 20,
+                search: query.search ?? '',
+                grupoId: query.grupoId ?? 'all',
+                encontroId: query.encontroId ?? 'all',
+                tempPassword: query.tempPassword ?? 'all',
+                targetEncontroId: query.targetEncontroId ?? null,
+            },
             headers,
         });
 
@@ -55,32 +93,38 @@ export const adminUserService = {
             throw new Error(edgeData.error);
         }
 
-        const users = edgeData?.users || [];
+        return {
+            users: edgeData?.users || [],
+            total: edgeData?.total || 0,
+            page: edgeData?.page || 0,
+            pageSize: edgeData?.pageSize || query.pageSize || 20,
+            summary: edgeData?.summary || {
+                totalUsers: 0,
+                totalTemporaryPassword: 0,
+                totalWithoutPerson: 0,
+                totalWithTargetAccess: 0,
+                filteredTotal: 0,
+            },
+        };
+    },
 
-        // Fetch groups
-        const { data: ugData, error: ugError } = await supabase
-            .from('usuario_grupos')
-            .select('usuario_id, grupo_id, encontro_id');
+    async searchPeople(search: string, page: number = 0, pageSize: number = 20): Promise<Pessoa[]> {
+        const headers = await getAuthHeaders();
 
-        if (ugError) {
-            console.error('[adminUserService] Error fetching usuario_grupos:', ugError);
-            throw ugError;
-        }
+        const { data, error } = await supabase.functions.invoke('admin-users', {
+            body: {
+                action: 'search-people',
+                search,
+                page,
+                pageSize,
+            },
+            headers,
+        });
 
-        const ugMap = new Map<string, UserGrupoVinculo[]>();
-        for (const ug of ugData || []) {
-            if (!ugMap.has(ug.usuario_id)) ugMap.set(ug.usuario_id, []);
-            ugMap.get(ug.usuario_id)!.push({ grupo_id: ug.grupo_id, encontro_id: ug.encontro_id });
-        }
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
 
-        interface RawEdgeUser { id: string; email: string; temporary_password: boolean; created_at: string; }
-        return users.map((u: RawEdgeUser) => ({
-            id: u.id,
-            email: u.email,
-            temporary_password: u.temporary_password,
-            created_at: u.created_at,
-            grupos: ugMap.get(u.id) || []
-        })) as AdminUserListItem[];
+        return (data?.people || []) as Pessoa[];
     },
 
     async createUser(payload: CreateAdminUserPayload): Promise<CreateAdminUserResponse> {

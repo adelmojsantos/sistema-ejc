@@ -2,6 +2,32 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 type UserRole = 'admin' | 'secretaria' | 'visitacao' | 'coordenador' | 'viewer';
 
+interface UserGrupoVinculo {
+  grupo_id: string;
+  encontro_id: string | null;
+}
+
+interface EnrichedUser {
+  id: string;
+  email: string;
+  role?: string;
+  temporary_password: boolean;
+  created_at: string;
+  grupos: UserGrupoVinculo[];
+  nome?: string;
+  encontrosIds: string[];
+  equipesNomes: Record<string, string>;
+}
+
+interface PersonSearchItem {
+  id: string;
+  nome_completo: string;
+  cpf: string | null;
+  email: string | null;
+  telefone: string | null;
+  comunidade: string | null;
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -113,13 +139,154 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'list') {
+      const page = Math.max(Number(body?.page ?? 0), 0);
+      const pageSize = Math.min(Math.max(Number(body?.pageSize ?? 20), 5), 100);
+      const search = String(body?.search ?? '').trim().toLowerCase();
+      const grupoId = String(body?.grupoId ?? 'all');
+      const encontroId = String(body?.encontroId ?? 'all');
+      const tempPassword = String(body?.tempPassword ?? 'all');
+
       const { data, error } = await adminClient
         .from('profiles')
         .select('id, email, role, temporary_password, created_at')
         .order('email', { ascending: true });
 
       if (error) return jsonResponse(500, { error: 'Failed to list users' });
-      return jsonResponse(200, { users: data ?? [] });
+
+      const profiles = data ?? [];
+      const userIds = profiles.map((u) => u.id);
+      const emails = profiles.map((u) => u.email?.toLowerCase()).filter(Boolean);
+
+      const { data: ugData, error: ugError } = await adminClient
+        .from('usuario_grupos')
+        .select('usuario_id, grupo_id, encontro_id')
+        .in('usuario_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
+
+      if (ugError) return jsonResponse(500, { error: 'Failed to list user groups' });
+
+      const { data: pessoasData, error: pessoasError } = await adminClient
+        .from('pessoas')
+        .select('email, nome_completo, participacoes(encontro_id, equipes(nome))')
+        .in('email', emails.length > 0 ? emails : ['']);
+
+      if (pessoasError) return jsonResponse(500, { error: 'Failed to list linked people' });
+
+      const ugMap = new Map<string, UserGrupoVinculo[]>();
+      for (const ug of ugData || []) {
+        if (!ugMap.has(ug.usuario_id)) ugMap.set(ug.usuario_id, []);
+        ugMap.get(ug.usuario_id)!.push({ grupo_id: ug.grupo_id, encontro_id: ug.encontro_id });
+      }
+
+      const pessoasMap = new Map<string, { nome: string; encontrosIds: string[]; equipesNomes: Record<string, string> }>();
+      for (const pessoa of pessoasData || []) {
+        if (!pessoa.email) continue;
+        const participacoes = (pessoa.participacoes || []) as {
+          encontro_id: string;
+          equipes: { nome: string }[] | { nome: string } | null;
+        }[];
+        const equipesNomes: Record<string, string> = {};
+        const encontrosIds: string[] = [];
+
+        for (const participacao of participacoes) {
+          if (participacao.encontro_id) encontrosIds.push(participacao.encontro_id);
+          const equipe = Array.isArray(participacao.equipes) ? participacao.equipes[0] : participacao.equipes;
+          if (participacao.encontro_id && equipe?.nome) {
+            equipesNomes[participacao.encontro_id] = equipe.nome;
+          }
+        }
+
+        pessoasMap.set(pessoa.email.toLowerCase(), {
+          nome: pessoa.nome_completo,
+          encontrosIds,
+          equipesNomes,
+        });
+      }
+
+      const enrichedUsers: EnrichedUser[] = profiles.map((profile) => {
+        const pessoaInfo = pessoasMap.get(profile.email.toLowerCase());
+        return {
+          id: profile.id,
+          email: profile.email,
+          role: profile.role,
+          temporary_password: profile.temporary_password,
+          created_at: profile.created_at,
+          grupos: ugMap.get(profile.id) || [],
+          nome: pessoaInfo?.nome,
+          encontrosIds: pessoaInfo?.encontrosIds || [],
+          equipesNomes: pessoaInfo?.equipesNomes || {},
+        };
+      });
+
+      const totalUsers = enrichedUsers.length;
+      const totalTemporaryPassword = enrichedUsers.filter((u) => u.temporary_password).length;
+      const totalWithoutPerson = enrichedUsers.filter((u) => !u.nome).length;
+      const totalWithTargetAccess = body?.targetEncontroId
+        ? enrichedUsers.filter((u) => u.grupos.some((g) => g.encontro_id === body.targetEncontroId)).length
+        : enrichedUsers.filter((u) => u.grupos.some((g) => g.encontro_id === null)).length;
+
+      const filteredUsers = enrichedUsers.filter((user) => {
+        if (grupoId !== 'all' && !user.grupos.some((g) => g.grupo_id === grupoId)) return false;
+        if (encontroId !== 'all' && !user.encontrosIds.includes(encontroId)) return false;
+        if (tempPassword !== 'all') {
+          const wantsTemporary = tempPassword === 'sim';
+          if (user.temporary_password !== wantsTemporary) return false;
+        }
+        if (search) {
+          const searchable = [
+            user.email,
+            user.nome ?? '',
+            ...Object.values(user.equipesNomes || {}),
+          ].join(' ').toLowerCase();
+          if (!searchable.includes(search)) return false;
+        }
+        return true;
+      });
+
+      const total = filteredUsers.length;
+      const pageStart = page * pageSize;
+      const paginatedUsers = filteredUsers.slice(pageStart, pageStart + pageSize);
+
+      return jsonResponse(200, {
+        users: paginatedUsers,
+        total,
+        page,
+        pageSize,
+        summary: {
+          totalUsers,
+          totalTemporaryPassword,
+          totalWithoutPerson,
+          totalWithTargetAccess,
+          filteredTotal: total,
+        },
+      });
+    }
+
+    if (action === 'search-people') {
+      const search = String(body?.search ?? '').trim();
+      const page = Math.max(Number(body?.page ?? 0), 0);
+      const pageSize = Math.min(Math.max(Number(body?.pageSize ?? 20), 5), 50);
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+
+      let query = adminClient
+        .from('pessoas')
+        .select('id, nome_completo, cpf, email, telefone, comunidade')
+        .order('nome_completo', { ascending: true })
+        .range(from, to);
+
+      if (search) {
+        query = query.or(
+          `nome_completo.ilike.%${search}%,cpf.ilike.%${search}%,email.ilike.%${search}%,telefone.ilike.%${search}%,comunidade.ilike.%${search}%`
+        );
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        return jsonResponse(500, { error: 'Failed to search people', details: error.message });
+      }
+
+      return jsonResponse(200, { people: (data ?? []) as PersonSearchItem[] });
     }
 
     if (action === 'create') {
