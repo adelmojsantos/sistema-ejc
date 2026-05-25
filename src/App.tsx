@@ -97,7 +97,8 @@ function AnimatedRoutes() {
         <Route path="/formulario/recepcao" element={<PageTransition><FormPage /></PageTransition>} />
         <Route path="/formulario/recreacao" element={<PageTransition><FormRecreacaoPage /></PageTransition>} />
         <Route path="/q/:token" element={<QuadranteAuthPage />} />
-        <Route path="/quadrante/:token" element={<QuadrantePage />} />
+        <Route path="/quadrante/:token" element={<QuadrantePage isAdminView={true} />} />
+        <Route path="/quadrante/:token/publico" element={<QuadrantePage isAdminView={false} />} />
 
         <Route path="/alterar-senha" element={
           <ProtectedRoute allowTemporaryPassword={true}>

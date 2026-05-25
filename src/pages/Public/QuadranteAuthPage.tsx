@@ -7,12 +7,13 @@ import {
     ShieldCheck
 } from 'lucide-react';
 import { quadranteService } from '../../services/quadranteService';
-import { supabase } from '../../lib/supabase';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../../hooks/useAuth';
 
 export function QuadranteAuthPage() {
     const { token } = useParams<{ token: string }>();
     const navigate = useNavigate();
+    const { session, loading: authLoading, hasPermission } = useAuth();
     const [pin, setPin] = useState('');
     const [loading, setLoading] = useState(false);
     const [validating, setValidating] = useState(true);
@@ -20,11 +21,10 @@ export function QuadranteAuthPage() {
 
     useEffect(() => {
         async function checkToken() {
+            if (authLoading) return;
             if (!token) return;
             try {
-                // Verificar sessão — admins/secretaria podem acessar mesmo sem publicar
-                const { data: { session } } = await supabase.auth.getSession();
-                const isAdmin = !!session;
+                const isAdmin = !!session && hasPermission('modulo_admin');
 
                 const data = await quadranteService.obterInfoPublica(token);
 
@@ -44,15 +44,16 @@ export function QuadranteAuthPage() {
 
                 setEncontroNome(data.nome);
 
-                // Admin vai direto, sem precisar de PIN
+                // Admin vai direto, sem precisar de PIN (preservando parâmetros de query)
                 if (isAdmin) {
-                    navigate(`/quadrante/${token}`);
+                    navigate(`/quadrante/${token}${window.location.search}`);
                     return;
                 }
 
-                // Público sem PIN definido também pula a autenticação
+                // Público sem PIN definido também pula a autenticação (preservando parâmetros de query)
                 if (!data.tem_pin) {
-                    navigate(`/quadrante/${token}`, { state: { authorized: true } });
+                    navigate(`/quadrante/${token}/publico${window.location.search}`, { state: { authorized: true } });
+                    return;
                 }
             } catch (error) {
                 console.error('Erro ao verificar token:', error);
@@ -63,7 +64,7 @@ export function QuadranteAuthPage() {
         }
 
         checkToken();
-    }, [token, navigate]);
+    }, [authLoading, hasPermission, navigate, session, token]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -76,7 +77,7 @@ export function QuadranteAuthPage() {
                 // Navegar para o quadrante com o PIN na state ou apenas autorizar
                 // Usamos o PIN para buscar os dados de forma segura no próximo passo
                 sessionStorage.setItem(`q_auth_${token}`, pin);
-                navigate(`/quadrante/${token}`);
+                navigate(`/quadrante/${token}/publico${window.location.search}`);
             } else {
                 toast.error('Código de acesso incorreto.');
                 setPin('');

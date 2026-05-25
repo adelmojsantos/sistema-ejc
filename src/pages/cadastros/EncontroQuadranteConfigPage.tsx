@@ -22,9 +22,6 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { supabase } from '../../lib/supabase';
 import { encontroService } from '../../services/encontroService';
-import { palestraService } from '../../services/palestraService';
-import { quadrantePdfService } from '../../services/quadrantePdfService';
-import { quadranteService } from '../../services/quadranteService';
 import { quadranteVisibilityDefault, type Encontro, type QuadranteVisibilityConfig } from '../../types/encontro';
 
 const visibilityOptions: { key: keyof QuadranteVisibilityConfig; label: string; description: string }[] = [
@@ -32,6 +29,7 @@ const visibilityOptions: { key: keyof QuadranteVisibilityConfig; label: string; 
     { key: 'tematica', label: 'Temática', description: 'Logo e referências do tema do encontro.' },
     { key: 'musica', label: 'Música Tema', description: 'Letra e links de música/vídeo.' },
     { key: 'encontristas', label: 'Encontristas', description: 'Cards dos participantes por círculo.' },
+    { key: 'fotosMediadores', label: 'Fotos dos mediadores', description: 'Foto dos mediadores no cabeçalho de cada círculo.' },
     { key: 'encontreiros', label: 'Encontreiros', description: 'Composição das equipes de trabalho.' },
     { key: 'palestras', label: 'Palestras', description: 'Lista de palestras e resumos.' },
 ];
@@ -187,33 +185,14 @@ export function EncontroQuadranteConfigPage() {
     const handleExportPDF = async () => {
         if (!encontro?.quadrante_token) return;
         setExporting(true);
-        const loadingToast = toast.loading('Gerando quadrante PDF...');
-
+        const loadingToast = toast.loading('Abrindo quadrante para impressão...');
+        
         try {
-            // ignorarAtivo=true pois admin pode gerar PDF mesmo antes de publicar
-            const [data, palestras] = await Promise.all([
-                quadranteService.obterDados(encontro.quadrante_token, true),
-                palestraService.listarPorEncontro(id!)
-            ]);
-
-            await quadrantePdfService.generateYearbook(
-                {
-                    id: id!,
-                    nome: encontro.nome,
-                    tema: encontro.tema,
-                    logo_url: logoUrl || null,
-                    simbologia_texto: simbologiaTexto || null,
-                    tematica_texto: tematicaTexto || null,
-                    musica_letra: musicaLetra || null,
-                    quadrante_visibilidade: visibilityConfig
-                },
-                data,
-                palestras
-            );
-            toast.success('Quadrante PDF gerado com sucesso!', { id: loadingToast });
+            window.open(`/quadrante/${encontro.quadrante_token}?print=true`, '_blank');
+            toast.success('Quadrante aberto para impressão!', { id: loadingToast });
         } catch (error) {
-            console.error('Erro ao gerar PDF:', error);
-            toast.error('Erro ao gerar o PDF do Quadrante.', { id: loadingToast });
+            console.error('Erro ao abrir link de impressão:', error);
+            toast.error('Erro ao abrir quadrante para impressão.', { id: loadingToast });
         } finally {
             setExporting(false);
         }

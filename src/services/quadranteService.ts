@@ -15,9 +15,15 @@ export interface QuadranteData {
     };
     circulo_participacao?: {
         circulos: {
+            id: number;
             nome: string;
+            imagem_url: string | null;
         };
     }[];
+    circulo_mediadores_foto?: {
+        foto_url: string | null;
+        foto_posicao_y: number | null;
+    } | null;
 }
 
 export interface QuadrantePublicInfo {
@@ -25,6 +31,12 @@ export interface QuadrantePublicInfo {
     quadrante_ativo: boolean;
     tem_pin: boolean;
 }
+
+type QuadranteRawData = Omit<QuadranteData, 'equipes' | 'circulo_mediadores_foto'> & {
+    equipe_id: string | number | null;
+    equipes?: QuadranteData['equipes'] | QuadranteData['equipes'][];
+    circulo_mediadores_foto?: QuadranteData['circulo_mediadores_foto'];
+};
 
 export const quadranteService = {
     /**
@@ -95,7 +107,7 @@ export const quadranteService = {
                 pessoas (nome_completo),
                 equipes (nome, foto_url),
                 circulo_participacao (
-                    circulos (nome)
+                    circulos (id, nome, imagem_url)
                 )
             `)
             .eq('encontro_id', encontro.id)
@@ -117,24 +129,43 @@ export const quadranteService = {
             (fotosEquipe || []).map(f => [f.equipe_id, { url: f.foto_url, pos: f.foto_posicao_y }])
         );
 
+        const { data: fotosMediadores } = await supabase
+            .from('circulo_mediadores_fotos')
+            .select('circulo_id, foto_url, foto_posicao_y')
+            .eq('encontro_id', encontro.id);
+
+        const mapaFotosMediadores = new Map(
+            (fotosMediadores || []).map(f => [f.circulo_id, { url: f.foto_url, pos: f.foto_posicao_y }])
+        );
+
         // Mesclar as fotos específicas nas participações
-        const dataComFotos = (data || []).map(item => {
+        const dataComFotos = ((data || []) as unknown as QuadranteRawData[]).map(item => {
             if (!item.participante && item.equipes) {
-                const equipeId = (item as any).equipe_id;
+                const equipeId = item.equipe_id;
                 const fotoBannerData = mapaFotos.get(equipeId);
                 if (fotoBannerData?.url) {
-                    const equipesData = item.equipes as any;
-                    if (Array.isArray(equipesData)) {
-                        if (equipesData[0]) {
-                            equipesData[0].foto_url = fotoBannerData.url;
-                            equipesData[0].foto_posicao_y = fotoBannerData.pos;
+                    if (Array.isArray(item.equipes)) {
+                        if (item.equipes[0]) {
+                            item.equipes[0].foto_url = fotoBannerData.url;
+                            item.equipes[0].foto_posicao_y = fotoBannerData.pos ?? undefined;
                         }
                     } else {
-                        equipesData.foto_url = fotoBannerData.url;
-                        equipesData.foto_posicao_y = fotoBannerData.pos;
+                        item.equipes.foto_url = fotoBannerData.url;
+                        item.equipes.foto_posicao_y = fotoBannerData.pos ?? undefined;
                     }
                 }
             }
+
+            const circuloRel = item.circulo_participacao?.[0];
+            const circuloId = circuloRel?.circulos?.id;
+            const fotoMediadores = circuloId ? mapaFotosMediadores.get(circuloId) : null;
+            if (fotoMediadores) {
+                item.circulo_mediadores_foto = {
+                    foto_url: fotoMediadores.url,
+                    foto_posicao_y: fotoMediadores.pos
+                };
+            }
+
             return item;
         });
 

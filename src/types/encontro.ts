@@ -36,6 +36,7 @@ export interface QuadranteVisibilityConfig {
     tematica: boolean;
     musica: boolean;
     encontristas: boolean;
+    fotosMediadores: boolean;
     encontreiros: boolean;
     palestras: boolean;
 }
@@ -45,6 +46,7 @@ export const quadranteVisibilityDefault: QuadranteVisibilityConfig = {
     tematica: true,
     musica: true,
     encontristas: true,
+    fotosMediadores: true,
     encontreiros: true,
     palestras: true,
 };

@@ -14,13 +14,14 @@ import {
     ExternalLink
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useReactToPrint } from 'react-to-print';
 import { toast } from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { quadranteService, type QuadranteData } from '../../services/quadranteService';
-// quadrantePdfService substituído por react-to-print
 import { palestraService } from '../../services/palestraService';
 import type { Palestra } from '../../types/palestra';
 import { quadranteVisibilityDefault, type QuadranteVisibilityConfig } from '../../types/encontro';
@@ -52,16 +53,11 @@ interface EncontroInfo {
 }
 
 // --- Sub-componente para Cartões de Participantes ---
-function ParticipantCard({ item, index }: { item: QuadranteData; index: number }) {
+function ParticipantCard({ item }: { item: QuadranteData }) {
     const { theme } = useTheme();
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-            className={`participant-card ${theme === 'dark' ? 'dark' : ''}`}
-        >
+        <div className={`participant-card ${theme === 'dark' ? 'dark' : ''}`}>
             <div className="card-photo-wrapper">
                 {item.foto_url ? (
                     <img 
@@ -80,7 +76,7 @@ function ParticipantCard({ item, index }: { item: QuadranteData; index: number }
                 <h3>{item.pessoas?.nome_completo || 'Sem Nome'}</h3>
                 {item.equipes && <span className="team-tag">{item.equipes.nome}</span>}
             </div>
-        </motion.div>
+        </div>
     );
 }
 
@@ -119,10 +115,11 @@ function formatarDatasEncontro(inicioStr?: string | null, fimStr?: string | null
     }
 }
 
-export function QuadrantePage() {
+export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }) {
     const { token } = useParams<{ token: string }>();
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
+    const { session, loading: authLoading, hasPermission } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<QuadranteData[]>([]);
@@ -132,6 +129,10 @@ export function QuadrantePage() {
     const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia('(min-width: 1025px)').matches);
     const [scrolled, setScrolled] = useState(false);
     const [activeSection, setActiveSection] = useState<string>('');
+    const [printOptimized, setPrintOptimized] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('print') === 'true';
+    });
     const printRef = useRef<HTMLDivElement>(null);
     const handlePrint = useReactToPrint({
         contentRef: printRef,
@@ -142,9 +143,23 @@ export function QuadrantePage() {
                 margin: 0;
             }
         `,
+        onBeforePrint: async () => {
+            flushSync(() => setPrintOptimized(true));
+            await waitForPrintReady(printRef.current);
+        },
+        onAfterPrint: () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('print') === 'true') {
+                window.close();
+                return;
+            }
+            setPrintOptimized(false);
+        },
     });
 
     useEffect(() => {
+        if (printOptimized) return;
+
         const handleScroll = () => {
             setScrolled(window.scrollY > 90);
         };
@@ -179,17 +194,23 @@ export function QuadrantePage() {
             window.removeEventListener('resize', handleResize);
             observer.disconnect();
         };
-    }, []);
+    }, [printOptimized]);
 
     useEffect(() => {
         async function loadQuadrante() {
+            if (authLoading) return;
             if (!token) return;
             const pin = sessionStorage.getItem(`q_auth_${token}`);
 
             try {
-                // Verificar se o usuário está logado como admin
-                const { data: { session } } = await supabase.auth.getSession();
-                const isAdmin = !!session;
+                const isAdmin = !!session && hasPermission('modulo_admin');
+
+                // Se for a rota admin, mas o usuário NÃO estiver logado como tal, manda pro fluxo público
+                if (isAdminView && !isAdmin) {
+                    navigate(`/q/${token}${window.location.search}`);
+                    return;
+                }
+
                 const publicInfo = await quadranteService.obterInfoPublica(token);
 
                 if (!publicInfo) throw new Error('Encontro não encontrado');
@@ -203,7 +224,7 @@ export function QuadrantePage() {
                     }
 
                     if (publicInfo.tem_pin && !pin) {
-                        navigate(`/q/${token}`);
+                        navigate(`/q/${token}${window.location.search}`);
                         return;
                     }
                 } else if (!publicInfo.quadrante_ativo) {
@@ -242,9 +263,19 @@ export function QuadrantePage() {
         }
 
         loadQuadrante();
-    }, [token, navigate]);
+    }, [authLoading, hasPermission, isAdminView, navigate, session, token]);
 
-
+    useEffect(() => {
+        if (!loading && encontro && data.length > 0) {
+            const params = new URLSearchParams(window.location.search);
+            if (isAdminView && params.get('print') === 'true') {
+                const timer = setTimeout(() => {
+                    handlePrint();
+                }, 1500);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [loading, encontro, data, handlePrint, isAdminView]);
 
     const visibility = encontro?.quadrante_visibilidade || quadranteVisibilityDefault;
 
@@ -343,7 +374,7 @@ export function QuadrantePage() {
     return (
         <div className={`quadrante-spa-container ${theme === 'dark' ? 'dark-mode' : ''}`}>
             {/* Sidebar Navigation */}
-            <aside className={`spa-sidebar ${sidebarOpen ? 'open' : ''}`}>
+            {!printOptimized && <aside className={`spa-sidebar ${sidebarOpen ? 'open' : ''}`}>
                 <div className="sidebar-header">
                     <button onClick={() => setSidebarOpen(false)} className="close-sidebar-btn" title="Fechar menu" style={{ gap: '0.5rem' }}>
                         <ArrowLeft size={18} /> Fechar
@@ -409,20 +440,22 @@ export function QuadrantePage() {
                         {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                         <span>Tema {theme === 'dark' ? 'Claro' : 'Escuro'}</span>
                     </button>
-                    <button
-                        onClick={handlePrint}
-                        className="nav-item pdf-export-btn"
-                    >
-                        <Printer size={18} /> Imprimir / Salvar PDF
-                    </button>
+                    {isAdminView && (
+                        <button
+                            onClick={handlePrint}
+                            className="nav-item pdf-export-btn"
+                        >
+                            <Printer size={18} /> Imprimir / Salvar PDF
+                        </button>
+                    )}
                     <button onClick={() => navigate('/login')} className="exit-btn">
                         <ArrowLeft size={18} /> Sair
                     </button>
                 </div>
-            </aside>
+            </aside>}
 
             {/* Header Overlay (Mobile & Desktop when Sidebar Closed) */}
-            <div className={`mobile-header ${!sidebarOpen ? 'visible' : ''}`}>
+            {!printOptimized && <div className={`mobile-header ${!sidebarOpen ? 'visible' : ''}`}>
                 <button onClick={() => setSidebarOpen(true)} className="menu-btn">
                     <Menu size={24} style={{ width: 24, height: 24, flexShrink: 0 }} />
                 </button>
@@ -434,17 +467,13 @@ export function QuadrantePage() {
                 <button onClick={toggleTheme} className="menu-btn">
                     {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
-            </div>
+            </div>}
 
             {/* Content Area */}
-            <main ref={printRef} className={`spa-main-content ${sidebarOpen ? 'sidebar-open' : ''}`}>
+            <main ref={printRef} className={`spa-main-content ${!printOptimized && sidebarOpen ? 'sidebar-open' : ''}`}>
                 {/* Hero Section */}
                 <section id="inicio" className="hero-section" data-section-name="">
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="hero-card"
-                    >
+                    <div className="hero-card">
                         {/* Cabeçalho da Capa estilo Paróquia */}
                         <div className="capa-header">
                             <div className="capa-header-logo-left">
@@ -488,7 +517,7 @@ export function QuadrantePage() {
                             <div className="pill"><strong>{data.filter(i => i.participante).length}</strong> Encontristas</div>
                             <div className="pill"><strong>{data.length - data.filter(i => i.participante).length}</strong> Encontreiros</div>
                         </div>
-                    </motion.div>
+                    </div>
                 </section>
 
                 {visibility.simbologia && (
@@ -584,22 +613,54 @@ export function QuadrantePage() {
                         </div>
                     </section>
                 )}
-                {visibility.encontristas && encontristasPorCirculo.map(([circle, members], sectionIndex) => (
-                    <section key={circle} id={`circulo-${slugify(circle)}`} className={`content-section section-band ${sectionIndex % 2 === 0 ? 'section-band-base' : 'section-band-alt'}`} data-section-name={circle}>
-                        <div className="section-print-wrapper">
-                            <div className="section-header">
-                                <h2><Users size={24} /> {circle}</h2>
-                                <div className="divider"></div>
-                            </div>
+                {visibility.encontristas && encontristasPorCirculo.map(([circle, members], sectionIndex) => {
+                    const firstMember = members[0];
+                    const circuloImagemUrl = firstMember?.circulo_participacao?.[0]?.circulos?.imagem_url;
+                    const mediadoresFotoUrl = firstMember?.circulo_mediadores_foto?.foto_url;
+                    const mediadoresFotoPosY = firstMember?.circulo_mediadores_foto?.foto_posicao_y ?? 50;
 
-                            <div className="quadrante-grid">
-                                {members.map((item, idx) => (
-                                    <ParticipantCard key={item.id} item={item} index={idx} />
-                                ))}
+                    return (
+                        <section key={circle} id={`circulo-${slugify(circle)}`} className={`content-section section-band ${sectionIndex % 2 === 0 ? 'section-band-base' : 'section-band-alt'}`} data-section-name={circle}>
+                            <div className="section-print-wrapper">
+                                {circuloImagemUrl || (visibility.fotosMediadores && mediadoresFotoUrl) ? (
+                                    <div className="circulo-banner">
+                                        {circuloImagemUrl && (
+                                            <div className="circulo-banner-logo">
+                                                <img src={circuloImagemUrl} alt={`Logo ${circle}`} loading="eager" decoding="async" />
+                                            </div>
+                                        )}
+                                        <div className="circulo-banner-title-box">
+                                            <h2>{circle}</h2>
+                                            <div className="circulo-banner-divider"></div>
+                                        </div>
+                                        {visibility.fotosMediadores && mediadoresFotoUrl && (
+                                            <div className="circulo-banner-mediadores">
+                                                <img 
+                                                    src={mediadoresFotoUrl} 
+                                                    alt={`Mediadores de ${circle}`} 
+                                                    loading="eager"
+                                                    decoding="async"
+                                                    style={{ objectPosition: `center ${mediadoresFotoPosY}%` }} 
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="section-header">
+                                        <h2><Users size={24} /> {circle}</h2>
+                                        <div className="divider"></div>
+                                    </div>
+                                )}
+
+                                <div className="quadrante-grid">
+                                    {members.map((item) => (
+                                        <ParticipantCard key={item.id} item={item} />
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    </section>
-                ))}
+                        </section>
+                    );
+                })}
 
                 {/* Encontreiros Sections (Team Layout 50/50) */}
                 {visibility.encontreiros && <div id="encontreiros" className="no-print" style={{ paddingBottom: '1px' }}></div>}
@@ -668,14 +729,10 @@ export function QuadrantePage() {
                         </div>
 
                         <div className={`palestras-grid ${palestras.length === 1 ? 'single-item' : ''}`}>
-                            {palestras.map((p, pIdx) => (
-                                <motion.div
+                            {palestras.map((p) => (
+                                <div
                                     key={p.id}
                                     className="palestra-card"
-                                    initial={{ opacity: 0, y: 30 }}
-                                    whileInView={{ opacity: 1, y: 0 }}
-                                    viewport={{ once: true }}
-                                    transition={{ delay: pIdx * 0.1 }}
                                 >
                                     <div className="palestra-speaker">
                                         <div className="speaker-avatar">
@@ -694,7 +751,7 @@ export function QuadrantePage() {
                                         className="palestra-body rich-editorial-output"
                                         dangerouslySetInnerHTML={{ __html: p.resumo || '<p>Resumo não disponível para esta palestra.</p>' }}
                                     />
-                                </motion.div>
+                                </div>
                             ))}
                         </div>
                         {palestras.length === 0 && (
@@ -709,7 +766,7 @@ export function QuadrantePage() {
             </main>
 
             {/* Sidebar Overlay for Mobile */}
-            <AnimatePresence>
+            {!printOptimized && <AnimatePresence>
                 {sidebarOpen && (
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -719,7 +776,7 @@ export function QuadrantePage() {
                         onClick={() => setSidebarOpen(false)}
                     />
                 )}
-            </AnimatePresence>
+            </AnimatePresence>}
 
             <style>{`
                 :root {
@@ -1026,6 +1083,105 @@ export function QuadrantePage() {
                     }
                 }
 
+                .circulo-banner {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    background: var(--card-bg);
+                    border: 1px solid var(--border-color);
+                    border-radius: 20px;
+                    padding: 1rem 2rem;
+                    gap: 1.5rem;
+                    margin-bottom: 2rem;
+                    width: 100%;
+                }
+
+                .circulo-banner-logo {
+                    width: 96px;
+                    height: 96px;
+                    flex: 0 0 96px;
+                    border-radius: 0;
+                    overflow: hidden;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: transparent;
+                    border: 0;
+                }
+
+                .circulo-banner-logo img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                    display: block;
+                }
+
+                .circulo-banner-title-box {
+                    flex-grow: 1;
+                    display: flex;
+                    flex-direction: column;
+                }
+
+                .circulo-banner-title-box h2 {
+                    font-size: 1.5rem;
+                    font-weight: 800;
+                    margin: 0;
+                    color: var(--text-color);
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                }
+
+                .circulo-banner-divider {
+                    height: 4px;
+                    width: 60px;
+                    background: var(--primary-color);
+                    border-radius: 2px;
+                    margin-top: 0.5rem;
+                }
+
+                .circulo-banner-mediadores {
+                    width: 240px;
+                    height: 120px;
+                    flex: 0 0 240px;
+                    border-radius: 0;
+                    overflow: hidden;
+                    border: 0;
+                    background: transparent;
+                }
+
+                .circulo-banner-mediadores img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                    display: block;
+                }
+                
+                @media (max-width: 640px) {
+                    .circulo-banner {
+                        flex-direction: column;
+                        text-align: center;
+                        align-items: center;
+                    }
+                    .circulo-banner-title-box h2 {
+                        justify-content: center;
+                    }
+                    .circulo-banner-divider {
+                        margin-left: auto;
+                        margin-right: auto;
+                    }
+                    .circulo-banner-logo {
+                        width: 112px;
+                        height: 112px;
+                        flex-basis: 112px;
+                    }
+                    .circulo-banner-mediadores {
+                        width: min(100%, 280px);
+                        height: 140px;
+                        flex-basis: 140px;
+                    }
+                }
+
                 .hero-section {
                     min-height: 80vh;
                     background: var(--hero-gradient);
@@ -1196,6 +1352,39 @@ export function QuadrantePage() {
                     margin-bottom: 0.85rem;
                 }
 
+                .rich-editorial-output p {
+                    min-height: 1.55em;
+                    margin-bottom: 0.85rem;
+                }
+
+                .rich-editorial-output p:empty::before {
+                    content: "\\00a0";
+                    white-space: pre;
+                }
+
+                .rich-editorial-output h1,
+                .rich-editorial-output h2,
+                .rich-editorial-output h3 {
+                    color: inherit;
+                    line-height: 1.18;
+                    margin: 1rem 0 0.65rem;
+                }
+
+                .rich-editorial-output h1 {
+                    font-size: 1.85rem;
+                    font-weight: 800;
+                }
+
+                .rich-editorial-output h2 {
+                    font-size: 1.45rem;
+                    font-weight: 800;
+                }
+
+                .rich-editorial-output h3 {
+                    font-size: 1.15rem;
+                    font-weight: 700;
+                }
+
                 .rich-editorial-output ul,
                 .rich-editorial-output ol {
                     margin: 1rem 0 1rem 1.5rem;
@@ -1221,6 +1410,12 @@ export function QuadrantePage() {
 
                 .rich-editorial-output em {
                     font-style: italic;
+                }
+
+                .rich-editorial-output a {
+                    color: var(--primary-color);
+                    text-decoration: underline;
+                    text-underline-offset: 3px;
                 }
 
                 /* Music Section */
@@ -2172,7 +2367,7 @@ export function QuadrantePage() {
                         --section-bg: #ffffff !important;
                     }
 
-                    /* ── Centralização de Páginas no Print ── */
+                    /* ── Páginas do print alinhadas ao topo ── */
                     .content-editorial-section,
                     .content-music-section,
                     .content-palestras-section,
@@ -2191,7 +2386,7 @@ export function QuadrantePage() {
 
                     .section-print-wrapper {
                         display: table-cell !important;
-                        vertical-align: middle !important;
+                        vertical-align: top !important;
                         width: 100% !important;
                         padding: 20mm 15mm !important;
                         box-sizing: border-box !important;
@@ -2379,11 +2574,123 @@ export function QuadrantePage() {
                         margin-bottom: 1.5rem !important;
                     }
 
+                    .circulo-banner {
+                        display: flex !important;
+                        align-items: center !important;
+                        justify-content: space-between !important;
+                        background: #f8fafc !important;
+                        border: 1px solid #e2e8f0 !important;
+                        border-radius: 16px !important;
+                        padding: 12px 20px !important;
+                        gap: 20px !important;
+                        margin-bottom: 20px !important;
+                        width: 100% !important;
+                        box-sizing: border-box !important;
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                    }
+
+                    .circulo-banner-logo {
+                        width: 72px !important;
+                        height: 72px !important;
+                        flex: 0 0 72px !important;
+                        border-radius: 0 !important;
+                        overflow: hidden !important;
+                        display: flex !important;
+                        align-items: center !important;
+                        justify-content: center !important;
+                        background: transparent !important;
+                        border: 0 !important;
+                    }
+
+                    .circulo-banner-logo img {
+                        width: 100% !important;
+                        height: 100% !important;
+                        object-fit: contain !important;
+                        display: block !important;
+                    }
+
+                    .circulo-banner-title-box {
+                        flex-grow: 1 !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                    }
+
+                    .circulo-banner-title-box h2 {
+                        font-size: 16pt !important;
+                        font-weight: 800 !important;
+                        color: #0f172a !important;
+                        margin: 0 !important;
+                    }
+
+                    .circulo-banner-divider {
+                        height: 3px !important;
+                        width: 40px !important;
+                        background: #2563eb !important;
+                        border-radius: 1.5px !important;
+                        margin-top: 4px !important;
+                    }
+
+                    .circulo-banner-mediadores {
+                        width: 190px !important;
+                        height: 90px !important;
+                        flex: 0 0 190px !important;
+                        border-radius: 0 !important;
+                        overflow: hidden !important;
+                        border: 0 !important;
+                        background: transparent !important;
+                    }
+
+                    .circulo-banner-mediadores img {
+                        width: 100% !important;
+                        height: 100% !important;
+                        object-fit: contain !important;
+                        display: block !important;
+                    }
+
                     .editorial-text,
                     .rich-editorial-output {
                         font-size: 10.5pt !important;
                         line-height: 1.65 !important;
                         color: #334155 !important;
+                    }
+
+                    .rich-editorial-output p {
+                        min-height: 1.65em !important;
+                        margin-bottom: 0.85rem !important;
+                    }
+
+                    .rich-editorial-output p:empty::before {
+                        content: "\\00a0" !important;
+                        white-space: pre !important;
+                    }
+
+                    .rich-editorial-output h1,
+                    .rich-editorial-output h2,
+                    .rich-editorial-output h3 {
+                        color: #0f172a !important;
+                        line-height: 1.18 !important;
+                        margin: 10pt 0 6pt !important;
+                    }
+
+                    .rich-editorial-output h1 {
+                        font-size: 18pt !important;
+                        font-weight: 800 !important;
+                    }
+
+                    .rich-editorial-output h2 {
+                        font-size: 15pt !important;
+                        font-weight: 800 !important;
+                    }
+
+                    .rich-editorial-output h3 {
+                        font-size: 12pt !important;
+                        font-weight: 700 !important;
+                    }
+
+                    .rich-editorial-output a {
+                        color: #1d4ed8 !important;
+                        text-decoration: underline !important;
                     }
 
                     /* ── MÚSICA TEMA ─────────────────────────────── */
@@ -2658,6 +2965,33 @@ export function QuadrantePage() {
             `}</style>
         </div>
     );
+}
+
+async function waitForPrintReady(root: HTMLElement | null) {
+    await nextFrame();
+
+    const fontReady = 'fonts' in document
+        ? document.fonts.ready.catch(() => undefined)
+        : Promise.resolve();
+
+    const images = root ? Array.from(root.querySelectorAll('img')) : [];
+    const imageReady = images.map((image) => {
+        if (image.complete && image.naturalWidth > 0) return Promise.resolve();
+        return image.decode().catch(() => undefined);
+    });
+
+    await Promise.race([
+        Promise.all([fontReady, ...imageReady]),
+        new Promise((resolve) => window.setTimeout(resolve, 5000)),
+    ]);
+
+    await nextFrame();
+}
+
+function nextFrame() {
+    return new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+    });
 }
 
 // --- Fim do QuadrantePage ---

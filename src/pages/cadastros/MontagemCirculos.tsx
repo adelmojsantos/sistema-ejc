@@ -1,17 +1,18 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type ChangeEvent } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, ChevronDown, Loader,
   Users, Shield, UserCircle, Eraser, AlertCircle,
   X,
-  UserPlus, Dices, CheckSquare, Square
+  UserPlus, Dices, CheckSquare, Square, Camera, ImageOff
 } from 'lucide-react';
 
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
 import { circuloService } from '../../services/circuloService';
 import { circuloParticipacaoService } from '../../services/circuloParticipacaoService';
+import { circuloMediadoresFotoService, type CirculoMediadoresFoto } from '../../services/circuloMediadoresFotoService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { normalizeString } from '../../utils/stringUtils';
 
@@ -30,6 +31,12 @@ interface MediadorSlot {
   label: string;   // nome da pessoa
 }
 
+interface CirculoAssignment {
+  participacao: string;
+  circulo_id: number;
+  mediador: boolean;
+}
+
 /* ------------------------------------------------------------------ */
 
 export function MontagemCirculos() {
@@ -41,6 +48,7 @@ export function MontagemCirculos() {
   const [circulos, setCirculos] = useState<Circulo[]>([]);
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [vinculos, setVinculos] = useState<CirculoParticipacaoEnriched[]>([]);
+  const [mediadoresFotos, setMediadoresFotos] = useState<CirculoMediadoresFoto[]>([]);
 
   // ── UI ───────────────────────────────────────────────────────────
   const [isLoadingCirculos, setIsLoadingCirculos] = useState(true);
@@ -51,6 +59,9 @@ export function MontagemCirculos() {
   const [mediador1, setMediador1] = useState<MediadorSlot | null>(null);
   const [mediador2, setMediador2] = useState<MediadorSlot | null>(null);
   const [isSavingMediadores, setIsSavingMediadores] = useState(false);
+  const [isUploadingMediadoresFoto, setIsUploadingMediadoresFoto] = useState(false);
+  const [uploadTargetCirculoId, setUploadTargetCirculoId] = useState<number | null>(null);
+  const mediadoresFotoInputRef = useRef<HTMLInputElement>(null);
 
   // Sorteio Aleatório
   const [showLotteryModal, setShowLotteryModal] = useState(false);
@@ -113,8 +124,12 @@ export function MontagemCirculos() {
     if (!selectedEncontroId) return;
     setIsFetchingVinculos(true);
     try {
-      const v = await circuloParticipacaoService.listarPorEncontro(selectedEncontroId);
+      const [v, fotos] = await Promise.all([
+        circuloParticipacaoService.listarPorEncontro(selectedEncontroId),
+        circuloMediadoresFotoService.listarPorEncontro(selectedEncontroId)
+      ]);
       setVinculos(v ?? []);
+      setMediadoresFotos(fotos ?? []);
     } catch {
       toast.error('Erro ao carregar vínculos.');
     } finally {
@@ -159,6 +174,12 @@ export function MontagemCirculos() {
     });
     return map;
   }, [vinculos]);
+
+  const mediadoresFotosPorCirculo = useMemo(() => {
+    const map = new Map<number, CirculoMediadoresFoto>();
+    mediadoresFotos.forEach(foto => map.set(foto.circulo_id, foto));
+    return map;
+  }, [mediadoresFotos]);
 
   // ── Handlers ──────────────────────────────────────────────────────
 
@@ -233,6 +254,50 @@ export function MontagemCirculos() {
     }
   };
 
+  const handleSelecionarFotoMediadores = (circuloId: number) => {
+    setUploadTargetCirculoId(circuloId);
+    mediadoresFotoInputRef.current?.click();
+  };
+
+  const handleMediadoresFotoChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedEncontroId || !uploadTargetCirculoId) return;
+
+    setIsUploadingMediadoresFoto(true);
+    try {
+      const fotoUrl = await circuloMediadoresFotoService.uploadFoto(file);
+      const saved = await circuloMediadoresFotoService.salvarFoto(selectedEncontroId, uploadTargetCirculoId, fotoUrl);
+      setMediadoresFotos(prev => {
+        const others = prev.filter(foto => foto.circulo_id !== uploadTargetCirculoId);
+        return [...others, saved];
+      });
+      toast.success('Foto dos mediadores atualizada!');
+    } catch (error) {
+      console.error('Erro ao enviar foto dos mediadores:', error);
+      toast.error('Erro ao enviar foto dos mediadores.');
+    } finally {
+      setIsUploadingMediadoresFoto(false);
+      setUploadTargetCirculoId(null);
+      event.target.value = '';
+    }
+  };
+
+  const handleRemoverFotoMediadores = async (circuloId: number) => {
+    if (!selectedEncontroId) return;
+
+    setIsUploadingMediadoresFoto(true);
+    try {
+      await circuloMediadoresFotoService.removerFoto(selectedEncontroId, circuloId);
+      setMediadoresFotos(prev => prev.filter(foto => foto.circulo_id !== circuloId));
+      toast.success('Foto dos mediadores removida!');
+    } catch (error) {
+      console.error('Erro ao remover foto dos mediadores:', error);
+      toast.error('Erro ao remover foto dos mediadores.');
+    } finally {
+      setIsUploadingMediadoresFoto(false);
+    }
+  };
+
   const handleRandomAssignment = async () => {
     if (!selectedEncontroId || selectedLotteryCirculos.length === 0) return;
 
@@ -257,7 +322,7 @@ export function MontagemCirculos() {
       }
 
       // 4. Distribuir entre os círculos selecionados
-      const assignments: any[] = [];
+      const assignments: CirculoAssignment[] = [];
       const numCircles = selectedLotteryCirculos.length;
 
       shuffled.forEach((p, index) => {
@@ -299,6 +364,13 @@ export function MontagemCirculos() {
   return (
     <div className="app-shell">
       <main className="main-content container" style={{ paddingBottom: '4rem' }}>
+        <input
+          ref={mediadoresFotoInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleMediadoresFotoChange}
+        />
 
         {/* ── Header ── */}
         <div className="page-header" style={{
@@ -477,6 +549,7 @@ export function MontagemCirculos() {
             {circulos.map(circulo => {
               const mediadores = mediadoresPorCirculo.get(circulo.id) ?? [];
               const participantes = participantesPorCirculo.get(circulo.id) ?? [];
+              const mediadoresFoto = mediadoresFotosPorCirculo.get(circulo.id);
               const isOpen = openCirculoId === circulo.id;
               const hasMediadores = mediadores.length >= 2;
 
@@ -533,6 +606,88 @@ export function MontagemCirculos() {
                           <Shield size={12} />
                           Mediadores
                         </p>
+
+                        <div style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'minmax(120px, 180px) 1fr',
+                          gap: '1rem',
+                          alignItems: 'center',
+                          padding: '0.9rem',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '16px',
+                          background: 'var(--card-bg)',
+                          marginBottom: '1rem'
+                        }}>
+                          <button
+                            type="button"
+                            onClick={() => mediadoresFoto?.foto_url ? window.open(mediadoresFoto.foto_url, '_blank') : handleSelecionarFotoMediadores(circulo.id)}
+                            style={{
+                              aspectRatio: '16 / 10',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '14px',
+                              overflow: 'hidden',
+                              background: 'color-mix(in srgb, var(--primary-color) 8%, transparent)',
+                              color: 'var(--primary-color)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              padding: 0
+                            }}
+                            title={mediadoresFoto?.foto_url ? 'Abrir foto dos mediadores' : 'Adicionar foto dos mediadores'}
+                          >
+                            {isUploadingMediadoresFoto && uploadTargetCirculoId === circulo.id ? (
+                              <Loader size={22} className="animate-spin" />
+                            ) : mediadoresFoto?.foto_url ? (
+                              <img
+                                src={mediadoresFoto.foto_url}
+                                alt={`Mediadores de ${circulo.nome}`}
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'contain',
+                                  padding: '0.35rem',
+                                  objectPosition: `center ${mediadoresFoto.foto_posicao_y ?? 50}%`
+                                }}
+                              />
+                            ) : (
+                              <Camera size={26} />
+                            )}
+                          </button>
+
+                          <div style={{ minWidth: 0 }}>
+                            <strong style={{ display: 'block', fontSize: '0.92rem', marginBottom: '0.25rem' }}>
+                              Foto dos mediadores
+                            </strong>
+                            <p style={{ margin: '0 0 0.75rem', color: 'var(--muted-text)', fontSize: '0.82rem', lineHeight: 1.35 }}>
+                              Uma foto única da dupla, usada como destaque opcional no quadrante.
+                            </p>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                onClick={() => handleSelecionarFotoMediadores(circulo.id)}
+                                disabled={isUploadingMediadoresFoto}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', height: '36px' }}
+                              >
+                                <Camera size={14} />
+                                {mediadoresFoto?.foto_url ? 'Trocar foto' : 'Adicionar foto'}
+                              </button>
+                              {mediadoresFoto?.foto_url && (
+                                <button
+                                  type="button"
+                                  className="btn-danger"
+                                  onClick={() => handleRemoverFotoMediadores(circulo.id)}
+                                  disabled={isUploadingMediadoresFoto}
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', height: '36px' }}
+                                >
+                                  <ImageOff size={14} />
+                                  Remover
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
 
                         {hasMediadores ? (
                           /* 2 mediadores definidos — mostrar chips */
