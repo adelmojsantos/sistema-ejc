@@ -1,4 +1,4 @@
-import { Users, Calendar, Shield, UsersRound, UserPlus, Mic } from 'lucide-react';
+import { ClipboardCheck, Users, Calendar, Shield, UsersRound, UserPlus, Mic } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -82,6 +82,16 @@ const CATEGORIES: CadastroCategory[] = [
     description: 'Cadastro do cronograma de palestras e palestrantes do encontro.',
     icon: <Mic size={34} />,
     color: '#8b5cf6',
+    available: true,
+    permission: ['modulo_cadastros', 'modulo_admin']
+  },
+  {
+    id: 'avaliacao',
+    path: '/cadastros/avaliacao',
+    label: 'Avaliação do encontro',
+    description: 'Perguntas para as equipes responderem ao final do encontro.',
+    icon: <ClipboardCheck size={34} />,
+    color: '#0ea5e9',
     available: true,
     permission: ['modulo_cadastros', 'modulo_admin']
   },

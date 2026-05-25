@@ -24,7 +24,9 @@ import {
   Shirt as ShirtIcon,
   Baby,
   Car,
-  LayoutGrid
+  ClipboardCheck,
+  LayoutGrid,
+  ArrowRight
 } from 'lucide-react';
 import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
@@ -41,6 +43,7 @@ import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { camisetaService } from '../../services/camisetaService';
+import { avaliacaoEncontroService, type AvaliacaoEnvioStatus } from '../../services/avaliacaoEncontroService';
 import { exportConfigService } from '../../services/exportConfigService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
@@ -67,6 +70,23 @@ interface EquipeMember {
   recreacao_dados_secundario?: RecreacaoDados[];
 }
 
+type PixTipo = 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria';
+type EquipeAcesso = 'verde' | 'amarela' | 'vermelha';
+
+interface CamisetaTeamSummary {
+  modelo_id: string;
+  modelo_nome: string;
+  tamanhos: Record<string, number>;
+  total: number;
+  valor_unitario: number;
+  valor_total: number;
+}
+
+interface UserParticipacaoEquipe {
+  nome?: string | null;
+  acesso_plenario?: EquipeAcesso | null;
+}
+
 function formatTelefone(tel: string | null | undefined) {
   if (!tel) return '—';
   const d = tel.replace(/\D/g, '');
@@ -75,13 +95,30 @@ function formatTelefone(tel: string | null | undefined) {
   return tel;
 }
 
+function isPixTipo(value: string | null | undefined): value is PixTipo {
+  return value === 'cpf' || value === 'cnpj' || value === 'email' || value === 'telefone' || value === 'aleatoria';
+}
+
+function dateKey(value: string | null | undefined) {
+  if (!value) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function todayKey() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 export function CoordenadorMinhaEquipePage() {
-  const { user, userParticipacao } = useAuth();
+  const { user, userParticipacao, hasPermission } = useAuth();
   const navigate = useNavigate();
   const [members, setMembers] = useState<EquipeMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [equipeNome, setEquipeNome] = useState('');
-  const [equipeAcesso, setEquipeAcesso] = useState<'verde' | 'amarela' | 'vermelha'>('verde');
+  const [equipeAcesso, setEquipeAcesso] = useState<EquipeAcesso>('verde');
   const [editingPessoa, setEditingPessoa] = useState<Pessoa | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -108,7 +145,7 @@ export function CoordenadorMinhaEquipePage() {
   const [comprovanteCamisetasUrl, setComprovanteCamisetasUrl] = useState<string | null>(null);
   const [pixTaxa, setPixTaxa] = useState<{
     chave: string | null;
-    tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+    tipo: PixTipo | null;
     qrCodeUrl: string | null;
   }>({ chave: null, tipo: null, qrCodeUrl: null });
 
@@ -116,7 +153,7 @@ export function CoordenadorMinhaEquipePage() {
     const memberIds = new Set(members.map(m => m.id));
     const teamPedidos = pedidosCamisetas.filter(p => memberIds.has(p.participacao_id));
     
-    const summaryMap = new Map<string, any>();
+    const summaryMap = new Map<string, CamisetaTeamSummary>();
     
     teamPedidos.forEach(p => {
       const modId = p.modelo_id;
@@ -141,11 +178,11 @@ export function CoordenadorMinhaEquipePage() {
     });
     
     return Array.from(summaryMap.values());
-  }, [members, pedidosCamisetas]);
+  }, [members, modelosCamiseta, pedidosCamisetas]);
 
   const [pixCamisetas, setPixCamisetas] = useState<{
     chave: string | null;
-    tipo: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
+    tipo: PixTipo | null;
     qrCodeUrl: string | null;
   }>({ chave: null, tipo: null, qrCodeUrl: null });
 
@@ -153,6 +190,14 @@ export function CoordenadorMinhaEquipePage() {
   const [recepcaoParticipanteNome, setRecepcaoParticipanteNome] = useState('');
   const [recreacaoParticipacaoId, setRecreacaoParticipacaoId] = useState<string | null>(null);
   const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState('');
+  const [avaliacaoResumo, setAvaliacaoResumo] = useState<{
+    totalPerguntas: number;
+    status: AvaliacaoEnvioStatus | 'pendente';
+    enviadoEm: string | null;
+    dataFim: string | null;
+    liberada: boolean;
+  } | null>(null);
+  const [isLoadingAvaliacao, setIsLoadingAvaliacao] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -161,6 +206,45 @@ export function CoordenadorMinhaEquipePage() {
   }, []);
 
   const isMobile = windowWidth < 768;
+  const isAdmin = hasPermission('modulo_admin');
+
+  const loadAvaliacao = useCallback(async () => {
+    if (!userParticipacao?.encontro_id || !userParticipacao?.equipe_id || !userParticipacao.coordenador) {
+      setAvaliacaoResumo(null);
+      return;
+    }
+
+    setIsLoadingAvaliacao(true);
+    try {
+      const [estado, encontroResult] = await Promise.all([
+        avaliacaoEncontroService.obterEstado(userParticipacao.encontro_id, userParticipacao.equipe_id),
+        supabase
+          .from('encontros')
+          .select('data_fim')
+          .eq('id', userParticipacao.encontro_id)
+          .maybeSingle(),
+      ]);
+
+      if (encontroResult.error) throw encontroResult.error;
+
+      const dataFim = encontroResult.data?.data_fim ?? null;
+      const hoje = todayKey();
+      const liberada = isAdmin || (!!dataFim && dateKey(dataFim) === hoje);
+
+      setAvaliacaoResumo({
+        totalPerguntas: estado.perguntas.length,
+        status: estado.envio?.status ?? 'pendente',
+        enviadoEm: estado.envio?.enviado_em ?? null,
+        dataFim,
+        liberada,
+      });
+    } catch (error) {
+      console.error('Erro ao carregar avaliação:', error);
+      toast.error('Erro ao carregar avaliação do encontro.');
+    } finally {
+      setIsLoadingAvaliacao(false);
+    }
+  }, [isAdmin, userParticipacao?.coordenador, userParticipacao?.encontro_id, userParticipacao?.equipe_id]);
 
   const loadPedidos = useCallback(async () => {
     if (!userParticipacao?.encontro_id) return;
@@ -171,7 +255,7 @@ export function CoordenadorMinhaEquipePage() {
         camisetaService.listarTamanhos()
       ]);
       // Filtra apenas os modelos que estão ativos especificamente para este encontro
-      const modelos = modelosRaw.filter((m: any) => m.esta_ativo_no_encontro !== false);
+      const modelos = modelosRaw.filter((m) => m.esta_ativo_no_encontro !== false);
       setPedidosCamisetas(pedidos);
       setModelosCamiseta(modelos);
       setTamanhosCamiseta(tamanhos);
@@ -194,8 +278,9 @@ export function CoordenadorMinhaEquipePage() {
     try {
       if (userParticipacao.equipes?.nome) {
         setEquipeNome(userParticipacao.equipes.nome);
-        if ((userParticipacao.equipes as any).acesso_plenario) {
-          setEquipeAcesso((userParticipacao.equipes as any).acesso_plenario);
+        const equipeParticipacao = userParticipacao.equipes as UserParticipacaoEquipe;
+        if (equipeParticipacao.acesso_plenario) {
+          setEquipeAcesso(equipeParticipacao.acesso_plenario);
         } else if (userParticipacao.equipe_id) {
           const equipeFull = await equipeService.buscarPorId(userParticipacao.equipe_id);
           if (equipeFull?.acesso_plenario) {
@@ -224,12 +309,12 @@ export function CoordenadorMinhaEquipePage() {
         setValorTaxa(encData.valor_taxa || 0);
         setPixTaxa({
           chave: encData.pix_taxa_chave,
-          tipo: encData.pix_taxa_tipo as any,
+          tipo: isPixTipo(encData.pix_taxa_tipo) ? encData.pix_taxa_tipo : null,
           qrCodeUrl: encData.pix_taxa_qrcode_url
         });
         setPixCamisetas({
           chave: encData.pix_camisetas_chave,
-          tipo: encData.pix_camisetas_tipo as any,
+          tipo: isPixTipo(encData.pix_camisetas_tipo) ? encData.pix_camisetas_tipo : null,
           qrCodeUrl: encData.pix_camisetas_qrcode_url
         });
       }
@@ -261,6 +346,10 @@ export function CoordenadorMinhaEquipePage() {
   useEffect(() => {
     loadMembers();
   }, [loadMembers]);
+
+  useEffect(() => {
+    loadAvaliacao();
+  }, [loadAvaliacao]);
 
   const handleDeleteMember = async () => {
     if (!deleteTarget) return;
@@ -874,6 +963,74 @@ export function CoordenadorMinhaEquipePage() {
               {isConfirming ? <Loader className="animate-spin" size={16} /> : 'Finalizar Confirmação da Equipe'}
             </button>
           )}
+        </div>
+      )}
+
+
+      {userParticipacao?.coordenador && avaliacaoResumo && avaliacaoResumo.totalPerguntas > 0 && avaliacaoResumo.liberada && (
+        <div className="card animate-fade-in" style={{
+          marginBottom: '1.5rem',
+          padding: isMobile ? '1rem' : '1.25rem',
+          background: 'var(--card-bg)',
+          border: '1px solid var(--border-color)',
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+            marginBottom: 0
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                backgroundColor: avaliacaoResumo.status === 'enviado' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(var(--primary-rgb), 0.1)',
+                color: avaliacaoResumo.status === 'enviado' ? '#10b981' : 'var(--primary-color)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                {isLoadingAvaliacao ? <Loader className="animate-spin" size={20} /> : <ClipboardCheck size={22} />}
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
+                  Avaliação do Encontro
+                </h3>
+                <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', opacity: 0.68, lineHeight: 1.45 }}>
+                  {avaliacaoResumo.status === 'enviado'
+                    ? `Enviada em ${avaliacaoResumo.enviadoEm ? new Date(avaliacaoResumo.enviadoEm).toLocaleString('pt-BR') : 'data não informada'}.`
+                    : 'A avaliação está liberada para sua equipe. Responda pergunta por pergunta em uma tela focada.'}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                letterSpacing: '0.05em',
+                textTransform: 'uppercase',
+                padding: '0.35rem 0.7rem',
+                borderRadius: '999px',
+                backgroundColor: avaliacaoResumo.status === 'enviado' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(var(--primary-rgb), 0.08)',
+                color: avaliacaoResumo.status === 'enviado' ? '#10b981' : 'var(--primary-color)'
+              }}>
+                {avaliacaoResumo.status === 'enviado' ? 'Enviada' : avaliacaoResumo.status === 'rascunho' ? 'Rascunho' : 'Pendente'}
+              </span>
+              <button
+                type="button"
+                className="btn-primary show-mobile-full-width"
+                onClick={() => navigate('/coordenador/minha-equipe/avaliacao')}
+              >
+                {avaliacaoResumo.status === 'enviado' ? <Eye size={16} /> : <ArrowRight size={16} />}
+                {avaliacaoResumo.status === 'enviado' ? 'Ver avaliação' : 'Iniciar avaliação'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

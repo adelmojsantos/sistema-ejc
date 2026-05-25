@@ -5,6 +5,7 @@ export interface CamisetaModelo {
     ativo: boolean;
     created_at: string;
     configuracao_encontro?: CamisetaConfigEncontro[];
+    esta_ativo_no_encontro?: boolean;
 }
 
 export interface CamisetaConfigEncontro {

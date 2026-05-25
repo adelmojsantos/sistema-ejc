@@ -19,6 +19,7 @@ import { Cadastros } from './pages/Cadastros';
 import { CirculosPage } from './pages/cadastros/CirculosPage';
 import { CirculosPortalPage } from './pages/circulos/CirculosPortalPage';
 import { EncontroParticipantesPage } from './pages/cadastros/EncontroParticipantesPage';
+import { AvaliacaoEncontroPage } from './pages/cadastros/AvaliacaoEncontroPage';
 import { EncontrosPage } from './pages/cadastros/EncontrosPage';
 import { EquipesPage } from './pages/cadastros/EquipesPage';
 import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
@@ -30,6 +31,7 @@ import { PalestrasResumoPage } from './pages/cadastros/PalestrasResumoPage';
 import { PalestrasModulePage } from './pages/atividades/PalestrasModulePage';
 import { PalestrasPage } from './pages/cadastros/PalestrasPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
+import { CoordenadorAvaliacaoPage } from './pages/coordenador/CoordenadorAvaliacaoPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
 import { RecepcaoAdminPage } from './pages/atividades/RecepcaoAdminPage';
 import { RecreacaoAdminPage } from './pages/atividades/RecreacaoAdminPage';
@@ -266,6 +268,12 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           } />
 
+          <Route path="/coordenador/minha-equipe/avaliacao" element={
+            <ProtectedRoute requiredPermissions={['modulo_coordenador', 'modulo_admin']}>
+              <CoordenadorAvaliacaoPage />
+            </ProtectedRoute>
+          } />
+
           <Route path="/atividades/recepcao" element={
             <ProtectedRoute requiredPermissions={['modulo_recepcao', 'modulo_admin']}>
               <RecepcaoAdminPage />
@@ -299,6 +307,7 @@ function AnimatedRoutes() {
             <Route path="circulos" element={<CirculosPage />} />
             <Route path="montagem" element={<MontagemPage />} />
             <Route path="palestras" element={<PalestrasPage />} />
+            <Route path="avaliacao" element={<AvaliacaoEncontroPage />} />
           </Route>
         </Route>
 
