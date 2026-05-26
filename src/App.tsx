@@ -58,7 +58,7 @@ import { TaxasPage } from './pages/compras/TaxasPage';
 import { PedidosCamisetasPage } from './pages/compras/PedidosCamisetasPage';
 import { ConfiguracaoCamisetasPage } from './pages/compras/ConfiguracaoCamisetasPage';
 import { SplashScreen } from './components/ui/SplashScreen';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLoading } from './contexts/LoadingContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { ExternalSessionProvider } from './contexts/ExternalSessionContext';
@@ -320,14 +320,18 @@ function AnimatedRoutes() {
 function MainApp() {
   const { loading } = useAuth();
   const { isLoading, setIsLoading } = useLoading();
+  const initialAuthHandledRef = useRef(false);
 
-  // Sync initial auth loading with global loading state
+  // Sync only the first auth boot with the splash screen.
   useEffect(() => {
+    if (initialAuthHandledRef.current) return;
+
     if (loading) {
       setIsLoading(true);
     } else {
       // Small delay for smooth transition on first load
       const timer = setTimeout(() => {
+        initialAuthHandledRef.current = true;
         setIsLoading(false);
       }, 500);
       return () => clearTimeout(timer);
@@ -337,6 +341,7 @@ function MainApp() {
   // Safety timeout for initial mount (max 4s)
   useEffect(() => {
     const timer = setTimeout(() => {
+      initialAuthHandledRef.current = true;
       setIsLoading(false);
     }, 4000);
     return () => clearTimeout(timer);

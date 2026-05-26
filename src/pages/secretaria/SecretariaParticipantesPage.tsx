@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useLoading } from '../../contexts/LoadingContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService, type ParticipacaoCancelada } from '../../services/inscricaoService';
@@ -122,7 +121,6 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
 
 
 export function SecretariaParticipantesPage() {
-  const { setIsLoading: setGlobalLoading } = useLoading();
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -195,10 +193,6 @@ export function SecretariaParticipantesPage() {
       setIsLoadingDesistentes(false);
     }
   }, [selectedEncontroId]);
-
-  useEffect(() => {
-    setGlobalLoading(isLoading || isLoadingDesistentes);
-  }, [isLoading, isLoadingDesistentes, setGlobalLoading]);
 
   useEffect(() => {
     loadParticipantes();

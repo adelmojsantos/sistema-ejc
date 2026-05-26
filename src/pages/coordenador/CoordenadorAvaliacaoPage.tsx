@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, ChevronLeft, ChevronRight, ClipboardCheck, Loader, Lock } from 'lucide-react';
+import { ArrowLeft, CheckCircle, ChevronLeft, ChevronRight, Loader, Lock, Save, Star, X } from 'lucide-react';
 import { ActionStepper, type ActionStep } from '../../components/ui/ActionStepper';
+import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import {
@@ -14,6 +16,11 @@ import {
 interface EncontroAvaliacaoInfo {
   nome: string;
   data_fim: string | null;
+}
+
+interface EquipeMemberOption {
+  id: string;
+  nome: string;
 }
 
 function dateKey(value: string | null | undefined) {
@@ -33,8 +40,69 @@ function isLastDay(dataFim: string | null | undefined) {
   return !!dataFim && dateKey(dataFim) === todayKey();
 }
 
-function respostaPreenchida(value: string | undefined) {
-  return !!String(value ?? '').trim();
+function respostaPreenchida(pergunta: AvaliacaoPergunta, value: string | undefined) {
+  if (pergunta.tipo === 'nota_justificativa') {
+    const parsed = parseNotaJustificativa(value);
+    return !!parsed?.nota && !!stripHtml(parsed.justificativa).trim();
+  }
+
+  if (pergunta.tipo === 'participante_destaque') {
+    const destaque = parseParticipantesDestaque(value);
+    return !!destaque && destaque.participacaoIds.length > 0 && !!stripHtml(destaque.justificativa).trim();
+  }
+
+  return !!stripHtml(value).trim();
+}
+
+function stripHtml(value: string | undefined | null) {
+  return String(value ?? '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function parseNotaJustificativa(value: string | undefined | null) {
+  if (!value?.trim().startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(value) as { nota?: number | string; justificativa?: string };
+    if (!('nota' in parsed) && !('justificativa' in parsed)) return null;
+    return {
+      nota: parsed.nota ? String(parsed.nota) : '',
+      justificativa: parsed.justificativa ?? '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function parseParticipantesDestaque(value: string | undefined | null) {
+  if (!value?.trim().startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(value) as { participacao_ids?: string[]; participantes_nomes?: string[]; justificativa?: string };
+    if (!('participacao_ids' in parsed) && !('justificativa' in parsed)) return null;
+    return {
+      participacaoIds: Array.isArray(parsed.participacao_ids) ? parsed.participacao_ids : [],
+      participantesNomes: Array.isArray(parsed.participantes_nomes) ? parsed.participantes_nomes : [],
+      justificativa: parsed.justificativa ?? '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getEscalaMax(pergunta: AvaliacaoPergunta) {
+  if (pergunta.opcoes && !Array.isArray(pergunta.opcoes) && typeof pergunta.opcoes === 'object' && 'escala_max' in pergunta.opcoes) {
+    return Number(pergunta.opcoes.escala_max) || (pergunta.tipo === 'nota_justificativa' ? 5 : 10);
+  }
+  return pergunta.tipo === 'nota_justificativa' ? 5 : 10;
 }
 
 export function CoordenadorAvaliacaoPage() {
@@ -45,6 +113,7 @@ export function CoordenadorAvaliacaoPage() {
   const [envio, setEnvio] = useState<AvaliacaoEnvio | null>(null);
   const [encontro, setEncontro] = useState<EncontroAvaliacaoInfo | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [teamMembers, setTeamMembers] = useState<EquipeMemberOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -55,7 +124,7 @@ export function CoordenadorAvaliacaoPage() {
   const encontroId = userParticipacao?.encontro_id ?? null;
 
   const answeredCount = useMemo(
-    () => perguntas.filter((pergunta) => respostaPreenchida(respostas[pergunta.id])).length,
+    () => perguntas.filter((pergunta) => respostaPreenchida(pergunta, respostas[pergunta.id])).length,
     [perguntas, respostas]
   );
 
@@ -70,28 +139,40 @@ export function CoordenadorAvaliacaoPage() {
 
     setLoading(true);
     try {
-      const [estado, encontroResult] = await Promise.all([
+      const [estado, encontroResult, membrosResult] = await Promise.all([
         avaliacaoEncontroService.obterEstado(encontroId, equipeId),
         supabase
           .from('encontros')
           .select('nome, data_fim')
           .eq('id', encontroId)
           .maybeSingle(),
+        supabase
+          .from('participacoes')
+          .select('id, pessoas(nome_completo)')
+          .eq('encontro_id', encontroId)
+          .eq('equipe_id', equipeId)
+          .eq('coordenador', false)
+          .order('pessoas(nome_completo)', { ascending: true }),
       ]);
 
       if (encontroResult.error) throw encontroResult.error;
+      if (membrosResult.error) throw membrosResult.error;
 
       const respostasMap = estado.respostas.reduce<Record<string, string>>((acc, resposta) => {
         acc[resposta.pergunta_id] = avaliacaoEncontroService.respostaParaValor(resposta);
         return acc;
       }, {});
 
-      const firstPending = estado.perguntas.findIndex((pergunta) => pergunta.obrigatoria && !respostaPreenchida(respostasMap[pergunta.id]));
+      const firstPending = estado.perguntas.findIndex((pergunta) => pergunta.obrigatoria && !respostaPreenchida(pergunta, respostasMap[pergunta.id]));
 
       setPerguntas(estado.perguntas);
       setRespostas(respostasMap);
       setEnvio(estado.envio);
       setEncontro((encontroResult.data ?? null) as EncontroAvaliacaoInfo | null);
+      setTeamMembers((membrosResult.data ?? []).map((item) => {
+        const pessoa = Array.isArray(item.pessoas) ? item.pessoas[0] : item.pessoas;
+        return { id: item.id, nome: pessoa?.nome_completo || 'Sem nome' };
+      }).sort((a, b) => a.nome.localeCompare(b.nome)));
       setCurrentIndex(firstPending >= 0 ? firstPending : 0);
     } catch (error) {
       console.error('Erro ao carregar avaliação:', error);
@@ -119,12 +200,12 @@ export function CoordenadorAvaliacaoPage() {
     if (!user?.id || !encontroId || !equipeId || !currentPergunta || isSent) return true;
 
     const value = respostas[currentPergunta.id] ?? '';
-    if (currentPergunta.obrigatoria && !respostaPreenchida(value)) {
+    if (currentPergunta.obrigatoria && !respostaPreenchida(currentPergunta, value)) {
       toast.error('Responda esta pergunta para continuar.');
       return false;
     }
 
-    if (respostaPreenchida(value) || currentPergunta.obrigatoria) {
+    if (respostaPreenchida(currentPergunta, value) || currentPergunta.obrigatoria) {
       await avaliacaoEncontroService.salvarResposta({
         encontroId,
         equipeId,
@@ -161,7 +242,7 @@ export function CoordenadorAvaliacaoPage() {
   const handleSubmit = async () => {
     if (!user?.id || !encontroId || !equipeId || isSent) return;
 
-    const missingRequired = perguntas.filter((pergunta) => pergunta.obrigatoria && !respostaPreenchida(respostas[pergunta.id]));
+    const missingRequired = perguntas.filter((pergunta) => pergunta.obrigatoria && !respostaPreenchida(pergunta, respostas[pergunta.id]));
     if (missingRequired.length > 0) {
       const firstMissingIndex = perguntas.findIndex((pergunta) => pergunta.id === missingRequired[0].id);
       setCurrentIndex(Math.max(firstMissingIndex, 0));
@@ -171,7 +252,7 @@ export function CoordenadorAvaliacaoPage() {
 
     setSaving(true);
     try {
-      const perguntasComValor = perguntas.filter((pergunta) => respostaPreenchida(respostas[pergunta.id]) || pergunta.obrigatoria);
+      const perguntasComValor = perguntas.filter((pergunta) => respostaPreenchida(pergunta, respostas[pergunta.id]) || pergunta.obrigatoria);
       await Promise.all(perguntasComValor.map((pergunta) =>
         avaliacaoEncontroService.salvarResposta({
           encontroId,
@@ -193,18 +274,14 @@ export function CoordenadorAvaliacaoPage() {
   };
 
   const steps: ActionStep[] = perguntas.map((pergunta, index) => {
-    const answered = respostaPreenchida(respostas[pergunta.id]);
+    const answered = respostaPreenchida(pergunta, respostas[pergunta.id]);
     const status: ActionStep['status'] = index < currentIndex || (isSent && answered) ? 'completed' : index === currentIndex ? 'current' : 'pending';
 
     return {
       id: pergunta.id,
       title: `Pergunta ${index + 1}`,
       status,
-      summary: (
-        <span>
-          {answered ? 'Respondida' : pergunta.obrigatoria ? 'Obrigatória' : 'Opcional'} · {pergunta.titulo}
-        </span>
-      ),
+      summary: answered && index !== currentIndex ? <span>Respondida</span> : undefined,
       onEdit: () => setCurrentIndex(index),
       editLabel: 'Abrir',
       children: (
@@ -212,7 +289,29 @@ export function CoordenadorAvaliacaoPage() {
           pergunta={pergunta}
           value={respostas[pergunta.id] ?? ''}
           disabled={isSent || saving}
+          index={index}
+          total={perguntas.length}
+          isSent={isSent}
+          saving={saving}
+          isFirst={index === 0}
+          isLast={index === perguntas.length - 1}
+          teamMembers={teamMembers}
           onChange={(value) => updateResposta(pergunta.id, value)}
+          onSaveDraft={async () => {
+            setSaving(true);
+            try {
+              await salvarPerguntaAtual();
+              toast.success('Rascunho salvo.');
+            } catch (error) {
+              console.error('Erro ao salvar rascunho:', error);
+              toast.error('Erro ao salvar rascunho.');
+            } finally {
+              setSaving(false);
+            }
+          }}
+          onPrevious={handlePrevious}
+          onNext={handleNext}
+          onSubmit={handleSubmit}
         />
       ),
     };
@@ -287,50 +386,6 @@ export function CoordenadorAvaliacaoPage() {
       ) : (
         <section className="avaliacao-response-grid">
           <ActionStepper steps={steps} className="avaliacao-response-stepper" />
-
-          <aside className="card avaliacao-response-actions">
-            <ClipboardCheck size={24} />
-            <div>
-              <strong>Pergunta {currentIndex + 1} de {perguntas.length}</strong>
-              <span>{currentPergunta?.obrigatoria ? 'Obrigatória' : 'Opcional'}</span>
-            </div>
-
-            {!isSent && (
-              <button type="button" className="btn-secondary" disabled={saving} onClick={async () => {
-                setSaving(true);
-                try {
-                  await salvarPerguntaAtual();
-                  toast.success('Rascunho salvo.');
-                } catch (error) {
-                  console.error('Erro ao salvar rascunho:', error);
-                  toast.error('Erro ao salvar rascunho.');
-                } finally {
-                  setSaving(false);
-                }
-              }}>
-                {saving ? <Loader className="animate-spin" size={16} /> : null}
-                Salvar rascunho
-              </button>
-            )}
-
-            <div className="avaliacao-response-nav">
-              <button type="button" className="btn-secondary" disabled={currentIndex === 0 || saving} onClick={handlePrevious}>
-                <ChevronLeft size={16} />
-                Anterior
-              </button>
-              {currentIndex < perguntas.length - 1 ? (
-                <button type="button" className="btn-primary" disabled={saving} onClick={handleNext}>
-                  {saving ? <Loader className="animate-spin" size={16} /> : <ChevronRight size={16} />}
-                  Próxima
-                </button>
-              ) : (
-                <button type="button" className="btn-primary" disabled={saving || isSent} onClick={handleSubmit}>
-                  {saving ? <Loader className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-                  Enviar
-                </button>
-              )}
-            </div>
-          </aside>
         </section>
       )}
 
@@ -430,10 +485,7 @@ export function CoordenadorAvaliacaoPage() {
         }
 
         .avaliacao-response-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) 280px;
-          gap: 1rem;
-          align-items: start;
+          display: block;
         }
 
         .avaliacao-response-stepper .action-stepper__content {
@@ -442,13 +494,24 @@ export function CoordenadorAvaliacaoPage() {
 
         .avaliacao-question {
           display: grid;
-          gap: 0.85rem;
+          gap: 1rem;
+          padding: 0.1rem 0 0;
+        }
+
+        .avaliacao-question__header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 1rem;
+          padding-bottom: 0.85rem;
+          border-bottom: 1px solid var(--border-color);
         }
 
         .avaliacao-question__title {
           margin: 0;
-          font-size: 1.08rem;
-          line-height: 1.35;
+          font-size: 1rem;
+          line-height: 1.32;
+          font-weight: 750;
         }
 
         .avaliacao-question__description {
@@ -456,6 +519,61 @@ export function CoordenadorAvaliacaoPage() {
           color: var(--text-muted);
           font-size: 0.92rem;
           line-height: 1.45;
+        }
+
+        .avaliacao-question__meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.45rem;
+          margin-top: 0.55rem;
+        }
+
+        .avaliacao-question__pill {
+          display: inline-flex;
+          align-items: center;
+          border-radius: 999px;
+          padding: 0.28rem 0.58rem;
+          background: rgba(var(--primary-rgb), 0.1);
+          color: var(--primary-color);
+          font-size: 0.7rem;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+        }
+
+        .avaliacao-question__pill--required {
+          background: rgba(245, 158, 11, 0.14);
+          color: #f59e0b;
+        }
+
+        .avaliacao-question__editor .rich-text-editor-wrapper {
+          background: var(--card-bg);
+        }
+
+        .avaliacao-question__description.rich-text-content {
+          padding: 0;
+          background: transparent;
+        }
+
+        .avaliacao-question__description.rich-text-content :is(p, ul, ol) {
+          margin-top: 0.35rem;
+          margin-bottom: 0;
+        }
+
+        .avaliacao-question__footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 0.75rem;
+          padding-top: 0.85rem;
+          border-top: 1px solid var(--border-color);
+        }
+
+        .avaliacao-question__footer-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.65rem;
+          flex-wrap: wrap;
         }
 
         .avaliacao-choice-grid {
@@ -481,41 +599,150 @@ export function CoordenadorAvaliacaoPage() {
           color: var(--primary-color);
         }
 
-        .avaliacao-response-actions {
-          position: sticky;
-          top: 1rem;
+        .avaliacao-note-field {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 1rem;
+          align-items: start;
+        }
+
+        .avaliacao-note-options {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(38px, 1fr));
+          gap: 0.5rem;
+          max-width: 320px;
+        }
+
+        .avaliacao-note-option {
+          width: 100%;
+          height: 40px;
+          border: 1px solid var(--border-color);
+          border-radius: 10px;
+          background: var(--card-bg);
+          color: var(--text-color);
+          font-weight: 900;
+          cursor: pointer;
+          transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+        }
+
+        .avaliacao-note-option:hover:not(:disabled),
+        .avaliacao-note-option.is-selected {
+          border-color: var(--primary-color);
+          background: rgba(var(--primary-rgb), 0.14);
+          color: var(--primary-color);
+          transform: translateY(-1px);
+        }
+
+        .avaliacao-note-option:disabled {
+          cursor: not-allowed;
+          opacity: 0.55;
+        }
+
+        .avaliacao-highlight-field {
           display: grid;
           gap: 1rem;
           padding: 1rem;
+          border: 1px solid rgba(245, 158, 11, 0.28);
+          border-radius: 14px;
+          background: rgba(245, 158, 11, 0.07);
         }
 
-        .avaliacao-response-actions > svg {
-          color: var(--primary-color);
+        .avaliacao-highlight-callout {
+          display: flex;
+          gap: 0.75rem;
+          align-items: flex-start;
+          color: #f59e0b;
         }
 
-        .avaliacao-response-nav {
+        .avaliacao-highlight-callout strong {
+          display: block;
+          color: var(--text-color);
+          font-size: 0.95rem;
+        }
+
+        .avaliacao-highlight-callout span {
+          display: block;
+          margin-top: 0.2rem;
+          color: var(--text-muted);
+          font-size: 0.82rem;
+        }
+
+        .avaliacao-highlight-select {
           display: grid;
-          gap: 0.65rem;
+          gap: 0.45rem;
+        }
+
+        .avaliacao-highlight-select label {
+          margin: 0;
+          color: var(--text-color);
+          font-size: 0.86rem;
+          font-weight: 800;
+        }
+
+        .avaliacao-highlight-select__row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr);
+          gap: 0.55rem;
+          align-items: center;
+        }
+
+        .avaliacao-highlight-selected {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .avaliacao-highlight-chip {
+          display: inline-flex;
+          align-items: center;
+          max-width: 100%;
+          gap: 0.4rem;
+          border: 1px solid rgba(245, 158, 11, 0.35);
+          border-radius: 999px;
+          background: rgba(245, 158, 11, 0.14);
+          color: var(--text-color);
+          padding: 0.35rem 0.45rem 0.35rem 0.65rem;
+          font-size: 0.82rem;
+          font-weight: 750;
+        }
+
+        .avaliacao-highlight-chip span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .avaliacao-highlight-chip button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 22px;
+          height: 22px;
+          border: 0;
+          border-radius: 999px;
+          background: rgba(245, 158, 11, 0.18);
+          color: #f59e0b;
+          cursor: pointer;
+        }
+
+        .avaliacao-highlight-empty {
+          margin: 0;
+          color: var(--text-muted);
+          font-size: 0.82rem;
+          line-height: 1.35;
         }
 
         @media (max-width: 860px) {
           .avaliacao-response-hero,
-          .avaliacao-response-progress,
-          .avaliacao-response-grid {
+          .avaliacao-response-progress {
             grid-template-columns: 1fr;
           }
 
           .avaliacao-response-hero .btn-secondary,
-          .avaliacao-response-status,
-          .avaliacao-response-actions .btn-secondary,
-          .avaliacao-response-actions .btn-primary {
+          .avaliacao-response-status {
             width: 100%;
             justify-content: center;
-          }
-
-          .avaliacao-response-actions {
-            position: static;
-            order: -1;
           }
         }
 
@@ -529,11 +756,69 @@ export function CoordenadorAvaliacaoPage() {
           }
 
           .avaliacao-response-stepper .action-stepper__content {
-            padding: 0.85rem 0 0;
+            padding: 0.55rem 0 0;
+          }
+
+          .avaliacao-response-stepper .action-stepper__item--current .action-stepper__body {
+            border-color: transparent;
+            background: transparent;
+            box-shadow: none;
+            overflow: visible;
+          }
+
+          .avaliacao-response-stepper .action-stepper__item--current .action-stepper__header {
+            padding: 0.25rem 0 0.45rem;
+          }
+
+          .avaliacao-question__title {
+            font-size: 0.94rem;
+            line-height: 1.28;
+          }
+
+          .avaliacao-question__description {
+            font-size: 0.82rem;
+            line-height: 1.35;
+          }
+
+          .avaliacao-question__header,
+          .avaliacao-question__footer {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .avaliacao-question__footer-actions,
+          .avaliacao-question__footer-actions .btn-secondary,
+          .avaliacao-question__footer-actions .btn-primary {
+            width: 100%;
+            justify-content: center;
           }
 
           .avaliacao-choice-grid {
             grid-template-columns: 1fr;
+          }
+
+          .avaliacao-note-field {
+            grid-template-columns: 1fr;
+          }
+
+          .avaliacao-note-options {
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            max-width: none;
+            gap: 0.45rem;
+          }
+
+          .avaliacao-note-option {
+            height: 38px;
+            border-radius: 9px;
+          }
+
+          .avaliacao-highlight-field {
+            padding: 0.85rem;
+          }
+
+          .avaliacao-highlight-chip {
+            width: 100%;
+            justify-content: space-between;
           }
         }
       `}</style>
@@ -545,24 +830,82 @@ interface QuestionStepProps {
   pergunta: AvaliacaoPergunta;
   value: string;
   disabled: boolean;
+  index: number;
+  total: number;
+  isSent: boolean;
+  saving: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+  teamMembers: EquipeMemberOption[];
   onChange: (value: string) => void;
+  onSaveDraft: () => void;
+  onPrevious: () => void;
+  onNext: () => void;
+  onSubmit: () => void;
 }
 
-function QuestionStep({ pergunta, value, disabled, onChange }: QuestionStepProps) {
+function QuestionStep({
+  pergunta,
+  value,
+  disabled,
+  index,
+  total,
+  isSent,
+  saving,
+  isFirst,
+  isLast,
+  teamMembers,
+  onChange,
+  onSaveDraft,
+  onPrevious,
+  onNext,
+  onSubmit,
+}: QuestionStepProps) {
   return (
     <div className="avaliacao-question">
-      <div>
-        <h2 className="avaliacao-question__title">{pergunta.titulo}</h2>
-        {pergunta.descricao && <p className="avaliacao-question__description">{pergunta.descricao}</p>}
+      <div className="avaliacao-question__header">
+        <div>
+          <h2 className="avaliacao-question__title">{pergunta.titulo}</h2>
+          {pergunta.descricao && (
+            <div
+              className="avaliacao-question__description rich-text-content"
+              dangerouslySetInnerHTML={{ __html: pergunta.descricao }}
+            />
+          )}
+          <div className="avaliacao-question__meta">
+            <span className="avaliacao-question__pill">{index + 1} de {total}</span>
+            <span className={`avaliacao-question__pill ${pergunta.obrigatoria ? 'avaliacao-question__pill--required' : ''}`}>
+              {pergunta.obrigatoria ? 'Obrigatória' : 'Opcional'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {pergunta.tipo === 'nota' && (
         <select className="form-select" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)}>
           <option value="">Selecione uma nota</option>
-          {Array.from({ length: 10 }, (_, index) => String(index + 1)).map((nota) => (
+          {Array.from({ length: getEscalaMax(pergunta) }, (_, index) => String(index + 1)).map((nota) => (
             <option key={nota} value={nota}>{nota}</option>
           ))}
         </select>
+      )}
+
+      {pergunta.tipo === 'nota_justificativa' && (
+        <NotaJustificativaField
+          pergunta={pergunta}
+          value={value}
+          disabled={disabled}
+          onChange={onChange}
+        />
+      )}
+
+      {pergunta.tipo === 'participante_destaque' && (
+        <ParticipantesDestaqueField
+          value={value}
+          disabled={disabled}
+          teamMembers={teamMembers}
+          onChange={onChange}
+        />
       )}
 
       {pergunta.tipo === 'sim_nao' && (
@@ -586,7 +929,7 @@ function QuestionStep({ pergunta, value, disabled, onChange }: QuestionStepProps
 
       {pergunta.tipo === 'multipla_escolha' && (
         <div className="avaliacao-choice-grid">
-          {(pergunta.opcoes ?? []).map((opcao) => (
+          {(Array.isArray(pergunta.opcoes) ? pergunta.opcoes : []).map((opcao) => (
             <button
               key={opcao}
               type="button"
@@ -601,16 +944,212 @@ function QuestionStep({ pergunta, value, disabled, onChange }: QuestionStepProps
       )}
 
       {(pergunta.tipo === 'texto' || pergunta.tipo === 'texto_longo') && (
-        <textarea
-          className="form-textarea"
-          value={value}
+        <div className="avaliacao-question__editor">
+          <RichTextEditor
+          content={value}
+          onChange={onChange}
           disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
-          rows={pergunta.tipo === 'texto' ? 3 : 7}
           placeholder="Digite a resposta da equipe..."
-          style={{ width: '100%', resize: 'vertical', minHeight: pergunta.tipo === 'texto' ? '108px' : '180px' }}
-        />
+          minHeight={pergunta.tipo === 'texto' ? '140px' : '220px'}
+          toolbarMode="list"
+          />
+        </div>
       )}
+
+      <div className="avaliacao-question__footer">
+        <span className="avaliacao-question__description">
+          {isSent ? 'Avaliação enviada.' : 'Você pode salvar o rascunho ou avançar após responder.'}
+        </span>
+        <div className="avaliacao-question__footer-actions">
+          {!isSent && (
+            <button type="button" className="btn-secondary" disabled={saving} onClick={onSaveDraft}>
+              {saving ? <Loader className="animate-spin" size={16} /> : <Save size={16} />}
+              Salvar rascunho
+            </button>
+          )}
+          <button type="button" className="btn-secondary" disabled={isFirst || saving} onClick={onPrevious}>
+            <ChevronLeft size={16} />
+            Anterior
+          </button>
+          {isLast ? (
+            <button type="button" className="btn-primary" disabled={saving || isSent} onClick={onSubmit}>
+              {saving ? <Loader className="animate-spin" size={16} /> : <CheckCircle size={16} />}
+              Enviar
+            </button>
+          ) : (
+            <button type="button" className="btn-primary" disabled={saving} onClick={onNext}>
+              {saving ? <Loader className="animate-spin" size={16} /> : <ChevronRight size={16} />}
+              Avançar
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function NotaJustificativaField({
+  pergunta,
+  value,
+  disabled,
+  onChange,
+}: {
+  pergunta: AvaliacaoPergunta;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  const parsed = parseNotaJustificativa(value) ?? { nota: '', justificativa: '' };
+  const escalaMax = getEscalaMax(pergunta);
+
+  const update = (next: { nota?: string; justificativa?: string }) => {
+    onChange(JSON.stringify({
+      nota: next.nota ?? parsed.nota,
+      justificativa: next.justificativa ?? parsed.justificativa,
+    }));
+  };
+
+  return (
+    <div className="avaliacao-note-field">
+      <div className="form-group avaliacao-note-picker" style={{ margin: 0 }}>
+        <label>Nota</label>
+        <div className="avaliacao-note-options">
+          {Array.from({ length: escalaMax }, (_, index) => String(index + 1)).map((nota) => (
+            <button
+              key={nota}
+              type="button"
+              className={`avaliacao-note-option ${parsed.nota === nota ? 'is-selected' : ''}`}
+              disabled={disabled}
+              onClick={() => update({ nota })}
+            >
+              {nota}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="form-group" style={{ margin: 0 }}>
+        <label>Justificativa *</label>
+        <RichTextEditor
+          content={parsed.justificativa}
+          onChange={(content) => update({ justificativa: content })}
+          disabled={disabled}
+          placeholder="Justifique a nota..."
+          minHeight="160px"
+          toolbarMode="list"
+        />
+      </div>
+    </div>
+  );
+}
+
+function ParticipantesDestaqueField({
+  value,
+  disabled,
+  teamMembers,
+  onChange,
+}: {
+  value: string;
+  disabled: boolean;
+  teamMembers: EquipeMemberOption[];
+  onChange: (value: string) => void;
+}) {
+  const parsed = parseParticipantesDestaque(value) ?? { participacaoIds: [], participantesNomes: [], justificativa: '' };
+  const selectedIds = parsed.participacaoIds;
+  const selectedMembers = selectedIds.map((id, index) => {
+    const member = teamMembers.find((item) => item.id === id);
+    return {
+      id,
+      nome: member?.nome ?? parsed.participantesNomes[index] ?? 'Participante selecionado',
+    };
+  });
+
+  const fetchTeamMemberOptions = useCallback(async (search: string, page: number) => {
+    const pageSize = 8;
+    const query = normalizeSearch(search);
+    const currentSelectedIds = parseParticipantesDestaque(value)?.participacaoIds ?? [];
+    const availableMembers = teamMembers.filter((member) => !currentSelectedIds.includes(member.id));
+    const filtered = query
+      ? availableMembers.filter((member) => normalizeSearch(member.nome).includes(query))
+      : availableMembers;
+
+    return filtered.slice(page * pageSize, (page + 1) * pageSize);
+  }, [teamMembers, value]);
+
+  const update = (next: { participacaoIds?: string[]; justificativa?: string }) => {
+    const participacaoIds = next.participacaoIds ?? selectedIds;
+    const nomes = teamMembers
+      .filter((member) => participacaoIds.includes(member.id))
+      .map((member) => member.nome);
+
+    onChange(JSON.stringify({
+      participacao_ids: participacaoIds,
+      participantes_nomes: nomes,
+      justificativa: next.justificativa ?? parsed.justificativa,
+    }));
+  };
+
+  const addMember = (memberId: string) => {
+    if (!memberId || selectedIds.includes(memberId)) return;
+    update({ participacaoIds: [...selectedIds, memberId] });
+  };
+
+  const removeMember = (memberId: string) => {
+    update({ participacaoIds: selectedIds.filter((id) => id !== memberId) });
+  };
+
+  return (
+    <div className="avaliacao-highlight-field">
+      <div className="avaliacao-highlight-callout">
+        <Star size={18} />
+        <div>
+          <strong>Participantes destaque da equipe</strong>
+          <span>Busque os membros destaque e justifique a escolha.</span>
+        </div>
+      </div>
+
+      <div className="avaliacao-highlight-select">
+        <label>Adicionar participante destaque *</label>
+        <div className="avaliacao-highlight-select__row">
+          <LiveSearchSelect<EquipeMemberOption>
+            value=""
+            onChange={(memberId) => addMember(memberId)}
+            fetchData={fetchTeamMemberOptions}
+            getOptionLabel={(member) => member.nome}
+            getOptionValue={(member) => member.id}
+            placeholder="Busque pelo nome do participante..."
+            disabled={disabled}
+            pageSize={8}
+            initialOptions={teamMembers}
+          />
+        </div>
+      </div>
+
+      <div className="avaliacao-highlight-selected" aria-label="Participantes destaque selecionados">
+        {selectedMembers.length > 0 ? selectedMembers.map((member) => (
+          <span key={member.id} className="avaliacao-highlight-chip">
+            <span>{member.nome}</span>
+            {!disabled && (
+              <button type="button" onClick={() => removeMember(member.id)} aria-label={`Remover ${member.nome}`}>
+                <X size={14} />
+              </button>
+            )}
+          </span>
+        )) : (
+          <p className="avaliacao-highlight-empty">Nenhum participante destaque selecionado.</p>
+        )}
+      </div>
+
+      <div className="form-group" style={{ margin: 0 }}>
+        <label>Justificativa *</label>
+        <RichTextEditor
+          content={parsed.justificativa}
+          onChange={(content) => update({ justificativa: content })}
+          disabled={disabled}
+          placeholder="Explique por que estas pessoas foram destaque..."
+          minHeight="160px"
+          toolbarMode="list"
+        />
+      </div>
     </div>
   );
 }

@@ -1,7 +1,8 @@
 import { supabase } from '../lib/supabase';
 
-export type AvaliacaoPerguntaTipo = 'texto' | 'texto_longo' | 'nota' | 'sim_nao' | 'multipla_escolha';
+export type AvaliacaoPerguntaTipo = 'texto' | 'texto_longo' | 'nota' | 'nota_justificativa' | 'participante_destaque' | 'sim_nao' | 'multipla_escolha';
 export type AvaliacaoEnvioStatus = 'rascunho' | 'enviado';
+export type AvaliacaoPerguntaOpcoes = string[] | { escala_min?: number; escala_max?: number } | null;
 
 export interface AvaliacaoPergunta {
   id: string;
@@ -11,7 +12,7 @@ export interface AvaliacaoPergunta {
   descricao: string | null;
   tipo: AvaliacaoPerguntaTipo;
   obrigatoria: boolean;
-  opcoes: string[] | null;
+  opcoes: AvaliacaoPerguntaOpcoes;
   ativa: boolean;
 }
 
@@ -22,7 +23,7 @@ export interface AvaliacaoPerguntaFormData {
   descricao: string | null;
   tipo: AvaliacaoPerguntaTipo;
   obrigatoria: boolean;
-  opcoes: string[] | null;
+  opcoes: AvaliacaoPerguntaOpcoes;
   ativa: boolean;
 }
 
@@ -61,6 +62,26 @@ export interface AvaliacaoRespostaInput {
   pergunta: AvaliacaoPergunta;
   valor: string;
   userId: string;
+}
+
+export interface AvaliacaoResumoIA {
+  id: string;
+  encontro_id: string;
+  conteudo: string;
+  provider: string;
+  model: string;
+  prompt_version: string;
+  total_equipes: number;
+  total_equipes_enviadas: number;
+  total_respostas: number;
+  gerado_por: string | null;
+  created_at: string;
+}
+
+export interface GerarResumoIAResponse {
+  resumo: AvaliacaoResumoIA;
+  totalResumos: number;
+  limite: number;
 }
 
 export const avaliacaoEncontroService = {
@@ -140,6 +161,27 @@ export const avaliacaoEncontroService = {
     ]);
 
     return { perguntas, respostas, envio };
+  },
+
+  async listarResumosIA(encontroId: string): Promise<AvaliacaoResumoIA[]> {
+    const { data, error } = await supabase
+      .from('avaliacao_resumos_ia')
+      .select('id, encontro_id, conteudo, provider, model, prompt_version, total_equipes, total_equipes_enviadas, total_respostas, gerado_por, created_at')
+      .eq('encontro_id', encontroId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data ?? []) as AvaliacaoResumoIA[];
+  },
+
+  async gerarResumoIA(encontroId: string): Promise<GerarResumoIAResponse> {
+    const { data, error } = await supabase.functions.invoke('gerar-resumo-avaliacao', {
+      body: { encontroId },
+    });
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data as GerarResumoIAResponse;
   },
 
   async listarResumoEquipes(encontroId: string): Promise<AvaliacaoEquipeResumo[]> {
@@ -259,6 +301,51 @@ export const avaliacaoEncontroService = {
       };
     }
 
+    if (pergunta.tipo === 'nota_justificativa') {
+      let parsed: { nota?: number | string; justificativa?: string } = {};
+      try {
+        parsed = cleanValue ? JSON.parse(cleanValue) : {};
+      } catch {
+        parsed = {};
+      }
+
+      const nota = parsed.nota !== undefined && parsed.nota !== '' ? Number(parsed.nota) : null;
+      const justificativa = parsed.justificativa?.trim() || '';
+
+      return {
+        encontro_id: encontroId,
+        equipe_id: equipeId,
+        pergunta_id: pergunta.id,
+        resposta_texto: justificativa || null,
+        resposta_numero: nota,
+        resposta_json: nota !== null || justificativa ? { nota, justificativa } : null,
+        respondido_por: userId,
+      };
+    }
+
+    if (pergunta.tipo === 'participante_destaque') {
+      let parsed: { participacao_ids?: string[]; participantes_nomes?: string[]; justificativa?: string } = {};
+      try {
+        parsed = cleanValue ? JSON.parse(cleanValue) : {};
+      } catch {
+        parsed = {};
+      }
+
+      const participacaoIds = Array.isArray(parsed.participacao_ids) ? parsed.participacao_ids.filter(Boolean) : [];
+      const participantesNomes = Array.isArray(parsed.participantes_nomes) ? parsed.participantes_nomes.filter(Boolean) : [];
+      const justificativa = parsed.justificativa?.trim() || '';
+
+      return {
+        encontro_id: encontroId,
+        equipe_id: equipeId,
+        pergunta_id: pergunta.id,
+        resposta_texto: justificativa || null,
+        resposta_numero: null,
+        resposta_json: participacaoIds.length > 0 || justificativa ? { participacao_ids: participacaoIds, participantes_nomes: participantesNomes, justificativa } : null,
+        respondido_por: userId,
+      };
+    }
+
     if (pergunta.tipo === 'sim_nao') {
       return {
         encontro_id: encontroId,
@@ -284,6 +371,12 @@ export const avaliacaoEncontroService = {
 
   respostaParaValor(resposta?: AvaliacaoResposta): string {
     if (!resposta) return '';
+    if (resposta.resposta_json && typeof resposta.resposta_json === 'object' && 'nota' in resposta.resposta_json) {
+      return JSON.stringify(resposta.resposta_json);
+    }
+    if (resposta.resposta_json && typeof resposta.resposta_json === 'object' && 'participacao_ids' in resposta.resposta_json) {
+      return JSON.stringify(resposta.resposta_json);
+    }
     if (resposta.resposta_numero !== null && resposta.resposta_numero !== undefined) {
       return String(resposta.resposta_numero);
     }

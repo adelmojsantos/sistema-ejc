@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Camera, Image as ImageIcon, Trash2, Users, LayoutGrid, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -28,6 +28,10 @@ export function SecretariaFotosPage() {
     const [tempPos, setTempPos] = useState<number>(50);
     const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
     const [isRemoving, setIsRemoving] = useState(false);
+    const [selectedUploadTeamId, setSelectedUploadTeamId] = useState<string | null>(null);
+    const [isPhotoActionSheetOpen, setIsPhotoActionSheetOpen] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
 
     // Seleciona o primeiro encontro quando o contexto carregar
     useEffect(() => {
@@ -89,6 +93,28 @@ export function SecretariaFotosPage() {
         } finally {
             setUploading(null);
             setDragOverId(null);
+        }
+    };
+
+    const openPhotoPicker = (teamId: string) => {
+        if (uploading || adjustingId) return;
+        setSelectedUploadTeamId(teamId);
+
+        if (window.innerWidth <= 768) {
+            setIsPhotoActionSheetOpen(true);
+        } else {
+            fileInputRef.current?.click();
+        }
+    };
+
+    const handleSharedFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        const teamId = selectedUploadTeamId;
+        event.target.value = '';
+        setIsPhotoActionSheetOpen(false);
+
+        if (file && teamId) {
+            handleUpload(teamId, file);
         }
     };
 
@@ -190,7 +216,20 @@ export function SecretariaFotosPage() {
                                 <span>{team.equipes.nome}</span>
                             </div>
 
-                            <div className="photo-frame landscape">
+                            <div
+                                className="photo-frame landscape"
+                                onClick={() => openPhotoPicker(team.id)}
+                                role="button"
+                                tabIndex={0}
+                                aria-label={`${team.foto_url ? 'Trocar' : 'Adicionar'} foto da equipe ${team.equipes.nome}`}
+                                onKeyDown={(event) => {
+                                    if (event.target !== event.currentTarget) return;
+                                    if (event.key === 'Enter' || event.key === ' ') {
+                                        event.preventDefault();
+                                        openPhotoPicker(team.id);
+                                    }
+                                }}
+                            >
                                 {team.foto_url ? (
                                     <div className="image-wrapper" style={{ height: '100%', position: 'relative' }}>
                                         <img
@@ -215,10 +254,10 @@ export function SecretariaFotosPage() {
                                             </div>
                                         ) : (
                                             <div className="card-actions">
-                                                <button onClick={() => handleStartAdjust(team)} className="action-btn" title="Ajustar Enquadramento">
+                                                <button onClick={(event) => { event.stopPropagation(); handleStartAdjust(team); }} className="action-btn" title="Ajustar Enquadramento">
                                                     <LayoutGrid size={14} />
                                                 </button>
-                                                <button onClick={() => setDeleteTarget(team.id)} className="action-btn danger">
+                                                <button onClick={(event) => { event.stopPropagation(); setDeleteTarget(team.id); }} className="action-btn danger">
                                                     <Trash2 size={14} />
                                                 </button>
                                             </div>
@@ -227,7 +266,7 @@ export function SecretariaFotosPage() {
                                 ) : (
                                     <div className="empty-state">
                                         <ImageIcon size={24} />
-                                        <span>Solte a foto aqui</span>
+                                        <span>Clique ou solte a foto aqui</span>
                                     </div>
                                 )}
 
@@ -239,10 +278,9 @@ export function SecretariaFotosPage() {
                                     Salvar Enquadramento
                                 </button>
                             ) : (
-                                <label className="upload-label">
+                                <button type="button" className="upload-label" onClick={() => openPhotoPicker(team.id)}>
                                     <Camera size={14} /> {team.foto_url ? 'Trocar' : 'Subir Foto'}
-                                    <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && handleUpload(team.id, e.target.files[0])} hidden />
-                                </label>
+                                </button>
                             )}
                         </div>
                     ))}
@@ -263,7 +301,7 @@ export function SecretariaFotosPage() {
                 }
 
                 .foto-card { padding: 0.75rem; transition: 0.2s; border: 1px solid var(--border-color); }
-                .card-header { display: flex; alignItems: center; gap: 0.5rem; margin-bottom: 0.75rem; font-weight: 600; font-size: 0.85rem; }
+                .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; font-weight: 600; font-size: 0.85rem; }
                 .photo-frame { position: relative; background: var(--secondary-bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
                 .photo-frame.landscape { aspect-ratio: 21 / 9; }
                 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; opacity: 0.3; font-size: 0.7rem; gap: 0.4rem; }
@@ -278,7 +316,139 @@ export function SecretariaFotosPage() {
                 .adjust-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 1rem; background: linear-gradient(transparent, rgba(0,0,0,0.8)); display: flex; flex-direction: column; }
                 .adjusting { border-color: var(--primary-color); box-shadow: 0 0 0 2px var(--primary-color)20; }
                 input[type=range] { cursor: ns-resize; width: 100%; accent-color: var(--primary-color); }
+                .photo-frame[role="button"] { cursor: pointer; }
+                .photo-frame[role="button"]:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; }
+                .foto-card:not(.adjusting) .photo-frame:hover .empty-state { opacity: 0.6; }
+                .upload-label {
+                    border: 0;
+                    background: transparent;
+                    width: 100%;
+                    padding: 0;
+                }
+
+                .photo-actions-modal-overlay {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(0,0,0,0.6);
+                    backdrop-filter: blur(4px);
+                    z-index: 99999;
+                    display: flex;
+                    align-items: flex-end;
+                    justify-content: center;
+                    animation: fadeIn 0.2s ease-out;
+                }
+                @media (min-width: 640px) {
+                    .photo-actions-modal-overlay {
+                        align-items: center;
+                    }
+                }
+                .photo-actions-modal {
+                    background: var(--card-bg, #ffffff);
+                    width: 100%;
+                    max-width: 500px;
+                    border-top-left-radius: 24px;
+                    border-top-right-radius: 24px;
+                    padding: 1.5rem;
+                    box-shadow: 0 -10px 25px rgba(0,0,0,0.15);
+                    display: flex;
+                    flex-direction: column;
+                    gap: 1rem;
+                    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                }
+                @media (min-width: 640px) {
+                    .photo-actions-modal {
+                        border-radius: 20px;
+                        box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+                        animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+                    }
+                }
+                .photo-actions-header { text-align: center; }
+                .photo-actions-header h3 {
+                    margin: 0;
+                    font-size: 1.2rem;
+                    font-weight: 700;
+                    color: var(--text-color);
+                }
+                .photo-actions-header p {
+                    margin: 0.25rem 0 0;
+                    font-size: 0.85rem;
+                    color: var(--text-color);
+                    opacity: 0.7;
+                }
+                .photo-actions-buttons {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.75rem;
+                }
+                .photo-action-btn {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.75rem;
+                    padding: 1rem;
+                    border-radius: 12px;
+                    border: 1px solid var(--border-color);
+                    background: var(--secondary-bg, #f8f9fa);
+                    color: var(--text-color);
+                    font-weight: 600;
+                    font-size: 0.95rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .photo-action-btn:hover {
+                    background: var(--primary-color);
+                    color: white;
+                    border-color: var(--primary-color);
+                }
+                .photo-actions-cancel {
+                    padding: 0.75rem;
+                    border-radius: 12px;
+                    border: none;
+                    background: rgba(239, 68, 68, 0.1);
+                    color: #ef4444;
+                    font-weight: 700;
+                    font-size: 0.95rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    text-align: center;
+                }
+                .photo-actions-cancel:hover {
+                    background: #ef4444;
+                    color: white;
+                }
+
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes slideUp {
+                    from { transform: translateY(100%); }
+                    to { transform: translateY(0); }
+                }
+                @keyframes scaleIn {
+                    from { transform: scale(0.95); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                }
             `}</style>
+
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={handleSharedFileChange}
+                disabled={!!uploading}
+            />
+            <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                hidden
+                onChange={handleSharedFileChange}
+                disabled={!!uploading}
+            />
+
             <ConfirmDialog 
                 isOpen={!!deleteTarget}
                 title="Remover Foto"
@@ -288,6 +458,44 @@ export function SecretariaFotosPage() {
                 isLoading={isRemoving}
                 isDestructive={true}
             />
+
+            {isPhotoActionSheetOpen && (
+                <div className="photo-actions-modal-overlay" onClick={() => setIsPhotoActionSheetOpen(false)}>
+                    <div className="photo-actions-modal" onClick={(event) => event.stopPropagation()}>
+                        <div className="photo-actions-header">
+                            <h3>Adicionar Foto</h3>
+                            <p>Como você deseja inserir a foto?</p>
+                        </div>
+                        <div className="photo-actions-buttons">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsPhotoActionSheetOpen(false);
+                                    cameraInputRef.current?.click();
+                                }}
+                                className="photo-action-btn"
+                            >
+                                <Camera size={20} />
+                                Tirar Foto (Câmera)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsPhotoActionSheetOpen(false);
+                                    fileInputRef.current?.click();
+                                }}
+                                className="photo-action-btn"
+                            >
+                                <ImageIcon size={20} />
+                                Escolher da Galeria
+                            </button>
+                        </div>
+                        <button type="button" className="photo-actions-cancel" onClick={() => setIsPhotoActionSheetOpen(false)}>
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

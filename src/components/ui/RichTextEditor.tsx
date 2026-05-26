@@ -31,6 +31,7 @@ interface RichTextEditorProps {
   disabled?: boolean;
   placeholder?: string;
   minHeight?: string;
+  toolbarMode?: 'full' | 'list';
 }
 
 type ToolbarButtonProps = {
@@ -83,6 +84,7 @@ export const RichTextEditor = ({
   disabled,
   placeholder = 'Digite o conteúdo...',
   minHeight = '200px',
+  toolbarMode = 'full',
 }: RichTextEditorProps) => {
   const editor = useEditor({
     extensions: [
@@ -148,102 +150,51 @@ export const RichTextEditor = ({
   return (
     <div className="rich-text-editor-wrapper">
       <div className="rich-text-toolbar" aria-label="Ferramentas de formatação">
-        <div className="toolbar-group" aria-label="Estilos de bloco">
-          <ToolbarButton
-            title="Parágrafo"
-            active={editor.isActive('paragraph')}
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().setParagraph().run()}
-          >
-            <Pilcrow size={18} />
-          </ToolbarButton>
-          <ToolbarButton
-            title="Título 1"
-            active={editor.isActive('heading', { level: 1 })}
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-          >
-            <Heading1 size={18} />
-          </ToolbarButton>
-          <ToolbarButton
-            title="Título 2"
-            active={editor.isActive('heading', { level: 2 })}
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          >
-            <Heading2 size={18} />
-          </ToolbarButton>
-          <ToolbarButton
-            title="Título 3"
-            active={editor.isActive('heading', { level: 3 })}
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-          >
-            <Heading3 size={18} />
-          </ToolbarButton>
-        </div>
+        {toolbarMode === 'full' && (
+          <>
+            <div className="toolbar-group" aria-label="Estilos de bloco">
+              <ToolbarButton title="Parágrafo" active={editor.isActive('paragraph')} disabled={isDisabled} onClick={() => editor.chain().focus().setParagraph().run()}>
+                <Pilcrow size={18} />
+              </ToolbarButton>
+              <ToolbarButton title="Título 1" active={editor.isActive('heading', { level: 1 })} disabled={isDisabled} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>
+                <Heading1 size={18} />
+              </ToolbarButton>
+              <ToolbarButton title="Título 2" active={editor.isActive('heading', { level: 2 })} disabled={isDisabled} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
+                <Heading2 size={18} />
+              </ToolbarButton>
+              <ToolbarButton title="Título 3" active={editor.isActive('heading', { level: 3 })} disabled={isDisabled} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>
+                <Heading3 size={18} />
+              </ToolbarButton>
+            </div>
 
-        <div className="toolbar-group" aria-label="Estilos de texto">
-          <ToolbarButton
-            title="Negrito"
-            active={editor.isActive('bold')}
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().toggleBold().run()}
-          >
-            <Bold size={18} />
-          </ToolbarButton>
-          <ToolbarButton
-            title="Itálico"
-            active={editor.isActive('italic')}
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().toggleItalic().run()}
-          >
-            <Italic size={18} />
-          </ToolbarButton>
-          <ToolbarButton
-            title="Sublinhado"
-            active={editor.isActive('underline')}
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().toggleUnderline().run()}
-          >
-            <Underline size={18} />
-          </ToolbarButton>
-        </div>
+            <div className="toolbar-group" aria-label="Estilos de texto">
+              <ToolbarButton title="Negrito" active={editor.isActive('bold')} disabled={isDisabled} onClick={() => editor.chain().focus().toggleBold().run()}>
+                <Bold size={18} />
+              </ToolbarButton>
+              <ToolbarButton title="Itálico" active={editor.isActive('italic')} disabled={isDisabled} onClick={() => editor.chain().focus().toggleItalic().run()}>
+                <Italic size={18} />
+              </ToolbarButton>
+              <ToolbarButton title="Sublinhado" active={editor.isActive('underline')} disabled={isDisabled} onClick={() => editor.chain().focus().toggleUnderline().run()}>
+                <Underline size={18} />
+              </ToolbarButton>
+            </div>
 
-        <div className="toolbar-group" aria-label="Alinhamento">
-          <ToolbarButton
-            title="Alinhar à esquerda"
-            active={editor.isActive({ textAlign: 'left' })}
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().setTextAlign('left').run()}
-          >
-            <AlignLeft size={18} />
-          </ToolbarButton>
-          <ToolbarButton
-            title="Centralizar"
-            active={editor.isActive({ textAlign: 'center' })}
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().setTextAlign('center').run()}
-          >
-            <AlignCenter size={18} />
-          </ToolbarButton>
-          <ToolbarButton
-            title="Alinhar à direita"
-            active={editor.isActive({ textAlign: 'right' })}
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().setTextAlign('right').run()}
-          >
-            <AlignRight size={18} />
-          </ToolbarButton>
-          <ToolbarButton
-            title="Justificar"
-            active={editor.isActive({ textAlign: 'justify' })}
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().setTextAlign('justify').run()}
-          >
-            <AlignJustify size={18} />
-          </ToolbarButton>
-        </div>
+            <div className="toolbar-group" aria-label="Alinhamento">
+              <ToolbarButton title="Alinhar à esquerda" active={editor.isActive({ textAlign: 'left' })} disabled={isDisabled} onClick={() => editor.chain().focus().setTextAlign('left').run()}>
+                <AlignLeft size={18} />
+              </ToolbarButton>
+              <ToolbarButton title="Centralizar" active={editor.isActive({ textAlign: 'center' })} disabled={isDisabled} onClick={() => editor.chain().focus().setTextAlign('center').run()}>
+                <AlignCenter size={18} />
+              </ToolbarButton>
+              <ToolbarButton title="Alinhar à direita" active={editor.isActive({ textAlign: 'right' })} disabled={isDisabled} onClick={() => editor.chain().focus().setTextAlign('right').run()}>
+                <AlignRight size={18} />
+              </ToolbarButton>
+              <ToolbarButton title="Justificar" active={editor.isActive({ textAlign: 'justify' })} disabled={isDisabled} onClick={() => editor.chain().focus().setTextAlign('justify').run()}>
+                <AlignJustify size={18} />
+              </ToolbarButton>
+            </div>
+          </>
+        )}
 
         <div className="toolbar-group" aria-label="Listas">
           <ToolbarButton
@@ -264,47 +215,30 @@ export const RichTextEditor = ({
           </ToolbarButton>
         </div>
 
-        <div className="toolbar-group" aria-label="Links">
-          <ToolbarButton
-            title="Adicionar ou editar link"
-            active={editor.isActive('link')}
-            disabled={isDisabled}
-            onClick={() => setLink(editor)}
-          >
-            <Link size={18} />
-          </ToolbarButton>
-          <ToolbarButton
-            title="Remover link"
-            disabled={isDisabled || !editor.isActive('link')}
-            onClick={() => editor.chain().focus().unsetLink().run()}
-          >
-            <Unlink size={18} />
-          </ToolbarButton>
-        </div>
+        {toolbarMode === 'full' && (
+          <>
+            <div className="toolbar-group" aria-label="Links">
+              <ToolbarButton title="Adicionar ou editar link" active={editor.isActive('link')} disabled={isDisabled} onClick={() => setLink(editor)}>
+                <Link size={18} />
+              </ToolbarButton>
+              <ToolbarButton title="Remover link" disabled={isDisabled || !editor.isActive('link')} onClick={() => editor.chain().focus().unsetLink().run()}>
+                <Unlink size={18} />
+              </ToolbarButton>
+            </div>
 
-        <div className="toolbar-group" aria-label="Histórico e limpeza">
-          <ToolbarButton
-            title="Desfazer"
-            disabled={isDisabled || !editor.can().undo()}
-            onClick={() => editor.chain().focus().undo().run()}
-          >
-            <Undo2 size={18} />
-          </ToolbarButton>
-          <ToolbarButton
-            title="Refazer"
-            disabled={isDisabled || !editor.can().redo()}
-            onClick={() => editor.chain().focus().redo().run()}
-          >
-            <Redo2 size={18} />
-          </ToolbarButton>
-          <ToolbarButton
-            title="Limpar formatação"
-            disabled={isDisabled}
-            onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}
-          >
-            <Eraser size={18} />
-          </ToolbarButton>
-        </div>
+            <div className="toolbar-group" aria-label="Histórico e limpeza">
+              <ToolbarButton title="Desfazer" disabled={isDisabled || !editor.can().undo()} onClick={() => editor.chain().focus().undo().run()}>
+                <Undo2 size={18} />
+              </ToolbarButton>
+              <ToolbarButton title="Refazer" disabled={isDisabled || !editor.can().redo()} onClick={() => editor.chain().focus().redo().run()}>
+                <Redo2 size={18} />
+              </ToolbarButton>
+              <ToolbarButton title="Limpar formatação" disabled={isDisabled} onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}>
+                <Eraser size={18} />
+              </ToolbarButton>
+            </div>
+          </>
+        )}
       </div>
 
       <EditorContent editor={editor} className="rich-text-content" style={{ minHeight }} />

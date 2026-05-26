@@ -52,18 +52,39 @@ interface EncontroInfo {
     quadrante_visibilidade: QuadranteVisibilityConfig | null;
 }
 
+function getOptimizedImageUrl(url: string | null | undefined, width: number, height?: number): string {
+    if (!url) return '';
+    if (url.includes('/storage/v1/object/public/')) {
+        const baseUrl = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
+        const params = new URLSearchParams();
+        params.set('width', width.toString());
+        if (height) params.set('height', height.toString());
+        params.set('resize', 'cover');
+        params.set('quality', '80');
+        return `${baseUrl}?${params.toString()}`;
+    }
+    return url;
+}
+
 // --- Sub-componente para Cartões de Participantes ---
 function ParticipantCard({ item }: { item: QuadranteData }) {
     const { theme } = useTheme();
+    const originalUrl = item.foto_url || '';
+    const optimizedUrl = getOptimizedImageUrl(originalUrl, 200, 250);
 
     return (
         <div className={`participant-card ${theme === 'dark' ? 'dark' : ''}`}>
             <div className="card-photo-wrapper">
                 {item.foto_url ? (
                     <img 
-                        src={item.foto_url} 
+                        src={optimizedUrl} 
                         alt={item.pessoas?.nome_completo} 
                         loading="eager" 
+                        onError={(e) => {
+                            if (e.currentTarget.src !== originalUrl) {
+                                e.currentTarget.src = originalUrl;
+                            }
+                        }}
                         style={{ objectPosition: `center ${item.foto_posicao_y ?? 50}%` }}
                     />
                 ) : (
@@ -114,6 +135,7 @@ function formatarDatasEncontro(inicioStr?: string | null, fimStr?: string | null
         return '';
     }
 }
+
 
 export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }) {
     const { token } = useParams<{ token: string }>();
@@ -503,7 +525,16 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         {/* Imagem Centralizada Grande da Arte do Tema */}
                         {encontro?.logo_url && (
                             <div className="capa-central-logo">
-                                <img src={encontro.logo_url} alt="Arte do Tema" />
+                                <img 
+                                    src={getOptimizedImageUrl(encontro.logo_url, 600, 600)} 
+                                    alt="Arte do Tema" 
+                                    onError={(e) => {
+                                        const orig = encontro.logo_url;
+                                        if (orig && e.currentTarget.src !== orig) {
+                                            e.currentTarget.src = orig;
+                                        }
+                                    }}
+                                />
                             </div>
                         )}
 
@@ -548,7 +579,17 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                             <div className="editorial-container">
                                 <div className="editorial-visual">
                                     {encontro?.logo_url ? (
-                                        <img src={encontro.logo_url} alt="Logo Tema" className="theme-logo" />
+                                        <img 
+                                            src={getOptimizedImageUrl(encontro.logo_url, 600, 600)} 
+                                            alt="Logo Tema" 
+                                            className="theme-logo" 
+                                            onError={(e) => {
+                                                const orig = encontro.logo_url;
+                                                if (orig && e.currentTarget.src !== orig) {
+                                                    e.currentTarget.src = orig;
+                                                }
+                                            }}
+                                        />
                                     ) : (
                                         <div className="logo-stub">EJC</div>
                                     )}
@@ -626,7 +667,17 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                     <div className="circulo-banner">
                                         {circuloImagemUrl && (
                                             <div className="circulo-banner-logo">
-                                                <img src={circuloImagemUrl} alt={`Logo ${circle}`} loading="eager" decoding="async" />
+                                                <img 
+                                                    src={getOptimizedImageUrl(circuloImagemUrl, 250, 250)} 
+                                                    alt={`Logo ${circle}`} 
+                                                    loading="eager" 
+                                                    decoding="async" 
+                                                    onError={(e) => {
+                                                        if (e.currentTarget.src !== circuloImagemUrl) {
+                                                            e.currentTarget.src = circuloImagemUrl;
+                                                        }
+                                                    }}
+                                                />
                                             </div>
                                         )}
                                         <div className="circulo-banner-title-box">
@@ -636,10 +687,15 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                         {visibility.fotosMediadores && mediadoresFotoUrl && (
                                             <div className="circulo-banner-mediadores">
                                                 <img 
-                                                    src={mediadoresFotoUrl} 
+                                                    src={getOptimizedImageUrl(mediadoresFotoUrl, 500, 350)} 
                                                     alt={`Mediadores de ${circle}`} 
                                                     loading="eager"
                                                     decoding="async"
+                                                    onError={(e) => {
+                                                        if (e.currentTarget.src !== mediadoresFotoUrl) {
+                                                            e.currentTarget.src = mediadoresFotoUrl;
+                                                        }
+                                                    }}
                                                     style={{ objectPosition: `center ${mediadoresFotoPosY}%` }} 
                                                 />
                                             </div>
@@ -682,9 +738,15 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                     <div className="team-photo-container">
                                         {members[0]?.equipes?.foto_url ? (
                                             <img
-                                                src={members[0].equipes.foto_url}
+                                                src={getOptimizedImageUrl(members[0].equipes.foto_url, 800, 450)}
                                                 alt={team}
                                                 loading="eager"
+                                                onError={(e) => {
+                                                    const orig = members[0]?.equipes?.foto_url;
+                                                    if (orig && e.currentTarget.src !== orig) {
+                                                        e.currentTarget.src = orig;
+                                                    }
+                                                }}
                                                 style={{ objectPosition: `center ${members[0].equipes.foto_posicao_y ?? 50}%` }}
                                             />
                                         ) : (
@@ -693,7 +755,6 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                                 <span>Foto da Equipe</span>
                                             </div>
                                         )}
-                                        {/* <div className="team-badge">{team}</div> */}
                                     </div>
                                 </div>
 
@@ -737,7 +798,16 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                     <div className="palestra-speaker">
                                         <div className="speaker-avatar">
                                             {p.palestrante_foto_url ? (
-                                                <img src={p.palestrante_foto_url} alt={p.palestrante_nome || ''} />
+                                                <img 
+                                                    src={getOptimizedImageUrl(p.palestrante_foto_url, 150, 150)} 
+                                                    alt={p.palestrante_nome || ''} 
+                                                    onError={(e) => {
+                                                        const orig = p.palestrante_foto_url;
+                                                        if (orig && e.currentTarget.src !== orig) {
+                                                            e.currentTarget.src = orig;
+                                                        }
+                                                    }}
+                                                />
                                             ) : (
                                                 <User size={40} />
                                             )}
@@ -1710,9 +1780,21 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                 }
 
                 .content-team-section {
-                    padding: 4rem 5%;
+                    padding: 0;
+                    width: 100%;
+                    max-width: none !important;
+                    margin: 0 !important;
+                    clip-path: none !important;
+                    box-shadow: none !important;
+                }
+
+                .content-team-section .section-print-wrapper {
                     max-width: 1400px;
                     margin: 0 auto;
+                    padding: 4rem 5%;
+                    width: 100%;
+                    box-sizing: border-box;
+                    display: block;
                 }
 
                 .team-layout {
@@ -1721,14 +1803,12 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     background: var(--card-bg);
                     border: 1px solid var(--border-color);
                     border-radius: 30px;
-                    overflow: hidden;
                     box-shadow: 0 20px 40px rgba(0,0,0,0.05);
                     max-width: 1200px;
                     margin: 0 auto;
                 }
 
                 @media (max-width: 900px) {
-                    .team-layout { grid-template-columns: 1fr; gap: 0; }
                     .content-team-section { padding: 2rem 1rem; }
                 }
 
@@ -1736,13 +1816,12 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     width: 100%;
                     aspect-ratio: 16 / 9;
                     max-height: 500px;
-                    position: relative;
+                    border-radius: 30px 30px 0 0;
+                    overflow: hidden;
                 }
 
                 @media (max-width: 900px) {
-                    .team-visual { 
-                        aspect-ratio: 4 / 3;
-                    }
+                    .team-visual { aspect-ratio: 4 / 3; }
                 }
 
                 .team-photo-container {
@@ -1804,6 +1883,8 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     padding: 3rem;
                     display: flex;
                     flex-direction: column;
+                    background: var(--card-bg);
+                    border-radius: 0 0 30px 30px;
                 }
 
                 @media (max-width: 640px) {
@@ -2796,19 +2877,21 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         display: flex !important;
                         flex-direction: column !important;
                         border-radius: 20px !important;
-                        overflow: hidden !important;
+                        overflow: visible !important;
                         border: 1px solid #e2e8f0 !important;
                         box-shadow: 0 4px 20px rgba(0,0,0,0.06) !important;
                         background: white !important;
+                        height: auto !important;
+                        max-height: none !important;
                     }
 
                     .team-visual {
                         width: 100% !important;
-                        height: 200px !important;
-                        max-height: 200px !important;
+                        aspect-ratio: 21 / 9 !important;
+                        max-height: 350px !important;
+                        height: auto !important;
                         overflow: hidden !important;
                         position: relative !important;
-                        aspect-ratio: unset !important;
                     }
 
                     .team-photo-container {
@@ -2839,6 +2922,9 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
 
                     .team-members-list {
                         padding: 28px 32px !important;
+                        height: auto !important;
+                        max-height: none !important;
+                        overflow: visible !important;
                     }
 
                     .list-header {
@@ -2982,7 +3068,7 @@ async function waitForPrintReady(root: HTMLElement | null) {
 
     await Promise.race([
         Promise.all([fontReady, ...imageReady]),
-        new Promise((resolve) => window.setTimeout(resolve, 5000)),
+        new Promise((resolve) => window.setTimeout(resolve, 10000)),
     ]);
 
     await nextFrame();

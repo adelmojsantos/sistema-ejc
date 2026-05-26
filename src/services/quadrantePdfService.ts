@@ -418,13 +418,14 @@ export const quadrantePdfService = {
                 let listStartY = 66;
                 const teamPhotoUrl = members[0]?.equipes?.foto_url;
                 if (teamPhotoUrl) {
-                    const imgHeight = 58;
-                    const added = await this.addPreparedImage(doc, teamPhotoUrl, margin, 66, contentWidth, imgHeight, {
+                    const imgY = 64;
+                    const imgHeight = contentWidth * 9 / 21;
+                    const added = await this.addPreparedImage(doc, teamPhotoUrl, margin, imgY, contentWidth, imgHeight, {
                         fit: 'cover',
                         fallbackLabel: teamName
                     });
                     if (added) {
-                        listStartY = 66 + imgHeight + 10;
+                        listStartY = imgY + imgHeight + 10;
                     }
                 }
 

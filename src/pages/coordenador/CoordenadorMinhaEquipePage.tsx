@@ -1025,9 +1025,22 @@ export function CoordenadorMinhaEquipePage() {
                 type="button"
                 className="btn-primary show-mobile-full-width"
                 onClick={() => navigate('/coordenador/minha-equipe/avaliacao')}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  minHeight: '40px',
+                  lineHeight: 1,
+                  whiteSpace: 'nowrap'
+                }}
               >
                 {avaliacaoResumo.status === 'enviado' ? <Eye size={16} /> : <ArrowRight size={16} />}
-                {avaliacaoResumo.status === 'enviado' ? 'Ver avaliação' : 'Iniciar avaliação'}
+                {avaliacaoResumo.status === 'enviado'
+                  ? 'Ver avaliação'
+                  : avaliacaoResumo.status === 'rascunho'
+                    ? 'Continuar avaliação'
+                    : 'Iniciar avaliação'}
               </button>
             </div>
           </div>

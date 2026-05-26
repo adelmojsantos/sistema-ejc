@@ -23,7 +23,6 @@ import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosMo
 import { GroupedDropdown, type GroupedDropdownItem } from '../../components/ui/GroupedDropdown';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useAuth } from '../../hooks/useAuth';
-import { useLoading } from '../../contexts/LoadingContext';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { encontroService } from '../../services/encontroService';
 import { recepcaoService } from '../../services/recepcaoService';
@@ -102,7 +101,6 @@ function ContactSection({ title, contatos }: { title: string; contatos: Recepcao
 export function RecepcaoAdminPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
-  const { setIsLoading: setGlobalLoading } = useLoading();
 
   const canChangeEncontro = hasPermission('modulo_admin');
 
@@ -153,10 +151,6 @@ export function RecepcaoAdminPage() {
   useEffect(() => {
     loadRegistros();
   }, [loadRegistros]);
-
-  useEffect(() => {
-    setGlobalLoading(isLoading);
-  }, [isLoading, setGlobalLoading]);
 
   const handleEdit = (registro: RecepcaoDados) => {
     setSelectedParticipacaoId(registro.participacao_id);

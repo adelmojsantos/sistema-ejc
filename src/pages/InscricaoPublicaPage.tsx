@@ -1,6 +1,5 @@
 import { Calendar, Check, CheckCircle2, Heart, Loader, MapPin, Send, ShieldCheck, User, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useLoading } from '../contexts/LoadingContext';
 import { toast } from 'react-hot-toast';
 import { Link } from 'react-router-dom';
 import { formatTelefone } from '../utils/cpfUtils';
@@ -22,7 +21,6 @@ import { type ListaEsperaFormData, listaEsperaFormDataVazia } from '../types/lis
 import './LandingPage.css';
 
 export default function InscricaoPublicaPage() {
-    const { setIsLoading: setGlobalLoading } = useLoading();
     const [form, setForm] = useState<ListaEsperaFormData>(listaEsperaFormDataVazia());
 
     const [isLoading, setIsLoading] = useState(true);
@@ -36,10 +34,6 @@ export default function InscricaoPublicaPage() {
 
     const [encontro, setEncontro] = useState<Encontro | null>(null);
     const [vagasStatus, setVagasStatus] = useState<'open' | 'closed' | 'full'>('open');
-
-    useEffect(() => {
-        setGlobalLoading(isLoading);
-    }, [isLoading, setGlobalLoading]);
 
     useEffect(() => {
         const loadInitialData = async () => {
@@ -198,7 +192,20 @@ export default function InscricaoPublicaPage() {
     };
 
     if (isLoading) {
-        return null;
+        return (
+            <div className="landing-page" id="top">
+                <SEO />
+                <LandingHeader minimal />
+                <main>
+                    <Section noPadding className="landing-hero-section" style={{ minHeight: '60vh', padding: '8rem 1rem 4rem' }}>
+                        <div className="landing-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', textAlign: 'center' }}>
+                            <Loader size={34} className="animate-spin" />
+                            <p style={{ margin: 0, opacity: 0.78, fontWeight: 700 }}>Carregando inscrições...</p>
+                        </div>
+                    </Section>
+                </main>
+            </div>
+        );
     }
 
     return (

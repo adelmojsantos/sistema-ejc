@@ -19,7 +19,6 @@ import { Gear, WhatsappLogo } from 'phosphor-react';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { useLoading } from '../../contexts/LoadingContext';
 import { useAuth } from '../../hooks/useAuth';
 import { encontroService } from '../../services/encontroService';
 import { recreacaoService } from '../../services/recreacaoService';
@@ -29,7 +28,6 @@ import type { RecreacaoDados } from '../../types/recreacao';
 export function RecreacaoAdminPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
-  const { setIsLoading: setGlobalLoading } = useLoading();
 
   const canChangeEncontro = hasPermission('modulo_admin');
 
@@ -72,10 +70,6 @@ export function RecreacaoAdminPage() {
   useEffect(() => {
     loadRegistros();
   }, [loadRegistros]);
-
-  useEffect(() => {
-    setGlobalLoading(isLoading);
-  }, [isLoading, setGlobalLoading]);
 
   const handleEdit = (registro: RecreacaoDados) => {
     setSelectedParticipacaoId(registro.participacao_id);

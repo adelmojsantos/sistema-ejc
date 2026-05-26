@@ -6,23 +6,29 @@ import * as XLSX from 'xlsx';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { useLoading } from '../../contexts/LoadingContext';
 import { useDebounce } from '../../hooks/useDebounce';
 import { supabase } from '../../lib/supabase';
 import { camisetaService } from '../../services/camisetaService';
-import { comprasService, type CamisetaEquipeReport, type ResumoCamisetas, type ResumoIntencoes } from '../../services/comprasService';
+import { comprasService, type CamisetaEquipeReport, type IntencaoCamisetaDetalhe, type ResumoCamisetas, type ResumoIntencoes } from '../../services/comprasService';
 import { equipeService } from '../../services/equipeService';
 import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
 import type { Equipe } from '../../types/equipe';
 
+type PedidoDetalhado = Awaited<ReturnType<typeof comprasService.listarPedidosDetalhados>>[number];
+type DetailsConfig = {
+  origem: 'pedido' | 'intencao';
+  modeloId: string;
+  tamanho: string;
+  modeloNome: string;
+};
+
 export function PedidosCamisetasPage() {
   const navigate = useNavigate();
   const { encontros } = useEncontros();
-  const { setIsLoading: setGlobalLoading } = useLoading();
 
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const encontroData = encontros.find(e => e.id === selectedEncontroId);
-  const [pedidos, setPedidos] = useState<any[]>([]);
+  const [pedidos, setPedidos] = useState<PedidoDetalhado[]>([]);
   const [resumo, setResumo] = useState<ResumoCamisetas[]>([]);
   const [relatorioEquipes, setRelatorioEquipes] = useState<CamisetaEquipeReport[]>([]);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
@@ -32,7 +38,8 @@ export function PedidosCamisetasPage() {
   const [showResumo, setShowResumo] = useState(false);
   const [showIntencoes, setShowIntencoes] = useState(false);
   const [resumoIntencoes, setResumoIntencoes] = useState<ResumoIntencoes[]>([]);
-  const [viewDetailsConfig, setViewDetailsConfig] = useState<{ modeloId: string, tamanho: string, modeloNome: string } | null>(null);
+  const [intencoesDetalhadas, setIntencoesDetalhadas] = useState<IntencaoCamisetaDetalhe[]>([]);
+  const [viewDetailsConfig, setViewDetailsConfig] = useState<DetailsConfig | null>(null);
   const debouncedSearch = useDebounce(searchTerm, 400);
 
   // Estados para Novo Pedido
@@ -72,32 +79,32 @@ export function PedidosCamisetasPage() {
   const loadData = useCallback(async () => {
     if (!selectedEncontroId) return;
     setLoading(true);
-    setGlobalLoading(true);
     try {
-      const [pedData, resData, eqData, relEqData, modsData, tamsData, intData] = await Promise.all([
+      const [pedData, resData, eqData, relEqData, modsData, tamsData, intData, intDetailsData] = await Promise.all([
         comprasService.listarPedidosDetalhados(selectedEncontroId),
         comprasService.listarResumoCamisetas(selectedEncontroId),
         equipeService.listar(),
         comprasService.listarRelatorioCamisetasPorEquipe(selectedEncontroId),
         camisetaService.listarModelos(selectedEncontroId),
         camisetaService.listarTamanhos(),
-        comprasService.listarResumoIntencoes(selectedEncontroId).catch(() => [] as ResumoIntencoes[])
+        comprasService.listarResumoIntencoes(selectedEncontroId).catch(() => [] as ResumoIntencoes[]),
+        comprasService.listarDetalhesIntencoes(selectedEncontroId).catch(() => [] as IntencaoCamisetaDetalhe[])
       ]);
       setPedidos(pedData);
       setResumo(resData);
       setEquipes(eqData);
       setRelatorioEquipes(relEqData);
       setResumoIntencoes(intData);
+      setIntencoesDetalhadas(intDetailsData);
       // Filtra apenas modelos ativos para este encontro
-      setModelosCamiseta(modsData.filter((m: any) => m.esta_ativo_no_encontro !== false));
+      setModelosCamiseta(modsData.filter(m => m.esta_ativo_no_encontro !== false));
       setTamanhosCamiseta(tamsData);
     } catch {
       toast.error('Erro ao carregar dados de camisetas.');
     } finally {
       setLoading(false);
-      setGlobalLoading(false);
     }
-  }, [selectedEncontroId, setGlobalLoading]);
+  }, [selectedEncontroId]);
 
   useEffect(() => {
     loadData();
@@ -105,7 +112,7 @@ export function PedidosCamisetasPage() {
 
   const filteredPedidos = useMemo(() => {
     return pedidos.filter(p => {
-      const matchEquipe = selectedEquipeId === 'all' || p.participacoes?.equipe_id === selectedEquipeId;
+      const matchEquipe = selectedEquipeId === 'all' || p.equipe_id === selectedEquipeId;
       const matchSearch = (p.pessoa_nome || '').toLowerCase().includes(debouncedSearch.toLowerCase()) ||
         (p.camiseta_modelos?.nome || '').toLowerCase().includes(debouncedSearch.toLowerCase());
       return matchEquipe && matchSearch;
@@ -115,7 +122,7 @@ export function PedidosCamisetasPage() {
   const groupedPedidos = useMemo(() => {
     interface ModelGroup {
       model_nome: string;
-      items: any[];
+      items: PedidoDetalhado[];
       total_valor_modelo: number;
     }
 
@@ -172,6 +179,32 @@ export function PedidosCamisetasPage() {
     }));
   }, [filteredPedidos, tamanhosCamiseta]);
 
+  const detailsItems = useMemo(() => {
+    if (!viewDetailsConfig) return [];
+
+    if (viewDetailsConfig.origem === 'intencao') {
+      return intencoesDetalhadas
+        .filter(item => item.modelo_id === viewDetailsConfig.modeloId && item.tamanho === viewDetailsConfig.tamanho)
+        .sort((a, b) => a.encontrista_nome.localeCompare(b.encontrista_nome))
+        .map(item => ({
+          id: item.id,
+          nome: item.encontrista_nome,
+          referencia: item.dupla_nome ? `Visitado por ${item.dupla_nome}` : 'Dupla não informada',
+          quantidade: item.quantidade
+        }));
+    }
+
+    return pedidos
+      .filter(p => p.modelo_id === viewDetailsConfig.modeloId && p.tamanho === viewDetailsConfig.tamanho)
+      .sort((a, b) => a.pessoa_nome.localeCompare(b.pessoa_nome))
+      .map(p => ({
+        id: p.id,
+        nome: p.pessoa_nome,
+        referencia: p.dupla_visitante_nome ? `Visitado por ${p.dupla_visitante_nome}` : p.equipe_nome,
+        quantidade: p.quantidade
+      }));
+  }, [intencoesDetalhadas, pedidos, viewDetailsConfig]);
+
   const handleCopySummary = () => {
     if (resumo.length === 0) {
       toast.error('Não há dados para copiar.');
@@ -225,13 +258,21 @@ export function PedidosCamisetasPage() {
 
       if (error) throw error;
 
-      const sortedData = (data || []).map(p => ({
-        id: p.id,
-        nome: (p.pessoas as any)?.nome_completo || 'Sem Nome'
-      })).sort((a, b) => a.nome.localeCompare(b.nome));
+      type EquipeParticipanteRow = {
+        id: string;
+        pessoas?: { nome_completo?: string | null } | { nome_completo?: string | null }[] | null;
+      };
+
+      const sortedData = ((data || []) as EquipeParticipanteRow[]).map(p => {
+        const pessoa = Array.isArray(p.pessoas) ? p.pessoas[0] : p.pessoas;
+        return {
+          id: p.id,
+          nome: pessoa?.nome_completo || 'Sem Nome'
+        };
+      }).sort((a, b) => a.nome.localeCompare(b.nome));
 
       setEquipeParticipantes(sortedData);
-    } catch (e) {
+    } catch {
       toast.error('Erro ao buscar participantes da equipe.');
     }
   };
@@ -253,7 +294,7 @@ export function PedidosCamisetasPage() {
       setIsAddingOrder(false);
       setNewOrderForm({ equipe_id: '', participacao_id: '', modelo_id: '', tamanho: '', quantidade: 1 });
       loadData();
-    } catch (e) {
+    } catch {
       toast.error('Erro ao adicionar pedido.');
     } finally {
       setIsSavingOrder(false);
@@ -309,7 +350,7 @@ export function PedidosCamisetasPage() {
           <div style={{ marginBottom: '1.5rem' }}>
             <PixPaymentInfo
               chave={encontroData.pix_camisetas_chave}
-              tipo={encontroData.pix_camisetas_tipo as any}
+              tipo={encontroData.pix_camisetas_tipo}
               qrCodeUrl={encontroData.pix_camisetas_qrcode_url}
               variant="compact"
             />
@@ -318,6 +359,12 @@ export function PedidosCamisetasPage() {
 
         {/* Resumo de Pedidos */}
         <section style={{ marginBottom: '1.5rem' }}>
+          <div style={{
+            border: '1px solid rgba(37, 99, 235, 0.22)',
+            borderRadius: '14px',
+            backgroundColor: 'rgba(37, 99, 235, 0.04)',
+            overflow: 'hidden'
+          }}>
           <button
             onClick={() => setShowResumo(!showResumo)}
             style={{
@@ -328,8 +375,8 @@ export function PedidosCamisetasPage() {
               padding: '1rem',
               cursor: 'pointer',
               backgroundColor: 'rgba(37, 99, 235, 0.05)',
-              border: '1px solid rgba(37, 99, 235, 0.2)',
-              borderRadius: '12px',
+              border: 'none',
+              borderRadius: 0,
               transition: 'all 0.2s ease-in-out'
             }}
             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.1)'}
@@ -357,7 +404,7 @@ export function PedidosCamisetasPage() {
           </button>
 
           {showResumo && (
-            <div className="grid-container animate-fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+            <div className="grid-container animate-fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem', padding: '1rem', borderTop: '1px solid rgba(37, 99, 235, 0.14)' }}>
               {resumo.map(m => (
                 <div key={m.modelo_id} className="card" style={{ padding: '1.25rem' }}>
                   <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -375,7 +422,8 @@ export function PedidosCamisetasPage() {
                         <div
                           key={`${m.modelo_id}-${tam}`}
                           className="card--clickable"
-                          onClick={() => setViewDetailsConfig({ modeloId: m.modelo_id, tamanho: tam, modeloNome: m.modelo_nome })}
+                          onClick={() => setViewDetailsConfig({ origem: 'pedido', modeloId: m.modelo_id, tamanho: tam, modeloNome: m.modelo_nome })}
+                          title="Ver quem fez este pedido formal"
                           style={{ textAlign: 'center', padding: '0.5rem', background: 'var(--surface-1)', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s' }}
                         >
                           <div style={{ fontSize: '0.7rem', opacity: 0.5, fontWeight: 700 }}>{tam}</div>
@@ -398,10 +446,17 @@ export function PedidosCamisetasPage() {
               )}
             </div>
           )}
+          </div>
         </section>
 
         {/* ---- INTENÇÕES DE VISITA ---- */}
         <section style={{ marginBottom: '1.5rem' }}>
+          <div style={{
+            border: '1px solid rgba(99, 102, 241, 0.24)',
+            borderRadius: '14px',
+            backgroundColor: 'rgba(99, 102, 241, 0.04)',
+            overflow: 'hidden'
+          }}>
           <button
             onClick={() => setShowIntencoes(!showIntencoes)}
             style={{
@@ -412,8 +467,8 @@ export function PedidosCamisetasPage() {
               padding: '1rem',
               cursor: 'pointer',
               backgroundColor: 'rgba(99, 102, 241, 0.05)',
-              border: '1px solid rgba(99, 102, 241, 0.2)',
-              borderRadius: '12px',
+              border: 'none',
+              borderRadius: 0,
               transition: 'all 0.2s ease-in-out'
             }}
             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.1)'}
@@ -449,7 +504,7 @@ export function PedidosCamisetasPage() {
           </button>
 
           {showIntencoes && (
-            <div style={{ marginTop: '1rem' }}>
+            <div style={{ padding: '1rem', borderTop: '1px solid rgba(99, 102, 241, 0.16)' }}>
               {resumoIntencoes.length === 0 ? (
                 <div className="card" style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>
                   Nenhuma intenção registrada nas visitas deste encontro.
@@ -478,11 +533,18 @@ export function PedidosCamisetasPage() {
                             return orderA - orderB;
                           })
                           .map(([tam, qtd]) => (
-                            <div key={`${m.modelo_id}-${tam}`} style={{
+                            <div
+                              key={`${m.modelo_id}-${tam}`}
+                              className="card--clickable"
+                              onClick={() => setViewDetailsConfig({ origem: 'intencao', modeloId: m.modelo_id, tamanho: tam, modeloNome: m.modelo_nome })}
+                              title="Ver quem informou esta intenção"
+                              style={{
                               textAlign: 'center', padding: '0.5rem',
                               background: 'rgba(99,102,241,0.06)',
                               border: '1px solid rgba(99,102,241,0.15)',
-                              borderRadius: '8px'
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s'
                             }}>
                               <div style={{ fontSize: '0.7rem', opacity: 0.5, fontWeight: 700 }}>{tam}</div>
                               <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#6366f1' }}>{qtd}</div>
@@ -495,6 +557,7 @@ export function PedidosCamisetasPage() {
               )}
             </div>
           )}
+          </div>
         </section>
 
         {/* Resumo por Equipe */}
@@ -764,29 +827,41 @@ export function PedidosCamisetasPage() {
         {/* Modal de Detalhes do Resumo */}
         {viewDetailsConfig && (
           <div className="modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)' }}>
-            <div className="modal-content animate-fade-in" style={{ maxWidth: '500px' }}>
+            <div className="modal-content animate-fade-in" style={{ maxWidth: '560px', width: '95%' }}>
               <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1rem' }}>
-                <h2 style={{ fontSize: '1.25rem', margin: 0 }}>
-                  {viewDetailsConfig.modeloNome} <span style={{ opacity: 0.6 }}>&ndash;</span> {viewDetailsConfig.tamanho}
-                </h2>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', margin: 0 }}>
+                    {viewDetailsConfig.modeloNome} <span style={{ opacity: 0.6 }}>&ndash;</span> {viewDetailsConfig.tamanho}
+                  </h2>
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', opacity: 0.62 }}>
+                    {viewDetailsConfig.origem === 'intencao'
+                      ? 'Encontristas que informaram intenção durante a visita'
+                      : 'Participantes com pedido formal registrado'}
+                  </p>
+                </div>
                 <button className="btn-icon" onClick={() => setViewDetailsConfig(null)} style={{ margin: 0, display: 'flex' }}>
                   <X size={20} />
                 </button>
               </div>
               <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {pedidos
-                    .filter(p => p.modelo_id === viewDetailsConfig.modeloId && p.tamanho === viewDetailsConfig.tamanho)
-                    .sort((a, b) => a.pessoa_nome.localeCompare(b.pessoa_nome))
-                    .map(p => (
-                      <div key={p.id} className="card" style={{ padding: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {detailsItems.length === 0 ? (
+                    <div className="card" style={{ padding: '2rem', textAlign: 'center', opacity: 0.6 }}>
+                      Nenhum registro encontrado para este tamanho.
+                    </div>
+                  ) : (
+                    detailsItems.map(item => (
+                      <div key={item.id} className="card" style={{ padding: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                         <div>
-                          <div style={{ fontWeight: 600 }}>{p.pessoa_nome}</div>
-                          <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{p.equipe_nome}</div>
+                          <div style={{ fontWeight: 600 }}>{item.nome}</div>
+                          <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{item.referencia}</div>
                         </div>
-                        <span className="badge badge-primary">{p.quantidade} {p.quantidade === 1 ? 'un' : 'uns'}</span>
+                        <span className="badge badge-primary" style={{ flexShrink: 0 }}>
+                          {item.quantidade} un
+                        </span>
                       </div>
-                    ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>

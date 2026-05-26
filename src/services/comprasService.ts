@@ -17,6 +17,17 @@ export interface ResumoIntencoes {
   total: number;
 }
 
+export interface IntencaoCamisetaDetalhe {
+  id: string;
+  visita_id: string;
+  modelo_id: string;
+  modelo_nome: string;
+  tamanho: string;
+  quantidade: number;
+  encontrista_nome: string;
+  dupla_nome: string | null;
+}
+
 export interface TaxaReport {
   equipe_id: string;
   equipe_nome: string;
@@ -34,6 +45,55 @@ export interface CamisetaEquipeReport {
   total_valor: number;
   comprovante_camisetas_url?: string | null;
 }
+
+export type PedidoDetalhadoCamiseta = CamisetaPedido & {
+  pessoa_nome: string;
+  equipe_id: string | null;
+  equipe_nome: string;
+  valor_unitario: number;
+  participante: boolean;
+  dupla_visitante_nome: string | null;
+};
+
+type MaybeArray<T> = T | T[] | null | undefined;
+
+function firstItem<T>(value: MaybeArray<T>): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+type ModeloRow = {
+  id?: string;
+  nome?: string | null;
+  valor?: number | null;
+};
+
+type ParticipacaoPedidoRow = {
+  encontro_id?: string;
+  equipe_id?: string | null;
+  participante?: boolean | null;
+  pessoas?: MaybeArray<{ nome_completo?: string | null }>;
+  equipes?: MaybeArray<{ nome?: string | null }>;
+};
+
+type PedidoRow = {
+  id: string;
+  participacao_id: string;
+  modelo_id: string;
+  tamanho: string | null;
+  quantidade: number;
+  created_at: string;
+  updated_at: string;
+  camiseta_modelos?: MaybeArray<ModeloRow>;
+  participacoes?: MaybeArray<ParticipacaoPedidoRow>;
+};
+
+type ResumoIntencaoRow = {
+  modelo_id: string;
+  tamanho: string | null;
+  quantidade: number;
+  camiseta_modelos?: MaybeArray<ModeloRow>;
+};
 
 export const comprasService = {
   async listarRelatorioTaxas(encontroId: string): Promise<TaxaReport[]> {
@@ -93,16 +153,17 @@ export const comprasService = {
 
     const resumoMap = new Map<string, ResumoCamisetas>();
 
-    (pedidos as any[]).forEach(p => {
+    (pedidos as PedidoRow[] || []).forEach(p => {
       const modelId = p.modelo_id;
+      const modelo = firstItem(p.camiseta_modelos);
       if (!resumoMap.has(modelId)) {
         const config = configs?.find(c => c.modelo_id === modelId);
         // Se não houver config específica, usa o valor global do modelo (se disponível na query) ou 0
-        const valorUnitario = config ? config.valor : (p.camiseta_modelos?.valor || 0);
+        const valorUnitario = config ? config.valor : (modelo?.valor || 0);
 
         resumoMap.set(modelId, {
           modelo_id: modelId,
-          modelo_nome: p.camiseta_modelos?.nome || 'Modelo Desconhecido',
+          modelo_nome: modelo?.nome || 'Modelo Desconhecido',
           tamanhos: {},
           total: 0,
           valor_unitario: valorUnitario,
@@ -120,7 +181,7 @@ export const comprasService = {
     return Array.from(resumoMap.values());
   },
 
-  async listarPedidosDetalhados(encontroId: string): Promise<(CamisetaPedido & { pessoa_nome: string, equipe_nome: string, valor_unitario: number, participante: boolean })[]> {
+  async listarPedidosDetalhados(encontroId: string): Promise<PedidoDetalhadoCamiseta[]> {
     const { data: pedidos, error } = await supabase
       .from('camiseta_pedidos')
       .select('*, camiseta_modelos(nome, valor), participacoes!inner(encontro_id, equipe_id, participante, pessoas(nome_completo), equipes(nome))')
@@ -134,16 +195,47 @@ export const comprasService = {
       .select('modelo_id, valor')
       .eq('encontro_id', encontroId);
 
-    return (pedidos as any[]).map(p => {
+    const participacaoIds = [...new Set((pedidos as { participacao_id: string }[] || []).map(p => p.participacao_id).filter(Boolean))];
+    const duplaPorParticipacao = new Map<string, string>();
+
+    if (participacaoIds.length > 0) {
+      const { data: visitas } = await supabase
+        .from('visita_participacao')
+        .select('participacao_id, visita_grupos(nome)')
+        .in('participacao_id', participacaoIds)
+        .eq('visitante', false);
+
+      type VisitaPedidoRow = {
+        participacao_id: string;
+        visita_grupos?: { nome?: string | null } | { nome?: string | null }[] | null;
+      };
+
+      (visitas as VisitaPedidoRow[] || []).forEach(v => {
+        const grupo = Array.isArray(v.visita_grupos) ? v.visita_grupos[0] : v.visita_grupos;
+        if (v.participacao_id && grupo?.nome) {
+          duplaPorParticipacao.set(v.participacao_id, grupo.nome);
+        }
+      });
+    }
+
+    return (pedidos as PedidoRow[] || []).map(p => {
       const config = configs?.find(c => c.modelo_id === p.modelo_id);
-      const valorUnitario = config ? config.valor : (p.camiseta_modelos?.valor || 0);
+      const modelo = firstItem(p.camiseta_modelos);
+      const participacao = firstItem(p.participacoes);
+      const pessoa = firstItem(participacao?.pessoas);
+      const equipe = firstItem(participacao?.equipes);
+      const valorUnitario = config ? config.valor : (modelo?.valor || 0);
 
       return {
         ...p,
-        pessoa_nome: p.participacoes?.pessoas?.nome_completo || 'N/A',
-        equipe_nome: p.participacoes?.equipes?.nome || 'Sem Equipe',
-        participante: p.participacoes?.participante || false,
-        valor_unitario: valorUnitario
+        tamanho: p.tamanho || 'Não Informado',
+        camiseta_modelos: modelo ? { id: modelo.id || p.modelo_id, nome: modelo.nome || 'Modelo Desconhecido', valor: modelo.valor || 0 } : undefined,
+        pessoa_nome: pessoa?.nome_completo || 'N/A',
+        equipe_id: participacao?.equipe_id || null,
+        equipe_nome: equipe?.nome || 'Sem Equipe',
+        participante: participacao?.participante || false,
+        valor_unitario: valorUnitario,
+        dupla_visitante_nome: duplaPorParticipacao.get(p.participacao_id) || null
       };
     });
   },
@@ -176,8 +268,8 @@ export const comprasService = {
       .eq('encontro_id', encontroId);
 
     const relatorio = (equipes || []).map(eq => {
-      const teamPedidos = (pedidos as any[] || []).filter(p => {
-        const participacao = Array.isArray(p.participacoes) ? p.participacoes[0] : p.participacoes;
+      const teamPedidos = (pedidos as PedidoRow[] || []).filter(p => {
+        const participacao = firstItem(p.participacoes);
         return participacao?.equipe_id === eq.id;
       });
 
@@ -186,7 +278,8 @@ export const comprasService = {
       
       const totalValor = teamPedidos.reduce((sum, p) => {
         const config = configs?.find(c => c.modelo_id === p.modelo_id);
-        const valorUnitario = config ? config.valor : (p.camiseta_modelos?.valor || 0);
+        const modelo = firstItem(p.camiseta_modelos);
+        const valorUnitario = config ? config.valor : (modelo?.valor || 0);
         return sum + (p.quantidade * valorUnitario);
       }, 0);
 
@@ -221,9 +314,10 @@ export const comprasService = {
 
     const resumoMap = new Map<string, ResumoIntencoes>();
 
-    (data as any[] || []).forEach(item => {
+    (data as ResumoIntencaoRow[] || []).forEach(item => {
       const modeloId = item.modelo_id;
-      const modeloNome = item.camiseta_modelos?.nome || 'Modelo Desconhecido';
+      const modelo = firstItem(item.camiseta_modelos);
+      const modeloNome = modelo?.nome || 'Modelo Desconhecido';
 
       if (!resumoMap.has(modeloId)) {
         resumoMap.set(modeloId, {
@@ -241,5 +335,82 @@ export const comprasService = {
     });
 
     return Array.from(resumoMap.values());
+  },
+
+  async listarDetalhesIntencoes(encontroId: string): Promise<IntencaoCamisetaDetalhe[]> {
+    const { data: visitas, error: visitasError } = await supabase
+      .from('visita_participacao')
+      .select(`
+        id,
+        grupo_id,
+        visita_grupos(nome),
+        participacoes!inner(
+          id,
+          encontro_id,
+          pessoas(nome_completo)
+        )
+      `)
+      .eq('visitante', false)
+      .eq('participacoes.encontro_id', encontroId);
+
+    if (visitasError) throw visitasError;
+
+    type VisitaRow = {
+      id: string;
+      visita_grupos?: { nome?: string | null } | { nome?: string | null }[] | null;
+      participacoes?: {
+        pessoas?: { nome_completo?: string | null } | { nome_completo?: string | null }[] | null;
+      } | {
+        pessoas?: { nome_completo?: string | null } | { nome_completo?: string | null }[] | null;
+      }[] | null;
+    };
+
+    const visitasMap = new Map<string, { encontrista_nome: string; dupla_nome: string | null }>();
+
+    (visitas as VisitaRow[] || []).forEach(visita => {
+      const grupo = Array.isArray(visita.visita_grupos) ? visita.visita_grupos[0] : visita.visita_grupos;
+      const participacao = Array.isArray(visita.participacoes) ? visita.participacoes[0] : visita.participacoes;
+      const pessoa = Array.isArray(participacao?.pessoas) ? participacao?.pessoas[0] : participacao?.pessoas;
+
+      visitasMap.set(visita.id, {
+        encontrista_nome: pessoa?.nome_completo || 'Encontrista sem nome',
+        dupla_nome: grupo?.nome || null
+      });
+    });
+
+    const visitaIds = Array.from(visitasMap.keys());
+    if (visitaIds.length === 0) return [];
+
+    const { data: intencoes, error: intencoesError } = await supabase
+      .from('visita_intencao_camiseta')
+      .select('id, visita_id, modelo_id, tamanho, quantidade, camiseta_modelos(id, nome)')
+      .in('visita_id', visitaIds);
+
+    if (intencoesError) throw intencoesError;
+
+    type IntencaoRow = {
+      id: string;
+      visita_id: string;
+      modelo_id: string;
+      tamanho: string;
+      quantidade: number;
+      camiseta_modelos?: { id?: string; nome?: string | null } | { id?: string; nome?: string | null }[] | null;
+    };
+
+    return (intencoes as IntencaoRow[] || []).map(item => {
+      const visita = visitasMap.get(item.visita_id);
+      const modelo = Array.isArray(item.camiseta_modelos) ? item.camiseta_modelos[0] : item.camiseta_modelos;
+
+      return {
+        id: item.id,
+        visita_id: item.visita_id,
+        modelo_id: item.modelo_id,
+        modelo_nome: modelo?.nome || 'Modelo Desconhecido',
+        tamanho: item.tamanho || 'Não Informado',
+        quantidade: item.quantidade,
+        encontrista_nome: visita?.encontrista_nome || 'Encontrista sem nome',
+        dupla_nome: visita?.dupla_nome || null
+      };
+    });
   }
 };
