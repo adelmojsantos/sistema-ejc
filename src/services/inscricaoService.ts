@@ -18,8 +18,26 @@ export interface ParticipacaoCancelada {
         visita_participacao_id?: string;
         taxa_paga?: boolean;
         data_registro?: string;
+        participacao?: Partial<Inscricao>;
+        visita?: {
+            id?: string;
+            grupo_id?: string;
+            visitante?: boolean;
+            status?: string;
+            observacoes?: string | null;
+            foto_url?: string | null;
+            taxa_paga?: boolean;
+            data_visita?: string | null;
+        };
     } | null;
     motivo_cancelamento: string | null;
+    revertido_em?: string | null;
+    revertido_por?: string | null;
+    participacao_restaurada_id?: string | null;
+    visita_restaurada_id?: string | null;
+    visita_grupos?: {
+        nome: string | null;
+    } | null;
     pessoas?: Pessoa | null;
 }
 
@@ -346,7 +364,7 @@ export const inscricaoService = {
         grupo_id?: string;
         status_visita?: string;
         observacoes?: string;
-        dados_snapshot?: any;
+        dados_snapshot?: ParticipacaoCancelada['dados_snapshot'];
     }): Promise<void> {
         const { data: { user } } = await supabase.auth.getUser();
         
@@ -361,7 +379,7 @@ export const inscricaoService = {
         if (error) throw error;
     },
 
-    async listarCanceladosPorGrupo(grupoId: string, encontroId: string): Promise<any[]> {
+    async listarCanceladosPorGrupo(grupoId: string, encontroId: string): Promise<ParticipacaoCancelada[]> {
         const { data, error } = await supabase
             .from('participacoes_canceladas')
             .select(`
@@ -369,10 +387,11 @@ export const inscricaoService = {
                 pessoas:pessoa_id (*)
             `)
             .eq('grupo_id', grupoId)
-            .eq('encontro_id', encontroId);
+            .eq('encontro_id', encontroId)
+            .is('revertido_em', null);
 
         if (error) throw error;
-        return data || [];
+        return (data || []) as ParticipacaoCancelada[];
     },
 
     async listarCanceladosPorEncontro(encontroId: string): Promise<ParticipacaoCancelada[]> {
@@ -380,13 +399,23 @@ export const inscricaoService = {
             .from('participacoes_canceladas')
             .select(`
                 *,
-                pessoas:pessoa_id (*)
+                pessoas:pessoa_id (*),
+                visita_grupos:grupo_id (nome)
             `)
             .eq('encontro_id', encontroId)
             .not('grupo_id', 'is', null)
+            .is('revertido_em', null)
             .order('data_cancelamento', { ascending: false });
 
         if (error) throw error;
         return (data || []) as ParticipacaoCancelada[];
+    },
+
+    async desfazerDesistencia(cancelamentoId: string): Promise<void> {
+        const { error } = await supabase.rpc('desfazer_desistencia', {
+            cancelamento_id: cancelamentoId
+        });
+
+        if (error) throw error;
     }
 };

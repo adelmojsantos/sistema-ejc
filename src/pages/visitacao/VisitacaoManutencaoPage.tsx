@@ -365,6 +365,14 @@ export function VisitacaoManutencaoPage() {
         if (!id || !visita) return;
         setSaving(true);
         try {
+            const { data: participacaoSnapshot, error: participacaoSnapshotError } = await supabase
+                .from('participacoes')
+                .select('*')
+                .eq('id', visita.participacao_id)
+                .maybeSingle();
+
+            if (participacaoSnapshotError) throw participacaoSnapshotError;
+
             // 1. Record the cancellation in the history table
             await inscricaoService.registrarCancelamento({
                 pessoa_id: (visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.id || '',
@@ -376,7 +384,18 @@ export function VisitacaoManutencaoPage() {
                     visita_participacao_id: id,
                     participacao_id: visita.participacao_id,
                     taxa_paga: taxaPaga,
-                    data_registro: new Date().toISOString()
+                    data_registro: new Date().toISOString(),
+                    participacao: participacaoSnapshot || undefined,
+                    visita: {
+                        id: visita.id,
+                        grupo_id: visita.grupo_id,
+                        visitante: visita.visitante,
+                        status: visita.status,
+                        observacoes: visita.observacoes,
+                        foto_url: visita.foto_url,
+                        taxa_paga: taxaPaga,
+                        data_visita: visita.data_visita
+                    }
                 }
             });
 

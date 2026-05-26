@@ -2,15 +2,16 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLoading } from '../../contexts/LoadingContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { encontroService } from '../../services/encontroService';
-import { inscricaoService } from '../../services/inscricaoService';
+import { inscricaoService, type ParticipacaoCancelada } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car, Camera, SlidersHorizontal, Image as ImageIcon, Upload, Settings2, Minus, Plus as PlusIcon } from 'lucide-react';
+import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car, Camera, SlidersHorizontal, Image as ImageIcon, Upload, Settings2, Minus, Plus as PlusIcon, RotateCcw } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useDebounce } from '../../hooks/useDebounce';
+import { useAuth } from '../../hooks/useAuth';
 import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { geocodeWithFallback } from '../../utils/geocoding';
@@ -29,21 +30,117 @@ interface GeoProgressItem {
   message?: string;
 }
 
+function formatDateTime(value: string | null | undefined) {
+  if (!value) return 'Data não informada';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Data não informada';
+  return date.toLocaleString('pt-BR');
+}
+
+interface DesistentesTabProps {
+  desistentes: ParticipacaoCancelada[];
+  total: number;
+  isLoading: boolean;
+  canRestore: boolean;
+  onRestore: (desistencia: ParticipacaoCancelada) => void;
+}
+
+function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }: DesistentesTabProps) {
+  if (isLoading) {
+    return (
+      <div className="card text-center py-8">
+        <Loader size={32} className="animate-spin" style={{ display: 'inline-block', marginBottom: '1rem' }} />
+        <p>Carregando desistentes...</p>
+      </div>
+    );
+  }
+
+  if (desistentes.length === 0) {
+    return (
+      <div className="empty-state">
+        <UserMinus size={48} style={{ opacity: 0.3 }} />
+        <p>{total > 0 ? 'Nenhum desistente encontrado para a busca.' : 'Nenhuma desistência registrada nesta edição.'}</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <p className="secretaria-result-summary">
+        Mostrando <strong>{desistentes.length}</strong> de <strong>{total}</strong> {total === 1 ? 'desistente registrado' : 'desistentes registrados'}
+      </p>
+
+      <div className="secretaria-desistentes-list">
+        {desistentes.map((desistencia) => {
+          const pessoa = desistencia.pessoas;
+          const nome = pessoa?.nome_completo || 'Nome não informado';
+          const dupla = desistencia.visita_grupos?.nome || 'Dupla não informada';
+
+          return (
+            <article key={desistencia.id} className="card secretaria-desistente-card">
+              <div className="secretaria-desistente-avatar">
+                {nome.charAt(0)}
+              </div>
+
+              <div className="secretaria-desistente-main">
+                <div>
+                  <h3>{nome}</h3>
+                  <div className="secretaria-desistente-badges">
+                    <span><Users size={12} /> {dupla}</span>
+                    <span><Clock size={12} /> {formatDateTime(desistencia.data_cancelamento)}</span>
+                  </div>
+                </div>
+
+                <div className="secretaria-desistente-details">
+                  <span>{formatTelefone(pessoa?.telefone)}</span>
+                  {pessoa?.comunidade && <span>{pessoa.comunidade}</span>}
+                  {desistencia.observacoes && <span>Obs.: {desistencia.observacoes}</span>}
+                </div>
+              </div>
+
+              <div className="secretaria-desistente-actions">
+                {canRestore ? (
+                  <button
+                    type="button"
+                    className="btn-primary secretaria-restore-button"
+                    onClick={() => onRestore(desistencia)}
+                  >
+                    <RotateCcw size={16} />
+                    Reverter
+                  </button>
+                ) : (
+                  <span className="secretaria-desistente-readonly">Somente admin/secretaria</span>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 
 export function SecretariaParticipantesPage() {
   const { setIsLoading: setGlobalLoading } = useLoading();
+  const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { encontros } = useEncontros();
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
+  const [desistentes, setDesistentes] = useState<ParticipacaoCancelada[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingDesistentes, setIsLoadingDesistentes] = useState(false);
   const [isUpdatingGeo, setIsUpdatingGeo] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showConfirmGeoModal, setShowConfirmGeoModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
+  const [desistenciaToRestore, setDesistenciaToRestore] = useState<ParticipacaoCancelada | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
+  const [isRestoringDesistencia, setIsRestoringDesistencia] = useState(false);
+  const [activeTab, setActiveTab] = useState<'participantes' | 'desistentes'>('participantes');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterVeiculo, setFilterVeiculo] = useState(false);
   const debouncedSearch = useDebounce(searchTerm, 400);
@@ -58,6 +155,7 @@ export function SecretariaParticipantesPage() {
   const [tempPhotoPosition, setTempPhotoPosition] = useState(50);
   const photoActionsInputRef = useRef<HTMLInputElement>(null);
   const progressListRef = useRef<HTMLDivElement>(null);
+  const canRestoreDesistencia = hasPermission('modulo_admin') || hasPermission('modulo_secretaria');
 
   // Seleciona encontro ativo automaticamente quando o contexto carregar
   useEffect(() => {
@@ -84,13 +182,28 @@ export function SecretariaParticipantesPage() {
     }
   }, [selectedEncontroId]);
 
+  const loadDesistentes = useCallback(async () => {
+    if (!selectedEncontroId) return;
+    setIsLoadingDesistentes(true);
+    try {
+      const data = await inscricaoService.listarCanceladosPorEncontro(selectedEncontroId);
+      setDesistentes(data);
+    } catch (error) {
+      console.error('Erro ao carregar desistentes:', error);
+      toast.error('Erro ao carregar desistentes.');
+    } finally {
+      setIsLoadingDesistentes(false);
+    }
+  }, [selectedEncontroId]);
+
   useEffect(() => {
-    setGlobalLoading(isLoading);
-  }, [isLoading, setGlobalLoading]);
+    setGlobalLoading(isLoading || isLoadingDesistentes);
+  }, [isLoading, isLoadingDesistentes, setGlobalLoading]);
 
   useEffect(() => {
     loadParticipantes();
-  }, [selectedEncontroId, loadParticipantes]);
+    loadDesistentes();
+  }, [selectedEncontroId, loadParticipantes, loadDesistentes]);
 
   const filteredParticipantes = React.useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
@@ -119,6 +232,29 @@ export function SecretariaParticipantesPage() {
       })
       .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
   }, [participantes, debouncedSearch, filterVeiculo]);
+
+  const filteredDesistentes = React.useMemo(() => {
+    const term = debouncedSearch.toLowerCase().trim();
+    const normalize = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
+    const termDigits = normalize(term);
+
+    return desistentes
+      .filter((d) => {
+        if (!term) return true;
+        const pessoa = d.pessoas;
+        const dupla = d.visita_grupos?.nome || '';
+        const matchNome = pessoa?.nome_completo?.toLowerCase().includes(term);
+        const matchCpf = pessoa?.cpf && (pessoa.cpf.includes(term) || (termDigits && normalize(pessoa.cpf).includes(termDigits)));
+        const matchEmail = pessoa?.email?.toLowerCase().includes(term);
+        const matchTelefone = pessoa?.telefone && ((termDigits && normalize(pessoa.telefone).includes(termDigits)) || pessoa.telefone.includes(term));
+        const matchComunidade = pessoa?.comunidade?.toLowerCase().includes(term);
+        const matchDupla = dupla.toLowerCase().includes(term);
+        const matchObservacoes = d.observacoes?.toLowerCase().includes(term);
+
+        return !!(matchNome || matchCpf || matchEmail || matchTelefone || matchComunidade || matchDupla || matchObservacoes);
+      })
+      .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
+  }, [desistentes, debouncedSearch]);
 
   const selectedEncontro = encontros.find(e => e.id === selectedEncontroId);
 
@@ -248,6 +384,30 @@ export function SecretariaParticipantesPage() {
     } finally {
       setUploadingPhotoId(null);
     }
+  };
+
+  const handleRestoreDesistencia = async () => {
+    if (!desistenciaToRestore) return;
+    setIsRestoringDesistencia(true);
+    try {
+      await inscricaoService.desfazerDesistencia(desistenciaToRestore.id);
+      toast.success(`${desistenciaToRestore.pessoas?.nome_completo || 'Participante'} restaurado(a) no encontro.`);
+      setDesistenciaToRestore(null);
+      await Promise.all([loadParticipantes(), loadDesistentes()]);
+      setActiveTab('participantes');
+    } catch (error) {
+      console.error('Erro ao desfazer desistência:', error);
+      const message = error instanceof Error ? error.message : 'Erro ao desfazer desistência.';
+      toast.error(message);
+    } finally {
+      setIsRestoringDesistencia(false);
+    }
+  };
+
+  const handleTabChange = (tab: 'participantes' | 'desistentes') => {
+    setActiveTab(tab);
+    setSearchTerm('');
+    setFilterVeiculo(false);
   };
 
   const handleStartPhotoAdjustment = (participante: InscricaoEnriched) => {
@@ -496,8 +656,33 @@ export function SecretariaParticipantesPage() {
             </div>
           </div>
 
+          <div className="secretaria-tabs" role="tablist" aria-label="Participantes da edição">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'participantes'}
+              className={activeTab === 'participantes' ? 'is-active' : ''}
+              onClick={() => handleTabChange('participantes')}
+            >
+              <Users size={16} />
+              Participantes
+              <span>{participantes.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'desistentes'}
+              className={activeTab === 'desistentes' ? 'is-active danger' : ''}
+              onClick={() => handleTabChange('desistentes')}
+            >
+              <UserMinus size={16} />
+              Desistentes
+              <span>{desistentes.length}</span>
+            </button>
+          </div>
+
           <div className="card" style={{ marginBottom: '2rem' }}>
-            <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', alignItems: 'end' }}>
+            <div className="grid-container secretaria-filter-grid">
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label">Encontro</label>
                 <LiveSearchSelect<Encontro>
@@ -513,7 +698,7 @@ export function SecretariaParticipantesPage() {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0, flex: 2 }}>
-                <label className="form-label">Buscar Participante</label>
+                <label className="form-label">{activeTab === 'desistentes' ? 'Buscar Desistente' : 'Buscar Participante'}</label>
                 <div className="form-input-wrapper">
                   <div className="form-input-icon">
                     <Search size={16} />
@@ -521,7 +706,7 @@ export function SecretariaParticipantesPage() {
                   <input
                     type="text"
                     className="form-input form-input--with-icon"
-                    placeholder="Nome, e-mail, telefone, bairro ou cidade..."
+                    placeholder={activeTab === 'desistentes' ? 'Nome, e-mail, telefone, comunidade, dupla ou observação...' : 'Nome, e-mail, telefone, bairro ou cidade...'}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -550,6 +735,7 @@ export function SecretariaParticipantesPage() {
                 </div>
               </div>
 
+              {activeTab === 'participantes' && (
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   Filtros
@@ -576,10 +762,19 @@ export function SecretariaParticipantesPage() {
                   <span>Com veículo{filterVeiculo ? ' ✓' : ''}</span>
                 </button>
               </div>
+              )}
             </div>
           </div>
 
-          {isLoading ? (
+          {activeTab === 'desistentes' ? (
+            <DesistentesTab
+              desistentes={filteredDesistentes}
+              total={desistentes.length}
+              isLoading={isLoadingDesistentes}
+              canRestore={canRestoreDesistencia}
+              onRestore={setDesistenciaToRestore}
+            />
+          ) : isLoading ? (
             <div className="card text-center py-8">
               <Loader size={32} className="animate-spin" style={{ display: 'inline-block', marginBottom: '1rem' }} />
               <p>Carregando participantes...</p>
@@ -860,6 +1055,23 @@ export function SecretariaParticipantesPage() {
         isDestructive={true}
       />
 
+      <ConfirmDialog
+        isOpen={!!desistenciaToRestore}
+        title="Reverter desistência"
+        message={
+          <>
+            Deseja recolocar <strong style={{ color: 'var(--text-color)' }}>{desistenciaToRestore?.pessoas?.nome_completo}</strong> neste encontro e na dupla <strong style={{ color: 'var(--text-color)' }}>{desistenciaToRestore?.visita_grupos?.nome || 'original'}</strong>?
+            <br /><br />
+            A desistência ficará registrada no histórico como revertida.
+          </>
+        }
+        confirmText="Sim, reverter"
+        cancelText="Cancelar"
+        onConfirm={handleRestoreDesistencia}
+        onCancel={() => setDesistenciaToRestore(null)}
+        isLoading={isRestoringDesistencia}
+      />
+
       <Modal
         isOpen={!!previewPhoto}
         onClose={() => setPreviewPhoto(null)}
@@ -990,6 +1202,138 @@ export function SecretariaParticipantesPage() {
       </Modal>
 
       <style>{`
+        .secretaria-tabs {
+          display: flex;
+          gap: 0.65rem;
+          flex-wrap: wrap;
+          margin: 0 0 1rem;
+        }
+        .secretaria-tabs button {
+          border: 1px solid var(--border-color);
+          background: var(--card-bg);
+          color: var(--text-color);
+          border-radius: 8px;
+          padding: 0.65rem 0.85rem;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .secretaria-tabs button span {
+          min-width: 24px;
+          height: 22px;
+          border-radius: 999px;
+          background: var(--secondary-bg);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0 0.4rem;
+          font-size: 0.75rem;
+        }
+        .secretaria-tabs button.is-active {
+          border-color: color-mix(in srgb, var(--primary-color) 55%, var(--border-color));
+          background: rgba(var(--primary-rgb), 0.1);
+          color: var(--primary-color);
+        }
+        .secretaria-tabs button.is-active.danger {
+          border-color: rgba(239, 68, 68, 0.35);
+          background: rgba(239, 68, 68, 0.1);
+          color: #ef4444;
+        }
+        .secretaria-filter-grid {
+          display: grid;
+          grid-template-columns: minmax(220px, 0.85fr) minmax(360px, 1.65fr) minmax(148px, 0.5fr);
+          gap: 1.25rem;
+          align-items: end;
+        }
+        .secretaria-result-summary {
+          font-size: 0.85rem;
+          opacity: 0.6;
+          margin: 0 0 0.75rem;
+        }
+        .secretaria-desistentes-list {
+          display: flex;
+          flex-direction: column;
+          gap: 0.85rem;
+        }
+        .secretaria-desistente-card {
+          display: grid;
+          grid-template-columns: 46px minmax(0, 1fr) auto;
+          gap: 1rem;
+          align-items: center;
+          padding: 1rem;
+          border-left: 4px solid #ef4444;
+        }
+        .secretaria-desistente-avatar {
+          width: 46px;
+          height: 46px;
+          border-radius: 12px;
+          background: rgba(239, 68, 68, 0.1);
+          color: #ef4444;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 900;
+          font-size: 1.1rem;
+        }
+        .secretaria-desistente-main {
+          min-width: 0;
+          display: grid;
+          gap: 0.55rem;
+        }
+        .secretaria-desistente-main h3 {
+          margin: 0;
+          font-size: 1rem;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .secretaria-desistente-badges,
+        .secretaria-desistente-details {
+          display: flex;
+          gap: 0.45rem;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+        .secretaria-desistente-badges span {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
+          border-radius: 999px;
+          border: 1px solid var(--border-color);
+          padding: 0.18rem 0.55rem;
+          font-size: 0.72rem;
+          font-weight: 800;
+          color: var(--text-color);
+          background: var(--secondary-bg);
+        }
+        .secretaria-desistente-details span {
+          font-size: 0.78rem;
+          color: var(--muted-text);
+          overflow-wrap: anywhere;
+        }
+        .secretaria-desistente-actions {
+          display: flex;
+          justify-content: flex-end;
+        }
+        .secretaria-restore-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.45rem;
+          line-height: 1;
+          white-space: nowrap;
+        }
+        .secretaria-restore-button svg {
+          display: block;
+          flex-shrink: 0;
+        }
+        .secretaria-desistente-readonly {
+          font-size: 0.75rem;
+          color: var(--muted-text);
+          text-align: right;
+        }
         .dropdown-item-custom {
           width: 100%;
           padding: 0.85rem 1rem;
@@ -1326,6 +1670,29 @@ export function SecretariaParticipantesPage() {
           margin-left: 0;
         }
         @media (max-width: 900px) {
+          .secretaria-filter-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+          }
+          .secretaria-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+          }
+          .secretaria-tabs button {
+            justify-content: center;
+          }
+          .secretaria-desistente-card {
+            grid-template-columns: 42px minmax(0, 1fr);
+            align-items: start;
+          }
+          .secretaria-desistente-actions {
+            grid-column: 1 / -1;
+            justify-content: stretch;
+          }
+          .secretaria-desistente-actions .btn-primary {
+            width: 100%;
+            justify-content: center;
+          }
           .secretaria-pessoa-grid {
             gap: 0.85rem;
             border: none;
