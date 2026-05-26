@@ -411,11 +411,24 @@ export const inscricaoService = {
         return (data || []) as ParticipacaoCancelada[];
     },
 
-    async desfazerDesistencia(cancelamentoId: string): Promise<void> {
-        const { error } = await supabase.rpc('desfazer_desistencia', {
+    async desfazerDesistencia(cancelamentoId: string): Promise<{
+        participacao_id?: string;
+        visita_id?: string;
+        already_reverted?: boolean;
+        already_had_participacao?: boolean;
+        already_had_visita?: boolean;
+    }> {
+        const { data, error } = await supabase.rpc('desfazer_desistencia', {
             cancelamento_id: cancelamentoId
         });
 
         if (error) throw error;
+        return (data || {}) as {
+            participacao_id?: string;
+            visita_id?: string;
+            already_reverted?: boolean;
+            already_had_participacao?: boolean;
+            already_had_visita?: boolean;
+        };
     }
 };

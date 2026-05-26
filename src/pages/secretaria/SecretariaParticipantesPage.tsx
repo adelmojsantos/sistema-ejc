@@ -388,13 +388,18 @@ export function SecretariaParticipantesPage() {
 
   const handleRestoreDesistencia = async () => {
     if (!desistenciaToRestore) return;
+    const restoredName = desistenciaToRestore.pessoas?.nome_completo || 'Participante';
     setIsRestoringDesistencia(true);
     try {
-      await inscricaoService.desfazerDesistencia(desistenciaToRestore.id);
-      toast.success(`${desistenciaToRestore.pessoas?.nome_completo || 'Participante'} restaurado(a) no encontro.`);
+      const result = await inscricaoService.desfazerDesistencia(desistenciaToRestore.id);
+      setDesistentes((prev) => prev.filter((item) => item.id !== desistenciaToRestore.id));
       setDesistenciaToRestore(null);
       await Promise.all([loadParticipantes(), loadDesistentes()]);
-      setActiveTab('participantes');
+      handleTabChange('participantes');
+      toast.success(result.already_reverted
+        ? `${restoredName} já estava com a desistência revertida.`
+        : `${restoredName} voltou para a listagem de participantes.`
+      );
     } catch (error) {
       console.error('Erro ao desfazer desistência:', error);
       const message = error instanceof Error ? error.message : 'Erro ao desfazer desistência.';

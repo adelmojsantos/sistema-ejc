@@ -752,14 +752,14 @@ export function VisitacaoManutencaoPage() {
                     </div>
 
 
-                    <div style={{
+                    <div className="visita-tax-card" style={{
                         marginTop: '2rem', padding: '1.5rem', borderRadius: '16px',
                         background: taxaPaga ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%)' : 'var(--secondary-bg)',
                         border: taxaPaga ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid var(--border-color)',
                         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         transition: 'all 0.3s ease'
                     }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div className="visita-tax-copy" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                             <div style={{
                                 background: taxaPaga ? '#10b981' : 'var(--muted-text)',
                                 color: 'white', padding: '0.6rem', borderRadius: '10px',
@@ -773,7 +773,18 @@ export function VisitacaoManutencaoPage() {
                             </div>
                         </div>
                         <div
+                            className="visita-tax-toggle"
+                            role="switch"
+                            aria-checked={taxaPaga}
+                            tabIndex={isHistory ? -1 : 0}
                             onClick={() => !isHistory && setTaxaPaga(!taxaPaga)}
+                            onKeyDown={(event) => {
+                                if (isHistory) return;
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    setTaxaPaga((current) => !current);
+                                }
+                            }}
                             style={{
                                 width: '56px', height: '30px', borderRadius: '20px',
                                 background: taxaPaga ? '#10b981' : '#cbd5e1',
@@ -877,7 +888,7 @@ export function VisitacaoManutencaoPage() {
                                     <button
                                         type="button"
                                         onClick={() => setShowRecepcaoForm(true)}
-                                        className="btn-secondary"
+                                        className="btn-secondary visita-add-vehicle-button"
                                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                     >
                                         <Car size={16} />
@@ -1504,6 +1515,24 @@ export function VisitacaoManutencaoPage() {
                         display: flex;
                         flex-direction: column;
                     }
+                    .visita-tax-card {
+                        min-width: 0;
+                    }
+                    .visita-tax-copy {
+                        min-width: 0;
+                    }
+                    .visita-tax-copy h4,
+                    .visita-tax-copy p {
+                        overflow-wrap: anywhere;
+                    }
+                    .visita-tax-toggle {
+                        flex: 0 0 56px;
+                        min-width: 56px;
+                        outline: none;
+                    }
+                    .visita-tax-toggle:focus-visible {
+                        box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.16), inset 0 2px 4px rgba(0,0,0,0.1);
+                    }
                     .visita-vehicle-badge {
                         display: inline-flex;
                         flex-direction: column;
@@ -1545,6 +1574,29 @@ export function VisitacaoManutencaoPage() {
                         flex-shrink: 0;
                     }
                     @media (max-width: 639px) {
+                        .visita-tax-card {
+                            padding: 1rem !important;
+                            align-items: flex-start !important;
+                            gap: 0.9rem;
+                        }
+                        .visita-tax-copy {
+                            flex: 1 1 0;
+                            gap: 0.75rem !important;
+                        }
+                        .visita-tax-copy h4 {
+                            font-size: 0.95rem;
+                        }
+                        .visita-tax-copy p {
+                            font-size: 0.76rem !important;
+                            line-height: 1.35;
+                        }
+                        .visita-tax-toggle {
+                            margin-top: 0.1rem;
+                        }
+                        .visita-add-vehicle-button {
+                            width: 100%;
+                            justify-content: center;
+                        }
                         .visita-vehicle-badge {
                             flex: 1 1 130px;
                             max-width: none;
@@ -1552,6 +1604,10 @@ export function VisitacaoManutencaoPage() {
                         .visita-vehicle-actions {
                             width: 100%;
                             margin-left: auto;
+                            justify-content: stretch;
+                        }
+                        .visita-vehicle-actions .icon-btn {
+                            flex: 1;
                         }
                     }
                     /* Action Sheet Styles */
