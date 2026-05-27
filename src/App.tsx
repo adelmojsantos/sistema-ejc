@@ -1,6 +1,6 @@
 import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
-import { Navigate, Route, BrowserRouter as Router, Routes, useLocation, Outlet } from 'react-router-dom';
+import { Navigate, Route, BrowserRouter as Router, Routes, useLocation, Outlet, useParams } from 'react-router-dom';
 import { Header } from './components/Header';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PageTransition } from './components/ui/PageTransition';
@@ -16,25 +16,24 @@ import { ExportConfigListPage } from './pages/admin/ExportConfigListPage';
 import { ExportConfigFormPage } from './pages/admin/ExportConfigFormPage';
 import { BibliotecaPage } from './pages/admin/BibliotecaPage';
 import { Cadastros } from './pages/Cadastros';
-import { CirculosPage } from './pages/cadastros/CirculosPage';
+import { CirculosPage } from './pages/circulos/CirculosPage';
 import { CirculosPortalPage } from './pages/circulos/CirculosPortalPage';
 import { EncontroParticipantesPage } from './pages/cadastros/EncontroParticipantesPage';
 import { AvaliacaoEncontroPage } from './pages/cadastros/AvaliacaoEncontroPage';
 import { EncontrosPage } from './pages/cadastros/EncontrosPage';
 import { EquipesPage } from './pages/cadastros/EquipesPage';
-import { MontagemCirculos } from './pages/cadastros/MontagemCirculos';
+import { MontagemCirculos } from './pages/circulos/MontagemCirculos';
 import { ResumoPalestrasPage } from './pages/circulos/ResumoPalestrasPage';
 import { MontagemPage } from './pages/cadastros/MontagemPage';
 import { PessoasPage } from './pages/cadastros/PessoasPage';
 import { PalestrasGestaoPage } from './pages/cadastros/PalestrasGestaoPage';
 import { PalestrasResumoPage } from './pages/cadastros/PalestrasResumoPage';
 import { PalestrasModulePage } from './pages/atividades/PalestrasModulePage';
-import { PalestrasPage } from './pages/cadastros/PalestrasPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CoordenadorAvaliacaoPage } from './pages/coordenador/CoordenadorAvaliacaoPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
-import { RecepcaoAdminPage } from './pages/atividades/RecepcaoAdminPage';
-import { RecreacaoAdminPage } from './pages/atividades/RecreacaoAdminPage';
+import { RecepcaoAdminPage } from './pages/recepcao/RecepcaoAdminPage';
+import { RecreacaoAdminPage } from './pages/recreacao/RecreacaoAdminPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { Home } from './pages/Home';
 import { InscricaoPage } from './pages/InscricaoPage';
@@ -53,6 +52,7 @@ import { SecretariaParticipantesPage } from './pages/secretaria/SecretariaPartic
 import { SecretariaEncontreirosPage } from './pages/secretaria/SecretariaEncontreirosPage';
 import { GerenciarListaEsperaPage } from './pages/secretaria/GerenciarListaEsperaPage';
 import { SecretariaFotosPage } from './pages/secretaria/SecretariaFotosPage';
+import { SecretariaPlacasEquipesPage } from './pages/secretaria/SecretariaPlacasEquipesPage';
 import { ComprasPage } from './pages/compras/ComprasPage';
 import { TaxasPage } from './pages/compras/TaxasPage';
 import { PedidosCamisetasPage } from './pages/compras/PedidosCamisetasPage';
@@ -70,6 +70,10 @@ import { QuadranteAuthPage } from './pages/Public/QuadranteAuthPage';
 import { QuadrantePage } from './pages/Public/QuadrantePage';
 import SharedLibraryPage from './pages/shared/SharedLibraryPage';
 
+function LegacyExportConfigRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/secretaria/configuracoes-exportacao/${id}`} replace />;
+}
 
 export function PlaceholderPage({ title }: { title: string }) {
   return (
@@ -152,25 +156,25 @@ function AnimatedRoutes() {
 
           <Route path="/admin/importar" element={
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
-              <ImportarDadosPage />
+              <Navigate to="/secretaria/importar" replace />
             </ProtectedRoute>
           } />
 
           <Route path="/admin/configuracoes-exportacao" element={
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
-              <ExportConfigListPage />
+              <Navigate to="/secretaria/configuracoes-exportacao" replace />
             </ProtectedRoute>
           } />
 
           <Route path="/admin/configuracoes-exportacao/novo" element={
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
-              <ExportConfigFormPage />
+              <Navigate to="/secretaria/configuracoes-exportacao/novo" replace />
             </ProtectedRoute>
           } />
 
           <Route path="/admin/configuracoes-exportacao/:id" element={
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
-              <ExportConfigFormPage />
+              <LegacyExportConfigRedirect />
             </ProtectedRoute>
           } />
 
@@ -181,13 +185,15 @@ function AnimatedRoutes() {
           }>
             <Route path="confirmacoes" element={<ConfirmationReportPage />} />
             <Route path="confirmacoes/:equipe_id" element={<ConfirmationTeamDetailPage />} />
+            <Route path="importar" element={<ImportarDadosPage />} />
+            <Route path="configuracoes-exportacao" element={<ExportConfigListPage />} />
+            <Route path="configuracoes-exportacao/novo" element={<ExportConfigFormPage />} />
+            <Route path="configuracoes-exportacao/:id" element={<ExportConfigFormPage />} />
             <Route path="participantes" element={<SecretariaParticipantesPage />} />
             <Route path="encontreiros" element={<SecretariaEncontreirosPage />} />
-            <Route path="atividades/recepcao" element={<RecepcaoAdminPage />} />
-            <Route path="atividades/palestras" element={<PalestrasModulePage />} />
-            <Route path="atividades/recreacao" element={<RecreacaoAdminPage />} />
             <Route path="lista-espera" element={<GerenciarListaEsperaPage />} />
             <Route path="fotos-equipes" element={<SecretariaFotosPage />} />
+            <Route path="placas-equipes" element={<SecretariaPlacasEquipesPage />} />
           </Route>
 
           <Route path="/visitacao" element={
@@ -211,6 +217,32 @@ function AnimatedRoutes() {
           <Route path="/visitacao/manutencao/:id" element={
             <ProtectedRoute requiredPermissions={['modulo_visitacao_duplas']}>
               <VisitacaoManutencaoPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/atividades/palestras" element={
+            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+              <Navigate to="/palestras" replace />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/cadastros/palestras" element={
+            <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
+              <Navigate to="/palestras" replace />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/cadastros/circulos" element={
+            <ProtectedRoute
+              requiredPermissions={[
+                'modulo_circulos',
+                'modulo_circulos_cadastros',
+                'modulo_circulos_coordenador',
+                'modulo_circulos_mediador',
+                'modulo_admin'
+              ]}
+            >
+              <Navigate to="/circulos/cadastros" replace />
             </ProtectedRoute>
           } />
 
@@ -274,13 +306,31 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           } />
 
+          <Route path="/palestras" element={
+            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+              <PalestrasModulePage />
+            </ProtectedRoute>
+          } />
+
           <Route path="/atividades/recepcao" element={
+            <ProtectedRoute requiredPermissions={['modulo_recepcao', 'modulo_admin']}>
+              <Navigate to="/recepcao" replace />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/recepcao" element={
             <ProtectedRoute requiredPermissions={['modulo_recepcao', 'modulo_admin']}>
               <RecepcaoAdminPage />
             </ProtectedRoute>
           } />
 
           <Route path="/atividades/recreacao" element={
+            <ProtectedRoute requiredPermissions={['modulo_recreacao', 'modulo_admin']}>
+              <Navigate to="/recreacao" replace />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/recreacao" element={
             <ProtectedRoute requiredPermissions={['modulo_recreacao', 'modulo_admin']}>
               <RecreacaoAdminPage />
             </ProtectedRoute>
@@ -304,9 +354,7 @@ function AnimatedRoutes() {
             <Route path="encontros/:id/palestras-resumo" element={<PalestrasResumoPage />} />
             <Route path="encontros/participantes" element={<EncontroParticipantesPage />} />
             <Route path="equipes" element={<EquipesPage />} />
-            <Route path="circulos" element={<CirculosPage />} />
             <Route path="montagem" element={<MontagemPage />} />
-            <Route path="palestras" element={<PalestrasPage />} />
             <Route path="avaliacao" element={<AvaliacaoEncontroPage />} />
           </Route>
         </Route>

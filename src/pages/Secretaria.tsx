@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle, FileSpreadsheet, FileText, Users, ListChecks, MapPin } from 'lucide-react';
+import { CheckCircle, FileSpreadsheet, FileText, Users, ListChecks, MapPin, DoorOpen } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface SecretariaCategory {
@@ -24,7 +24,7 @@ const CATEGORIES: SecretariaCategory[] = [
   },
   {
     id: 'importar',
-    path: '/admin/importar',
+    path: '/secretaria/importar',
     label: 'Importar Planilha',
     description: 'Carga em massa de pessoas e equipes via Excel.',
     icon: <FileSpreadsheet size={34} />,
@@ -33,7 +33,7 @@ const CATEGORIES: SecretariaCategory[] = [
   },
   {
     id: 'configuracao-pdf',
-    path: '/admin/configuracoes-exportacao',
+    path: '/secretaria/configuracoes-exportacao',
     label: 'Cabeçalho PDF/Excel',
     description: 'Configurar logotipos e textos dos relatórios.',
     icon: <FileText size={34} />,
@@ -74,6 +74,15 @@ const CATEGORIES: SecretariaCategory[] = [
     description: 'Gestão das fotos de grupo dos encontreiros por equipe.',
     icon: <Users size={34} />,
     color: '#06b6d4',
+    available: true
+  },
+  {
+    id: 'sec-placas-equipes',
+    path: '/secretaria/placas-equipes',
+    label: 'Placas das Salas',
+    description: 'Impressão das placas de identificação das salas por equipe.',
+    icon: <DoorOpen size={34} />,
+    color: '#a16207',
     available: true
   }
 ];

@@ -296,7 +296,7 @@ export function RecepcaoAdminPage() {
             <ChevronLeft size={18} />
           </button>
           <div>
-            <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Atividades</p>
+            <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Módulo de Recepção</p>
             <h1 className="page-title text-gradient" style={{ fontSize: '1.5rem', margin: 0 }}>Gestão de Recepção</h1>
           </div>
         </div>

@@ -228,6 +228,31 @@ export const bibliotecaService = {
         return data.signedUrl;
     },
 
+    async abrirArquivo(arquivo: BibliotecaArquivo): Promise<void> {
+        const url = await this.gerarSignedUrl(arquivo.storage_path);
+        window.open(url, '_blank', 'noopener,noreferrer');
+    },
+
+    async baixarArquivo(arquivo: BibliotecaArquivo): Promise<void> {
+        const url = await this.gerarSignedUrl(arquivo.storage_path);
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            throw new Error('Não foi possível baixar o arquivo.');
+        }
+
+        const blob = await response.blob();
+        const objectUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+
+        link.href = objectUrl;
+        link.download = arquivo.nome_exibicao || 'arquivo';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(objectUrl);
+    },
+
     // Compartilhamento
     async compartilharItem(params: {
         pastaId?: string;

@@ -88,7 +88,7 @@ export function ResumoPalestrasPage() {
         <div className="card text-center" style={{ padding: '4rem' }}>
           <BookOpen size={48} weight="thin" style={{ opacity: 0.2, marginBottom: '1rem' }} />
           <p style={{ color: 'var(--muted-text)' }}>Nenhuma palestra cadastrada para este encontro.</p>
-          <button className="btn-text" onClick={() => navigate('/cadastros/palestras')}>Ir para cadastros</button>
+          <button className="btn-text" onClick={() => navigate('/palestras')}>Ir para palestras</button>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

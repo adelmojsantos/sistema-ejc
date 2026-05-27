@@ -123,10 +123,17 @@ export function BibliotecaPage() {
 
   const handleDownload = async (arquivo: BibliotecaArquivo) => {
     try {
-      const url = await bibliotecaService.gerarSignedUrl(arquivo.storage_path);
-      window.open(url, '_blank');
+      await bibliotecaService.baixarArquivo(arquivo);
     } catch (err: any) {
       toast.error('Erro ao gerar link de download: ' + err.message);
+    }
+  };
+
+  const handlePreview = async (arquivo: BibliotecaArquivo) => {
+    try {
+      await bibliotecaService.abrirArquivo(arquivo);
+    } catch (err: any) {
+      toast.error('Erro ao abrir arquivo: ' + err.message);
     }
   };
 
@@ -330,7 +337,7 @@ export function BibliotecaPage() {
                       isSelected={selectedItems.has(a.id)} isActiveDropdown={activeDropdown === a.id}
                       onToggleSelection={actions.toggleSelection} onToggleDropdown={setActiveDropdown}
                       onNavigate={() => {}} onDownload={handleDownload}
-                      onPreview={handleDownload}
+                      onPreview={handlePreview}
                       onRename={(item) => { setFileToRename(item); setFileName(item.nome_exibicao); setFileRenameModalOpen(true); }}
                       onMove={(item) => { setItemToMove(item); setMoveModalOpen(true); }}
                       onShare={(item) => { setItemToShare(item); setShareModalOpen(true); }}
@@ -369,7 +376,7 @@ export function BibliotecaPage() {
                         isSelected={selectedItems.has(a.id)} isActiveDropdown={activeDropdown === a.id}
                         onToggleSelection={actions.toggleSelection} onToggleDropdown={setActiveDropdown}
                         onNavigate={() => {}} onDownload={handleDownload}
-                        onPreview={handleDownload}
+                        onPreview={handlePreview}
                         onRename={(item) => { setFileToRename(item); setFileName(item.nome_exibicao); setFileRenameModalOpen(true); }}
                         onMove={(item) => { setItemToMove(item); setMoveModalOpen(true); }}
                         onShare={(item) => { setItemToShare(item); setShareModalOpen(true); }}

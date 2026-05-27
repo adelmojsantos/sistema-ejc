@@ -47,8 +47,15 @@ export default function SharedLibraryPage() {
 
     const handleDownload = async (arquivo: BibliotecaArquivo) => {
         try {
-            const url = await bibliotecaService.gerarSignedUrl(arquivo.storage_path);
-            window.open(url, '_blank');
+            await bibliotecaService.baixarArquivo(arquivo);
+        } catch (err: any) {
+            toast.error('Erro ao baixar arquivo: ' + err.message);
+        }
+    };
+
+    const handlePreview = async (arquivo: BibliotecaArquivo) => {
+        try {
+            await bibliotecaService.abrirArquivo(arquivo);
         } catch (err: any) {
             toast.error('Erro ao abrir arquivo: ' + err.message);
         }
@@ -148,7 +155,7 @@ export default function SharedLibraryPage() {
                                                 isSelected={selectedItems.has(a.id)} isActiveDropdown={activeDropdown === a.id}
                                                 onToggleSelection={actions.toggleSelection} onToggleDropdown={setActiveDropdown}
                                                 onNavigate={() => { }} onDownload={handleDownload}
-                                                onPreview={handleDownload}
+                                                onPreview={handlePreview}
                                                 onRename={() => { }} onMove={() => { }} onShare={() => { }} onDelete={() => { }}
                                                 isReadOnly={true}
                                             />
@@ -182,7 +189,7 @@ export default function SharedLibraryPage() {
                                                     isSelected={selectedItems.has(a.id)} isActiveDropdown={activeDropdown === a.id}
                                                     onToggleSelection={actions.toggleSelection} onToggleDropdown={setActiveDropdown}
                                                     onNavigate={() => { }} onDownload={handleDownload}
-                                                    onPreview={handleDownload}
+                                                    onPreview={handlePreview}
                                                     onRename={() => { }} onMove={() => { }} onShare={() => { }} onDelete={() => { }}
                                                     isReadOnly={true}
                                                 />

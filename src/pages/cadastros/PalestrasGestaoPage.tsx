@@ -159,7 +159,7 @@ export function PalestrasGestaoPage() {
             <PageHeader
                 title="Gestão de Palestras"
                 subtitle={`Encontro: ${encontro?.nome}`}
-                onBack={() => navigate('/atividades/palestras')}
+                onBack={() => navigate('/palestras')}
             />
 
             <div className="card" style={{ marginTop: '2rem' }}>

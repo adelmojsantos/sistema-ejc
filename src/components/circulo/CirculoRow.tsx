@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type MouseEvent } from 'react';
 import type { Circulo, CirculoFormData } from '../../types/circulo';
 import { UsersRound, Pencil, Trash2, Check, X, Loader, Camera, ImageOff } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -40,6 +40,11 @@ export function CirculoRow({ circulo, onUpdate, onDelete, onPreviewImage }: Circ
             return;
         }
 
+        fileInputRef.current?.click();
+    };
+
+    const handleSelectImage = (event?: MouseEvent) => {
+        event?.stopPropagation();
         fileInputRef.current?.click();
     };
 
@@ -97,6 +102,7 @@ export function CirculoRow({ circulo, onUpdate, onDelete, onPreviewImage }: Circ
                         type="file"
                         accept="image/*"
                         style={{ display: 'none' }}
+                        onClick={(event) => event.stopPropagation()}
                         onChange={handleImageChange}
                     />
                 </div>
@@ -131,7 +137,7 @@ export function CirculoRow({ circulo, onUpdate, onDelete, onPreviewImage }: Circ
                             <button
                                 type="button"
                                 className="circulo-image-link"
-                                onClick={() => fileInputRef.current?.click()}
+                                onClick={handleSelectImage}
                                 disabled={isUploading}
                             >
                                 <Camera size={14} />
@@ -141,7 +147,10 @@ export function CirculoRow({ circulo, onUpdate, onDelete, onPreviewImage }: Circ
                                 <button
                                     type="button"
                                     className="circulo-image-link circulo-image-link--danger"
-                                    onClick={handleRemoveImage}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleRemoveImage();
+                                    }}
                                     disabled={isLoading || isUploading}
                                 >
                                     <ImageOff size={14} />

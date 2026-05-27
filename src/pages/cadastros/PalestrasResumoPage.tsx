@@ -63,7 +63,7 @@ export function PalestrasResumoPage() {
             <PageHeader
                 title="Revisão de Resumos"
                 subtitle={`Encontro: ${encontro?.nome}`}
-                onBack={() => navigate('/atividades/palestras')}
+                onBack={() => navigate('/palestras')}
             />
 
             <div className="resumo-editor-container" style={{ marginTop: '2rem' }}>

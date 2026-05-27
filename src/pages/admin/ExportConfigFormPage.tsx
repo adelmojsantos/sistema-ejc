@@ -5,12 +5,16 @@ import { encontroService } from '../../services/encontroService';
 import type { Encontro } from '../../types/encontro';
 import { toast } from 'react-hot-toast';
 import { Save, ChevronLeft, Image as ImageIcon, Loader } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 
 export function ExportConfigFormPage() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const listPath = location.pathname.startsWith('/secretaria/')
+        ? '/secretaria/configuracoes-exportacao'
+        : '/admin/configuracoes-exportacao';
     const [loading, setLoading] = useState(!!id);
     const [saving, setSaving] = useState(false);
     
@@ -47,7 +51,7 @@ export function ExportConfigFormPage() {
                     setSelectedEncontroId(data.encontro_id || '');
                 } else {
                     toast.error('Configuração não encontrada');
-                    navigate('/admin/configuracoes-exportacao');
+                    navigate(listPath);
                 }
             }
         } catch (error) {
@@ -56,7 +60,7 @@ export function ExportConfigFormPage() {
         } finally {
             setLoading(false);
         }
-    }, [id, navigate]);
+    }, [id, listPath, navigate]);
 
     useEffect(() => {
         carregarConfiguracoes();
@@ -95,7 +99,7 @@ export function ExportConfigFormPage() {
         try {
             await exportConfigService.salvar(config, selectedEncontroId);
             toast.success('Configurações salvas com sucesso!');
-            navigate('/admin/configuracoes-exportacao');
+            navigate(listPath);
         } catch (error) {
             console.error('Erro ao salvar', error);
             toast.error('Erro ao salvar configurações');
@@ -123,7 +127,7 @@ export function ExportConfigFormPage() {
             <main className="main-content container">
                 <div className="page-header" style={{ marginBottom: '2rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <button onClick={() => navigate('/admin/configuracoes-exportacao')} className="icon-btn" aria-label="Voltar">
+                        <button onClick={() => navigate(listPath)} className="icon-btn" aria-label="Voltar">
                             <ChevronLeft size={20} />
                         </button>
                         <div>

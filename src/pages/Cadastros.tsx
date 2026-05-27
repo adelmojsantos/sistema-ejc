@@ -77,7 +77,7 @@ const CATEGORIES: CadastroCategory[] = [
   },
   {
     id: 'palestras',
-    path: '/cadastros/palestras',
+    path: '/palestras',
     label: 'Palestras',
     description: 'Cadastro do cronograma de palestras e palestrantes do encontro.',
     icon: <Mic size={34} />,

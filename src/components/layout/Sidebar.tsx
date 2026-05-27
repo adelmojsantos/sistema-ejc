@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       { to: '/inscricao', label: 'Inscrições', icon: UserPlus },
       { to: '/secretaria', label: 'Secretaria', icon: FileText },
       { to: '/cadastros', label: 'Cadastros', icon: Calendar },
-      { to: '/cadastros/palestras', label: 'Palestras', icon: Mic2 },
+      { to: '/palestras', label: 'Palestras', icon: Mic2 },
     );
   }
 
@@ -88,11 +88,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }
 
   if (hasPermission('modulo_recepcao') || hasPermission('modulo_admin')) {
-    menuItems.push({ to: '/atividades/recepcao', label: 'Recepção', icon: Car });
+    menuItems.push({ to: '/recepcao', label: 'Recepção', icon: Car });
   }
 
   if (hasPermission('modulo_recreacao') || hasPermission('modulo_admin')) {
-    menuItems.push({ to: '/atividades/recreacao', label: 'Recreação Infantil', icon: Baby });
+    menuItems.push({ to: '/recreacao', label: 'Recreação Infantil', icon: Baby });
   }
 
   // Ordena os itens alfabeticamente
