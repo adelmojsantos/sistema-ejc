@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { ActionStepper, type ActionStep } from '../../components/ui/ActionStepper';
 import { circuloService } from '../../services/circuloService';
 import { posEncontroService } from '../../services/posEncontroService';
 import { equipeService } from '../../services/equipeService';
@@ -40,6 +41,22 @@ const formatEncontroOption = (encontro: { nome?: string | null; edicao?: number 
   return encontro.tema ? `${titulo} • ${encontro.tema}` : titulo;
 };
 
+const getAcessoColor = (acesso?: string | null) => {
+  if (acesso === 'verde') return '#10b981'; // Green
+  if (acesso === 'amarela') return '#eab308'; // Yellow
+  if (acesso === 'vermelha') return '#ef4444'; // Red
+  return '#64748b'; // Slate default
+};
+
+const getEquipeInitials = (nome?: string | null) => {
+  if (!nome) return 'EQ';
+  const parts = nome.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return nome.substring(0, 2).toUpperCase();
+};
+
 export function PosEncontroCirculosPage() {
   const navigate = useNavigate();
   const { id: routePosId } = useParams<{ id: string }>();
@@ -68,9 +85,10 @@ export function PosEncontroCirculosPage() {
   const [showFichasView, setShowFichasView] = useState(false);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [selectedParticipantForFicha, setSelectedParticipantForFicha] = useState<PosEncontroParticipanteCirculo | null>(null);
-  
+
   // Stepper Modal State
   const [stepperStep, setStepperStep] = useState(1);
+  const [subStep, setSubStep] = useState(1);
   const [fichaDraft, setFichaDraft] = useState({
     toca_instrumento: null as boolean | null,
     instrumentos: '',
@@ -81,12 +99,25 @@ export function PosEncontroCirculosPage() {
   });
   const [isSavingFicha, setIsSavingFicha] = useState(false);
 
+  const handleSelectTeamCard = (teamId: string) => {
+    setFichaDraft(prev => {
+      const prefs = [...prev.preferencias];
+      prefs[subStep - 1] = teamId;
+      return { ...prev, preferencias: prefs };
+    });
+    if (subStep < 3) {
+      setSubStep(prev => prev + 1);
+    } else {
+      setSubStep(4);
+    }
+  };
+
   // Carregar Equipes Ativas
   useEffect(() => {
     async function loadEquipes() {
       try {
         const data = await equipeService.listar();
-        setEquipes(data);
+        setEquipes(data.filter(eq => eq.aparece_pos_encontro !== false));
       } catch (error) {
         console.error('Erro ao carregar equipes:', error);
       }
@@ -119,7 +150,7 @@ export function PosEncontroCirculosPage() {
   const openFichaStepper = (participant: PosEncontroParticipanteCirculo) => {
     setSelectedParticipantForFicha(participant);
     setStepperStep(1);
-    
+
     if (participant.ficha) {
       const pEquipes = participant.ficha.pos_encontro_ficha_equipes || [];
       const sortedPref = [...pEquipes].sort((a, b) => a.ordem_preferencia - b.ordem_preferencia);
@@ -137,6 +168,7 @@ export function PosEncontroCirculosPage() {
         observacoes: participant.ficha.observacoes ?? '',
         preferencias: prefIds
       });
+      setSubStep(prefIds.filter(Boolean).length === 3 ? 4 : 1);
     } else {
       setFichaDraft({
         toca_instrumento: null,
@@ -146,13 +178,18 @@ export function PosEncontroCirculosPage() {
         observacoes: '',
         preferencias: ['', '', '']
       });
+      setSubStep(1);
     }
   };
 
   const handleSaveFicha = async () => {
     if (!selectedParticipantForFicha) return;
-    
+
     const activePrefs = fichaDraft.preferencias.filter(Boolean);
+    if (activePrefs.length !== 3) {
+      toast.error('As 3 opções de equipe devem ser obrigatoriamente preenchidas.');
+      return;
+    }
     const uniquePrefs = new Set(activePrefs);
     if (activePrefs.length !== uniquePrefs.size) {
       toast.error('Você não pode escolher a mesma equipe em mais de uma opção de preferência.');
@@ -180,7 +217,7 @@ export function PosEncontroCirculosPage() {
 
       await posEncontroService.salvarFicha(payload, preferenciasPayload);
       toast.success('Ficha Pós-Encontro salva com sucesso!');
-      
+
       setSelectedParticipantForFicha(null);
       await loadFichasParticipantes();
     } catch (error) {
@@ -437,6 +474,57 @@ export function PosEncontroCirculosPage() {
       : presentesCount === 0
         ? 'Nenhuma presença marcada. Ao salvar, será solicitada uma confirmação.'
         : '';
+  const subSteps: ActionStep[] = [0, 1, 2].map((index) => {
+    const eqId = fichaDraft.preferencias[index];
+    const eq = equipes.find((e) => e.id === eqId);
+    const label = `${index + 1}ª Opção`;
+
+    return {
+      id: `opt${index + 1}`,
+      title: label,
+      status: subStep === index + 1 ? 'current' : eqId ? 'completed' : 'pending',
+      summary: eq ? <span>{eq.nome}</span> : undefined,
+      onEdit: () => setSubStep(index + 1),
+      editLabel: 'Alterar',
+      children: (
+        <div className="equipe-cards-grid">
+          {equipes.map(eq => {
+            const isSelected = fichaDraft.preferencias[subStep - 1] === eq.id;
+            const selectedIndex = fichaDraft.preferencias.indexOf(eq.id);
+            const isSelectedElsewhere = selectedIndex !== -1 && selectedIndex !== subStep - 1;
+            const initials = getEquipeInitials(eq.nome);
+            const bgAcesso = getAcessoColor(eq.acesso_plenario);
+
+            return (
+              <button
+                key={eq.id}
+                type="button"
+                disabled={isSelectedElsewhere}
+                className={`equipe-card-option ${isSelected ? 'selected' : ''} ${isSelectedElsewhere ? 'disabled' : ''}`}
+                onClick={() => handleSelectTeamCard(eq.id)}
+              >
+                <div className="equipe-card-avatar" style={{ backgroundColor: bgAcesso }}>
+                  {initials}
+                </div>
+                <div className="equipe-card-info">
+                  <strong>{eq.nome}</strong>
+                  {isSelectedElsewhere && (
+                    <span className="equipe-card-badge-elsewhere">
+                      Selecionada na {selectedIndex + 1}ª opção
+                    </span>
+                  )}
+                </div>
+                {isSelected && (
+                  <span className="equipe-card-check">✓</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ),
+    };
+  });
+
   const pageTitle = isDetailRoute && selectedPos ? `${selectedPos.ordem}º Pós-Encontro` : 'Pós-Encontro';
   const pageSubtitle = isDetailRoute && selectedPos
     ? selectedPos.tema ?? selectedPos.titulo
@@ -462,33 +550,33 @@ export function PosEncontroCirculosPage() {
 
       <section className="pos-encontro-page">
 
-      {!isDetailRoute && !isMediatorOnly && (
-      <div className="card pos-encontro-filters">
-        <div className="form-group" style={{ margin: 0 }}>
-          <label className="form-label">Encontro</label>
-          <select className="form-input" value={selectedEncontroId} onChange={(event) => setSelectedEncontroId(event.target.value)}>
-            {encontros.map((encontro) => (
-              <option key={encontro.id} value={encontro.id}>
-                {formatEncontroOption(encontro)}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!isDetailRoute && !isMediatorOnly && (
+          <div className="card pos-encontro-filters">
+            <div className="form-group" style={{ margin: 0 }}>
+              <label className="form-label">Encontro</label>
+              <select className="form-input" value={selectedEncontroId} onChange={(event) => setSelectedEncontroId(event.target.value)}>
+                {encontros.map((encontro) => (
+                  <option key={encontro.id} value={encontro.id}>
+                    {formatEncontroOption(encontro)}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        {canChooseCirculo && (
-          <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Círculo</label>
-            <select className="form-input" value={selectedCirculoId} onChange={(event) => setSelectedCirculoId(Number(event.target.value))}>
-              {circulos.map((circulo) => (
-                <option key={circulo.id} value={circulo.id}>{circulo.nome}</option>
-              ))}
-            </select>
+            {canChooseCirculo && (
+              <div className="form-group" style={{ margin: 0 }}>
+                <label className="form-label">Círculo</label>
+                <select className="form-input" value={selectedCirculoId} onChange={(event) => setSelectedCirculoId(Number(event.target.value))}>
+                  {circulos.map((circulo) => (
+                    <option key={circulo.id} value={circulo.id}>{circulo.nome}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
-      </div>
-      )}
 
-      {!selectedPos && showFichasView && (
+        {!selectedPos && showFichasView && (
           <section className="pos-encontro-list-section">
             <div className="pos-encontro-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
@@ -519,7 +607,7 @@ export function PosEncontroCirculosPage() {
                   const ficha = item.ficha;
                   const status = ficha ? 'preenchida' : 'pendente';
                   const statusLabel = ficha ? 'Preenchida' : 'Pendente';
-                  
+
                   const hasMusica = ficha?.toca_instrumento;
                   const hasCarro = ficha?.tem_carro;
                   const hasMoto = ficha?.tem_moto;
@@ -584,7 +672,7 @@ export function PosEncontroCirculosPage() {
           </section>
         )}
 
-      {!selectedPos && !showFichasView && (
+        {!selectedPos && !showFichasView && (
           <section className="pos-encontro-list-section">
             <div className="pos-encontro-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
@@ -662,15 +750,15 @@ export function PosEncontroCirculosPage() {
           </section>
         )}
 
-      {selectedPos && (
-        <article className="card pos-encontro-detail-card">
-          <div className="pos-encontro-simple-card-header">
-            <BookOpenCheck size={18} />
-            <strong>Roteiro do encontro</strong>
-          </div>
-          {htmlToText(selectedPos.conteudo) && (
-            <div
-              className="pos-encontro-rich-content pos-encontro-rich-panel"
+        {selectedPos && (
+          <article className="card pos-encontro-detail-card">
+            <div className="pos-encontro-simple-card-header">
+              <BookOpenCheck size={18} />
+              <strong>Roteiro do encontro</strong>
+            </div>
+            {htmlToText(selectedPos.conteudo) && (
+              <div
+                className="pos-encontro-rich-content pos-encontro-rich-panel"
                 dangerouslySetInnerHTML={{ __html: selectedPos.conteudo ?? '' }}
               />
             )}
@@ -719,28 +807,28 @@ export function PosEncontroCirculosPage() {
                 <div className="empty-state" style={{ padding: '2rem' }}>Nenhum encontrista vinculado a este círculo.</div>
               ) : (
                 <div className="pos-encontro-presenca-grid">
-                {participantesOrdenados.map((item) => {
-                  const participacaoId = item.participacao.id;
-                  const pessoa = item.participacao.pessoas;
-                  const isPresente = !!presencas[participacaoId];
+                  {participantesOrdenados.map((item) => {
+                    const participacaoId = item.participacao.id;
+                    const pessoa = item.participacao.pessoas;
+                    const isPresente = !!presencas[participacaoId];
 
-                  return (
-                    <button
-                      key={participacaoId}
-                      type="button"
-                      className={`pos-encontro-presenca-card ${isPresente ? 'is-present' : ''}`}
-                      onClick={() => setPresencas((current) => ({ ...current, [participacaoId]: !current[participacaoId] }))}
-                      aria-pressed={isPresente}
-                    >
-                      <span className="pos-encontro-presenca-check">
-                        {isPresente ? <CheckSquare size={21} /> : <Square size={21} />}
-                      </span>
-                      <span className="pos-encontro-presenca-info">
-                        <strong>{pessoa?.nome_completo ?? 'Sem nome'}</strong>
-                      </span>
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={participacaoId}
+                        type="button"
+                        className={`pos-encontro-presenca-card ${isPresente ? 'is-present' : ''}`}
+                        onClick={() => setPresencas((current) => ({ ...current, [participacaoId]: !current[participacaoId] }))}
+                        aria-pressed={isPresente}
+                      >
+                        <span className="pos-encontro-presenca-check">
+                          {isPresente ? <CheckSquare size={21} /> : <Square size={21} />}
+                        </span>
+                        <span className="pos-encontro-presenca-info">
+                          <strong>{pessoa?.nome_completo ?? 'Sem nome'}</strong>
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -928,93 +1016,25 @@ export function PosEncontroCirculosPage() {
 
               {stepperStep === 3 && (
                 <div className="ficha-step-panel fade-in">
-                  <div className="step-intro">
+                  <div className="step-intro" style={{ marginBottom: '1rem' }}>
                     <div className="step-icon-wrapper">
                       <UserCheck size={24} />
                     </div>
                     <div>
                       <h4>Preferências de Equipe</h4>
-                      <p className="text-muted">Selecione até 3 equipes que o encontrista gostaria de servir (1ª, 2ª e 3ª opções).</p>
+                      <p className="text-muted">Selecione as 3 opções de equipe.</p>
                     </div>
                   </div>
 
-                  <div className="preference-selects-stack">
-                    <div className="form-group">
-                      <label className="form-label">1ª Opção de Equipe</label>
-                      <select
-                        className="form-input"
-                        value={fichaDraft.preferencias[0]}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFichaDraft(prev => {
-                            const prefs = [...prev.preferencias];
-                            prefs[0] = val;
-                            return { ...prev, preferencias: prefs };
-                          });
-                        }}
-                      >
-                        <option value="">Selecione uma equipe...</option>
-                        {equipes.map(eq => (
-                          <option key={eq.id} value={eq.id}>{eq.nome}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">2ª Opção de Equipe</label>
-                      <select
-                        className="form-input"
-                        value={fichaDraft.preferencias[1]}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFichaDraft(prev => {
-                            const prefs = [...prev.preferencias];
-                            prefs[1] = val;
-                            return { ...prev, preferencias: prefs };
-                          });
-                        }}
-                      >
-                        <option value="">Selecione uma equipe...</option>
-                        {equipes.map(eq => (
-                          <option key={eq.id} value={eq.id}>{eq.nome}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label">3ª Opção de Equipe</label>
-                      <select
-                        className="form-input"
-                        value={fichaDraft.preferencias[2]}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFichaDraft(prev => {
-                            const prefs = [...prev.preferencias];
-                            prefs[2] = val;
-                            return { ...prev, preferencias: prefs };
-                          });
-                        }}
-                      >
-                        <option value="">Selecione uma equipe...</option>
-                        {equipes.map(eq => (
-                          <option key={eq.id} value={eq.id}>{eq.nome}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {(() => {
-                      const active = fichaDraft.preferencias.filter(Boolean);
-                      const unique = new Set(active);
-                      if (active.length !== unique.size) {
-                        return (
-                          <p className="validation-error-msg" style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '0.5rem', fontWeight: 600 }}>
-                            ⚠️ Atenção: Há equipes duplicadas nas preferências. Escolha equipes distintas.
-                          </p>
-                        );
-                      }
-                      return null;
-                    })()}
+                  <div className="ficha-substepper-container" style={{ marginBottom: '1.25rem' }}>
+                    <ActionStepper steps={subSteps} orientation="vertical" />
                   </div>
+
+                  {subStep <= 3 && !fichaDraft.preferencias[subStep - 1] && (
+                    <p style={{ color: 'var(--accent-color)', fontSize: '0.82rem', marginTop: '0.25rem', fontWeight: 600 }}>
+                      * Por favor, selecione uma equipe na grade acima para avançar.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1026,7 +1046,7 @@ export function PosEncontroCirculosPage() {
                     </div>
                     <div>
                       <h4>Observações Finais</h4>
-                      <p className="text-muted">Adicione qualquer comentário, detalhe ou recomendação para este encontrista.</p>
+                      <p className="text-muted">Adicione um comentário ou observação.</p>
                     </div>
                   </div>
 
@@ -1035,7 +1055,7 @@ export function PosEncontroCirculosPage() {
                     <textarea
                       className="form-input"
                       rows={5}
-                      placeholder="Alguma recomendação de equipe específica, observações de comportamento ou perfil..."
+                      placeholder="Comentário ou observação..."
                       value={fichaDraft.observacoes}
                       onChange={(e) => setFichaDraft(prev => ({ ...prev, observacoes: e.target.value }))}
                     />
@@ -1072,7 +1092,7 @@ export function PosEncontroCirculosPage() {
                   }
                   if (stepperStep === 3) {
                     const active = fichaDraft.preferencias.filter(Boolean);
-                    return active.length !== new Set(active).size;
+                    return active.length !== 3;
                   }
                   return false;
                 })()}
@@ -1938,6 +1958,98 @@ export function PosEncontroCirculosPage() {
           gap: 1rem;
         }
 
+        /* Equipe Card Stepper Styles */
+        .equipe-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          gap: 0.75rem;
+          margin-top: 0.5rem;
+          margin-bottom: 1rem;
+        }
+
+        .equipe-card-option {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          padding: 0.75rem;
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          background: var(--surface-2);
+          color: var(--text-color);
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-align: left;
+          position: relative;
+          width: 100%;
+        }
+
+        .equipe-card-option:hover:not(.disabled) {
+          border-color: var(--primary-color);
+          background: color-mix(in srgb, var(--primary-color) 4%, var(--surface-2));
+          transform: translateY(-2px);
+        }
+
+        .equipe-card-option.selected {
+          border-color: var(--primary-color);
+          background: color-mix(in srgb, var(--primary-color) 10%, var(--surface-2));
+          box-shadow: 0 0 0 1px var(--primary-color);
+        }
+
+        .equipe-card-option.disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          background: rgba(0, 0, 0, 0.05);
+        }
+
+        .equipe-card-avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: 800;
+          font-size: 0.8rem;
+          color: white;
+          flex-shrink: 0;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .equipe-card-info {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+          flex: 1;
+        }
+
+        .equipe-card-info strong {
+          font-size: 0.85rem;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .equipe-card-badge-elsewhere {
+          font-size: 0.68rem;
+          color: var(--muted-text);
+          font-weight: 600;
+          margin-top: 0.15rem;
+        }
+
+        .equipe-card-check {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: var(--primary-color);
+          color: white;
+          font-size: 0.7rem;
+          font-weight: bold;
+          flex-shrink: 0;
+        }
+
         /* Stepper Modal Footer */
         .ficha-modal-footer {
           padding: 1.25rem 1.5rem;
@@ -2090,18 +2202,6 @@ export function PosEncontroCirculosPage() {
 
           .ficha-stepper-header {
             padding: 1rem 0.5rem;
-            padding-bottom: 2rem;
-          }
-
-          .ficha-stepper-step .step-label {
-            display: none;
-          }
-
-          .ficha-stepper-step.active .step-label {
-            display: block;
-            position: absolute;
-            bottom: -20px;
-            white-space: nowrap;
           }
 
           .ficha-modal-container {

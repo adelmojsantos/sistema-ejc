@@ -55,6 +55,7 @@ export function PedidosCamisetasPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const [loading, setLoading] = useState(true);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
 
   // Bloqueia a rolagem do corpo da página quando um modal está aberto
@@ -228,20 +229,217 @@ export function PedidosCamisetasPage() {
     toast.success('Resumo copiado para o clipboard!');
   };
 
-  const handleExportExcel = () => {
-    const data = filteredPedidos.map(p => ({
-      'Participante': p.pessoa_nome,
-      'Equipe': p.equipe_nome,
-      'Modelo': p.camiseta_modelos?.nome,
-      'Tamanho': p.tamanho,
-      'Qtd': p.quantidade,
-      'Data Pedido': new Date(p.created_at).toLocaleDateString()
+  const sanitizeSheetName = (name: string) => {
+    const sanitized = name.replace(/[:\\/?*[\]]/g, ' ').replace(/\s+/g, ' ').trim();
+    return (sanitized || 'Equipe').slice(0, 31);
+  };
+
+  const handleExportTotaisExcel = () => {
+    const getSizeOrder = (modeloId: string, tamanho: string) => {
+      return tamanhosCamiseta.find(t => t.sigla === tamanho && (t.modelo_id === modeloId || !t.modelo_id))?.ordem ?? 999;
+    };
+
+    const makeKey = (modeloId: string, tamanho: string) => `${modeloId}__${tamanho}`;
+
+    const totalsMap = new Map<string, {
+      modelo_id: string;
+      modelo_nome: string;
+      tamanho: string;
+      pedidos: number;
+      intencoes: number;
+    }>();
+
+    pedidos.forEach(p => {
+      const tamanho = p.tamanho || 'Não Informado';
+      const key = makeKey(p.modelo_id, tamanho);
+      if (!totalsMap.has(key)) {
+        totalsMap.set(key, {
+          modelo_id: p.modelo_id,
+          modelo_nome: p.camiseta_modelos?.nome || 'Modelo não identificado',
+          tamanho,
+          pedidos: 0,
+          intencoes: 0
+        });
+      }
+      totalsMap.get(key)!.pedidos += p.quantidade;
+    });
+
+    intencoesDetalhadas.forEach(item => {
+      const tamanho = item.tamanho || 'Não Informado';
+      const key = makeKey(item.modelo_id, tamanho);
+      if (!totalsMap.has(key)) {
+        totalsMap.set(key, {
+          modelo_id: item.modelo_id,
+          modelo_nome: item.modelo_nome || 'Modelo não identificado',
+          tamanho,
+          pedidos: 0,
+          intencoes: 0
+        });
+      }
+      totalsMap.get(key)!.intencoes += item.quantidade;
+    });
+
+    const sortedTotals = Array.from(totalsMap.values()).sort((a, b) => {
+      const modelCompare = a.modelo_nome.localeCompare(b.modelo_nome);
+      if (modelCompare !== 0) return modelCompare;
+      return getSizeOrder(a.modelo_id, a.tamanho) - getSizeOrder(b.modelo_id, b.tamanho);
+    });
+
+    const totalRows = sortedTotals.map(item => ({
+      'Modelo': item.modelo_nome,
+      'Tamanho': item.tamanho,
+      'Equipes': item.pedidos,
+      'Intenção encontristas': item.intencoes,
+      'Total': item.pedidos + item.intencoes
     }));
 
-    const ws = XLSX.utils.json_to_sheet(data);
+    totalRows.push({
+      'Modelo': 'TOTAL GERAL',
+      'Tamanho': '',
+      'Equipes': totalRows.reduce((sum, row) => sum + row.Equipes, 0),
+      'Intenção encontristas': totalRows.reduce((sum, row) => sum + row['Intenção encontristas'], 0),
+      'Total': totalRows.reduce((sum, row) => sum + row.Total, 0)
+    });
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Pedidos");
-    XLSX.writeFile(wb, `pedidos_camisetas_${new Date().getTime()}.xlsx`);
+    const wsTotais = XLSX.utils.json_to_sheet(totalRows);
+    wsTotais['!cols'] = [
+      { wch: 18 },
+      { wch: 12 },
+      { wch: 12 },
+      { wch: 22 },
+      { wch: 16 }
+    ];
+    XLSX.utils.book_append_sheet(wb, wsTotais, 'Total Geral');
+
+    const pedidosPorEquipe = new Map<string, PedidoDetalhado[]>();
+    pedidos.forEach(p => {
+      const equipeNome = p.equipe_nome || 'Sem Equipe';
+      if (!pedidosPorEquipe.has(equipeNome)) pedidosPorEquipe.set(equipeNome, []);
+      pedidosPorEquipe.get(equipeNome)!.push(p);
+    });
+
+    Array.from(pedidosPorEquipe.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .forEach(([equipeNome, teamPedidos], index) => {
+        const teamMap = new Map<string, {
+          modelo_id: string;
+          modelo_nome: string;
+          tamanho: string;
+          quantidade: number;
+        }>();
+
+        teamPedidos.forEach(p => {
+          const tamanho = p.tamanho || 'Não Informado';
+          const key = makeKey(p.modelo_id, tamanho);
+          if (!teamMap.has(key)) {
+            teamMap.set(key, {
+              modelo_id: p.modelo_id,
+              modelo_nome: p.camiseta_modelos?.nome || 'Modelo não identificado',
+              tamanho,
+              quantidade: 0
+            });
+          }
+          teamMap.get(key)!.quantidade += p.quantidade;
+        });
+
+        const teamRows = Array.from(teamMap.values())
+          .sort((a, b) => {
+            const modelCompare = a.modelo_nome.localeCompare(b.modelo_nome);
+            if (modelCompare !== 0) return modelCompare;
+            return getSizeOrder(a.modelo_id, a.tamanho) - getSizeOrder(b.modelo_id, b.tamanho);
+          })
+          .map(item => ({
+            'Modelo': item.modelo_nome,
+            'Tamanho': item.tamanho,
+            'Quantidade': item.quantidade
+          }));
+
+        teamRows.push({
+          'Modelo': 'TOTAL',
+          'Tamanho': '',
+          'Quantidade': teamRows.reduce((sum, row) => sum + row.Quantidade, 0)
+        });
+
+        const sheetName = sanitizeSheetName(equipeNome) || `Equipe ${index + 1}`;
+        const uniqueSheetName = wb.SheetNames.includes(sheetName)
+          ? sanitizeSheetName(`${sheetName} ${index + 1}`)
+          : sheetName;
+        const wsEquipe = XLSX.utils.json_to_sheet(teamRows);
+        XLSX.utils.book_append_sheet(wb, wsEquipe, uniqueSheetName);
+      });
+
+    XLSX.writeFile(wb, `camisetas_total_geral_e_por_equipes_${new Date().getTime()}.xlsx`);
+  };
+
+  const handleExportPedidosPorEquipeExcel = () => {
+    const sortPedidos = (a: PedidoDetalhado, b: PedidoDetalhado) => {
+      const equipeCompare = (a.equipe_nome || 'Sem Equipe').localeCompare(b.equipe_nome || 'Sem Equipe');
+      if (equipeCompare !== 0) return equipeCompare;
+      const pessoaCompare = (a.pessoa_nome || '').localeCompare(b.pessoa_nome || '');
+      if (pessoaCompare !== 0) return pessoaCompare;
+      const modeloCompare = (a.camiseta_modelos?.nome || '').localeCompare(b.camiseta_modelos?.nome || '');
+      if (modeloCompare !== 0) return modeloCompare;
+      return a.tamanho.localeCompare(b.tamanho);
+    };
+
+    const data = [...pedidos].sort(sortPedidos).map(p => ({
+        'Equipe': p.equipe_nome || 'Sem Equipe',
+        'Pessoa': p.pessoa_nome,
+        'Modelo': p.camiseta_modelos?.nome || 'Modelo não identificado',
+        'Tamanho': p.tamanho,
+        'Quantidade': p.quantidade
+      }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws['!cols'] = [
+      { wch: 24 },
+      { wch: 34 },
+      { wch: 18 },
+      { wch: 12 },
+      { wch: 12 }
+    ];
+    if (data.length > 0) {
+      ws['!autofilter'] = { ref: `A1:E${data.length + 1}` };
+    }
+    XLSX.utils.book_append_sheet(wb, ws, 'Todos os pedidos');
+
+    const pedidosPorEquipe = new Map<string, PedidoDetalhado[]>();
+    pedidos.forEach(p => {
+      const equipeNome = p.equipe_nome || 'Sem Equipe';
+      if (!pedidosPorEquipe.has(equipeNome)) pedidosPorEquipe.set(equipeNome, []);
+      pedidosPorEquipe.get(equipeNome)!.push(p);
+    });
+
+    Array.from(pedidosPorEquipe.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .forEach(([equipeNome, teamPedidos], index) => {
+        const teamRows = [...teamPedidos].sort(sortPedidos).map(p => ({
+          'Pessoa': p.pessoa_nome,
+          'Modelo': p.camiseta_modelos?.nome || 'Modelo não identificado',
+          'Tamanho': p.tamanho,
+          'Quantidade': p.quantidade
+        }));
+
+        const sheetName = sanitizeSheetName(equipeNome) || `Equipe ${index + 1}`;
+        const uniqueSheetName = wb.SheetNames.includes(sheetName)
+          ? sanitizeSheetName(`${sheetName} ${index + 1}`)
+          : sheetName;
+        const wsEquipe = XLSX.utils.json_to_sheet(teamRows);
+        wsEquipe['!cols'] = [
+          { wch: 34 },
+          { wch: 18 },
+          { wch: 12 },
+          { wch: 12 }
+        ];
+        if (teamRows.length > 0) {
+          wsEquipe['!autofilter'] = { ref: `A1:D${teamRows.length + 1}` };
+        }
+        XLSX.utils.book_append_sheet(wb, wsEquipe, uniqueSheetName);
+      });
+
+    XLSX.writeFile(wb, `camisetas_pedidos_por_equipe_${new Date().getTime()}.xlsx`);
   };
 
   const loadTeamMembers = async (equipeId: string) => {
@@ -329,16 +527,82 @@ export function PedidosCamisetasPage() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button className="btn-secondary" onClick={() => setIsAddingOrder(true)} disabled={loading}>
             <Plus size={16} style={{ marginRight: '0.4rem' }} /> Novo Pedido
           </button>
           <button className="btn-secondary" onClick={handleCopySummary} disabled={loading}>
             <Copy size={16} style={{ marginRight: '0.4rem' }} /> Copiar
           </button>
-          <button className="btn-primary" onClick={handleExportExcel} disabled={loading}>
-            <Download size={16} style={{ marginRight: '0.4rem' }} /> Excel
-          </button>
+          <div style={{ position: 'relative' }}>
+            <button
+              className="btn-primary"
+              onClick={() => setIsExportMenuOpen(open => !open)}
+              disabled={loading}
+              type="button"
+            >
+              <Download size={16} style={{ marginRight: '0.4rem' }} />
+              Exportar
+              <ChevronDown size={16} style={{ marginLeft: '0.4rem' }} />
+            </button>
+            {isExportMenuOpen && (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: 'calc(100% + 0.35rem)',
+                  minWidth: '250px',
+                  background: 'var(--surface-1)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '10px',
+                  boxShadow: 'var(--shadow-lg)',
+                  padding: '0.35rem',
+                  zIndex: 20
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    handleExportTotaisExcel();
+                  }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-color)',
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  Total Geral e Por Equipes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    handleExportPedidosPorEquipeExcel();
+                  }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--text-color)',
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  Pedidos por Equipe
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

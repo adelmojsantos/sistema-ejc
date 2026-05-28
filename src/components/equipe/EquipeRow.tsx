@@ -14,27 +14,39 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
     const [isEditing, setIsEditing] = useState(false);
     const [editNome, setEditNome] = useState(equipe.nome || '');
     const [editAcesso, setEditAcesso] = useState<'verde' | 'amarela' | 'vermelha'>(equipe.acesso_plenario || 'verde');
+    const [editAparecePosEncontro, setEditAparecePosEncontro] = useState(equipe.aparece_pos_encontro !== false);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleSave = async () => {
         const trimmedNome = editNome.trim();
-        if (!trimmedNome || (trimmedNome === equipe.nome && editAcesso === (equipe.acesso_plenario || 'verde'))) {
+        const hasChanges = trimmedNome !== equipe.nome || 
+            editAcesso !== (equipe.acesso_plenario || 'verde') || 
+            editAparecePosEncontro !== (equipe.aparece_pos_encontro !== false);
+
+        if (!trimmedNome || !hasChanges) {
             setIsEditing(false);
             setEditNome(equipe.nome || '');
             setEditAcesso(equipe.acesso_plenario || 'verde');
+            setEditAparecePosEncontro(equipe.aparece_pos_encontro !== false);
             return;
         }
 
         setIsSaving(true);
         try {
-            await onUpdate(equipe.id, { nome: trimmedNome, foto_url: equipe.foto_url, acesso_plenario: editAcesso });
+            await onUpdate(equipe.id, { 
+                nome: trimmedNome, 
+                foto_url: equipe.foto_url, 
+                acesso_plenario: editAcesso,
+                aparece_pos_encontro: editAparecePosEncontro
+            });
             setIsEditing(false);
         } catch (error) {
             console.error('Erro ao atualizar equipe:', error);
             setEditNome(equipe.nome || '');
             setEditAcesso(equipe.acesso_plenario || 'verde');
+            setEditAparecePosEncontro(equipe.aparece_pos_encontro !== false);
         } finally {
             setIsSaving(false);
         }
@@ -43,6 +55,7 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
     const handleCancel = () => {
         setEditNome(equipe.nome || '');
         setEditAcesso(equipe.acesso_plenario || 'verde');
+        setEditAparecePosEncontro(equipe.aparece_pos_encontro !== false);
         setIsEditing(false);
     };
 
@@ -53,7 +66,12 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
         setIsUploading(true);
         try {
             const url = await equipeService.uploadFoto(equipe.id, file);
-            await onUpdate(equipe.id, { nome: equipe.nome || '', foto_url: url, acesso_plenario: equipe.acesso_plenario || 'verde' });
+            await onUpdate(equipe.id, { 
+                nome: equipe.nome || '', 
+                foto_url: url, 
+                acesso_plenario: equipe.acesso_plenario || 'verde',
+                aparece_pos_encontro: equipe.aparece_pos_encontro !== false
+            });
             toast.success('Foto da equipe atualizada!');
         } catch (error) {
             console.error('Erro no upload da foto da equipe:', error);
@@ -137,11 +155,20 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
                                 <option value="amarela" style={{ color: '#f59e0b' }}>🟡 Acesso Parcial (Encontristas apenas)</option>
                                 <option value="vermelha" style={{ color: '#dc2626' }}>🔴 Escondida</option>
                             </select>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-color)', cursor: 'pointer', marginTop: '0.25rem' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={editAparecePosEncontro}
+                                    onChange={(e) => setEditAparecePosEncontro(e.target.checked)}
+                                    disabled={isSaving}
+                                />
+                                Aparece na ficha de pós-encontro
+                            </label>
                         </>
                     ) : (
                         <div>
                             <h3 className="pessoa-row-name">{equipe.nome}</h3>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
                                 <span className="pessoa-row-sub">Equipe de Trabalho</span>
                                 <span style={{
                                     fontSize: '0.7rem',
@@ -152,6 +179,16 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
                                     color: (equipe.acesso_plenario || 'verde') === 'verde' ? '#10b981' : (equipe.acesso_plenario || 'verde') === 'amarela' ? '#f59e0b' : '#dc2626'
                                 }}>
                                     {(equipe.acesso_plenario || 'verde') === 'verde' ? '🟢 Acesso Total' : (equipe.acesso_plenario || 'verde') === 'amarela' ? '🟡 Acesso Parcial' : '🔴 Escondida'}
+                                </span>
+                                <span style={{
+                                    fontSize: '0.7rem',
+                                    fontWeight: 600,
+                                    padding: '2px 6px',
+                                    borderRadius: '4px',
+                                    backgroundColor: (equipe.aparece_pos_encontro !== false) ? 'rgba(99, 102, 241, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+                                    color: (equipe.aparece_pos_encontro !== false) ? 'var(--primary-color)' : 'var(--muted-text)'
+                                }}>
+                                    {equipe.aparece_pos_encontro !== false ? '✓ Pós-Encontro' : '✗ Pós-Encontro'}
                                 </span>
                             </div>
                         </div>
