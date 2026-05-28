@@ -1,4 +1,4 @@
-import { EditorContent, type Editor, useEditor } from '@tiptap/react';
+import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import UnderlineExtension from '@tiptap/extension-underline';
 import LinkExtension from '@tiptap/extension-link';
@@ -15,14 +15,12 @@ import {
   Heading2,
   Heading3,
   Italic,
-  Link,
   List,
   ListOrdered,
   Pilcrow,
   Redo2,
   Underline,
   Undo2,
-  Unlink,
 } from 'lucide-react';
 
 interface RichTextEditorProps {
@@ -57,25 +55,6 @@ const ToolbarButton = ({ title, active, disabled, onClick, children }: ToolbarBu
 
 function getInitialContent(content: string) {
   return content?.trim() ? content : '<p></p>';
-}
-
-function setLink(editor: Editor) {
-  const previousUrl = editor.getAttributes('link').href as string | undefined;
-  const url = window.prompt('Informe o link:', previousUrl ?? 'https://');
-
-  if (url === null) return;
-
-  if (!url.trim()) {
-    editor.chain().focus().extendMarkRange('link').unsetLink().run();
-    return;
-  }
-
-  editor
-    .chain()
-    .focus()
-    .extendMarkRange('link')
-    .setLink({ href: url.trim() })
-    .run();
 }
 
 export const RichTextEditor = ({
@@ -152,7 +131,7 @@ export const RichTextEditor = ({
       <div className="rich-text-toolbar" aria-label="Ferramentas de formatação">
         {toolbarMode === 'full' && (
           <>
-            <div className="toolbar-group" aria-label="Estilos de bloco">
+            <div className="toolbar-group toolbar-group-block" aria-label="Estilos de bloco">
               <ToolbarButton title="Parágrafo" active={editor.isActive('paragraph')} disabled={isDisabled} onClick={() => editor.chain().focus().setParagraph().run()}>
                 <Pilcrow size={18} />
               </ToolbarButton>
@@ -167,7 +146,7 @@ export const RichTextEditor = ({
               </ToolbarButton>
             </div>
 
-            <div className="toolbar-group" aria-label="Estilos de texto">
+            <div className="toolbar-group toolbar-group-text" aria-label="Estilos de texto">
               <ToolbarButton title="Negrito" active={editor.isActive('bold')} disabled={isDisabled} onClick={() => editor.chain().focus().toggleBold().run()}>
                 <Bold size={18} />
               </ToolbarButton>
@@ -179,7 +158,7 @@ export const RichTextEditor = ({
               </ToolbarButton>
             </div>
 
-            <div className="toolbar-group" aria-label="Alinhamento">
+            <div className="toolbar-group toolbar-group-align" aria-label="Alinhamento">
               <ToolbarButton title="Alinhar à esquerda" active={editor.isActive({ textAlign: 'left' })} disabled={isDisabled} onClick={() => editor.chain().focus().setTextAlign('left').run()}>
                 <AlignLeft size={18} />
               </ToolbarButton>
@@ -196,7 +175,7 @@ export const RichTextEditor = ({
           </>
         )}
 
-        <div className="toolbar-group" aria-label="Listas">
+        <div className="toolbar-group toolbar-group-lists" aria-label="Listas">
           <ToolbarButton
             title="Lista com marcadores"
             active={editor.isActive('bulletList')}
@@ -217,16 +196,7 @@ export const RichTextEditor = ({
 
         {toolbarMode === 'full' && (
           <>
-            <div className="toolbar-group" aria-label="Links">
-              <ToolbarButton title="Adicionar ou editar link" active={editor.isActive('link')} disabled={isDisabled} onClick={() => setLink(editor)}>
-                <Link size={18} />
-              </ToolbarButton>
-              <ToolbarButton title="Remover link" disabled={isDisabled || !editor.isActive('link')} onClick={() => editor.chain().focus().unsetLink().run()}>
-                <Unlink size={18} />
-              </ToolbarButton>
-            </div>
-
-            <div className="toolbar-group" aria-label="Histórico e limpeza">
+            <div className="toolbar-group toolbar-group-history" aria-label="Histórico e limpeza">
               <ToolbarButton title="Desfazer" disabled={isDisabled || !editor.can().undo()} onClick={() => editor.chain().focus().undo().run()}>
                 <Undo2 size={18} />
               </ToolbarButton>
@@ -239,6 +209,7 @@ export const RichTextEditor = ({
             </div>
           </>
         )}
+
       </div>
 
       <EditorContent editor={editor} className="rich-text-content" style={{ minHeight }} />
@@ -386,19 +357,52 @@ export const RichTextEditor = ({
 
         @media (max-width: 640px) {
           .rich-text-toolbar {
-            gap: 0.35rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: nowrap;
+            gap: 0.2rem;
+            min-height: auto;
+            padding: 0.45rem;
           }
 
           .toolbar-group {
-            width: 100%;
+            width: auto;
+            justify-content: center;
             border-right: 0;
-            border-bottom: 1px solid var(--border-color);
-            padding: 0 0 0.45rem;
+            border-bottom: 0;
+            padding: 0;
+            border-radius: 10px;
+            background: transparent;
           }
 
           .toolbar-group:last-child {
-            border-bottom: 0;
-            padding-bottom: 0;
+            padding-right: 0;
+          }
+
+          .toolbar-group-block {
+            display: none;
+          }
+
+          .toolbar-group-text {
+            display: inline-flex;
+          }
+
+          .toolbar-group-lists {
+            display: inline-flex;
+          }
+
+          .toolbar-group-align {
+            display: none;
+          }
+
+          .toolbar-group-history {
+            display: inline-flex;
+          }
+
+          .rich-tool-btn {
+            width: 29px;
+            height: 32px;
           }
         }
       `}</style>

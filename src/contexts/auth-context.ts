@@ -8,7 +8,7 @@ export interface AuthContextType {
     user: User | null;
     signOut: () => Promise<void>;
     profile: UserProfile | null;
-    refreshProfile: () => Promise<void>;
+    refreshProfile: (options?: { force?: boolean }) => Promise<void>;
     mustChangePassword: boolean;
     profileLoading: boolean;
     loading: boolean;

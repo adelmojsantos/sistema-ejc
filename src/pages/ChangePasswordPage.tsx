@@ -79,10 +79,11 @@ export function ChangePasswordPage() {
             
             const { error: rpcError } = await supabase.rpc('clear_temporary_password');
             if (rpcError) {
-                console.warn('Aviso: Senha trocada, mas erro ao limpar flag (RPC):', rpcError);
+                console.error('Senha trocada, mas erro ao limpar flag temporária:', rpcError);
+                throw new Error('A senha foi alterada, mas não foi possível liberar o acesso. Tente entrar novamente ou acione um administrador.');
             }
 
-            await refreshProfile();
+            await refreshProfile({ force: true });
             toast.success('Senha atualizada com sucesso!');
             
             setTimeout(() => {

@@ -146,9 +146,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {(!collapsed || mobileOpen) && (
               <div className="user-compact-info">
                 <span className="user-compact-name">{profile?.nome_completo || profile?.email?.split('@')[0]}</span>
-                <span className="user-compact-role">
-                  {profile?.grupos && profile.grupos.length > 0 ? profile.grupos[0] : 'Usuário'}
-                </span>
               </div>
             )}
           </div>

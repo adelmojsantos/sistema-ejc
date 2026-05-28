@@ -1,4 +1,4 @@
-import { ClipboardCheck, Users, Calendar, Shield, UsersRound, UserPlus, Mic } from 'lucide-react';
+import { ClipboardCheck, Users, Calendar, Shield, UsersRound, UserPlus, Mic, BookOpen } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -94,6 +94,16 @@ const CATEGORIES: CadastroCategory[] = [
     color: '#0ea5e9',
     available: true,
     permission: ['modulo_cadastros', 'modulo_admin']
+  },
+  {
+    id: 'pos-encontros',
+    path: '/cadastros/pos-encontros',
+    label: 'Pós-Encontro',
+    description: 'Cadastro dos roteiros oficiais usados pelos círculos.',
+    icon: <BookOpen size={34} />,
+    color: '#14b8a6',
+    available: true,
+    permission: ['modulo_cadastros', 'modulo_secretaria', 'modulo_admin']
   },
 ];
 

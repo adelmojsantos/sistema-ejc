@@ -24,10 +24,13 @@ import { EncontrosPage } from './pages/cadastros/EncontrosPage';
 import { EquipesPage } from './pages/cadastros/EquipesPage';
 import { MontagemCirculos } from './pages/circulos/MontagemCirculos';
 import { ResumoPalestrasPage } from './pages/circulos/ResumoPalestrasPage';
+import { PosEncontroCirculosPage } from './pages/circulos/PosEncontroCirculosPage';
 import { MontagemPage } from './pages/cadastros/MontagemPage';
 import { PessoasPage } from './pages/cadastros/PessoasPage';
 import { PalestrasGestaoPage } from './pages/cadastros/PalestrasGestaoPage';
 import { PalestrasResumoPage } from './pages/cadastros/PalestrasResumoPage';
+import { PosEncontrosCadastroPage } from './pages/cadastros/PosEncontrosCadastroPage';
+import { PosEncontroFormPage } from './pages/cadastros/PosEncontroFormPage';
 import { PalestrasModulePage } from './pages/atividades/PalestrasModulePage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CoordenadorAvaliacaoPage } from './pages/coordenador/CoordenadorAvaliacaoPage';
@@ -238,7 +241,6 @@ function AnimatedRoutes() {
                 'modulo_circulos',
                 'modulo_circulos_cadastros',
                 'modulo_circulos_coordenador',
-                'modulo_circulos_mediador',
                 'modulo_admin'
               ]}
             >
@@ -292,6 +294,22 @@ function AnimatedRoutes() {
                 </ProtectedRoute>
               } 
             />
+            <Route
+              path="pos-encontros"
+              element={
+                <ProtectedRoute requiredPermissions={['modulo_circulos_coordenador', 'modulo_circulos_mediador', 'modulo_admin']}>
+                  <PosEncontroCirculosPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="pos-encontros/:id"
+              element={
+                <ProtectedRoute requiredPermissions={['modulo_circulos_coordenador', 'modulo_circulos_mediador', 'modulo_admin']}>
+                  <PosEncontroCirculosPage />
+                </ProtectedRoute>
+              }
+            />
           </Route>
 
           <Route path="/coordenador/minha-equipe" element={
@@ -343,7 +361,7 @@ function AnimatedRoutes() {
           </Route>
 
           <Route path="/cadastros" element={
-            <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
+            <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_secretaria', 'modulo_admin']}>
               <Cadastros />
             </ProtectedRoute>
           }>
@@ -356,6 +374,21 @@ function AnimatedRoutes() {
             <Route path="equipes" element={<EquipesPage />} />
             <Route path="montagem" element={<MontagemPage />} />
             <Route path="avaliacao" element={<AvaliacaoEncontroPage />} />
+            <Route path="pos-encontros" element={
+              <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_secretaria', 'modulo_admin']}>
+                <PosEncontrosCadastroPage />
+              </ProtectedRoute>
+            } />
+            <Route path="pos-encontros/novo" element={
+              <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_secretaria', 'modulo_admin']}>
+                <PosEncontroFormPage />
+              </ProtectedRoute>
+            } />
+            <Route path="pos-encontros/:id" element={
+              <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_secretaria', 'modulo_admin']}>
+                <PosEncontroFormPage />
+              </ProtectedRoute>
+            } />
           </Route>
         </Route>
 

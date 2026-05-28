@@ -1,9 +1,55 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { UserProfile } from '../types/auth';
 import { AuthContext } from './auth-context';
 import type { InscricaoEnriched } from '../types/inscricao';
+
+const PROFILE_CACHE_TTL_MS = 3 * 60 * 1000;
+
+interface AuthProfileCacheEntry {
+    profile: UserProfile;
+    userParticipacao: InscricaoEnriched | null;
+    cachedAt: number;
+}
+
+const getProfileCacheKey = (userId: string) => `auth-profile:${userId}`;
+
+const readProfileCache = (userId: string): AuthProfileCacheEntry | null => {
+    try {
+        const raw = sessionStorage.getItem(getProfileCacheKey(userId));
+        if (!raw) return null;
+
+        const parsed = JSON.parse(raw) as AuthProfileCacheEntry;
+        if (!parsed.profile || Date.now() - parsed.cachedAt > PROFILE_CACHE_TTL_MS) {
+            sessionStorage.removeItem(getProfileCacheKey(userId));
+            return null;
+        }
+
+        return parsed;
+    } catch {
+        return null;
+    }
+};
+
+const writeProfileCache = (userId: string, entry: Omit<AuthProfileCacheEntry, 'cachedAt'>) => {
+    try {
+        sessionStorage.setItem(
+            getProfileCacheKey(userId),
+            JSON.stringify({ ...entry, cachedAt: Date.now() })
+        );
+    } catch {
+        // Cache is an optimization only; private browsing/storage limits should not break auth.
+    }
+};
+
+const clearProfileCache = (userId: string) => {
+    try {
+        sessionStorage.removeItem(getProfileCacheKey(userId));
+    } catch {
+        // Ignore storage errors.
+    }
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [session, setSession] = useState<Session | null>(null);
@@ -12,11 +58,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [userParticipacao, setUserParticipacao] = useState<InscricaoEnriched | null>(null);
     const [profileLoading, setProfileLoading] = useState(false);
     const [loading, setLoading] = useState(true);
+    const inFlightProfileLoadsRef = useRef(new Map<string, Promise<void>>());
 
-    const loadProfile = useCallback(async (userId: string, isInitialLoad = false) => {
+    const loadProfile = useCallback(async (
+        userId: string,
+        options: { isInitialLoad?: boolean; force?: boolean } = {}
+    ) => {
+        const { isInitialLoad = false, force = false } = options;
         if (isInitialLoad) setProfileLoading(true);
 
-        try {
+        if (!force) {
+            const cached = readProfileCache(userId);
+            if (cached) {
+                setProfile(cached.profile);
+                setUserParticipacao(cached.userParticipacao);
+                if (isInitialLoad) setProfileLoading(false);
+                return;
+            }
+
+            const inFlightLoad = inFlightProfileLoadsRef.current.get(userId);
+            if (inFlightLoad) {
+                try {
+                    await inFlightLoad;
+                } finally {
+                    if (isInitialLoad) setProfileLoading(false);
+                }
+                return;
+            }
+        }
+
+        const request = (async () => {
             // 1. Fetch Profile
             const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
@@ -107,7 +178,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             setProfile(extendedProfile);
 
-            // 4. Fetch Latest Participation for the active encounter
+            let nextUserParticipacao: InscricaoEnriched | null = null;
+
+            // 5. Fetch Latest Participation for the active encounter
             if (activeEncontroId && profileData?.email) {
                 const { data: partData, error: partError } = await supabase
                     .from('participacoes')
@@ -117,20 +190,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     .maybeSingle();
 
                 if (!partError) {
-                    setUserParticipacao(partData as InscricaoEnriched | null);
+                    nextUserParticipacao = partData as InscricaoEnriched | null;
                 }
             }
+
+            setUserParticipacao(nextUserParticipacao);
+            writeProfileCache(userId, {
+                profile: extendedProfile,
+                userParticipacao: nextUserParticipacao
+            });
+        })();
+
+        inFlightProfileLoadsRef.current.set(userId, request);
+
+        try {
+            await request;
         } catch (error) {
             console.error('Erro ao carregar perfil/participação:', error);
             if (isInitialLoad) setProfile(null);
         } finally {
+            if (inFlightProfileLoadsRef.current.get(userId) === request) {
+                inFlightProfileLoadsRef.current.delete(userId);
+            }
             if (isInitialLoad) setProfileLoading(false);
         }
     }, []);
 
-    const refreshProfile = useCallback(async () => {
+    const refreshProfile = useCallback(async (options?: { force?: boolean }) => {
         if (!user) return;
-        await loadProfile(user.id);
+        if (options?.force) clearProfileCache(user.id);
+        await loadProfile(user.id, { force: options?.force });
     }, [loadProfile, user]);
 
     useEffect(() => {
@@ -140,7 +229,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(session?.user ?? null);
 
             if (session?.user) {
-                loadProfile(session.user.id, true).finally(() => setLoading(false));
+                loadProfile(session.user.id, { isInitialLoad: true }).finally(() => setLoading(false));
                 return;
             }
 
@@ -150,6 +239,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            // getSession() above already handles the initial bootstrap. Processing this
+            // event too can duplicate profiles/usuario_grupos reads on page load.
+            if (event === 'INITIAL_SESSION') return;
+
             // TOKEN_REFRESHED apenas renova o JWT em segundo plano — não altera a
             // identidade do usuário, portanto não precisamos recarregar nada.
             if (event === 'TOKEN_REFRESHED') return;
@@ -158,9 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(session?.user ?? null);
 
             if (session?.user) {
-                // Wait for profile info if it hasn't loaded yet (like during a refresh event)
-                const isFirstLoad = !profile;
-                loadProfile(session.user.id, isFirstLoad).finally(() => setLoading(false));
+                loadProfile(session.user.id).finally(() => setLoading(false));
             } else {
                 setProfile(null);
                 setUserParticipacao(null);
@@ -186,7 +277,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     filter: `id=eq.${user.id}`
                 },
                 () => {
-                    refreshProfile();
+                    refreshProfile({ force: true });
                 }
             )
             .subscribe();
@@ -196,32 +287,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
     }, [user, refreshProfile]);
 
-    const signOut = async () => {
+    const signOut = useCallback(async () => {
         await supabase.auth.signOut();
-    };
+    }, []);
+
+    const permissionSet = useMemo(() => new Set(profile?.permissions ?? []), [profile?.permissions]);
 
     const hasPermission = useCallback((permission: string) => {
-        if (!profile?.permissions) return false;
+        if (permissionSet.size === 0) return false;
         // Admins can be configured to have all permissions by db entry. Or we can hardcode fallback:
-        if (profile.permissions.includes('modulo_admin')) return true;
-        return profile.permissions.includes(permission);
-    }, [profile]);
+        if (permissionSet.has('modulo_admin')) return true;
+        return permissionSet.has(permission);
+    }, [permissionSet]);
+
+    const contextValue = useMemo(() => ({
+        session,
+        user,
+        signOut,
+        profile,
+        refreshProfile,
+        userParticipacao,
+        mustChangePassword: !!profile?.temporary_password,
+        profileLoading,
+        loading,
+        hasPermission
+    }), [
+        session,
+        user,
+        signOut,
+        profile,
+        refreshProfile,
+        userParticipacao,
+        profile?.temporary_password,
+        profileLoading,
+        loading,
+        hasPermission
+    ]);
 
     return (
-        <AuthContext.Provider
-            value={{
-                session,
-                user,
-                signOut,
-                profile,
-                refreshProfile,
-                userParticipacao,
-                mustChangePassword: !!profile?.temporary_password,
-                profileLoading,
-                loading,
-                hasPermission
-            }}
-        >
+        <AuthContext.Provider value={contextValue}>
             {children}
         </AuthContext.Provider>
     );

@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { UsersRound, ListTree, Layers, BookOpen } from 'lucide-react';
+import { UsersRound, ListTree, Layers, BookOpen, BookOpenCheck } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 const TABS = [
@@ -30,6 +30,15 @@ const TABS = [
     color: '#10b981',
     permission: 'modulo_circulos_coordenador',
   },
+  {
+    id: 'pos-encontros',
+    path: '/circulos/pos-encontros',
+    label: 'Pós-Encontro',
+    description: 'Registrar realização, presenças e Ficha de Pós-Encontro por círculo.',
+    icon: <BookOpenCheck size={34} />,
+    color: '#14b8a6',
+    permission: ['modulo_circulos_coordenador', 'modulo_circulos_mediador'],
+  },
 ] as const;
 
 export function CirculosPortalPage() {
@@ -42,7 +51,10 @@ export function CirculosPortalPage() {
 
   if (!isHub) return <Outlet />;
 
-  const allowedTabs = TABS.filter(tab => hasPermission(tab.permission));
+  const allowedTabs = TABS.filter(tab => {
+    const permissions = Array.isArray(tab.permission) ? tab.permission : [tab.permission];
+    return permissions.some(permission => hasPermission(permission));
+  });
 
   return (
     <section className="cadastros-hub fade-in">
