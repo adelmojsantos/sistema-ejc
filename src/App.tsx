@@ -25,6 +25,7 @@ import { EquipesPage } from './pages/cadastros/EquipesPage';
 import { MontagemCirculos } from './pages/circulos/MontagemCirculos';
 import { ResumoPalestrasPage } from './pages/circulos/ResumoPalestrasPage';
 import { PosEncontroCirculosPage } from './pages/circulos/PosEncontroCirculosPage';
+import { PosEncontroFichasPage } from './pages/circulos/PosEncontroFichasPage';
 import { MontagemPage } from './pages/cadastros/MontagemPage';
 import { PessoasPage } from './pages/cadastros/PessoasPage';
 import { PalestrasGestaoPage } from './pages/cadastros/PalestrasGestaoPage';
@@ -68,6 +69,9 @@ import { ExternalSessionProvider } from './contexts/ExternalSessionContext';
 import FormAccess from './pages/Public/FormAccess';
 import FormPage from './pages/Public/FormPage';
 import FormRecreacaoPage from './pages/Public/FormRecreacaoPage';
+import FormCirculoAccessPage from './pages/Public/FormCirculoAccessPage';
+import FormCirculoFichaPage from './pages/Public/FormCirculoFichaPage';
+import { CirculoSessionProvider } from './contexts/CirculoSessionContext';
 import { EncontroQuadranteConfigPage } from './pages/cadastros/EncontroQuadranteConfigPage';
 import { QuadranteAuthPage } from './pages/Public/QuadranteAuthPage';
 import { QuadrantePage } from './pages/Public/QuadrantePage';
@@ -108,6 +112,9 @@ function AnimatedRoutes() {
         <Route path="/q/:token" element={<QuadranteAuthPage />} />
         <Route path="/quadrante/:token" element={<QuadrantePage isAdminView={true} />} />
         <Route path="/quadrante/:token/publico" element={<QuadrantePage isAdminView={false} />} />
+        {/* Rotas públicas — Ficha Pós-Encontro por Círculo */}
+        <Route path="/pos-encontro/circulo/:circulo_id" element={<PageTransition><FormCirculoAccessPage /></PageTransition>} />
+        <Route path="/pos-encontro/ficha" element={<PageTransition><FormCirculoFichaPage /></PageTransition>} />
 
         <Route path="/alterar-senha" element={
           <ProtectedRoute allowTemporaryPassword={true}>
@@ -310,6 +317,14 @@ function AnimatedRoutes() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="fichas-pos-encontro"
+              element={
+                <ProtectedRoute requiredPermissions={['modulo_circulos_coordenador', 'modulo_circulos_mediador', 'modulo_admin']}>
+                  <PosEncontroFichasPage />
+                </ProtectedRoute>
+              }
+            />
           </Route>
 
           <Route path="/coordenador/minha-equipe" element={
@@ -452,11 +467,13 @@ function App() {
     <ThemeProvider>
       <AuthProvider>
         <ExternalSessionProvider>
-          <EncontroProvider>
-            <EquipeProvider>
-              <MainApp />
-            </EquipeProvider>
-          </EncontroProvider>
+          <CirculoSessionProvider>
+            <EncontroProvider>
+              <EquipeProvider>
+                <MainApp />
+              </EquipeProvider>
+            </EncontroProvider>
+          </CirculoSessionProvider>
         </ExternalSessionProvider>
       </AuthProvider>
     </ThemeProvider>

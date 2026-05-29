@@ -26,6 +26,14 @@ export interface ExternalSession {
   };
 }
 
+export interface CirculoAccessParams {
+  circulo_id: number;
+  encontro_id: string;
+  participacao_id: string;
+  data_nascimento: string; // formato YYYY-MM-DD
+  telefone_fim: string;    // 4 últimos dígitos
+}
+
 export const externalAccessService = {
   /**
    * Valida os dados do participante e gera um token de acesso temporário via RPC.
@@ -40,6 +48,27 @@ export const externalAccessService = {
 
     if (error) {
       console.error('Erro na validação externa:', error);
+      throw new Error(error.message || 'Não foi possível validar seus dados.');
+    }
+
+    return data as string;
+  },
+
+  /**
+   * Valida o encontrista pelo círculo (participacao_id + data_nascimento + 4 últimos dígitos do telefone)
+   * e gera um token de acesso temporário com validade de 24 horas.
+   */
+  async validateCirculoAccess(params: CirculoAccessParams): Promise<string> {
+    const { data, error } = await supabase.rpc('validate_circulo_access', {
+      p_circulo_id: params.circulo_id,
+      p_encontro_id: params.encontro_id,
+      p_participacao_id: params.participacao_id,
+      p_data_nascimento: params.data_nascimento,
+      p_telefone_fim: params.telefone_fim,
+    });
+
+    if (error) {
+      console.error('Erro na validação do círculo:', error);
       throw new Error(error.message || 'Não foi possível validar seus dados.');
     }
 

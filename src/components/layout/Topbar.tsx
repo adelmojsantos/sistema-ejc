@@ -72,6 +72,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
     if (path.startsWith('/recreacao')) return 'Recreação Infantil';
     if (path.startsWith('/secretaria')) return 'Secretaria';
     if (path.startsWith('/visitacao')) return 'Visitação';
+    if (path.startsWith('/circulos/fichas-pos-encontro')) return 'Ficha Pós-Encontro';
     if (path.startsWith('/circulos/pos-encontros')) return 'Pós-Encontro';
     if (path.startsWith('/circulos')) return 'Círculos';
     if (path.startsWith('/cadastros/pos-encontros')) return 'Pós-Encontro';

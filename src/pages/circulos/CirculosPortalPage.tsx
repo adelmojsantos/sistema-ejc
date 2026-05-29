@@ -34,7 +34,7 @@ const TABS = [
     id: 'pos-encontros',
     path: '/circulos/pos-encontros',
     label: 'Pós-Encontro',
-    description: 'Registrar realização, presenças e Ficha de Pós-Encontro por círculo.',
+    description: 'Registrar realização e presenças dos pós-encontros por círculo.',
     icon: <BookOpenCheck size={34} />,
     color: '#14b8a6',
     permission: ['modulo_circulos_coordenador', 'modulo_circulos_mediador'],
