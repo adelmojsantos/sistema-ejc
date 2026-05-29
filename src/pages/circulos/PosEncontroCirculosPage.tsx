@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpenCheck, CalendarCheck, CheckSquare, Paperclip, Square, FileText } from 'lucide-react';
+import jsPDF from 'jspdf';
+import { BookOpenCheck, CalendarCheck, CheckSquare, Download, Paperclip, Square, FileText } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { circuloParticipacaoService } from '../../services/circuloParticipacaoService';
 import { circuloService } from '../../services/circuloService';
 import { posEncontroService } from '../../services/posEncontroService';
 import type { Circulo } from '../../types/circulo';
+import type { CirculoParticipacaoEnriched } from '../../types/circuloParticipacao';
 import type { PosEncontro, PosEncontroParticipanteCirculo, PosEncontroRealizacao, PosEncontroStatus } from '../../types/posEncontro';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
+import { equipeService } from '../../services/equipeService';
+import type { Equipe } from '../../types/equipe';
 
 const formatFileSize = (size?: number | null) => {
   if (!size) return '';
@@ -38,7 +43,16 @@ const formatEncontroOption = (encontro: { nome?: string | null; edicao?: number 
   return encontro.tema ? `${titulo} • ${encontro.tema}` : titulo;
 };
 
+const sanitizeFileName = (value: string) => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[^a-z0-9]+/gi, '_')
+  .replace(/^_+|_+$/g, '')
+  .toLowerCase();
 
+const getVinculoNome = (vinculo: CirculoParticipacaoEnriched) => (
+  vinculo.participacoes?.pessoas?.nome_completo?.trim() || 'Nome não informado'
+);
 
 export function PosEncontroCirculosPage() {
   const navigate = useNavigate();
@@ -59,12 +73,12 @@ export function PosEncontroCirculosPage() {
   const [isLoadingBase, setIsLoadingBase] = useState(false);
   const [isLoadingParticipantes, setIsLoadingParticipantes] = useState(false);
   const [isSavingPresencas, setIsSavingPresencas] = useState(false);
+  const [isGeneratingFichasPdf, setIsGeneratingFichasPdf] = useState(false);
   const [isNoPresenceDialogOpen, setIsNoPresenceDialogOpen] = useState(false);
+  const [equipes, setEquipes] = useState<Equipe[]>([]);
   const canChooseCirculo = hasPermission('modulo_circulos_coordenador') || hasPermission('modulo_admin');
   const isMediatorOnly = hasPermission('modulo_circulos_mediador') && !canChooseCirculo;
   const isDetailRoute = !!routePosId;
-
-
 
   useEffect(() => {
     if (isDetailRoute) return;
@@ -72,6 +86,19 @@ export function PosEncontroCirculosPage() {
       setSelectedEncontroId(encontroAtivo?.id ?? encontros[encontros.length - 1]?.id ?? '');
     }
   }, [encontroAtivo, encontros, isDetailRoute, selectedEncontroId]);
+
+  // Carregar Equipes Ativas
+  useEffect(() => {
+    async function loadEquipes() {
+      try {
+        const data = await equipeService.listarAparecePosEncontro();
+        setEquipes(data);
+      } catch (error) {
+        console.error('Erro ao carregar equipes:', error);
+      }
+    }
+    loadEquipes();
+  }, []);
 
   useEffect(() => {
     if (!routeCirculoId || isMediatorOnly) return;
@@ -322,7 +349,208 @@ export function PosEncontroCirculosPage() {
         ? 'Nenhuma presença marcada. Ao salvar, será solicitada uma confirmação.'
         : '';
 
+  const drawFichaCard = (
+    doc: jsPDF,
+    params: {
+      encontroLabel: string;
+      circuloNome: string;
+      mediadores: string[];
+      encontristaNome: string;
+      fichaNumber: number;
+      slotIndex: 0 | 1;
+    }
+  ) => {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 10;
+    const topY = params.slotIndex === 0 ? 7 : 151;
+    const cardHeight = 136;
+    let y = topY + 6;
 
+    doc.setDrawColor(20);
+    doc.setLineWidth(0.4);
+    doc.rect(margin, topY, pageWidth - margin * 2, cardHeight);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text(`FICHA PÓS-ENCONTRO`, pageWidth / 2, y, { align: 'center' });
+    doc.setFontSize(8);
+    doc.text(`FICHA ${params.fichaNumber}`, pageWidth - margin - 3, y, { align: 'right' });
+
+    y += 7;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(`${params.encontroLabel}`, pageWidth / 2, y, { align: 'center' });
+
+    y += 7;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(`Circulo: ${params.circuloNome} - ${params.mediadores.join(' & ') || 'Nao informado'}`, margin + 4, y, { maxWidth: pageWidth - (margin + 4) });
+    y += 7;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(`Encontrista: ${params.encontristaNome}`, margin + 4, y, { maxWidth: pageWidth - margin * 2 - 8 });
+    y += 7;
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.1);
+    doc.line(margin + 4, y, pageWidth - margin - 4, y);
+    y += 7;
+
+    doc.setFontSize(9.5);
+    doc.text('EQUIPE QUE GOSTARIA DE TRABALHAR (ESCOLHA 3 - Assinale 1, 2 e 3)', margin + 4, y);
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text('Escreva 1, 2 e 3 dentro dos parenteses das suas opcoes de preferencia.', margin + 4, y);
+    y += 6;
+
+    const colWidth = 62;
+    equipes.forEach((option, index) => {
+      const col = index % 3;
+      const row = Math.floor(index / 3);
+      const x = margin + 5 + col * colWidth;
+      const optionY = y + row * 8;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.8);
+      doc.text('(      )', x, optionY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(option.nome ?? '', x + 15, optionY);
+    });
+
+    y += 28;
+    doc.setDrawColor(0);
+    doc.line(margin + 4, y, pageWidth - margin - 4, y);
+    y += 7;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text('Toco Instrumento Musical:', margin + 4, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text('(      ) Nao (      ) Sim', margin + 50, y);
+    // doc.text('(      ) Sim', margin + 62, y);
+    doc.text('Quais?', margin + 131, y);
+    doc.line(margin + 145, y + 1, pageWidth - margin - 5, y + 1);
+    y += 5;
+    doc.setDrawColor(0);
+    doc.line(margin + 4, y, pageWidth - margin - 4, y);
+    y += 7;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tenho:', margin + 4, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text('(      ) Carro', margin + 26, y);
+    doc.text('(      ) Moto', margin + 72, y);
+    y += 5;
+    doc.setDrawColor(0);
+    doc.line(margin + 4, y, pageWidth - margin - 4, y);
+    y += 5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Observacoes:', margin + 4, y);
+    y += 4;
+    doc.setDrawColor(120);
+    for (let i = 0; i < 4; i += 1) {
+      doc.line(margin + 4, y + i * 7, pageWidth - margin - 4, y + i * 7);
+    }
+
+    if (params.slotIndex === 0) {
+      doc.setDrawColor(180);
+      doc.setLineDashPattern([2, 2], 0);
+      doc.line(margin, 148, pageWidth - margin, 148);
+      doc.setLineDashPattern([], 0);
+    }
+  };
+
+  const handleGerarFichasPdf = async () => {
+    if (!selectedEncontroId) {
+      toast.error('Selecione um encontro para gerar as fichas.');
+      return;
+    }
+
+    setIsGeneratingFichasPdf(true);
+    try {
+      const vinculos = await circuloParticipacaoService.listarPorEncontro(selectedEncontroId);
+      const circulosEscopo = isMediatorOnly
+        ? circulos.filter((circulo) => circulo.id === selectedCirculoId)
+        : circulos;
+      const circuloIdsPermitidos = new Set(circulosEscopo.map((circulo) => circulo.id));
+      const vinculosDoEscopo = vinculos.filter((vinculo) => circuloIdsPermitidos.has(vinculo.circulo_id));
+      const participantesPorCirculo = new Map<number, CirculoParticipacaoEnriched[]>();
+      const mediadoresPorCirculo = new Map<number, string[]>();
+
+      vinculosDoEscopo.forEach((vinculo) => {
+        if (vinculo.mediador) {
+          mediadoresPorCirculo.set(vinculo.circulo_id, [
+            ...(mediadoresPorCirculo.get(vinculo.circulo_id) ?? []),
+            getVinculoNome(vinculo),
+          ]);
+          return;
+        }
+
+        participantesPorCirculo.set(vinculo.circulo_id, [
+          ...(participantesPorCirculo.get(vinculo.circulo_id) ?? []),
+          vinculo,
+        ]);
+      });
+
+      const circulosComParticipantes = circulosEscopo
+        .filter((circulo) => (participantesPorCirculo.get(circulo.id)?.length ?? 0) > 0)
+        .sort((a, b) => (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR', { sensitivity: 'base' }));
+
+      if (circulosComParticipantes.length === 0) {
+        toast.error(isMediatorOnly ? 'Nenhum encontrista vinculado ao seu círculo.' : 'Nenhum encontrista vinculado aos círculos deste encontro.');
+        return;
+      }
+
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const encontroLabel = selectedEncontro?.edicao
+        ? `${selectedEncontro.edicao}º EJC - ${selectedEncontro.tema ?? ''}`
+        : selectedEncontro?.nome ?? 'Encontro';
+      let fichaNumber = 0;
+      let slotIndex: 0 | 1 = 0;
+      let currentPageHasContent = false;
+
+      circulosComParticipantes.forEach((circulo) => {
+        if (slotIndex === 1) {
+          doc.addPage();
+          slotIndex = 0;
+          currentPageHasContent = false;
+        }
+
+        const participantesCirculo = [...(participantesPorCirculo.get(circulo.id) ?? [])]
+          .sort((a, b) => getVinculoNome(a).localeCompare(getVinculoNome(b), 'pt-BR', { sensitivity: 'base' }));
+        const mediadores = mediadoresPorCirculo.get(circulo.id) ?? [];
+
+        participantesCirculo.forEach((participante, index) => {
+          if (currentPageHasContent && slotIndex === 0) {
+            doc.addPage();
+            currentPageHasContent = false;
+          }
+          fichaNumber = index + 1;
+          drawFichaCard(doc, {
+            encontroLabel,
+            circuloNome: circulo.nome ?? 'Circulo',
+            mediadores,
+            encontristaNome: getVinculoNome(participante),
+            fichaNumber,
+            slotIndex,
+          });
+          currentPageHasContent = true;
+          slotIndex = slotIndex === 0 ? 1 : 0;
+        });
+      });
+
+      const fileName = `fichas_pos_encontro_${sanitizeFileName(encontroLabel)}.pdf`;
+      doc.save(fileName);
+      toast.success('PDF das fichas gerado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao gerar PDF das fichas:', error);
+      toast.error('Não foi possível gerar o PDF das fichas.');
+    } finally {
+      setIsGeneratingFichasPdf(false);
+    }
+  };
 
   const pageTitle = isDetailRoute && selectedPos ? `${selectedPos.ordem}º Pós-Encontro` : 'Pós-Encontro';
   const pageSubtitle = isDetailRoute && selectedPos
@@ -373,27 +601,32 @@ export function PosEncontroCirculosPage() {
 
         {!selectedPos && (
           <section className="pos-encontro-list-section">
-            <div className="pos-encontro-card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-              <div>
-                <strong>Pós-Encontros cadastrados</strong>
-                <p className="text-muted" style={{ margin: '0.25rem 0 0' }}>
-                  Escolha um pós para registrar data, observações, presenças e fichas.
-                </p>
+            {selectedCirculoId && (
+              <div className="pos-encontro-card-header" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+
+                <div className="pos-encontro-card-actions">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={isGeneratingFichasPdf || !selectedEncontroId}
+                    onClick={handleGerarFichasPdf}
+                  >
+                    <Download size={18} />
+                    {isGeneratingFichasPdf ? 'Gerando...' : 'Gerar Fichas PDF'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={!isFichaButtonEnabled}
+                    onClick={() => navigate(`/circulos/fichas-pos-encontro?circuloId=${selectedCirculoId}&encontroId=${selectedEncontroId}`)}
+                    title={!isFichaButtonEnabled ? "A Ficha Pós-Encontro só fica disponível quando resta apenas o último pós-encontro pendente." : undefined}
+                  >
+                    <FileText size={18} />
+                    Fichas Pós-Encontro
+                  </button>
+                </div>
               </div>
-              {selectedCirculoId && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={!isFichaButtonEnabled}
-                  onClick={() => navigate(`/circulos/fichas-pos-encontro?circuloId=${selectedCirculoId}&encontroId=${selectedEncontroId}`)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-                  title={!isFichaButtonEnabled ? "A Ficha Pós-Encontro só fica disponível quando resta apenas o último pós-encontro pendente." : undefined}
-                >
-                  <FileText size={18} />
-                  Ficha Pós-Encontro
-                </button>
-              )}
-            </div>
+            )}
 
             {isLoadingBase ? (
               <div className="text-muted" style={{ padding: '1.25rem' }}>Carregando pós-encontros...</div>
@@ -732,6 +965,22 @@ export function PosEncontroCirculosPage() {
           padding: 0;
         }
 
+        .pos-encontro-card-actions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 1rem;
+          flex-wrap: wrap;
+        }
+
+        .pos-encontro-card-actions .btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          white-space: nowrap;
+        }
+
         .pos-encontro-participantes-header {
           padding: 1rem 1.25rem;
           border-bottom: 1px solid var(--border-color);
@@ -740,7 +989,7 @@ export function PosEncontroCirculosPage() {
           align-items: center;
           gap: 1rem;
         }
-
+          
         .pos-encontro-list {
           display: flex;
           flex-direction: column;
@@ -1045,6 +1294,18 @@ export function PosEncontroCirculosPage() {
           .pos-encontro-card-header,
           .pos-encontro-participantes-header {
             padding: 0;
+          }
+
+          .pos-encontro-card-actions {
+            width: 100%;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0.65rem;
+          }
+
+          .pos-encontro-card-actions .btn {
+            width: 100%;
+            white-space: normal;
           }
 
           .pos-encontro-detail-heading,

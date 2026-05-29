@@ -15,6 +15,18 @@ export const equipeService = {
         return data as Equipe[];
     },
 
+    async listarAparecePosEncontro(): Promise<Equipe[]> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('*')
+            .is('deleted_at', null)
+            .eq('aparece_pos_encontro', true)
+            .order('nome', { ascending: true });
+
+        if (error) throw error;
+        return data as Equipe[];
+    },
+
     /** Busca uma equipe pelo id sem carregar todas as equipes. */
     async buscarPorId(id: string): Promise<Equipe | null> {
         const { data, error } = await supabase
