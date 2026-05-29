@@ -1,18 +1,26 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
-  Loader, LogOut, CheckCircle, Music, Car, Bike,
-  ChevronLeft, ChevronRight, FileText, UserCheck, CheckSquare, Square
+  Bike,
+  Car,
+  CheckCircle,
+  CheckSquare,
+  ChevronLeft, ChevronRight, FileText,
+  Loader, LogOut,
+  Music,
+  Square,
+  UserCheck
 } from 'lucide-react';
-import logoEjc from '../../assets/logo-ejc.svg';
+import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+import logoEjc from '../../assets/logo-ejc.svg';
+import { ActionStepper, type ActionStep } from '../../components/ui/ActionStepper';
+import { GroupedDropdown } from '../../components/ui/GroupedDropdown';
 import { useCirculoAccess } from '../../hooks/useCirculoAccess';
-import { posEncontroService } from '../../services/posEncontroService';
 import { equipeService } from '../../services/equipeService';
+import { posEncontroService } from '../../services/posEncontroService';
 import type { Equipe } from '../../types/equipe';
 import type { PosEncontroFicha } from '../../types/posEncontro';
-import { GroupedDropdown } from '../../components/ui/GroupedDropdown';
-import { ActionStepper, type ActionStep } from '../../components/ui/ActionStepper';
+
 
 export default function FormCirculoFichaPage() {
   const navigate = useNavigate();

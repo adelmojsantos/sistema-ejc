@@ -6634,3 +6634,83 @@ textarea.form-input {
     align-items: center !important;
   }
 }
+
+/* ========================================================= */
+/* Ficha Pós-Encontro Scan IA Banner                         */
+/* ========================================================= */
+
+.ficha-scan-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: linear-gradient(95deg, color-mix(in srgb, var(--primary-color) 12%, var(--surface-1)), color-mix(in srgb, #3b82f6 8%, var(--surface-1)));
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.85rem;
+}
+
+.scan-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.scan-icon-sparkles {
+  color: #a855f7;
+  animation: pulse 2s infinite ease-in-out;
+}
+
+.btn-scan-ia {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--primary-color);
+  color: white !important;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary-color) 20%, transparent);
+}
+
+.btn-scan-ia:hover {
+  background: color-mix(in srgb, var(--primary-color) 85%, black);
+  transform: translateY(-1px);
+}
+
+.btn-scan-ia:active {
+  transform: translateY(0);
+}
+
+.btn-scan-ia:disabled {
+  background: var(--border-color);
+  color: var(--muted-text) !important;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+@media (max-width: 576px) {
+  .ficha-scan-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .scan-banner-info {
+    justify-content: center;
+  }
+
+  .btn-scan-ia {
+    width: 100%;
+    justify-content: center;
+  }
+}
+

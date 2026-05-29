@@ -333,7 +333,7 @@ export function VisitacaoManutencaoPage() {
         }
 
         loadVisita();
-    }, [id]);
+    }, [id, navigate]);
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         setIsPhotoActionSheetOpen(false);

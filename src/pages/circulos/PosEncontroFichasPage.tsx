@@ -1,21 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ChevronRight, ChevronLeft, UserCheck, X, Music, Car, Bike, FileText, CheckSquare, Square, Share2, Copy, Check } from 'lucide-react';
+import { Bike, Camera, Car, Check, CheckSquare, ChevronLeft, ChevronRight, Copy, FileText, ImagePlus, Loader, Music, Share2, Sparkles, Square, UserCheck, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { PageHeader } from '../../components/ui/PageHeader';
-import { GroupedDropdown } from '../../components/ui/GroupedDropdown';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ActionStepper, type ActionStep } from '../../components/ui/ActionStepper';
-import { circuloService } from '../../services/circuloService';
-import { posEncontroService } from '../../services/posEncontroService';
-import { equipeService } from '../../services/equipeService';
-import type { Circulo } from '../../types/circulo';
-import type { PosEncontroParticipanteCirculo } from '../../types/posEncontro';
-import type { Equipe } from '../../types/equipe';
+import { GroupedDropdown } from '../../components/ui/GroupedDropdown';
+import { PageHeader } from '../../components/ui/PageHeader';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
-
-
+import { circuloService } from '../../services/circuloService';
+import { equipeService } from '../../services/equipeService';
+import { posEncontroService } from '../../services/posEncontroService';
+import type { Circulo } from '../../types/circulo';
+import type { Equipe } from '../../types/equipe';
+import type { PosEncontroParticipanteCirculo } from '../../types/posEncontro';
+import { compressImage } from '../../utils/imageHelper';
+import { findBestTeamMatch } from '../../utils/stringSimilarity';
 
 export function PosEncontroFichasPage() {
   const navigate = useNavigate();
@@ -64,6 +64,11 @@ export function PosEncontroFichasPage() {
     preferencias: ['', '', ''] // 1ª, 2ª, 3ª opções (equipe_id)
   });
   const [isSavingFicha, setIsSavingFicha] = useState(false);
+  const [isScanningFoto, setIsScanningFoto] = useState(false);
+  const [isPhotoActionSheetOpen, setIsPhotoActionSheetOpen] = useState(false);
+  const scanFileInputRef = useRef<HTMLInputElement>(null);
+  const scanCameraInputRef = useRef<HTMLInputElement>(null);
+
 
   const handleSelectTeamDropdown = (teamId: string, index: number) => {
     const newPrefs = [...fichaDraft.preferencias];
@@ -211,6 +216,77 @@ export function PosEncontroFichasPage() {
       setIsSavingFicha(false);
     }
   };
+
+  const handleScanFoto = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    setIsPhotoActionSheetOpen(false);
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const loadingToast = toast.loading('Lendo ficha física com IA...');
+    setIsScanningFoto(true);
+
+    try {
+      // 1. Comprime a imagem no navegador usando Canvas para alta velocidade
+      const base64Image = await compressImage(file);
+
+      // 2. Envia para a Supabase Edge Function
+      const data = await posEncontroService.processarFotoFicha(base64Image);
+
+      if (!data) {
+        throw new Error('A inteligência artificial não retornou dados estruturados.');
+      }
+
+      // 3. Mapeia as equipes extraídas pela IA para os IDs das equipes cadastradas no banco
+      const mappedPrefs = ['', '', ''];
+      if (Array.isArray(data.preferencias)) {
+        data.preferencias.forEach((prefName, index) => {
+          if (index < 3 && prefName) {
+            const matchedId = findBestTeamMatch(prefName, equipes);
+            if (matchedId) {
+              mappedPrefs[index] = matchedId;
+            }
+          }
+        });
+      }
+
+      // 4. Atualiza o estado da ficha com os dados extraídos
+      setFichaDraft({
+        toca_instrumento: data.toca_instrumento ?? false,
+        instrumentos: data.instrumentos ?? '',
+        tem_carro: data.tem_carro ?? false,
+        tem_moto: data.tem_moto ?? false,
+        observacoes: data.observacoes ?? '',
+        preferencias: mappedPrefs,
+      });
+
+      // Se as 3 preferências foram preenchidas com sucesso, avança o subStep do Stepper para 4 (pronto para salvar)
+      const filledCount = mappedPrefs.filter(Boolean).length;
+      setSubStep(filledCount === 3 ? 4 : filledCount + 1);
+      
+      // Abre a primeira aba do stepper para revisão
+      setStepperStep(1);
+
+      toast.success('Ficha lida com sucesso! Revise os dados e salve.', { id: loadingToast });
+    } catch (err: unknown) {
+      console.error('Erro ao escanear foto da ficha:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || 'Erro ao processar imagem da ficha física.', { id: loadingToast });
+    } finally {
+      setIsScanningFoto(false);
+      // Limpa o input do arquivo para permitir nova seleção do mesmo arquivo se necessário
+      event.target.value = '';
+    }
+  };
+
+  const handlePhotoAreaClick = () => {
+    if (isScanningFoto) return;
+    if (window.innerWidth <= 768) {
+      setIsPhotoActionSheetOpen(true);
+    } else {
+      scanFileInputRef.current?.click();
+    }
+  };
+
 
   useEffect(() => {
     if (routeEncontroId) {
@@ -516,6 +592,47 @@ export function PosEncontroFichasPage() {
                 <X size={20} />
               </button>
             </header>
+ 
+            {/* Banner de escaneamento com Inteligência Artificial */}
+            <div className="ficha-scan-banner">
+              <div className="scan-banner-info">
+                <Sparkles size={16} className="scan-icon-sparkles" />
+                <span>Preencha mais rápido tirando foto da ficha física de papel</span>
+              </div>
+              <button
+                type="button"
+                className="btn-scan-ia"
+                disabled={isScanningFoto}
+                onClick={handlePhotoAreaClick}
+              >
+                {isScanningFoto ? (
+                  <>
+                    <Loader className="animate-spin" size={14} style={{ marginRight: '4px' }} />
+                    Lendo...
+                  </>
+                ) : (
+                  <>
+                    <Camera size={14} style={{ marginRight: '4px' }} />
+                    Escanear Ficha
+                  </>
+                )}
+              </button>
+              <input
+                ref={scanFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleScanFoto}
+                hidden
+              />
+              <input
+                ref={scanCameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleScanFoto}
+                hidden
+              />
+            </div>
 
             <div className="ficha-stepper-header">
               <div className={`ficha-stepper-step ${stepperStep === 1 ? 'active' : stepperStep > 1 ? 'completed' : ''}`}>
@@ -739,6 +856,44 @@ export function PosEncontroFichasPage() {
         </div>
       )}
 
+      {isPhotoActionSheetOpen && (
+        <div className="photo-actions-modal-overlay" onClick={() => setIsPhotoActionSheetOpen(false)}>
+          <div className="photo-actions-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="photo-actions-header">
+              <h3>Ler ficha física</h3>
+              <p>Como você deseja enviar a imagem?</p>
+            </div>
+            <div className="photo-actions-buttons">
+              <button
+                type="button"
+                className="photo-action-btn"
+                onClick={() => {
+                  setIsPhotoActionSheetOpen(false);
+                  scanCameraInputRef.current?.click();
+                }}
+              >
+                <Camera size={20} />
+                Tirar Foto (Câmera)
+              </button>
+              <button
+                type="button"
+                className="photo-action-btn"
+                onClick={() => {
+                  setIsPhotoActionSheetOpen(false);
+                  scanFileInputRef.current?.click();
+                }}
+              >
+                <ImagePlus size={20} />
+                Escolher da Galeria
+              </button>
+            </div>
+            <button type="button" className="photo-actions-cancel" onClick={() => setIsPhotoActionSheetOpen(false)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
       <style>{`
         .pos-encontro-filters {
           display: grid;
@@ -784,6 +939,108 @@ export function PosEncontroFichasPage() {
         .pos-encontro-list-section {
           display: grid;
           gap: 1rem;
+        }
+
+        .photo-actions-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.6);
+          backdrop-filter: blur(4px);
+          z-index: 99999;
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          animation: fadeIn 0.2s ease-out;
+        }
+
+        .photo-actions-modal {
+          background: var(--card-bg, #ffffff);
+          width: 100%;
+          max-width: 500px;
+          border-top-left-radius: 24px;
+          border-top-right-radius: 24px;
+          padding: 1.5rem;
+          box-shadow: 0 -10px 25px rgba(0, 0, 0, 0.15);
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .photo-actions-header {
+          text-align: center;
+        }
+
+        .photo-actions-header h3 {
+          margin: 0;
+          font-size: 1.2rem;
+          font-weight: 700;
+          color: var(--text-color);
+        }
+
+        .photo-actions-header p {
+          margin: 0.25rem 0 0;
+          font-size: 0.85rem;
+          color: var(--text-color);
+          opacity: 0.7;
+        }
+
+        .photo-actions-buttons {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .photo-action-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
+          padding: 1rem;
+          border-radius: 12px;
+          border: 1px solid var(--border-color);
+          background: var(--secondary-bg, #f8f9fa);
+          color: var(--text-color);
+          font-weight: 600;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .photo-action-btn:hover {
+          background: var(--primary-color);
+          color: white;
+          border-color: var(--primary-color);
+        }
+
+        .photo-actions-cancel {
+          padding: 0.75rem;
+          border-radius: 12px;
+          border: none;
+          background: rgba(239, 68, 68, 0.1);
+          color: #ef4444;
+          font-weight: 700;
+          font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 0.2s;
+          text-align: center;
+        }
+
+        .photo-actions-cancel:hover {
+          background: #ef4444;
+          color: white;
+        }
+
+        @media (min-width: 640px) {
+          .photo-actions-modal-overlay {
+            align-items: center;
+          }
+
+          .photo-actions-modal {
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          }
         }
 
         .pos-encontro-list {
@@ -1214,7 +1471,7 @@ export function PosEncontroFichasPage() {
 
         /* Stepper Modal Footer */
         .ficha-modal-footer {
-          padding: 1.25rem 1.5rem;
+          padding: 1rem;
           border-top: 1px solid var(--border-color);
           display: flex;
           align-items: center;
@@ -1235,6 +1492,26 @@ export function PosEncontroFichasPage() {
           }
           to {
             transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes scaleIn {
+          from {
+            transform: scale(0.95);
+            opacity: 0;
+          }
+          to {
+            transform: scale(1);
             opacity: 1;
           }
         }
@@ -1323,6 +1600,10 @@ export function PosEncontroFichasPage() {
 
           .ficha-modal-container {
             max-height: 95vh;
+          }
+
+          .ficha-modal-footer .btn {
+            font-size: 80%;
           }
         }
       `}</style>

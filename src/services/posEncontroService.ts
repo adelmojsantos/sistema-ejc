@@ -9,10 +9,61 @@ import type {
   PosEncontroRealizacao,
   PosEncontroRealizacaoFormData
 } from '../types/posEncontro';
+import type { InscricaoEnriched } from '../types/inscricao';
 
 const POS_ENCONTRO_BUCKET = 'pos-encontros';
 
 const sanitizeFileName = (name: string) => name.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+type MaybeArray<T> = T | T[] | null | undefined;
+
+const firstOf = <T>(value: MaybeArray<T>): T | undefined => (
+  Array.isArray(value) ? value[0] : value ?? undefined
+);
+
+type CirculoRelacionadoRow = {
+  id: number;
+  nome: string | null;
+};
+
+type CirculoParticipacaoRow = {
+  circulo_id: number;
+  circulos: CirculoRelacionadoRow | CirculoRelacionadoRow[] | null;
+};
+
+type PessoaRelacionadaRow = {
+  id: string;
+  nome_completo: string | null;
+  cpf: string | null;
+  email: string | null;
+  telefone: string | null;
+};
+
+type EquipeRelacionadaRow = {
+  nome: string | null;
+};
+
+type ParticipacaoCirculoRelacionadaRow = {
+  id: string;
+  pessoa_id: string;
+  encontro_id: string;
+  data_inscricao: string | null;
+  equipe_id: string | null;
+  participante: boolean | null;
+  coordenador: boolean | null;
+  dados_confirmados: boolean | null;
+  confirmado_em: string | null;
+  pago_taxa: boolean | null;
+  pessoas: MaybeArray<PessoaRelacionadaRow>;
+  equipes: MaybeArray<EquipeRelacionadaRow>;
+};
+
+type ParticipanteCirculoRow = {
+  id: string;
+  circulo_id: number;
+  mediador: boolean;
+  participacoes: MaybeArray<ParticipacaoCirculoRelacionadaRow>;
+};
 
 export const posEncontroService = {
   async listarPorEncontro(encontroId: string, somenteAtivos = false): Promise<PosEncontro[]> {
@@ -147,7 +198,7 @@ export const posEncontroService = {
     if (error) throw error;
 
     return (data ?? [])
-      .map((item: any) => {
+      .map((item: CirculoParticipacaoRow) => {
         const circulo = Array.isArray(item.circulos) ? item.circulos[0] : item.circulos;
         return circulo ? { id: circulo.id as number, nome: circulo.nome as string | null } : null;
       })
@@ -192,10 +243,12 @@ export const posEncontroService = {
           id,
           pessoa_id,
           encontro_id,
+          data_inscricao,
           equipe_id,
           participante,
           coordenador,
           dados_confirmados,
+          confirmado_em,
           pago_taxa,
           pessoas (id, nome_completo, cpf, email, telefone),
           equipes (nome)
@@ -207,9 +260,10 @@ export const posEncontroService = {
       .order('created_at', { ascending: true });
 
     if (vinculosError) throw vinculosError;
+    const vinculosRows = (vinculos ?? []) as ParticipanteCirculoRow[];
 
-    const participacaoIds = (vinculos ?? [])
-      .map((item: any) => item.participacoes?.id)
+    const participacaoIds = vinculosRows
+      .map((item) => firstOf(item.participacoes)?.id)
       .filter(Boolean) as string[];
 
     const presencasMap = new Map<string, PosEncontroPresenca>();
@@ -236,14 +290,25 @@ export const posEncontroService = {
       (fichas ?? []).forEach((ficha) => fichasMap.set(ficha.participacao_id, ficha as PosEncontroFicha));
     }
 
-    return (vinculos ?? []).map((item: any) => ({
-      circulo_participacao_id: item.id,
-      circulo_id: item.circulo_id,
-      mediador: item.mediador,
-      participacao: item.participacoes,
-      presenca: presencasMap.get(item.participacoes.id) ?? null,
-      ficha: fichasMap.get(item.participacoes.id) ?? null
-    }));
+    return vinculosRows.flatMap((item) => {
+      const participacaoRow = firstOf(item.participacoes);
+      if (!participacaoRow) return [];
+
+      const participacao = {
+        ...participacaoRow,
+        pessoas: firstOf(participacaoRow.pessoas),
+        equipes: firstOf(participacaoRow.equipes),
+      } as InscricaoEnriched;
+
+      return {
+        circulo_participacao_id: item.id,
+        circulo_id: item.circulo_id,
+        mediador: item.mediador,
+        participacao,
+        presenca: presencasMap.get(participacao.id) ?? null,
+        ficha: fichasMap.get(participacao.id) ?? null
+      };
+    });
   },
 
   async salvarPresencas(realizacaoId: string, presencas: { participacao_id: string; presente: boolean; observacao?: string | null }[]): Promise<void> {
@@ -302,5 +367,21 @@ export const posEncontroService = {
 
     if (reloadError) throw reloadError;
     return fichaCompleta as PosEncontroFicha;
+  },
+
+  async processarFotoFicha(base64Image: string): Promise<{
+    toca_instrumento: boolean;
+    instrumentos: string | null;
+    tem_carro: boolean;
+    tem_moto: boolean;
+    observacoes: string | null;
+    preferencias: string[];
+  }> {
+    const { data, error } = await supabase.functions.invoke('processar-foto-ficha', {
+      body: { image: base64Image },
+    });
+
+    if (error) throw error;
+    return data;
   }
 };
