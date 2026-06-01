@@ -2278,6 +2278,7 @@ input:checked+.theme-toggle-slider:before {
 .cadastros-hub__card {
   user-select: none;
   padding: 2rem 1.5rem;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2288,7 +2289,7 @@ input:checked+.theme-toggle-slider:before {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   transition: all 0.3s ease;
-  min-height: 220px;
+  height: 260px;
 }
 
 .cadastros-hub__card:hover:not(.is-disabled) {
@@ -2305,6 +2306,7 @@ input:checked+.theme-toggle-slider:before {
 
 .cadastros-hub__content {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
   gap: 1.25rem;
@@ -6713,4 +6715,3 @@ textarea.form-input {
     justify-content: center;
   }
 }
-

@@ -15,11 +15,12 @@ import { AccessAdminPage } from './pages/admin/AccessAdminPage';
 import { ExportConfigListPage } from './pages/admin/ExportConfigListPage';
 import { ExportConfigFormPage } from './pages/admin/ExportConfigFormPage';
 import { BibliotecaPage } from './pages/admin/BibliotecaPage';
-import { Cadastros } from './pages/Cadastros';
+import { Cadastros } from './pages/cadastros/Cadastros';
 import { CirculosPage } from './pages/circulos/CirculosPage';
 import { CirculosPortalPage } from './pages/circulos/CirculosPortalPage';
 import { EncontroParticipantesPage } from './pages/cadastros/EncontroParticipantesPage';
 import { AvaliacaoEncontroPage } from './pages/cadastros/AvaliacaoEncontroPage';
+import { CronogramaEncontroPage } from './pages/cadastros/CronogramaEncontroPage';
 import { EncontrosPage } from './pages/cadastros/EncontrosPage';
 import { EquipesPage } from './pages/cadastros/EquipesPage';
 import { MontagemCirculos } from './pages/circulos/MontagemCirculos';
@@ -40,8 +41,6 @@ import { RecepcaoAdminPage } from './pages/recepcao/RecepcaoAdminPage';
 import { RecreacaoAdminPage } from './pages/recreacao/RecreacaoAdminPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { Home } from './pages/Home';
-import { InscricaoPage } from './pages/InscricaoPage';
-import InscricaoPublicaPage from './pages/InscricaoPublicaPage';
 import LandingPage from './pages/LandingPage';
 import { Login } from './pages/Login';
 import { PrivacidadePage } from './pages/PrivacidadePage';
@@ -76,6 +75,8 @@ import { EncontroQuadranteConfigPage } from './pages/cadastros/EncontroQuadrante
 import { QuadranteAuthPage } from './pages/Public/QuadranteAuthPage';
 import { QuadrantePage } from './pages/Public/QuadrantePage';
 import SharedLibraryPage from './pages/shared/SharedLibraryPage';
+import InscricaoPublicaPage from './pages/InscricaoPublicaPage';
+import { InscricaoPage } from './pages/InscricaoPage';
 
 function LegacyExportConfigRedirect() {
   const { id } = useParams();
@@ -389,6 +390,7 @@ function AnimatedRoutes() {
             <Route path="equipes" element={<EquipesPage />} />
             <Route path="montagem" element={<MontagemPage />} />
             <Route path="avaliacao" element={<AvaliacaoEncontroPage />} />
+            <Route path="cronograma" element={<CronogramaEncontroPage />} />
             <Route path="pos-encontros" element={
               <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_secretaria', 'modulo_admin']}>
                 <PosEncontrosCadastroPage />

@@ -1,7 +1,7 @@
-import { ClipboardCheck, Users, Calendar, Shield, UsersRound, UserPlus, Mic, BookOpen } from 'lucide-react';
+import { BookOpen, Calendar, CalendarClock, Car, ClipboardCheck, Mic, Shield, UserPlus, Users, UsersRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../../hooks/useAuth';
 
 interface CadastroCategory {
   id: string;
@@ -66,11 +66,11 @@ const CATEGORIES: CadastroCategory[] = [
     permission: ['modulo_cadastros', 'modulo_admin']
   },
   {
-    id: 'montagem-visitacao',
+    id: 'visitacao',
     path: '/visitacao',
     label: 'Visitação',
     description: 'Vincular duplas e participantes para visitas.',
-    icon: <Users size={34} />,
+    icon: <Car size={34} />,
     color: '#10b981',
     available: true,
     permission: ['modulo_visitacao', 'modulo_admin']
@@ -79,7 +79,7 @@ const CATEGORIES: CadastroCategory[] = [
     id: 'palestras',
     path: '/palestras',
     label: 'Palestras',
-    description: 'Cadastro do cronograma de palestras e palestrantes do encontro.',
+    description: 'Cadastro das palestras e palestrantes do encontro.',
     icon: <Mic size={34} />,
     color: '#8b5cf6',
     available: true,
@@ -88,9 +88,19 @@ const CATEGORIES: CadastroCategory[] = [
   {
     id: 'avaliacao',
     path: '/cadastros/avaliacao',
-    label: 'Avaliação do encontro',
+    label: 'Avaliação',
     description: 'Perguntas para as equipes responderem ao final do encontro.',
     icon: <ClipboardCheck size={34} />,
+    color: '#0ea5e9',
+    available: true,
+    permission: ['modulo_cadastros', 'modulo_admin']
+  },
+  {
+    id: 'cronograma',
+    path: '/cadastros/cronograma',
+    label: 'Cronograma',
+    description: 'Organize os horários e atividades de cada dia do encontro.',
+    icon: <CalendarClock size={34} />,
     color: '#0ea5e9',
     available: true,
     permission: ['modulo_cadastros', 'modulo_admin']
@@ -114,7 +124,9 @@ export function Cadastros() {
   
   const isHub = location.pathname === '/cadastros' || location.pathname === '/cadastros/';
 
-  const allowedCategories = CATEGORIES.filter(cat => 
+  const allowedCategories = CATEGORIES.sort((a, b) =>
+    a.id.localeCompare(b.id)
+  ).filter(cat =>
     !cat.permission || cat.permission.some(p => hasPermission(p))
   );
 
