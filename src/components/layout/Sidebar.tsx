@@ -16,7 +16,8 @@ import {
   X,
   Folder,
   ShoppingBag,
-  UsersRound
+  UsersRound,
+  Crown
 } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
@@ -67,6 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     menuItems.push(
       { to: '/admin/usuarios', label: 'Usuários', icon: Users },
       { to: '/admin/acessos', label: 'Acessos', icon: Shield },
+      { to: '/admin/dirigencia', label: 'Dirigência', icon: Crown },
     );
   }
 

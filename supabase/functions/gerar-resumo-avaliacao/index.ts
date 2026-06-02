@@ -141,17 +141,14 @@ Deno.serve(async (request) => {
 
     const requesterId = authUserData.user.id;
 
-    const { data: profile, error: profileError } = await adminClient
-      .from('profiles')
-      .select('role')
-      .eq('id', requesterId)
-      .maybeSingle();
+    const { data: requesterIsAdmin, error: profileError } = await adminClient
+      .rpc('is_admin', { check_user: requesterId });
 
     if (profileError) {
       return jsonResponse(500, { error: 'Erro ao validar permissão.' });
     }
 
-    if (profile?.role !== 'admin') {
+    if (!requesterIsAdmin) {
       return jsonResponse(403, { error: 'Somente administradores podem gerar resumo com IA.' });
     }
 

@@ -15,6 +15,7 @@ import { AccessAdminPage } from './pages/admin/AccessAdminPage';
 import { ExportConfigListPage } from './pages/admin/ExportConfigListPage';
 import { ExportConfigFormPage } from './pages/admin/ExportConfigFormPage';
 import { BibliotecaPage } from './pages/admin/BibliotecaPage';
+import { DirigenciaPage } from './pages/admin/DirigenciaPage';
 import { Cadastros } from './pages/cadastros/Cadastros';
 import { CirculosPage } from './pages/circulos/CirculosPage';
 import { CirculosPortalPage } from './pages/circulos/CirculosPortalPage';
@@ -156,6 +157,12 @@ function AnimatedRoutes() {
           <Route path="/admin/acessos" element={
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
               <AccessAdminPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/admin/dirigencia" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <DirigenciaPage />
             </ProtectedRoute>
           } />
 

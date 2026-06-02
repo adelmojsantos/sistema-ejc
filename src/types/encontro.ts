@@ -29,6 +29,7 @@ export interface Encontro {
     pix_camisetas_chave?: string | null;
     pix_camisetas_tipo?: 'cpf' | 'cnpj' | 'email' | 'telefone' | 'aleatoria' | null;
     pix_camisetas_qrcode_url?: string | null;
+    dirigencia_id?: string | null;
 }
 
 export interface QuadranteVisibilityConfig {
@@ -81,4 +82,5 @@ export const encontroFormDataVazio = (): EncontroFormData => ({
     pix_camisetas_chave: '',
     pix_camisetas_tipo: null,
     pix_camisetas_qrcode_url: '',
+    dirigencia_id: null,
 });

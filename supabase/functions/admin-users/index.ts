@@ -124,17 +124,14 @@ Deno.serve(async (request) => {
 
     const requesterId = authUserData.user.id;
 
-    const { data: requesterProfile, error: requesterProfileError } = await adminClient
-      .from('profiles')
-      .select('role')
-      .eq('id', requesterId)
-      .maybeSingle();
+    const { data: requesterIsAdmin, error: requesterProfileError } = await adminClient
+      .rpc('is_admin', { check_user: requesterId });
 
     if (requesterProfileError) {
       return jsonResponse(500, { error: 'Failed to validate requester role' });
     }
 
-    if (!requesterProfile || requesterProfile.role !== 'admin') {
+    if (!requesterIsAdmin) {
       return jsonResponse(403, { error: 'Admin role required' });
     }
 
