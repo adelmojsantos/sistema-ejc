@@ -13,8 +13,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { toast } from 'react-hot-toast';
+import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
 
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -214,11 +214,6 @@ export function AvaliacaoEncontroPage() {
     return { enviados, rascunhos, pendentes, total: resumoEquipes.length };
   }, [resumoEquipes]);
 
-  const selectedEncontro = useMemo(
-    () => encontros.find((encontro) => encontro.id === selectedEncontroId),
-    [encontros, selectedEncontroId]
-  );
-
   const filteredResumoEquipes = useMemo(() => {
     if (statusFilter === 'todos') return resumoEquipes;
     return resumoEquipes.filter((item) => item.status === statusFilter);
@@ -350,7 +345,7 @@ export function AvaliacaoEncontroPage() {
         style={{
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           flexWrap: 'wrap',
           gap: '1rem',
         }}
@@ -361,22 +356,11 @@ export function AvaliacaoEncontroPage() {
           </button>
           <div>
             <span className="avaliacao-eyebrow">Configuração por encontro</span>
-            <h1 style={{ margin: '0.15rem 0 0', fontSize: '1.65rem' }}>Avaliação do Encontro</h1>
-            <p style={{ margin: '0.35rem 0 0', fontSize: '0.92rem', color: 'var(--muted-text)', maxWidth: 560, lineHeight: 1.5 }}>
-              Perguntas por encontro e acompanhamento das respostas das equipes.
-            </p>
-            {selectedEncontro && (
-              <div className="avaliacao-context-pill">
-                <ClipboardCheck size={15} />
-                {selectedEncontro.nome}
-                {selectedEncontro.ativo ? <span>Ativo</span> : null}
-              </div>
-            )}
+            <h1 style={{ margin: '0.15rem 0 0.5rem 0', fontSize: '1.65rem' }}>Avaliação do Encontro</h1>
           </div>
         </div>
 
         <div className="avaliacao-actions">
-          <div className="avaliacao-encontro-select">
             <LiveSearchSelect<Encontro>
               value={selectedEncontroId}
               onChange={(value) => setSelectedEncontroId(value)}
@@ -386,16 +370,6 @@ export function AvaliacaoEncontroPage() {
               placeholder="Selecione o encontro"
               initialOptions={encontros}
             />
-          </div>
-          <button
-            className="btn-primary"
-            onClick={openCreateModal}
-            disabled={!selectedEncontroId}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          >
-            <Plus size={18} />
-            Nova pergunta
-          </button>
         </div>
       </header>
 
@@ -464,7 +438,7 @@ export function AvaliacaoEncontroPage() {
           </Badge>
           <span>
             {resumosRestantes > 0
-              ? `${resumosRestantes} geração${resumosRestantes === 1 ? '' : 'ões'} restante${resumosRestantes === 1 ? '' : 's'} neste encontro.`
+              ? `${resumosRestantes} ${resumosRestantes === 1 ? 'geração' : 'gerações'} restante${resumosRestantes === 1 ? '' : 's'} neste encontro.`
               : 'Limite de resumos atingido para este encontro.'}
           </span>
         </div>
@@ -849,12 +823,11 @@ export function AvaliacaoEncontroPage() {
         .avaliacao-actions {
           display: flex;
           align-items: center;
+          justify-content: center;
           gap: 1rem;
           flex-wrap: wrap;
-        }
-
-        .avaliacao-encontro-select {
-          width: 260px;
+          width: 40%;
+          backgorund: red;
         }
 
         .avaliacao-eyebrow {
@@ -1399,7 +1372,6 @@ export function AvaliacaoEncontroPage() {
           }
 
           .avaliacao-actions,
-          .avaliacao-encontro-select,
           .avaliacao-actions .btn-primary {
             width: 100%;
           }
