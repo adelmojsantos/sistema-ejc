@@ -6,6 +6,7 @@ import {
   Check,
   Crown,
   History,
+  KeyRound,
   Plus,
   RefreshCcw,
   ShieldCheck,
@@ -18,7 +19,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { dirigenciaService } from '../../services/dirigenciaService';
+import { dirigenciaService, type DirigenciaAcessosStatus } from '../../services/dirigenciaService';
 import type {
   Dirigencia,
   DirigenciaEvento,
@@ -48,6 +49,16 @@ function formatDateTime(value: string): string {
   }).format(new Date(value));
 }
 
+function formatIndicacaoStatus(status: IndicacaoStatus): string {
+  const labels: Record<IndicacaoStatus, string> = {
+    indicada: 'Pendente',
+    selecionada: 'Confirmada',
+    descartada: 'Não confirmada',
+  };
+
+  return labels[status];
+}
+
 export function DirigenciaPage() {
   const [dirigencias, setDirigencias] = useState<Dirigencia[]>([]);
   const [membrosAtuais, setMembrosAtuais] = useState<DirigenciaMembro[]>([]);
@@ -65,6 +76,7 @@ export function DirigenciaPage() {
   const [indicadorMembroId, setIndicadorMembroId] = useState('');
   const [indicacaoTipo, setIndicacaoTipo] = useState<IndicacaoTipo>('regular');
   const [motivoIndicacao, setMotivoIndicacao] = useState('');
+  const [acessosStatus, setAcessosStatus] = useState<DirigenciaAcessosStatus | null>(null);
   const [confirmActivation, setConfirmActivation] = useState(false);
   const [saidaTarget, setSaidaTarget] = useState<DirigenciaMembro | null>(null);
 
@@ -103,6 +115,11 @@ export function DirigenciaPage() {
       setMembrosAtuais(nextMembros);
       setIndicacoes(nextIndicacoes);
       setEventos(nextEventos);
+      setAcessosStatus(
+        nextProxima?.indicacoes_finalizadas_em
+          ? await dirigenciaService.consultarAcessos(nextProxima.id)
+          : null
+      );
       const nextIndicadoresRegularesUsados = new Set(
         nextIndicacoes
           .filter((item) => item.tipo === 'regular' && item.indicador_membro_id)
@@ -128,14 +145,66 @@ export function DirigenciaPage() {
     load();
   }, [load]);
 
-  const execute = async (action: () => Promise<void>, successMessage: string) => {
+  const reloadDirigencias = async () => {
+    const nextDirigencias = await dirigenciaService.listar();
+    setDirigencias(nextDirigencias);
+    return nextDirigencias;
+  };
+
+  const reloadMembros = async (dirigenciaId: string) => {
+    setMembrosAtuais(await dirigenciaService.listarMembros(dirigenciaId));
+  };
+
+  const reloadIndicacoes = async (dirigenciaId: string) => {
+    const nextIndicacoes = await dirigenciaService.listarIndicacoes(dirigenciaId);
+    setIndicacoes(nextIndicacoes);
+
+    const nextIndicadoresRegularesUsados = new Set(
+      nextIndicacoes
+        .filter((item) => item.tipo === 'regular' && item.indicador_membro_id)
+        .map((item) => item.indicador_membro_id)
+    );
+
+    setIndicadorMembroId((current) =>
+      current && !nextIndicadoresRegularesUsados.has(current)
+        ? current
+        : membrosAtivos.find((item) => !nextIndicadoresRegularesUsados.has(item.id))?.id ?? ''
+    );
+  };
+
+  const reloadEventos = async (dirigenciaId: string) => {
+    setEventos(await dirigenciaService.listarEventos(dirigenciaId, 5));
+  };
+
+  const reloadAcessos = async (dirigenciaId: string) => {
+    setAcessosStatus(await dirigenciaService.consultarAcessos(dirigenciaId));
+  };
+
+  const execute = async (
+    action: () => Promise<void>,
+    successMessage: string,
+    afterSuccess?: () => Promise<void> | void
+  ) => {
     setSaving(true);
     try {
       await action();
       toast.success(successMessage);
-      await load();
+      await afterSuccess?.();
     } catch (error) {
       toast.error(getErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const executeWithoutReload = async (action: () => Promise<void>, successMessage: string) => {
+    setSaving(true);
+    try {
+      await action();
+      toast.success(successMessage);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+      throw error;
     } finally {
       setSaving(false);
     }
@@ -145,7 +214,10 @@ export function DirigenciaPage() {
     if (!nomeGestaoInicial.trim()) return;
     await execute(
       () => dirigenciaService.criar(nomeGestaoInicial.trim(), 'ativa'),
-      'Dirigência atual cadastrada.'
+      'Dirigência atual cadastrada.',
+      async () => {
+        await reloadDirigencias();
+      }
     );
     setNomeGestaoInicial('');
   };
@@ -154,7 +226,17 @@ export function DirigenciaPage() {
     if (!nomeNovaGestao.trim()) return;
     await execute(
       () => dirigenciaService.criar(nomeNovaGestao.trim(), 'indicacao'),
-      'Período de indicações iniciado.'
+      'Período de indicações iniciado.',
+      async () => {
+        const nextDirigencias = await reloadDirigencias();
+        const nextProxima = nextDirigencias.find((item) => item.status === 'indicacao');
+        if (nextProxima) {
+          await Promise.all([
+            reloadIndicacoes(nextProxima.id),
+            reloadEventos(nextProxima.id),
+          ]);
+        }
+      }
     );
     setNomeNovaGestao('');
   };
@@ -165,7 +247,13 @@ export function DirigenciaPage() {
     if (pickerPurpose === 'membro' && atual) {
       await execute(
         () => dirigenciaService.adicionarMembro(atual.id, pessoa.id),
-        `${pessoa.nome_completo} agora faz parte da dirigência.`
+        `${pessoa.nome_completo} agora faz parte da dirigência.`,
+        async () => {
+          await Promise.all([
+            reloadMembros(atual.id),
+            reloadEventos(atual.id),
+          ]);
+        }
       );
       return;
     }
@@ -184,7 +272,13 @@ export function DirigenciaPage() {
           tipo: indicacaoTipo,
           motivo: motivoIndicacao,
         }),
-      'Indicação registrada.'
+      'Indicação registrada.',
+      async () => {
+        await Promise.all([
+          reloadIndicacoes(proxima.id),
+          reloadEventos(proxima.id),
+        ]);
+      }
     );
     setPessoaIndicada(null);
     setIndicacaoTipo('regular');
@@ -209,10 +303,51 @@ export function DirigenciaPage() {
   };
 
   const handleStatus = async (indicacao: DirigenciaIndicacao, status: IndicacaoStatus) => {
-    await execute(
+    const messageByStatus: Record<IndicacaoStatus, string> = {
+      indicada: 'Confirmação revertida. A indicação voltou para pendente.',
+      selecionada: 'Indicação confirmada para a nova dirigência.',
+      descartada: 'Indicação marcada como não confirmada.',
+    };
+
+    await executeWithoutReload(
       () => dirigenciaService.atualizarStatusIndicacao(indicacao.id, status),
-      status === 'selecionada' ? 'Pessoa selecionada para a nova dirigência.' : 'Seleção atualizada.'
+      messageByStatus[status]
     );
+    setIndicacoes((current) =>
+      current.map((item) => (item.id === indicacao.id ? { ...item, status } : item))
+    );
+  };
+
+  const handlePrepararAcessos = async () => {
+    if (!proxima) return;
+
+    setSaving(true);
+    try {
+      const nextStatus = await dirigenciaService.prepararAcessos(proxima.id);
+      setAcessosStatus(nextStatus);
+      toast.success(
+        nextStatus.criados
+          ? `${nextStatus.criados} acesso(s) criado(s) com senha temporária.`
+          : 'Todos os acessos já estavam prontos.'
+      );
+      if (nextStatus.criados) {
+        setEventos((current) => [
+          {
+            id: `local-acessos-${Date.now()}`,
+            dirigencia_id: proxima.id,
+            tipo: 'acessos_preparados',
+            descricao: `${nextStatus.criados} acesso(s) da próxima dirigência foram preparados.`,
+            executado_por_nome: 'Você',
+            created_at: new Date().toISOString(),
+          },
+          ...current,
+        ].slice(0, 5));
+      }
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleOpenHistorico = async () => {
@@ -342,7 +477,7 @@ export function DirigenciaPage() {
                   title="Registrar saída"
                   aria-label={`Registrar saída de ${membro.pessoas.nome_completo}`}
                 >
-                  <UserMinus size={17} />
+                  <UserMinus size={18} />
                   Registrar saída
                 </button>
               </motion.article>
@@ -385,8 +520,8 @@ export function DirigenciaPage() {
               </p>
             </div>
             {!proxima.indicacoes_finalizadas_em && (
-              <button className="btn-primary" type="button" onClick={() => setPickerPurpose('indicacao')}>
-                <Plus size={17} /> Nova indicação
+              <button className="btn-primary common-button" type="button" onClick={() => setPickerPurpose('indicacao')}>
+                <Plus size={20} /> Nova indicação
               </button>
             )}
           </div>
@@ -447,40 +582,150 @@ export function DirigenciaPage() {
             {indicacoes.length === 0 && <div className="empty-state">Nenhuma indicação registrada ainda.</div>}
             {indicacoes.map((indicacao) => (
               <article className={`dirigencia-indication is-${indicacao.status}`} key={indicacao.id}>
-                <div>
-                  <strong>{indicacao.indicado.nome_completo}</strong>
-                  <small>{indicacao.indicador ? `Indicado por ${indicacao.indicador.pessoas.nome_completo}` : 'Indicação adicional por consenso'}</small>
-                </div>
+                <strong>{indicacao.indicado.nome_completo}</strong>
+                <small>
+                  {indicacao.indicador
+                    ? `Indicado por ${indicacao.indicador.pessoas.nome_completo}`
+                    : 'Indicação adicional por consenso'}
+                </small>
                 <div className="dirigencia-indication__meta">
-                  <span className={`dirigencia-tag is-${indicacao.tipo}`}>{indicacao.tipo === 'regular' ? 'Regular' : 'Adicional'}</span>
-                  <span className={`dirigencia-tag is-${indicacao.status}`}>{indicacao.status}</span>
+                  <span className={`dirigencia-tag is-${indicacao.tipo}`}>
+                    {indicacao.tipo === 'regular' ? 'Regular' : 'Adicional'}
+                  </span>
+                  <span className={`dirigencia-tag is-${indicacao.status}`}>{formatIndicacaoStatus(indicacao.status)}</span>
                 </div>
                 {!proxima.indicacoes_finalizadas_em && (
                   <div className="dirigencia-indication__actions">
-                    <button type="button" className="icon-btn" title="Selecionar" onClick={() => handleStatus(indicacao, 'selecionada')}>
-                      <Check size={17} />
-                    </button>
-                    <button type="button" className="icon-btn" title="Descartar" onClick={() => handleStatus(indicacao, 'descartada')}>
-                      <X size={17} />
-                    </button>
+                    {indicacao.status !== 'indicada' && (
+                      <button
+                        type="button"
+                        className="btn-secondary is-revert"
+                        title={indicacao.status === 'selecionada' ? 'Reverter confirmação' : 'Reverter decisão'}
+                        aria-label={`${indicacao.status === 'selecionada' ? 'Reverter confirmação' : 'Reverter decisão'} de ${indicacao.indicado.nome_completo}`}
+                        onClick={() => handleStatus(indicacao, 'indicada')}
+                      >
+                        <RefreshCcw size={18} /> {indicacao.status === 'selecionada' ? 'Reverter confirmação' : 'Reverter decisão'}
+                      </button>
+                    )}
+                    {indicacao.status === 'indicada' && (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        title="Confirmar"
+                        aria-label={`Confirmar ${indicacao.indicado.nome_completo}`}
+                        onClick={() => handleStatus(indicacao, 'selecionada')}
+                      >
+                        <Check size={18} /> Confirmar
+                      </button>
+                    )}
+                    {indicacao.status === 'indicada' && (
+                      <button
+                        type="button"
+                        className="btn-secondary is-discard"
+                        title="Não confirmar"
+                        aria-label={`Não confirmar ${indicacao.indicado.nome_completo}`}
+                        onClick={() => handleStatus(indicacao, 'descartada')}
+                      >
+                        <X size={18} /> Não confirmar
+                      </button>
+                    )}
                   </div>
                 )}
               </article>
             ))}
           </div>
 
+          {proxima.indicacoes_finalizadas_em && acessosStatus && (
+            <div className="dirigencia-access">
+              <div className="dirigencia-access__header">
+                <div>
+                  <span className="dirigencia-kicker"><KeyRound size={17} /> Preparar acessos</span>
+                  <h3>Acessos da nova dirigência</h3>
+                  <p>
+                    As contas são criadas com senha temporária igual ao e-mail. O acesso administrativo
+                    será liberado somente ao ativar a nova dirigência.
+                  </p>
+                </div>
+                {!acessosStatus.todos_prontos && (
+                  <button
+                    className="btn-primary common-button"
+                    type="button"
+                    disabled={saving || acessosStatus.sem_email > 0}
+                    onClick={handlePrepararAcessos}
+                  >
+                    <KeyRound size={17} /> Criar acessos pendentes
+                  </button>
+                )}
+              </div>
+              <div className="dirigencia-access__list">
+                {acessosStatus.acessos.map((acesso) => (
+                  <div className="dirigencia-access__item" key={acesso.pessoa_id}>
+                    <div>
+                      <strong>{acesso.nome_completo}</strong>
+                      <small>{acesso.email || 'E-mail não cadastrado'}</small>
+                    </div>
+                    <span className={`dirigencia-tag ${acesso.possui_acesso ? 'is-selecionada' : 'is-pendente'}`}>
+                      {acesso.possui_acesso ? 'Acesso pronto' : acesso.email ? 'Criar acesso' : 'Cadastrar e-mail'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="dirigencia-section__footer">
             {!proxima.indicacoes_finalizadas_em ? (
-              <button className="btn-primary" type="button" disabled={saving || !indicacoes.some((item) => item.status === 'selecionada')} onClick={() => execute(() => dirigenciaService.finalizarIndicacoes(proxima.id), 'Indicações finalizadas para conferência.')}>
-                <Check size={17} /> Finalizar indicações
+              <button
+                className="btn-primary common-button"
+                type="button"
+                disabled={saving || !indicacoes.some((item) => item.status === 'selecionada')}
+                onClick={() => execute(
+                  () => dirigenciaService.finalizarIndicacoes(proxima.id),
+                  'Indicações finalizadas para conferência.',
+                  async () => {
+                    const finalizadaEm = new Date().toISOString();
+                    setDirigencias((current) =>
+                      current.map((item) =>
+                        item.id === proxima.id
+                          ? { ...item, indicacoes_finalizadas_em: finalizadaEm }
+                          : item
+                      )
+                    );
+                    await Promise.all([
+                      reloadAcessos(proxima.id),
+                      reloadEventos(proxima.id),
+                    ]);
+                  }
+                )}
+              >
+                <Check size={20} /> Finalizar indicações
               </button>
             ) : (
               <>
-                <button className="btn-secondary" type="button" disabled={saving} onClick={() => execute(() => dirigenciaService.reabrirIndicacoes(proxima.id), 'Indicações reabertas para ajustes.')}>
-                  <RefreshCcw size={17} /> Reabrir indicações
+                  <button
+                    className="btn-secondary common-button"
+                    type="button"
+                    disabled={saving}
+                    onClick={() => execute(
+                      () => dirigenciaService.reabrirIndicacoes(proxima.id),
+                      'Indicações reabertas para ajustes.',
+                      async () => {
+                        setDirigencias((current) =>
+                          current.map((item) =>
+                            item.id === proxima.id
+                              ? { ...item, indicacoes_finalizadas_em: null }
+                              : item
+                          )
+                        );
+                        setAcessosStatus(null);
+                        await reloadEventos(proxima.id);
+                      }
+                    )}
+                  >
+                  <RefreshCcw size={20} /> Reabrir indicações
                 </button>
-                <button className="btn-primary" type="button" disabled={saving} onClick={() => setConfirmActivation(true)}>
-                  <Crown size={17} /> Ativar nova dirigência
+                  <button className="btn-primary common-button" type="button" disabled={saving || !acessosStatus?.todos_prontos} onClick={() => setConfirmActivation(true)}>
+                  <Crown size={20} /> Ativar nova dirigência
                 </button>
               </>
             )}
@@ -528,7 +773,17 @@ export function DirigenciaPage() {
         onCancel={() => setSaidaTarget(null)}
         onConfirm={async () => {
           if (!saidaTarget) return;
-          await execute(() => dirigenciaService.registrarSaida(saidaTarget.id), 'Saída registrada.');
+          await execute(
+            () => dirigenciaService.registrarSaida(saidaTarget.id),
+            'Saída registrada.',
+            async () => {
+              if (!atual) return;
+              await Promise.all([
+                reloadMembros(atual.id),
+                reloadEventos(atual.id),
+              ]);
+            }
+          );
           setSaidaTarget(null);
         }}
       />
@@ -542,7 +797,7 @@ export function DirigenciaPage() {
         onCancel={() => setConfirmActivation(false)}
         onConfirm={async () => {
           if (!proxima) return;
-          await execute(() => dirigenciaService.ativar(proxima.id), 'Nova dirigência ativada.');
+          await execute(() => dirigenciaService.ativar(proxima.id), 'Nova dirigência ativada.', load);
           setConfirmActivation(false);
         }}
       />

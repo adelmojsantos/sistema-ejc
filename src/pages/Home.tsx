@@ -1,6 +1,6 @@
 import type { Variants } from 'framer-motion';
 import { motion } from 'framer-motion';
-import { Calendar, FileText, Folder, ListChecks, MapPin, Shield, ShoppingBag, UserPlus, Users, Users2Icon, UsersRound } from 'lucide-react';
+import { Calendar, Crown, FileText, Folder, ListChecks, MapPin, Shield, ShoppingBag, UserPlus, Users, Users2Icon, UsersRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -127,6 +127,13 @@ export function Home() {
       path: '/admin/acessos',
       icon: <Shield size={36} />,
       accent: 'success'
+    });
+    dashboardActions.push({
+      title: 'Dirigência',
+      description: 'Gerencie dirigentes, indicações e a sucessão das gestões.',
+      path: '/admin/dirigencia',
+      icon: <Crown size={36} />,
+      accent: 'violet'
     });
   }
 

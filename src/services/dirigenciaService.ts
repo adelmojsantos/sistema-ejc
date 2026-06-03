@@ -18,6 +18,29 @@ interface DirigenciaEventoRow extends Omit<DirigenciaEvento, 'executado_por_nome
   profiles: { email: string } | { email: string }[] | null;
 }
 
+export interface DirigenciaAcesso {
+  pessoa_id: string;
+  nome_completo: string;
+  email: string | null;
+  possui_acesso: boolean;
+  temporary_password: boolean | null;
+}
+
+export interface DirigenciaAcessosStatus {
+  acessos: DirigenciaAcesso[];
+  todos_prontos: boolean;
+  pendentes: number;
+  sem_email: number;
+  criados?: number;
+}
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+  return { Authorization: `Bearer ${token}` };
+}
+
 export const dirigenciaService = {
   async listar(): Promise<Dirigencia[]> {
     const { data, error } = await supabase
@@ -177,6 +200,36 @@ export const dirigenciaService = {
       p_dirigencia_id: dirigenciaId,
     });
     throwIfError(error);
+  },
+
+  async consultarAcessos(dirigenciaId: string): Promise<DirigenciaAcessosStatus> {
+    const headers = await getAuthHeaders();
+    const { data, error } = await supabase.functions.invoke('admin-users', {
+      body: {
+        action: 'dirigencia-access-status',
+        dirigenciaId,
+      },
+      headers,
+    });
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data as DirigenciaAcessosStatus;
+  },
+
+  async prepararAcessos(dirigenciaId: string): Promise<DirigenciaAcessosStatus> {
+    const headers = await getAuthHeaders();
+    const { data, error } = await supabase.functions.invoke('admin-users', {
+      body: {
+        action: 'prepare-dirigencia-accesses',
+        dirigenciaId,
+      },
+      headers,
+    });
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data as DirigenciaAcessosStatus;
   },
 
   async ativar(dirigenciaId: string): Promise<void> {

@@ -43,6 +43,74 @@ function jsonResponse(status: number, body: unknown) {
     }
   });
 }
+
+async function getDirigenciaAccessStatus(adminClient: ReturnType<typeof createClient>, dirigenciaId: string) {
+  const { data: dirigencia, error: dirigenciaError } = await adminClient
+    .from('dirigencias')
+    .select('id, status, indicacoes_finalizadas_em')
+    .eq('id', dirigenciaId)
+    .maybeSingle();
+
+  if (dirigenciaError || !dirigencia) {
+    throw new Error('Dirigência não encontrada.');
+  }
+
+  const { data: indicacoes, error: indicacoesError } = await adminClient
+    .from('dirigencia_indicacoes')
+    .select('indicado_pessoa_id')
+    .eq('dirigencia_destino_id', dirigenciaId)
+    .eq('status', 'selecionada');
+
+  if (indicacoesError) {
+    throw new Error('Não foi possível consultar os integrantes selecionados.');
+  }
+
+  const pessoaIds = (indicacoes ?? []).map((indicacao) => indicacao.indicado_pessoa_id);
+  const { data: pessoas, error: pessoasError } = pessoaIds.length > 0
+    ? await adminClient
+        .from('pessoas')
+        .select('id, nome_completo, email')
+        .in('id', pessoaIds)
+        .order('nome_completo')
+    : { data: [], error: null };
+
+  if (pessoasError) {
+    throw new Error('Não foi possível consultar os dados das pessoas selecionadas.');
+  }
+
+  const { data: profiles, error: profilesError } = await adminClient
+    .from('profiles')
+    .select('id, email, temporary_password');
+
+  if (profilesError) {
+    throw new Error('Não foi possível consultar os acessos existentes.');
+  }
+
+  const profilesByEmail = new Map(
+    (profiles ?? []).map((profile) => [profile.email.toLowerCase(), profile])
+  );
+
+  const acessos = (pessoas ?? []).map((pessoa) => {
+    const email = pessoa.email?.trim() || null;
+    const profile = email ? profilesByEmail.get(email.toLowerCase()) : null;
+
+    return {
+      pessoa_id: pessoa.id,
+      nome_completo: pessoa.nome_completo,
+      email,
+      possui_acesso: !!profile,
+      temporary_password: profile?.temporary_password ?? null,
+    };
+  });
+
+  return {
+    dirigencia,
+    acessos,
+    todos_prontos: acessos.length > 0 && acessos.every((acesso) => acesso.possui_acesso),
+    pendentes: acessos.filter((acesso) => !acesso.possui_acesso).length,
+    sem_email: acessos.filter((acesso) => !acesso.email).length,
+  };
+}
 // @ts-nocheck
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -133,6 +201,77 @@ Deno.serve(async (request) => {
 
     if (!requesterIsAdmin) {
       return jsonResponse(403, { error: 'Admin role required' });
+    }
+
+    if (action === 'dirigencia-access-status') {
+      const dirigenciaId = body?.dirigenciaId as string | undefined;
+      if (!dirigenciaId) {
+        return jsonResponse(400, { error: 'dirigenciaId is required' });
+      }
+
+      return jsonResponse(200, await getDirigenciaAccessStatus(adminClient, dirigenciaId));
+    }
+
+    if (action === 'prepare-dirigencia-accesses') {
+      const dirigenciaId = body?.dirigenciaId as string | undefined;
+      if (!dirigenciaId) {
+        return jsonResponse(400, { error: 'dirigenciaId is required' });
+      }
+
+      const status = await getDirigenciaAccessStatus(adminClient, dirigenciaId);
+      if (status.dirigencia.status !== 'indicacao' || !status.dirigencia.indicacoes_finalizadas_em) {
+        return jsonResponse(400, { error: 'Finalize as indicações antes de preparar os acessos.' });
+      }
+
+      const semEmail = status.acessos.filter((acesso) => !acesso.email);
+      if (semEmail.length > 0) {
+        return jsonResponse(400, {
+          error: `Cadastre um e-mail antes de criar os acessos para: ${semEmail.map((item) => item.nome_completo).join(', ')}.`
+        });
+      }
+
+      const pendentes = status.acessos.filter((acesso) => !acesso.possui_acesso);
+      for (const acesso of pendentes) {
+        const email = acesso.email as string;
+        const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
+          email,
+          password: email,
+          email_confirm: true,
+        });
+
+        if (createUserError || !createdUser.user) {
+          return jsonResponse(400, {
+            error: `Não foi possível criar o acesso de ${acesso.nome_completo}: ${createUserError?.message ?? 'erro desconhecido'}.`
+          });
+        }
+
+        const { error: upsertError } = await adminClient.from('profiles').upsert({
+          id: createdUser.user.id,
+          email,
+          role: 'viewer',
+          temporary_password: true,
+        });
+
+        if (upsertError) {
+          return jsonResponse(500, {
+            error: `O usuário de ${acesso.nome_completo} foi criado, mas não foi possível salvar o perfil.`
+          });
+        }
+      }
+
+      if (pendentes.length > 0) {
+        await adminClient.from('dirigencia_eventos').insert({
+          dirigencia_id: dirigenciaId,
+          tipo: 'acessos_preparados',
+          descricao: `${pendentes.length} acesso(s) da próxima dirigência foram preparados.`,
+          executado_por: requesterId,
+        });
+      }
+
+      return jsonResponse(200, {
+        ...(await getDirigenciaAccessStatus(adminClient, dirigenciaId)),
+        criados: pendentes.length,
+      });
     }
 
     if (action === 'list') {
