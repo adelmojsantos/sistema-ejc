@@ -171,17 +171,6 @@ export function CuidadosPage() {
     [registros]
   );
 
-  const saudeRegistros = useMemo(
-    () =>
-      registros.filter(
-        (registro) =>
-          registro.possui_alergia === true ||
-          registro.usa_medicamento_continuo === true ||
-          registro.possui_observacao_saude === true
-      ),
-    [registros]
-  );
-
   const semDescricaoRegistros = useMemo(
     () =>
       registros.filter(
