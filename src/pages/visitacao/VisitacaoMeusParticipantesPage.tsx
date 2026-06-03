@@ -622,31 +622,31 @@ export function VisitacaoMeusParticipantesPage() {
                                                 </div>
 
                                                 {/* Informações de Saúde */}
-                                                {(pessoa?.restricao_alimentar || pessoa?.alergia || pessoa?.medicamento_continuo || pessoa?.observacoes_saude) && (
+                                                {(pessoa?.possui_restricao_alimentar || pessoa?.possui_alergia || pessoa?.usa_medicamento_continuo || pessoa?.possui_observacao_saude) && (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.75rem 1rem', background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.04) 0%, rgba(245, 158, 11, 0.04) 100%)', borderRadius: '8px', border: '1px solid rgba(239, 68, 68, 0.1)' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.7, color: '#ef4444' }}>
                                                             <Heart size={12} />
                                                             Informações de Saúde
                                                         </div>
                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                                            {pessoa?.restricao_alimentar && (
+                                                            {pessoa?.possui_restricao_alimentar === true && (
                                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 600, background: '#f59e0b15', color: '#d97706', border: '1px solid #f59e0b25' }}>
-                                                                    <UtensilsCrossed size={11} /> {pessoa.restricao_alimentar}
+                                                                    <UtensilsCrossed size={11} /> {pessoa.restricao_alimentar || 'Restrição alimentar informada'}
                                                                 </span>
                                                             )}
-                                                            {pessoa?.alergia && (
+                                                            {pessoa?.possui_alergia === true && (
                                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 600, background: '#ef444415', color: '#dc2626', border: '1px solid #ef444425' }}>
-                                                                    <AlertTriangle size={11} /> {pessoa.alergia}
+                                                                    <AlertTriangle size={11} /> {pessoa.alergia || 'Alergia informada'}
                                                                 </span>
                                                             )}
-                                                            {pessoa?.medicamento_continuo && (
+                                                            {pessoa?.usa_medicamento_continuo === true && (
                                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 600, background: '#6366f115', color: '#4f46e5', border: '1px solid #6366f125' }}>
-                                                                    <Pill size={11} /> {pessoa.medicamento_continuo}
+                                                                    <Pill size={11} /> {pessoa.medicamento_continuo || 'Medicamento informado'}
                                                                 </span>
                                                             )}
-                                                            {pessoa?.observacoes_saude && (
+                                                            {pessoa?.possui_observacao_saude === true && (
                                                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 600, background: '#10b98115', color: '#059669', border: '1px solid #10b98125' }}>
-                                                                    <Heart size={11} /> {pessoa.observacoes_saude}
+                                                                    <Heart size={11} /> {pessoa.observacoes_saude || 'Observação informada'}
                                                                 </span>
                                                             )}
                                                         </div>

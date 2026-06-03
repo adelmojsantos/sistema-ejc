@@ -1,6 +1,6 @@
 import type { Variants } from 'framer-motion';
 import { motion } from 'framer-motion';
-import { Calendar, Crown, FileText, Folder, ListChecks, MapPin, Shield, ShoppingBag, UserPlus, Users, Users2Icon, UsersRound } from 'lucide-react';
+import { Calendar, Crown, FileText, Folder, HeartPulse, ListChecks, MapPin, Shield, ShoppingBag, UserPlus, Users, Users2Icon, UsersRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -154,6 +154,20 @@ export function Home() {
       path: '/compras',
       icon: <ShoppingBag size={36} />,
       accent: 'primary'
+    });
+  }
+
+  const hasCuidadosAccess =
+    hasPermission('modulo_cuidados') ||
+    hasPermission('modulo_admin');
+
+  if (hasCuidadosAccess) {
+    dashboardActions.push({
+      title: 'Cuidados',
+      description: 'Restrições alimentares e observações de saúde dos encontristas.',
+      path: '/cuidados',
+      icon: <HeartPulse size={36} />,
+      accent: 'success'
     });
   }
 

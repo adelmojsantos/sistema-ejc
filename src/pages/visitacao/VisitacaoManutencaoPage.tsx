@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home, Heart, UtensilsCrossed, Pill, AlertTriangle, Upload, ImagePlus, Calendar, Shirt, Plus, Trash2, X, Car, Pencil } from 'lucide-react';
 import { visitacaoService, type IntencaoCamisetaItem } from '../../services/visitacaoService';
@@ -44,6 +44,10 @@ type ParticipacaoComPessoa = {
         medicamento_continuo: string | null;
         alergia: string | null;
         observacoes_saude: string | null;
+        possui_restricao_alimentar: boolean | null;
+        possui_alergia: boolean | null;
+        usa_medicamento_continuo: boolean | null;
+        possui_observacao_saude: boolean | null;
     } | null;
 };
 
@@ -60,6 +64,125 @@ const formatVehicleText = (value: string | null | undefined) => {
         .map(word => word ? `${word[0].toUpperCase()}${word.slice(1)}` : word)
         .join(' ');
 };
+
+const normalizeCareText = (value: string | null | undefined) => (value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const isNegativeCareText = (value: string | null | undefined) => {
+    const normalized = normalizeCareText(value);
+    if (!normalized) return false;
+
+    return (
+        ['nao', 'n', 'nenhum', 'nenhuma', 'nada', 'na', 'n a'].includes(normalized) ||
+        normalized.startsWith('sem restricao') ||
+        normalized.startsWith('sem restricoes') ||
+        normalized.startsWith('sem alergia') ||
+        normalized.startsWith('sem alergias') ||
+        normalized.startsWith('sem medicamento') ||
+        normalized.startsWith('sem observacao') ||
+        normalized.startsWith('sem observacoes') ||
+        normalized.startsWith('nao possui') ||
+        normalized.startsWith('nao tem') ||
+        normalized.startsWith('nao ha') ||
+        normalized.startsWith('nao usa') ||
+        normalized.startsWith('nao toma')
+    );
+};
+
+const inferCareFlag = (flag: boolean | null | undefined, description: string | null | undefined) => {
+    if (flag !== null && flag !== undefined) return flag;
+    if (!description?.trim()) return null;
+    return !isNegativeCareText(description);
+};
+
+const getCareQuestionError = (
+    shouldShow: boolean,
+    flag: boolean | null,
+    description: string,
+    label: string
+) => {
+    if (!shouldShow) return null;
+    if (flag === null) return `Selecione Sim ou Não para ${label}.`;
+    if (flag === true && !description.trim()) return `Informe a descrição de ${label}.`;
+    return null;
+};
+
+function CareQuestion({
+    icon,
+    label,
+    description,
+    value,
+    onChange,
+    detailValue,
+    onDetailChange,
+    placeholder,
+    disabled,
+    error
+}: {
+    icon: ReactNode;
+    label: string;
+    description: string;
+    value: boolean | null;
+    onChange: (value: boolean) => void;
+    detailValue: string;
+    onDetailChange: (value: string) => void;
+    placeholder: string;
+    disabled: boolean;
+    error?: string | null;
+}) {
+    return (
+        <div className={`visit-care-question ${error ? 'visit-care-question--error' : ''}`}>
+            <div className="visit-care-question__header">
+                <div className="visit-care-question__title">
+                    {icon}
+                    <div>
+                        <strong>{label}</strong>
+                        <span>{description}</span>
+                    </div>
+                </div>
+
+                <div className="visit-care-toggle" role="group" aria-label={label}>
+                    <button
+                        type="button"
+                        className={`visit-care-toggle__btn ${value === false ? 'active-nao' : ''}`}
+                        onClick={() => onChange(false)}
+                        disabled={disabled}
+                    >
+                        Não
+                    </button>
+                    <button
+                        type="button"
+                        className={`visit-care-toggle__btn ${value === true ? 'active-sim' : ''}`}
+                        onClick={() => onChange(true)}
+                        disabled={disabled}
+                    >
+                        Sim
+                    </button>
+                </div>
+            </div>
+
+            {error ? (
+                <p className="visit-care-question__error">{error}</p>
+            ) : value === null ? (
+                <p className="visit-care-question__hint">Selecione Sim ou Não para prosseguir.</p>
+            ) : null}
+
+            {value === true && (
+                <textarea
+                    className="form-input visit-care-question__textarea"
+                    value={detailValue}
+                    onChange={(event) => onDetailChange(event.target.value)}
+                    placeholder={placeholder}
+                    disabled={disabled}
+                />
+            )}
+        </div>
+    );
+}
 
 export function VisitacaoManutencaoPage() {
     const { id } = useParams<{ id: string }>();
@@ -109,6 +232,11 @@ export function VisitacaoManutencaoPage() {
     const [medicamentoContinuo, setMedicamentoContinuo] = useState('');
     const [alergia, setAlergia] = useState('');
     const [observacoesSaude, setObservacoesSaude] = useState('');
+    const [possuiRestricaoAlimentar, setPossuiRestricaoAlimentar] = useState<boolean | null>(null);
+    const [possuiAlergia, setPossuiAlergia] = useState<boolean | null>(null);
+    const [usaMedicamentoContinuo, setUsaMedicamentoContinuo] = useState<boolean | null>(null);
+    const [possuiObservacaoSaude, setPossuiObservacaoSaude] = useState<boolean | null>(null);
+    const [showCareErrors, setShowCareErrors] = useState(false);
 
     const [isHistory, setIsHistory] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -281,6 +409,10 @@ export function VisitacaoManutencaoPage() {
                         setMedicamentoContinuo(p.medicamento_continuo || '');
                         setAlergia(p.alergia || '');
                         setObservacoesSaude(p.observacoes_saude || '');
+                        setPossuiRestricaoAlimentar(inferCareFlag(p.possui_restricao_alimentar, p.restricao_alimentar));
+                        setPossuiAlergia(inferCareFlag(p.possui_alergia, p.alergia));
+                        setUsaMedicamentoContinuo(inferCareFlag(p.usa_medicamento_continuo, p.medicamento_continuo));
+                        setPossuiObservacaoSaude(inferCareFlag(p.possui_observacao_saude, p.observacoes_saude));
                     }
 
                     // Load shirt intentions (only for real visits, not history)
@@ -417,6 +549,28 @@ export function VisitacaoManutencaoPage() {
 
     const executeSave = async () => {
         if (!id || !visita) return;
+        setShowCareErrors(true);
+
+        const cuidadosObrigatorios = [
+            { label: 'Restrição alimentar', flag: possuiRestricaoAlimentar, description: restricaoAlimentar },
+            { label: 'Alergia', flag: possuiAlergia, description: alergia },
+            { label: 'Medicamento contínuo', flag: usaMedicamentoContinuo, description: medicamentoContinuo },
+            { label: 'Observações de saúde', flag: possuiObservacaoSaude, description: observacoesSaude },
+        ];
+
+        const respostaPendente = cuidadosObrigatorios.find((item) => item.flag === null);
+        if (respostaPendente) {
+            toast.error(`Responda Sim ou Não para ${respostaPendente.label}.`);
+            return;
+        }
+
+        const descricaoPendente = cuidadosObrigatorios.find((item) => item.flag === true && !item.description.trim());
+        if (descricaoPendente) {
+            toast.error(`Informe a descrição de ${descricaoPendente.label}.`);
+            return;
+        }
+
+        setShowCareErrors(false);
         setSaving(true);
         try {
             await visitacaoService.atualizarVisita(id, {
@@ -452,7 +606,11 @@ export function VisitacaoManutencaoPage() {
                     restricao_alimentar: restricaoAlimentar || null,
                     medicamento_continuo: medicamentoContinuo || null,
                     alergia: alergia || null,
-                    observacoes_saude: observacoesSaude || null
+                    observacoes_saude: observacoesSaude || null,
+                    possui_restricao_alimentar: possuiRestricaoAlimentar,
+                    possui_alergia: possuiAlergia,
+                    usa_medicamento_continuo: usaMedicamentoContinuo,
+                    possui_observacao_saude: possuiObservacaoSaude
                 });
             }
 
@@ -1312,74 +1470,59 @@ export function VisitacaoManutencaoPage() {
                                 Registre informações importantes sobre a saúde do encontrista para que a equipe esteja preparada.
                             </p>
 
-                            <FormRow>
-                                <div className="col-6">
-                                    <div className="form-group">
-                                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                            <UtensilsCrossed size={14} style={{ color: '#f59e0b' }} />
-                                            Restrição Alimentar
-                                        </label>
-                                        <textarea
-                                            className="form-input"
-                                            value={restricaoAlimentar}
-                                            onChange={e => setRestricaoAlimentar(e.target.value)}
-                                            placeholder="Ex: Vegetariano, intolerante à lactose, celíaco..."
-                                            style={{ minHeight: '80px', resize: 'vertical' }}
-                                            disabled={isHistory}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="col-6">
-                                    <div className="form-group">
-                                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                            <AlertTriangle size={14} style={{ color: '#ef4444' }} />
-                                            Alergia
-                                        </label>
-                                        <textarea
-                                            className="form-input"
-                                            value={alergia}
-                                            onChange={e => setAlergia(e.target.value)}
-                                            placeholder="Ex: Amendoim, penicilina, látex, poeira..."
-                                            style={{ minHeight: '80px', resize: 'vertical' }}
-                                            disabled={isHistory}
-                                        />
-                                    </div>
-                                </div>
-                            </FormRow>
-                            <FormRow>
-                                <div className="col-6">
-                                    <div className="form-group">
-                                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                            <Pill size={14} style={{ color: '#6366f1' }} />
-                                            Medicamento Contínuo
-                                        </label>
-                                        <textarea
-                                            className="form-input"
-                                            value={medicamentoContinuo}
-                                            onChange={e => setMedicamentoContinuo(e.target.value)}
-                                            placeholder="Ex: Insulina, antialérgico, antidepressivo..."
-                                            style={{ minHeight: '80px', resize: 'vertical' }}
-                                            disabled={isHistory}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="col-6">
-                                    <div className="form-group">
-                                        <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                            <Heart size={14} style={{ color: '#10b981' }} />
-                                            Observações de Saúde
-                                        </label>
-                                        <textarea
-                                            className="form-input"
-                                            value={observacoesSaude}
-                                            onChange={e => setObservacoesSaude(e.target.value)}
-                                            placeholder="Ex: Epilepsia, diabetes, asma, deficiência física..."
-                                            style={{ minHeight: '80px', resize: 'vertical' }}
-                                            disabled={isHistory}
-                                        />
-                                    </div>
-                                </div>
-                            </FormRow>
+                            <div className="visit-care-grid">
+                                <CareQuestion
+                                    icon={<UtensilsCrossed size={16} style={{ color: '#f59e0b' }} />}
+                                    label="Possui restrição alimentar?"
+                                    description="Informe se a cozinha precisa de atenção especial."
+                                    value={possuiRestricaoAlimentar}
+                                    onChange={setPossuiRestricaoAlimentar}
+                                    detailValue={restricaoAlimentar}
+                                    onDetailChange={setRestricaoAlimentar}
+                                    placeholder="Ex: Vegetariano, intolerante à lactose, celíaco..."
+                                    disabled={isHistory}
+                                    error={getCareQuestionError(showCareErrors, possuiRestricaoAlimentar, restricaoAlimentar, 'restrição alimentar')}
+                                />
+
+                                <CareQuestion
+                                    icon={<AlertTriangle size={16} style={{ color: '#ef4444' }} />}
+                                    label="Possui alergia?"
+                                    description="Registre alergias alimentares, medicamentosas ou outras."
+                                    value={possuiAlergia}
+                                    onChange={setPossuiAlergia}
+                                    detailValue={alergia}
+                                    onDetailChange={setAlergia}
+                                    placeholder="Ex: Amendoim, penicilina, látex, poeira..."
+                                    disabled={isHistory}
+                                    error={getCareQuestionError(showCareErrors, possuiAlergia, alergia, 'alergia')}
+                                />
+
+                                <CareQuestion
+                                    icon={<Pill size={16} style={{ color: '#6366f1' }} />}
+                                    label="Usa medicamento contínuo?"
+                                    description="Informe medicamentos de uso contínuo ou indispensável."
+                                    value={usaMedicamentoContinuo}
+                                    onChange={setUsaMedicamentoContinuo}
+                                    detailValue={medicamentoContinuo}
+                                    onDetailChange={setMedicamentoContinuo}
+                                    placeholder="Ex: Insulina, antialérgico, antidepressivo..."
+                                    disabled={isHistory}
+                                    error={getCareQuestionError(showCareErrors, usaMedicamentoContinuo, medicamentoContinuo, 'medicamento contínuo')}
+                                />
+
+                                <CareQuestion
+                                    icon={<Heart size={16} style={{ color: '#10b981' }} />}
+                                    label="Possui observação de saúde?"
+                                    description="Inclua qualquer cuidado importante para a Boa Vontade."
+                                    value={possuiObservacaoSaude}
+                                    onChange={setPossuiObservacaoSaude}
+                                    detailValue={observacoesSaude}
+                                    onDetailChange={setObservacoesSaude}
+                                    placeholder="Ex: Epilepsia, diabetes, asma, deficiência física..."
+                                    disabled={isHistory}
+                                    error={getCareQuestionError(showCareErrors, possuiObservacaoSaude, observacoesSaude, 'observação de saúde')}
+                                />
+                            </div>
                         </FormSection>
 
                         <FormSection title="Observações da Visita" icon={<Info size={20} />}>
@@ -1608,6 +1751,123 @@ export function VisitacaoManutencaoPage() {
                         }
                         .visita-vehicle-actions .icon-btn {
                             flex: 1;
+                        }
+                    }
+                    .visit-care-grid {
+                        display: grid;
+                        grid-template-columns: repeat(2, minmax(0, 1fr));
+                        gap: 1rem;
+                    }
+                    .visit-care-question {
+                        border: 1px solid var(--border-color);
+                        background: var(--secondary-bg);
+                        border-radius: 16px;
+                        padding: 1rem;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 0.85rem;
+                    }
+                    .visit-care-question--error {
+                        border-color: #ef4444;
+                        background: color-mix(in srgb, #ef4444 7%, var(--secondary-bg));
+                        box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+                    }
+                    .visit-care-question__header {
+                        display: flex;
+                        align-items: flex-start;
+                        justify-content: space-between;
+                        gap: 1rem;
+                    }
+                    .visit-care-question__title {
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 0.6rem;
+                        min-width: 0;
+                    }
+                    .visit-care-question__title strong {
+                        display: block;
+                        color: var(--text-color);
+                        font-size: 0.95rem;
+                        line-height: 1.25;
+                    }
+                    .visit-care-question__title span {
+                        display: block;
+                        margin-top: 0.25rem;
+                        color: var(--muted-text);
+                        font-size: 0.78rem;
+                        line-height: 1.35;
+                    }
+                    .visit-care-toggle {
+                        display: inline-grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 0.3rem;
+                        padding: 0.25rem;
+                        border-radius: 999px;
+                        border: 1px solid var(--border-color);
+                        background: var(--card-bg);
+                        flex-shrink: 0;
+                    }
+                    .visit-care-toggle__btn {
+                        border: 0;
+                        border-radius: 999px;
+                        min-width: 3.15rem;
+                        min-height: 2rem;
+                        padding: 0 0.75rem;
+                        background: transparent;
+                        color: var(--muted-text);
+                        font-weight: 800;
+                        font-size: 0.78rem;
+                        cursor: pointer;
+                        transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+                    }
+                    .visit-care-toggle__btn:hover:not(:disabled) {
+                        color: var(--text-color);
+                    }
+                    .visit-care-toggle__btn.active-sim {
+                        background: #10b981;
+                        color: #fff;
+                    }
+                    .visit-care-toggle__btn.active-nao {
+                        background: #ef4444;
+                        color: #fff;
+                    }
+                    .visit-care-toggle__btn:disabled {
+                        cursor: not-allowed;
+                        opacity: 0.7;
+                    }
+                    .visit-care-question__hint {
+                        margin: 0;
+                        color: var(--accent-color);
+                        font-size: 0.78rem;
+                        font-weight: 700;
+                    }
+                    .visit-care-question__error {
+                        margin: 0;
+                        color: #ef4444;
+                        font-size: 0.78rem;
+                        font-weight: 800;
+                    }
+                    .visit-care-question__textarea {
+                        min-height: 88px;
+                        resize: vertical;
+                    }
+                    .visit-care-question--error .visit-care-question__textarea {
+                        border-color: #ef4444;
+                    }
+                    @media (max-width: 860px) {
+                        .visit-care-grid {
+                            grid-template-columns: 1fr;
+                        }
+                    }
+                    @media (max-width: 520px) {
+                        .visit-care-question__header {
+                            flex-direction: column;
+                        }
+                        .visit-care-toggle {
+                            width: 100%;
+                        }
+                        .visit-care-toggle__btn {
+                            width: 100%;
                         }
                     }
                     /* Action Sheet Styles */

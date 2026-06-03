@@ -17,7 +17,8 @@ import {
   Folder,
   ShoppingBag,
   UsersRound,
-  Crown
+  Crown,
+  HeartPulse
 } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
@@ -78,6 +79,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   if (hasPermission('modulo_compras') || hasPermission('modulo_admin')) {
     menuItems.push({ to: '/compras', label: 'Compras', icon: ShoppingBag });
+  }
+
+  const hasCuidadosAccess =
+    hasPermission('modulo_cuidados') ||
+    hasPermission('modulo_admin');
+
+  if (hasCuidadosAccess) {
+    menuItems.push({ to: '/cuidados', label: 'Cuidados', icon: HeartPulse });
   }
 
   if (hasPermission('modulo_coordenador') || userParticipacao?.coordenador) {

@@ -29,6 +29,10 @@ export interface Pessoa {
     medicamento_continuo?: string | null;
     alergia?: string | null;
     observacoes_saude?: string | null;
+    possui_restricao_alimentar?: boolean | null;
+    possui_alergia?: boolean | null;
+    usa_medicamento_continuo?: boolean | null;
+    possui_observacao_saude?: boolean | null;
 }
 
 export type PessoaFormData = Omit<Pessoa, 'id' | 'qr_code_token' | 'created_at'>;
@@ -58,4 +62,8 @@ export const pessoaFormDataVazia = (): PessoaFormData => ({
     medicamento_continuo: null,
     alergia: null,
     observacoes_saude: null,
+    possui_restricao_alimentar: null,
+    possui_alergia: null,
+    usa_medicamento_continuo: null,
+    possui_observacao_saude: null,
 });
