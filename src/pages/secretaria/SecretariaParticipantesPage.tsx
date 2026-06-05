@@ -5,14 +5,16 @@ import { inscricaoService, type ParticipacaoCancelada } from '../../services/ins
 import { pessoaService } from '../../services/pessoaService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car, Camera, SlidersHorizontal, Image as ImageIcon, Upload, Settings2, Minus, Plus as PlusIcon, RotateCcw } from 'lucide-react';
+import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car, Camera, SlidersHorizontal, Image as ImageIcon, Upload, Settings2, Minus, Plus as PlusIcon, RotateCcw, Pencil } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
+import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useAuth } from '../../hooks/useAuth';
 import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { geocodeWithFallback } from '../../utils/geocoding';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -136,8 +138,11 @@ export function SecretariaParticipantesPage() {
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
   const [desistenciaToRestore, setDesistenciaToRestore] = useState<ParticipacaoCancelada | null>(null);
+  const [editingPessoa, setEditingPessoa] = useState<Pessoa | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
   const [isRestoringDesistencia, setIsRestoringDesistencia] = useState(false);
+  const [isLoadingPessoaEdit, setIsLoadingPessoaEdit] = useState(false);
+  const [isSavingPessoaEdit, setIsSavingPessoaEdit] = useState(false);
   const [activeTab, setActiveTab] = useState<'participantes' | 'desistentes'>('participantes');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterVeiculo, setFilterVeiculo] = useState(false);
@@ -356,6 +361,43 @@ export function SecretariaParticipantesPage() {
 
   const updateParticipantPhotoState = (participacaoId: string, updates: Partial<InscricaoEnriched>) => {
     setParticipantes((prev) => prev.map((p) => (p.id === participacaoId ? { ...p, ...updates } : p)));
+  };
+
+  const updateParticipantPessoaState = (pessoaId: string, pessoa: Pessoa) => {
+    setParticipantes((prev) => prev.map((p) => (
+      p.pessoa_id === pessoaId
+        ? { ...p, pessoas: { ...p.pessoas, ...pessoa } }
+        : p
+    )));
+  };
+
+  const handleOpenPessoaEdit = async (participante: InscricaoEnriched) => {
+    setIsLoadingPessoaEdit(true);
+    try {
+      const pessoa = await pessoaService.buscarPorId(participante.pessoa_id);
+      setEditingPessoa(pessoa);
+    } catch (error) {
+      console.error('Erro ao carregar dados da pessoa:', error);
+      toast.error('Não foi possível carregar os dados para edição.');
+    } finally {
+      setIsLoadingPessoaEdit(false);
+    }
+  };
+
+  const handlePessoaEditSubmit = async (data: PessoaFormData) => {
+    if (!editingPessoa) return;
+    setIsSavingPessoaEdit(true);
+    try {
+      const updatedPessoa = await pessoaService.atualizar(editingPessoa.id, data);
+      updateParticipantPessoaState(editingPessoa.id, updatedPessoa);
+      setEditingPessoa(null);
+      toast.success('Dados atualizados com sucesso!');
+    } catch (error) {
+      console.error('Erro ao salvar dados da pessoa:', error);
+      toast.error('Erro ao salvar alterações.');
+    } finally {
+      setIsSavingPessoaEdit(false);
+    }
   };
 
   const handlePhotoUpload = async (participante: InscricaoEnriched, file: File) => {
@@ -896,6 +938,16 @@ export function SecretariaParticipantesPage() {
                       </div>
 
                       <div className="pessoa-row-actions secretaria-pessoa-actions">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleOpenPessoaEdit(p); }}
+                          className="secretaria-edit-button"
+                          title="Editar dados"
+                          aria-label={`Editar dados de ${nomeParticipante}`}
+                          disabled={isLoadingPessoaEdit}
+                        >
+                          {isLoadingPessoaEdit ? <Loader size={16} className="animate-spin" /> : <Pencil size={16} />}
+                          <span>Editar</span>
+                        </button>
                         {selectedEncontro?.ativo && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
@@ -1070,6 +1122,25 @@ export function SecretariaParticipantesPage() {
         onCancel={() => setDesistenciaToRestore(null)}
         isLoading={isRestoringDesistencia}
       />
+
+      <Modal
+        isOpen={!!editingPessoa}
+        onClose={() => {
+          if (!isSavingPessoaEdit) setEditingPessoa(null);
+        }}
+        title={`Editar Dados - ${editingPessoa?.nome_completo || 'Participante'}`}
+        maxWidth="920px"
+      >
+        {editingPessoa && (
+          <PessoaForm
+            initialData={editingPessoa}
+            onSubmit={handlePessoaEditSubmit}
+            onCancel={() => setEditingPessoa(null)}
+            isLoading={isSavingPessoaEdit}
+            hideConfirmAction
+          />
+        )}
+      </Modal>
 
       <Modal
         isOpen={!!previewPhoto}
@@ -1367,6 +1438,42 @@ export function SecretariaParticipantesPage() {
         .action-btn-hover:hover {
           background-color: rgba(239, 68, 68, 0.1);
         }
+        .secretaria-edit-button {
+          width: 34px;
+          height: 34px;
+          border-radius: 9px;
+          border: 1px solid rgba(37, 99, 235, 0.45);
+          background: rgba(37, 99, 235, 0.06);
+          color: var(--primary-color);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.45rem;
+          cursor: pointer;
+          transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .secretaria-edit-button:disabled {
+          opacity: 0.55;
+          cursor: wait;
+        }
+        .secretaria-edit-button svg {
+          display: block;
+          width: 16px;
+          height: 16px;
+          color: var(--primary-color);
+          stroke: var(--primary-color);
+          flex-shrink: 0;
+        }
+        .secretaria-edit-button:hover:not(:disabled) {
+          background: rgba(37, 99, 235, 0.12);
+          border-color: var(--primary-color);
+          transform: translateY(-1px);
+        }
+        .secretaria-edit-button span {
+          display: none;
+          font-size: 0.85rem;
+          font-weight: 700;
+        }
         .secretaria-unlink-button {
           width: 34px;
           height: 34px;
@@ -1401,7 +1508,7 @@ export function SecretariaParticipantesPage() {
         }
         .secretaria-pessoa-row {
           display: grid;
-          grid-template-columns: minmax(330px, 1.55fr) minmax(190px, 0.85fr) minmax(280px, 1.25fr) auto;
+          grid-template-columns: minmax(300px, 1.45fr) minmax(180px, 0.8fr) minmax(260px, 1.2fr) minmax(84px, auto);
           align-items: center;
         }
         .secretaria-photo-block {
@@ -1667,6 +1774,9 @@ export function SecretariaParticipantesPage() {
         .secretaria-pessoa-actions {
           justify-content: flex-end;
           margin-left: 0;
+          gap: 0.45rem;
+          min-width: 84px;
+          flex-wrap: nowrap;
         }
         @media (max-width: 900px) {
           .secretaria-filter-grid {
@@ -1734,10 +1844,12 @@ export function SecretariaParticipantesPage() {
             padding-top: 0.35rem;
             border-top: 1px solid var(--border-color);
           }
+          .secretaria-edit-button,
           .secretaria-unlink-button {
             width: 100%;
             height: 40px;
           }
+          .secretaria-edit-button span,
           .secretaria-unlink-button span {
             display: inline;
           }
