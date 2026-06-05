@@ -11,6 +11,8 @@ interface ConfirmDialogProps {
     onCancel: () => void;
     isLoading?: boolean;
     isDestructive?: boolean;
+    isConfirmDisabled?: boolean;
+    maxWidth?: string;
 }
 
 export function ConfirmDialog({
@@ -22,7 +24,9 @@ export function ConfirmDialog({
     onConfirm,
     onCancel,
     isLoading = false,
-    isDestructive = false
+    isDestructive = false,
+    isConfirmDisabled = false,
+    maxWidth = '440px'
 }: ConfirmDialogProps) {
     if (!isOpen) return null;
 
@@ -32,7 +36,8 @@ export function ConfirmDialog({
                 className="modal-content card"
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                    maxWidth: '440px',
+                    maxWidth,
+                    width: 'calc(100% - 2rem)',
                     padding: '1.5rem',
                     display: 'block', // Garantir que não seja flex se o CSS global interferir
                     position: 'relative'
@@ -81,7 +86,7 @@ export function ConfirmDialog({
                         <button
                             className={isDestructive ? 'btn-danger-solid' : 'btn-primary'}
                             onClick={onConfirm}
-                            disabled={isLoading}
+                            disabled={isLoading || isConfirmDisabled}
                             style={{
                                 minWidth: '120px',
                                 padding: '0.75rem 1.5rem',
@@ -123,6 +128,13 @@ export function ConfirmDialog({
                 
                 .btn-danger-solid:active:not(:disabled) {
                     transform: translateY(0);
+                }
+
+                @media (max-width: 640px) {
+                    .modal-overlay .modal-content.card {
+                        width: calc(100vw - 1rem) !important;
+                        max-width: none !important;
+                    }
                 }
             `}</style>
         </div>

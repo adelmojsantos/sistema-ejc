@@ -24,6 +24,7 @@ import { encontroService } from '../../services/encontroService';
 import { recreacaoService } from '../../services/recreacaoService';
 import type { Encontro } from '../../types/encontro';
 import type { RecreacaoDados } from '../../types/recreacao';
+import { formatChildAge } from '../../utils/ageUtils';
 
 export function RecreacaoAdminPage() {
   const navigate = useNavigate();
@@ -215,7 +216,7 @@ export function RecreacaoAdminPage() {
                 zIndex: 5,
                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
               }}>
-                {reg.idade} {reg.idade <= 1 ? 'ANO' : 'ANOS'}
+                {formatChildAge(reg.data_nascimento, reg.idade)}
               </div>
               <div style={{
                 padding: '1rem 1.25rem',

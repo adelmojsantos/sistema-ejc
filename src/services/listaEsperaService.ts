@@ -74,7 +74,7 @@ export const listaEsperaService = {
             .select(COLS)
             .eq('encontro_id', encontroId)
             .eq('status', 'pendente')
-            .order('created_at', { ascending: true });
+            .order('nome_completo', { ascending: true });
 
         if (error) {
             console.error('Error listing registrations:', error);
@@ -90,7 +90,7 @@ export const listaEsperaService = {
             .select(COLS)
             .eq('encontro_id', encontroId)
             .eq('status', 'convertido')
-            .order('created_at', { ascending: true });
+            .order('nome_completo', { ascending: true });
 
         if (error) {
             console.error('Error listing registrations:', error);
@@ -107,7 +107,7 @@ export const listaEsperaService = {
             .select(COLS)
             .eq('encontro_id', encontroId)
             .eq('status', 'reprovado')
-            .order('created_at', { ascending: true });
+            .order('nome_completo', { ascending: true });
 
         if (error) {
             console.error('Error listing registrations:', error);

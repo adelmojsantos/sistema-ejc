@@ -5,6 +5,7 @@ import { recreacaoService } from '../../services/recreacaoService';
 import { equipeService } from '../../services/equipeService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { FormField } from '../../components/ui/FormField';
+import { FormRow } from '../../components/ui/FormRow';
 import { Loader, Baby, Car, CheckCircle, LogOut, Plus, Trash2, Pencil, Users } from 'lucide-react';
 import logoEjc from '../../assets/logo-ejc.svg';
 import { toast } from 'react-hot-toast';
@@ -12,6 +13,12 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import type { RecreacaoDados, RecreacaoDadosFormData } from '../../types/recreacao';
 import type { Equipe } from '../../types/equipe';
 import type { InscricaoEnriched } from '../../types/inscricao';
+import {
+  calculateAgeParts,
+  formatAgeParts,
+  formatChildAge,
+  MAX_RECREACAO_AGE_MONTHS
+} from '../../utils/ageUtils';
 
 export default function FormRecreacaoPage() {
   const navigate = useNavigate();
@@ -32,6 +39,7 @@ export default function FormRecreacaoPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<RecreacaoDadosFormData>({
     nome_crianca: '',
+    data_nascimento: null,
     idade: 0,
     outro_responsavel_id: '',
     observacoes: ''
@@ -92,10 +100,24 @@ export default function FormRecreacaoPage() {
     e.preventDefault();
     if (!session?.participacao_id) return;
 
+    const calculatedAge = calculateAgeParts(formData.data_nascimento);
+
+    if (formData.data_nascimento && !calculatedAge) {
+      toast.error('Informe uma data de nascimento válida.');
+      return;
+    }
+
+    if (calculatedAge && calculatedAge.totalMonths > MAX_RECREACAO_AGE_MONTHS) {
+      toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const cleanedData = {
         ...formData,
+        data_nascimento: formData.data_nascimento || null,
+        idade: calculatedAge ? calculatedAge.years : formData.idade,
         outro_responsavel_id: formData.outro_responsavel_id || null,
         observacoes: formData.observacoes || null
       };
@@ -115,6 +137,7 @@ export default function FormRecreacaoPage() {
   const handleEdit = (child: RecreacaoDados) => {
     setFormData({
       nome_crianca: child.nome_crianca,
+      data_nascimento: child.data_nascimento || null,
       idade: child.idade,
       outro_responsavel_id: child.outro_responsavel_id || '',
       observacoes: child.observacoes || ''
@@ -151,6 +174,7 @@ export default function FormRecreacaoPage() {
   const resetForm = () => {
     setFormData({
       nome_crianca: '',
+      data_nascimento: null,
       idade: 0,
       outro_responsavel_id: '',
       observacoes: ''
@@ -164,6 +188,8 @@ export default function FormRecreacaoPage() {
     .filter(p => !selectedTeamId || p.equipe_id === selectedTeamId)
     .filter(p => p.id !== session?.participacao_id) // Don't list self as second responsible
     .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
+
+  const formAge = calculateAgeParts(formData.data_nascimento);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -414,7 +440,9 @@ export default function FormRecreacaoPage() {
                             </span>
                           )}
                         </div>
-                        <p style={{ fontSize: '0.875rem', opacity: 0.6, margin: 0 }}>{child.idade} anos</p>
+                        <p style={{ fontSize: '0.875rem', opacity: 0.6, margin: 0 }}>
+                          {formatChildAge(child.data_nascimento, child.idade)}
+                        </p>
                         
                         {child.participacao_id !== session?.participacao_id && (
                           <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -497,34 +525,57 @@ export default function FormRecreacaoPage() {
             </h2>
 
             <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <FormField
-                label="Nome da Criança"
-                required
-                placeholder="Nome completo"
-                value={formData.nome_crianca}
-                onChange={e => setFormData({ ...formData, nome_crianca: e.target.value })}
-              />
+              <FormRow>
+                <FormField
+                  label="Nome da Criança"
+                  required
+                  placeholder="Nome completo"
+                  value={formData.nome_crianca}
+                  onChange={e => setFormData({ ...formData, nome_crianca: e.target.value })}
+                  colSpan={12}
+                />
+              </FormRow>
 
-              <FormField
-                label="Idade"
-                type="number"
-                required
-                min={0}
-                max={7}
-                onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('A idade máxima é 7 anos e 11 meses')}
-                onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
-                onBlur={e => {
-                  const val = parseInt((e.target as HTMLInputElement).value);
-                  if (val > 7) {
-                    toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.', {
-                      icon: '🧒',
-                      duration: 5000
-                    });
-                  }
-                }}
-                value={formData.idade.toString()}
-                onChange={e => setFormData({ ...formData, idade: parseInt(e.target.value) || 0 })}
-              />
+              <FormRow>
+                <FormField
+                  label="Data de nascimento"
+                  type="date"
+                  value={formData.data_nascimento || ''}
+                  onChange={e => setFormData({ ...formData, data_nascimento: e.target.value || null })}
+                  colSpan={6}
+                />
+
+                {formData.data_nascimento ? (
+                  <FormField
+                    label="Idade calculada"
+                    value={formAge ? formatAgeParts(formAge) : 'Data inválida'}
+                    disabled
+                    colSpan={6}
+                  />
+                ) : (
+                  <FormField
+                    label="Idade"
+                    type="number"
+                    required
+                    min={0}
+                    max={7}
+                    onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('A idade máxima é 7 anos e 11 meses')}
+                    onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
+                    onBlur={e => {
+                      const val = parseInt((e.target as HTMLInputElement).value);
+                      if (val > 7) {
+                        toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.', {
+                          icon: '🧒',
+                          duration: 5000
+                        });
+                      }
+                    }}
+                    value={formData.idade.toString()}
+                    onChange={e => setFormData({ ...formData, idade: parseInt(e.target.value) || 0 })}
+                    colSpan={6}
+                  />
+                )}
+              </FormRow>
 
               <div style={{ 
                 padding: '1.25rem', 

@@ -53,6 +53,7 @@ import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import type { RecepcaoDados } from '../../types/recepcao';
 import type { RecreacaoDados } from '../../types/recreacao';
 import { formatBRL } from '../../utils/currencyUtils';
+import { formatChildAge } from '../../utils/ageUtils';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 import { Minus, Plus } from 'phosphor-react';
 
@@ -1910,7 +1911,7 @@ export function CoordenadorMinhaEquipePage() {
                                     {c.nome_crianca}
                                   </div>
                                 </td>
-                                <td style={{ padding: '0.4rem 0.25rem' }}>{c.idade}a</td>
+                                <td style={{ padding: '0.4rem 0.25rem' }}>{formatChildAge(c.data_nascimento, c.idade)}</td>
                               </tr>
                             ))}
                           </tbody>

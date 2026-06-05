@@ -99,6 +99,8 @@ const inferCareFlag = (flag: boolean | null | undefined, description: string | n
     return !isNegativeCareText(description);
 };
 
+const MIN_DESISTENCIA_MOTIVO_LENGTH = 50;
+
 const getCareQuestionError = (
     shouldShow: boolean,
     flag: boolean | null,
@@ -225,6 +227,8 @@ export function VisitacaoManutencaoPage() {
     const [nomeMae, setNomeMae] = useState('');
     const [telefoneMae, setTelefoneMae] = useState('');
     const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+    const [motivoDesistencia, setMotivoDesistencia] = useState('');
+    const [motivoDesistenciaError, setMotivoDesistenciaError] = useState('');
     const [isConfirmPhotoRemoveDialogOpen, setIsConfirmPhotoRemoveDialogOpen] = useState(false);
 
     // Health states
@@ -486,6 +490,8 @@ export function VisitacaoManutencaoPage() {
         if (!id || !visita) return;
 
         if (status === 'cancelada') {
+            setMotivoDesistencia(observacoes.trim());
+            setMotivoDesistenciaError('');
             setIsConfirmDialogOpen(true);
             return;
         }
@@ -495,6 +501,14 @@ export function VisitacaoManutencaoPage() {
 
     const handleConfirmCancel = async () => {
         if (!id || !visita) return;
+        const motivo = motivoDesistencia.trim();
+
+        if (motivo.length < MIN_DESISTENCIA_MOTIVO_LENGTH) {
+            setMotivoDesistenciaError(`Preencha explicando o contato e o motivo da desistência.`);
+            return;
+        }
+
+        setObservacoes(motivo);
         setSaving(true);
         try {
             const { data: participacaoSnapshot, error: participacaoSnapshotError } = await supabase
@@ -511,7 +525,7 @@ export function VisitacaoManutencaoPage() {
                 encontro_id: (visita.participacoes as ParticipacaoComPessoa | null)?.encontro_id || '',
                 grupo_id: visita.grupo_id,
                 status_visita: status,
-                observacoes: observacoes,
+                observacoes: motivo,
                 dados_snapshot: {
                     visita_participacao_id: id,
                     participacao_id: visita.participacao_id,
@@ -1981,13 +1995,59 @@ export function VisitacaoManutencaoPage() {
             <ConfirmDialog
                 isOpen={isConfirmDialogOpen}
                 title="Confirmar Desistência"
-                message="Marcar como DESISTENTE irá REMOVER esta pessoa do Encontro permanentemente (embora os dados fiquem salvos no histórico). Esta ação não pode ser desfeita. Deseja continuar?"
+                message={
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <p style={{ margin: 0 }}>
+                            Marcar como <strong>DESISTENTE</strong> irá remover esta pessoa do encontro permanentemente,
+                            mantendo os dados salvos no histórico.
+                        </p>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">
+                                Motivo da desistência <span style={{ color: '#ef4444' }}>*</span>
+                            </label>
+                            <textarea
+                                className="form-input"
+                                value={motivoDesistencia}
+                                onChange={(event) => {
+                                    setMotivoDesistencia(event.target.value);
+                                    if (motivoDesistenciaError) setMotivoDesistenciaError('');
+                                }}
+                                placeholder="Descreva o contato realizado com o encontrista e o motivo informado para a desistência."
+                                rows={6}
+                                style={{
+                                    resize: 'vertical',
+                                    minHeight: '140px',
+                                    borderColor: motivoDesistenciaError ? '#ef4444' : undefined,
+                                    boxShadow: motivoDesistenciaError ? '0 0 0 3px rgba(239, 68, 68, 0.12)' : undefined
+                                }}
+                            />
+                            <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                gap: '1rem',
+                                marginTop: '0.45rem',
+                                fontSize: '0.78rem'
+                            }}>
+                                <span style={{ color: motivoDesistenciaError ? '#ef4444' : 'var(--muted-text)' }}>
+                                    {motivoDesistenciaError || `Mínimo de ${MIN_DESISTENCIA_MOTIVO_LENGTH} caracteres.`}
+                                </span>
+                                <span style={{ color: motivoDesistencia.trim().length < MIN_DESISTENCIA_MOTIVO_LENGTH ? '#ef4444' : '#10b981', fontWeight: 700 }}>
+                                    {motivoDesistencia.trim().length}/{MIN_DESISTENCIA_MOTIVO_LENGTH}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                }
                 confirmText="Sim, Confirmar Desistência"
                 cancelText="Voltar"
                 onConfirm={handleConfirmCancel}
-                onCancel={() => setIsConfirmDialogOpen(false)}
+                onCancel={() => {
+                    setIsConfirmDialogOpen(false);
+                    setMotivoDesistenciaError('');
+                }}
                 isLoading={saving}
                 isDestructive={true}
+                maxWidth="680px"
             />
 
             <ConfirmDialog

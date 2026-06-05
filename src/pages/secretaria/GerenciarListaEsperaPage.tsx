@@ -12,13 +12,16 @@ import type { Pessoa } from '../../types/pessoa';
 import { formatTelefone, maskCpf } from '../../utils/cpfUtils';
 import { calculateAge } from '../../utils/dateUtils';
 
+type ListaEsperaViewMode = 'todos' | 'pendente' | 'convertido' | 'reprovado';
+
 export function GerenciarListaEsperaPage() {
-    const { encontroAtivo } = useEncontros();
+    const { encontros, encontroAtivo } = useEncontros();
+    const [selectedEncontroId, setSelectedEncontroId] = useState('');
     const [entries, setEntries] = useState<ListaEsperaEntry[]>([]);
     const [efetivados, setEfetivados] = useState<ListaEsperaEntry[]>([]);
     const [reprovados, setReprovados] = useState<ListaEsperaEntry[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [viewMode, setViewMode] = useState<'pendente' | 'reprovado'>('pendente');
+    const [viewMode, setViewMode] = useState<ListaEsperaViewMode>('todos');
 
     // Batch Selection Data
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -37,20 +40,36 @@ export function GerenciarListaEsperaPage() {
     const [showDuplicateModal, setShowDuplicateModal] = useState(false);
     const [duplicateEntry, setDuplicateEntry] = useState<ListaEsperaEntry | null>(null);
     const [duplicateCandidates, setDuplicateCandidates] = useState<Pessoa[]>([]);
+    const selectedEncontro = encontros.find(encontro => encontro.id === selectedEncontroId) ?? null;
+    const ordenarPorNome = (items: ListaEsperaEntry[]) =>
+        [...items].sort((a, b) => a.nome_completo.localeCompare(b.nome_completo, 'pt-BR'));
+    const todosCadastros = ordenarPorNome([...entries, ...efetivados, ...reprovados]);
+
+    useEffect(() => {
+        if (selectedEncontroId || encontros.length === 0) return;
+
+        const fallbackEncontro = encontroAtivo ?? encontros[encontros.length - 1];
+        setSelectedEncontroId(fallbackEncontro.id);
+    }, [encontroAtivo, encontros, selectedEncontroId]);
 
     useEffect(() => {
         loadData();
-    }, [encontroAtivo]);
+    }, [selectedEncontroId]);
 
     const loadData = async () => {
-        if (!encontroAtivo) return;
+        if (!selectedEncontroId) {
+            setEntries([]);
+            setEfetivados([]);
+            setReprovados([]);
+            return;
+        }
         setIsLoading(true);
         try {
             // Queries paralelas: elimina espera sequencial
             const [pendentes, efetivadosData, reprovadosData] = await Promise.all([
-                listaEsperaService.listPendentesNoEncontro(encontroAtivo.id),
-                listaEsperaService.listEfetivadosNoEncontro(encontroAtivo.id),
-                listaEsperaService.listReprovadosNoEncontro(encontroAtivo.id),
+                listaEsperaService.listPendentesNoEncontro(selectedEncontroId),
+                listaEsperaService.listEfetivadosNoEncontro(selectedEncontroId),
+                listaEsperaService.listReprovadosNoEncontro(selectedEncontroId),
             ]);
             setEntries([...pendentes]);
             setEfetivados([...efetivadosData]);
@@ -63,7 +82,27 @@ export function GerenciarListaEsperaPage() {
         }
     };
 
-    const currentList = viewMode === 'pendente' ? entries : reprovados;
+    const currentList =
+        viewMode === 'pendente'
+            ? ordenarPorNome(entries)
+            : viewMode === 'convertido'
+                ? ordenarPorNome(efetivados)
+                : viewMode === 'reprovado'
+                    ? ordenarPorNome(reprovados)
+                    : todosCadastros;
+    const searchPlaceholderByView: Record<ListaEsperaViewMode, string> = {
+        todos: 'Buscar em todos os cadastros...',
+        pendente: 'Buscar pendentes...',
+        convertido: 'Buscar efetivados...',
+        reprovado: 'Buscar reprovados...'
+    };
+
+    const getEntryAccentColor = (entry: ListaEsperaEntry) => {
+        if (entry.status === 'pendente' && entry.fez_ejc_outra_paroquia) return '#f59e0b';
+        if (entry.status === 'convertido') return '#10b981';
+        if (entry.status === 'reprovado') return '#ef4444';
+        return 'var(--primary-color)';
+    };
 
     const filteredEntries = currentList.filter(e => {
         const term = searchTerm.toLowerCase().trim();
@@ -82,10 +121,12 @@ export function GerenciarListaEsperaPage() {
     });
 
     const handleSelectAll = () => {
-        if (selectedIds.size === currentList.length) {
+        if (viewMode !== 'pendente') return;
+
+        if (selectedIds.size === entries.length) {
             setSelectedIds(new Set());
         } else {
-            setSelectedIds(new Set(currentList.map(e => e.id)));
+            setSelectedIds(new Set(entries.map(e => e.id)));
         }
     };
 
@@ -287,14 +328,34 @@ export function GerenciarListaEsperaPage() {
                 backPath="/secretaria"
             />
 
-            {!encontroAtivo ? (
+            {!selectedEncontro ? (
                 <div className="card text-center py-4">
-                    <p style={{ color: 'var(--danger-text)', fontWeight: 600 }}>Nenhum encontro ativo configurado.</p>
-                    <p style={{ opacity: 0.8, fontSize: '0.9rem' }}>Ative um encontro no módulo de Cadastros para gerenciar as inscrições online.</p>
+                    <p style={{ color: 'var(--danger-text)', fontWeight: 600 }}>Nenhum encontro encontrado.</p>
+                    <p style={{ opacity: 0.8, fontSize: '0.9rem' }}>Cadastre um encontro no módulo de Cadastros para gerenciar as inscrições online.</p>
                 </div>
             ) : (
                 <div className="premium-container">
-                    {/* Stats Row */}
+                    <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">Encontro</label>
+                            <select
+                                className="form-input"
+                                value={selectedEncontroId}
+                                onChange={(event) => {
+                                    setSelectedEncontroId(event.target.value);
+                                    setSelectedIds(new Set());
+                                    setSearchTerm('');
+                                }}
+                            >
+                                {encontros.map(encontro => (
+                                    <option key={encontro.id} value={encontro.id}>
+                                        {encontro.nome}{encontro.ativo ? ' (ativo)' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
                     {/* Stats Row */}
                     <div className="stats-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
                         {/* 1. Limite Total */}
@@ -303,19 +364,30 @@ export function GerenciarListaEsperaPage() {
                                 <CheckSquare size={24} />
                             </div>
                             <div className="stat-content">
-                                <div className="stat-value">{encontroAtivo.limite_vagas_online}</div>
+                                <div className="stat-value">{selectedEncontro.limite_vagas_online}</div>
                                 <div className="stat-label">Vagas (Limite)</div>
                             </div>
                         </div>
 
-                        {/* 2. Total Inscritos (Ativos) */}
-                        <div className="premium-stat-card">
+                        {/* 2. Todos os cadastros */}
+                        <div
+                            className={`premium-stat-card clickable ${viewMode === 'todos' ? 'active-stat' : ''}`}
+                            onClick={() => { setViewMode('todos'); setSelectedIds(new Set()); }}
+                            style={{
+                                cursor: 'pointer',
+                                border: viewMode === 'todos' ? '2px solid #6366f1' : '2px solid transparent',
+                                position: 'relative'
+                            }}
+                        >
                             <div className="stat-icon-wrapper" style={{ color: '#6366f1', background: 'rgba(99, 102, 241, 0.1)' }}>
                                 <Users size={24} />
                             </div>
                             <div className="stat-content">
-                                <div className="stat-value">{entries.length + efetivados.length}</div>
-                                <div className="stat-label">Inscritos (Ativos)</div>
+                                <div className="stat-value">{todosCadastros.length}</div>
+                                <div className="stat-label">Todos</div>
+                            </div>
+                            <div style={{ position: 'absolute', bottom: '8px', right: '12px', fontSize: '0.7rem', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                <span>Ver todos</span> <ChevronRight size={12} />
                             </div>
                         </div>
 
@@ -342,13 +414,24 @@ export function GerenciarListaEsperaPage() {
                         </div>
 
                         {/* 4. Efetivados */}
-                        <div className="premium-stat-card">
+                        <div
+                            className={`premium-stat-card clickable ${viewMode === 'convertido' ? 'active-stat' : ''}`}
+                            onClick={() => { setViewMode('convertido'); setSelectedIds(new Set()); }}
+                            style={{
+                                cursor: 'pointer',
+                                border: viewMode === 'convertido' ? '2px solid #10b981' : '2px solid transparent',
+                                position: 'relative'
+                            }}
+                        >
                             <div className="stat-icon-wrapper" style={{ color: '#10b981', background: 'rgba(16, 185, 129, 0.1)' }}>
                                 <CheckCircle2 size={24} />
                             </div>
                             <div className="stat-content">
                                 <div className="stat-value">{efetivados.length}</div>
                                 <div className="stat-label">Efetivados</div>
+                            </div>
+                            <div style={{ position: 'absolute', bottom: '8px', right: '12px', fontSize: '0.7rem', fontWeight: 700, color: '#10b981', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                <span>Ver lista</span> <ChevronRight size={12} />
                             </div>
                         </div>
 
@@ -381,8 +464,8 @@ export function GerenciarListaEsperaPage() {
                             </div>
                             <div className="stat-content">
                                 <div className="stat-value">
-                                    {encontroAtivo.limite_vagas_online - (entries.length + efetivados.length) > 0
-                                        ? encontroAtivo.limite_vagas_online - (entries.length + efetivados.length)
+                                    {selectedEncontro.limite_vagas_online - (entries.length + efetivados.length) > 0
+                                        ? selectedEncontro.limite_vagas_online - (entries.length + efetivados.length)
                                         : 0}
                                 </div>
                                 <div className="stat-label">Restantes</div>
@@ -400,7 +483,7 @@ export function GerenciarListaEsperaPage() {
                                 <input
                                     type="text"
                                     className="form-input form-input--with-icon"
-                                    placeholder={viewMode === 'pendente' ? "Buscar pendentes..." : "Buscar reprovados..."}
+                                    placeholder={searchPlaceholderByView[viewMode]}
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -440,18 +523,20 @@ export function GerenciarListaEsperaPage() {
                                     <CheckCircle2 size={18} /> <span>Aprovar Selecionados ({selectedIds.size})</span>
                                 </button>
                             )}
-                            <div
-                                onClick={handleSelectAll}
-                                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', userSelect: 'none', padding: '0.5rem', borderRadius: '8px', transition: 'background 0.2s' }}
-                                className="hover-highlight"
-                            >
-                                {selectedIds.size === currentList.length && currentList.length > 0 ? (
-                                    <CheckSquare size={22} style={{ color: 'var(--primary-color)' }} />
-                                ) : (
-                                    <Square size={22} style={{ opacity: 0.4 }} />
-                                )}
-                                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Selecionar Todos</span>
-                            </div>
+                            {viewMode === 'pendente' && (
+                                <div
+                                    onClick={handleSelectAll}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', userSelect: 'none', padding: '0.5rem', borderRadius: '8px', transition: 'background 0.2s' }}
+                                    className="hover-highlight"
+                                >
+                                    {selectedIds.size === entries.length && entries.length > 0 ? (
+                                        <CheckSquare size={22} style={{ color: 'var(--primary-color)' }} />
+                                    ) : (
+                                        <Square size={22} style={{ opacity: 0.4 }} />
+                                    )}
+                                    <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Selecionar Todos</span>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -465,25 +550,28 @@ export function GerenciarListaEsperaPage() {
                     ) : (
                         <div className="lista-espera-grid">
                             {filteredEntries.map((entry) => {
-                                const isSelected = selectedIds.has(entry.id);
+                                const canSelectEntry = viewMode === 'pendente';
+                                const isSelected = canSelectEntry && selectedIds.has(entry.id);
                                 return (
                                     <div
                                         key={entry.id}
                                         className={`premium-card lista-espera-card animate-fade-in clickable ${isSelected ? 'selected' : ''}`}
-                                        onClick={() => handleToggleSelect(entry.id)}
+                                        onClick={() => canSelectEntry ? handleToggleSelect(entry.id) : setSelectedEntry(entry)}
                                         style={{
-                                            borderLeft: `4px solid ${entry.fez_ejc_outra_paroquia ? '#f59e0b' : 'var(--primary-color)'}`
+                                            borderLeft: `4px solid ${getEntryAccentColor(entry)}`
                                         }}
                                     >
                                         <div className="lista-espera-line-layout">
                                             {/* Item 1: Checkbox */}
-                                            <div className="lista-espera-card__checkbox" style={{ color: isSelected ? 'var(--primary-color)' : 'inherit' }}>
-                                                {isSelected ? (
-                                                    <CheckSquare size={22} />
-                                                ) : (
-                                                    <Square size={22} style={{ opacity: 0.3 }} />
-                                                )}
-                                            </div>
+                                            {canSelectEntry && (
+                                                <div className="lista-espera-card__checkbox" style={{ color: isSelected ? 'var(--primary-color)' : 'inherit' }}>
+                                                    {isSelected ? (
+                                                        <CheckSquare size={22} />
+                                                    ) : (
+                                                        <Square size={22} style={{ opacity: 0.3 }} />
+                                                    )}
+                                                </div>
+                                            )}
 
                                             {/* Item 2: Header (Nome e Badge) */}
                                             <div className="lista-espera-card__header">
@@ -552,7 +640,7 @@ export function GerenciarListaEsperaPage() {
 
                                             {/* Item 6: Ações */}
                                             <div className="lista-espera-card__actions">
-                                                {viewMode === 'pendente' ? (
+                                                {entry.status === 'pendente' ? (
                                                     <>
                                                         <button
                                                             className="btn-success"
@@ -570,7 +658,7 @@ export function GerenciarListaEsperaPage() {
                                                             <X size={16} /> Reprovar
                                                         </button>
                                                     </>
-                                                ) : (
+                                                ) : entry.status === 'reprovado' ? (
                                                     <button
                                                         className="btn-primary"
                                                         onClick={(e) => { e.stopPropagation(); handleRestaurar(entry.id); }}
@@ -579,6 +667,10 @@ export function GerenciarListaEsperaPage() {
                                                     >
                                                         <RotateCcw size={16} /> Restaurar para Pendente
                                                     </button>
+                                                ) : (
+                                                    <span style={{ fontSize: '0.8rem', opacity: 0.55, fontWeight: 700 }}>
+                                                        Já efetivado
+                                                    </span>
                                                 )}
 
                                                 <button
@@ -591,7 +683,7 @@ export function GerenciarListaEsperaPage() {
                                                     }}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-color)' }}
                                                 >
-                                                    <span>{viewMode === 'pendente' ? 'Ver Ficha / Editar' : 'Ver Ficha'}</span>
+                                                    <span>{entry.status === 'pendente' ? 'Ver Ficha / Editar' : 'Ver Ficha'}</span>
                                                     <ChevronRight size={20} />
                                                 </button>
                                             </div>

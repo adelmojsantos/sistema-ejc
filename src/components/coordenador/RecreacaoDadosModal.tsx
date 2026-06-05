@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Loader, Baby, Plus, Trash2, Pencil, Users } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { FormField } from '../ui/FormField';
+import { FormRow } from '../ui/FormRow';
 import { recreacaoService } from '../../services/recreacaoService';
 import { equipeService } from '../../services/equipeService';
 import { inscricaoService } from '../../services/inscricaoService';
@@ -11,6 +12,12 @@ import { LiveSearchSelect } from '../ui/LiveSearchSelect';
 import type { RecreacaoDados, RecreacaoDadosFormData } from '../../types/recreacao';
 import type { Equipe } from '../../types/equipe';
 import type { InscricaoEnriched } from '../../types/inscricao';
+import {
+  calculateAgeParts,
+  formatAgeParts,
+  formatChildAge,
+  MAX_RECREACAO_AGE_MONTHS
+} from '../../utils/ageUtils';
 
 interface RecreacaoDadosModalProps {
   isOpen: boolean;
@@ -51,30 +58,27 @@ export function RecreacaoDadosModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState<RecreacaoDadosFormData>({
     nome_crianca: '',
+    data_nascimento: null,
     idade: 0,
     outro_responsavel_id: '',
     observacoes: ''
   });
 
-  useEffect(() => {
-    setCurrentParticipacaoId(initialParticipacaoId);
-  }, [initialParticipacaoId]);
+  const resetForm = useCallback(() => {
+    setFormData({
+      nome_crianca: '',
+      data_nascimento: null,
+      idade: 0,
+      outro_responsavel_id: '',
+      observacoes: ''
+    });
+    setSelectedTeamId('');
+    setEditingId(null);
+    setAutoOpenedChildId(null);
+    setShowForm(false);
+  }, []);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadInitialData();
-      if (currentParticipacaoId) {
-        loadChildren();
-      } else {
-        setChildren([]);
-        setShowForm(false);
-      }
-    } else if (!isOpen) {
-      resetForm();
-    }
-  }, [isOpen, currentParticipacaoId]);
-
-  const loadInitialData = async () => {
+  const loadInitialData = useCallback(async () => {
     try {
       const [equipes, participantes] = await Promise.all([
         equipeService.listar(),
@@ -90,9 +94,9 @@ export function RecreacaoDadosModal({
     } catch (error) {
       console.error('Erro ao carregar dados auxiliares:', error);
     }
-  };
+  }, [currentParticipacaoId, encontroId]);
 
-  const loadChildren = async () => {
+  const loadChildren = useCallback(async () => {
     if (!currentParticipacaoId) return;
     setLoading(true);
     try {
@@ -104,6 +108,7 @@ export function RecreacaoDadosModal({
         if (childToEdit) {
           setFormData({
             nome_crianca: childToEdit.nome_crianca,
+            data_nascimento: childToEdit.data_nascimento || null,
             idade: childToEdit.idade,
             outro_responsavel_id: childToEdit.outro_responsavel_id || '',
             observacoes: childToEdit.observacoes || ''
@@ -124,7 +129,25 @@ export function RecreacaoDadosModal({
     } finally {
       setLoading(false);
     }
-  };
+  }, [autoOpenedChildId, currentParticipacaoId, initialChildId]);
+
+  useEffect(() => {
+    setCurrentParticipacaoId(initialParticipacaoId);
+  }, [initialParticipacaoId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadInitialData();
+      if (currentParticipacaoId) {
+        loadChildren();
+      } else {
+        setChildren([]);
+        setShowForm(false);
+      }
+    } else if (!isOpen) {
+      resetForm();
+    }
+  }, [isOpen, currentParticipacaoId, loadChildren, loadInitialData, resetForm]);
 
   const handleSelectParticipant = (id: string) => {
     setCurrentParticipacaoId(id);
@@ -141,10 +164,24 @@ export function RecreacaoDadosModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentParticipacaoId) return;
+    const calculatedAge = calculateAgeParts(formData.data_nascimento);
+
+    if (formData.data_nascimento && !calculatedAge) {
+      toast.error('Informe uma data de nascimento válida.');
+      return;
+    }
+
+    if (calculatedAge && calculatedAge.totalMonths > MAX_RECREACAO_AGE_MONTHS) {
+      toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.');
+      return;
+    }
+
     setSaving(true);
     try {
       const cleanedData = {
         ...formData,
+        data_nascimento: formData.data_nascimento || null,
+        idade: calculatedAge ? calculatedAge.years : formData.idade,
         outro_responsavel_id: formData.outro_responsavel_id || null,
         observacoes: formData.observacoes || null
       };
@@ -164,6 +201,7 @@ export function RecreacaoDadosModal({
   const handleEdit = (child: RecreacaoDados) => {
     setFormData({
       nome_crianca: child.nome_crianca,
+      data_nascimento: child.data_nascimento || null,
       idade: child.idade,
       outro_responsavel_id: child.outro_responsavel_id || '',
       observacoes: child.observacoes || ''
@@ -198,23 +236,11 @@ export function RecreacaoDadosModal({
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      nome_crianca: '',
-      idade: 0,
-      outro_responsavel_id: '',
-      observacoes: ''
-    });
-    setSelectedTeamId('');
-    setEditingId(null);
-    setAutoOpenedChildId(null);
-    setShowForm(false);
-  };
-
   const filteredParticipantes = allParticipantes
     .filter(p => !selectedTeamId || p.equipe_id === selectedTeamId)
     .filter(p => p.id !== currentParticipacaoId)
     .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
+  const formAge = calculateAgeParts(formData.data_nascimento);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Recreação Infantil - ${initialParticipanteNome || currentParticipant?.pessoas?.nome_completo || 'Novo Registro'}`} maxWidth="600px">
@@ -273,7 +299,9 @@ export function RecreacaoDadosModal({
                 }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{child.nome_crianca} ({child.idade} anos)</div>
+                      <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+                        {child.nome_crianca} ({formatChildAge(child.data_nascimento, child.idade)})
+                      </div>
                     </div>
 
                     {child.participacao_id !== currentParticipacaoId && (
@@ -315,34 +343,55 @@ export function RecreacaoDadosModal({
             {editingId ? 'Editar Criança' : 'Nova Criança'}
           </h3>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '1rem' }}>
+          <FormRow>
             <FormField
               label="Nome da Criança"
               required
               value={formData.nome_crianca}
               onChange={e => setFormData({ ...formData, nome_crianca: e.target.value })}
+              colSpan={12}
             />
+          </FormRow>
+
+          <FormRow>
             <FormField
-              label="Idade"
-              type="number"
-              required
-              min={0}
-              max={7}
-              onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('A idade máxima é 7 anos e 11 meses')}
-              onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
-              onBlur={e => {
-                const val = parseInt((e.target as HTMLInputElement).value);
-                if (val > 7) {
-                  toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.', {
-                    icon: '🧒',
-                    duration: 5000
-                  });
-                }
-              }}
-              value={formData.idade.toString()}
-              onChange={e => setFormData({ ...formData, idade: parseInt(e.target.value) || 0 })}
+              label="Data de nascimento"
+              type="date"
+              value={formData.data_nascimento || ''}
+              onChange={e => setFormData({ ...formData, data_nascimento: e.target.value || null })}
+              colSpan={6}
             />
-          </div>
+            {formData.data_nascimento ? (
+              <FormField
+                label="Idade calculada"
+                value={formAge ? formatAgeParts(formAge) : 'Data inválida'}
+                disabled
+                colSpan={6}
+              />
+            ) : (
+              <FormField
+                label="Idade"
+                type="number"
+                required
+                min={0}
+                max={7}
+                onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('A idade máxima é 7 anos e 11 meses')}
+                onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
+                onBlur={e => {
+                  const val = parseInt((e.target as HTMLInputElement).value);
+                  if (val > 7) {
+                    toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.', {
+                      icon: '🧒',
+                      duration: 5000
+                    });
+                  }
+                }}
+                value={formData.idade.toString()}
+                onChange={e => setFormData({ ...formData, idade: parseInt(e.target.value) || 0 })}
+                colSpan={6}
+              />
+            )}
+          </FormRow>
 
           <div style={{ padding: '1rem', backgroundColor: 'rgba(var(--primary-rgb), 0.03)', borderRadius: '10px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.5 }}>Outro Responsável (Opcional)</div>

@@ -2,6 +2,7 @@ export interface RecreacaoDados {
   id: string;
   participacao_id: string;
   nome_crianca: string;
+  data_nascimento?: string | null;
   idade: number;
   outro_responsavel_id?: string | null;
   observacoes?: string | null;
