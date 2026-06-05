@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useExternalAccess } from '../../hooks/useExternalAccess';
 import { recreacaoService } from '../../services/recreacaoService';
@@ -51,7 +51,7 @@ export default function FormRecreacaoPage() {
     }
   }, [isAuthenticated, isSessionLoading, navigate]);
 
-  const loadInitialData = async () => {
+  const loadInitialData = useCallback(async () => {
     if (!session?.encontro_id) return;
     
     try {
@@ -69,9 +69,9 @@ export default function FormRecreacaoPage() {
     } catch (error) {
       console.error('Erro ao carregar dados auxiliares:', error);
     }
-  };
+  }, [session?.encontro_id, session?.participacoes?.equipe_id]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (session?.participacao_id) {
       try {
         const data = await recreacaoService.listarPorResponsavel(session.participacao_id);
@@ -83,12 +83,12 @@ export default function FormRecreacaoPage() {
         setIsLoading(false);
       }
     }
-  };
+  }, [session?.participacao_id]);
 
   useEffect(() => {
     loadData();
     loadInitialData();
-  }, [session]);
+  }, [loadData, loadInitialData]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {

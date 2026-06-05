@@ -86,15 +86,10 @@ export function RecreacaoDadosModal({
       ]);
       setAllEquipes(equipes);
       setAllParticipantes(participantes);
-
-      if (currentParticipacaoId) {
-        const picked = participantes.find(p => p.id === currentParticipacaoId);
-        if (picked) setCurrentParticipant(picked);
-      }
     } catch (error) {
       console.error('Erro ao carregar dados auxiliares:', error);
     }
-  }, [currentParticipacaoId, encontroId]);
+  }, [encontroId]);
 
   const loadChildren = useCallback(async () => {
     if (!currentParticipacaoId) return;
@@ -136,22 +131,38 @@ export function RecreacaoDadosModal({
   }, [initialParticipacaoId]);
 
   useEffect(() => {
-    if (isOpen) {
-      loadInitialData();
-      if (currentParticipacaoId) {
-        loadChildren();
-      } else {
-        setChildren([]);
-        setShowForm(false);
-      }
-    } else if (!isOpen) {
+    if (!isOpen) {
       resetForm();
+      return;
     }
-  }, [isOpen, currentParticipacaoId, loadChildren, loadInitialData, resetForm]);
 
-  const handleSelectParticipant = (id: string) => {
+    loadInitialData();
+  }, [isOpen, loadInitialData, resetForm]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (currentParticipacaoId) {
+      loadChildren();
+    } else {
+      setChildren([]);
+      setShowForm(false);
+    }
+  }, [isOpen, currentParticipacaoId, loadChildren]);
+
+  useEffect(() => {
+    if (!currentParticipacaoId) {
+      setCurrentParticipant(null);
+      return;
+    }
+
+    const picked = allParticipantes.find(p => p.id === currentParticipacaoId);
+    if (picked) setCurrentParticipant(picked);
+  }, [allParticipantes, currentParticipacaoId]);
+
+  const handleSelectParticipant = (id: string, item: InscricaoEnriched | null) => {
     setCurrentParticipacaoId(id);
-    const picked = allParticipantes.find(p => p.id === id);
+    const picked = item || allParticipantes.find(p => p.id === id);
     if (picked) setCurrentParticipant(picked);
   };
 
@@ -240,15 +251,14 @@ export function RecreacaoDadosModal({
     .filter(p => !selectedTeamId || p.equipe_id === selectedTeamId)
     .filter(p => p.id !== currentParticipacaoId)
     .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
+  const primaryResponsibleOptions = allParticipantes
+    .filter(p => p.participante !== true)
+    .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
   const formAge = calculateAgeParts(formData.data_nascimento);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Recreação Infantil - ${initialParticipanteNome || currentParticipant?.pessoas?.nome_completo || 'Novo Registro'}`} maxWidth="600px">
-      {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
-          <Loader className="animate-spin" size={32} />
-        </div>
-      ) : !showForm ? (
+      {!showForm ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {allowParticipantSelection && !initialParticipacaoId && (
             <div className="form-group">
@@ -257,13 +267,14 @@ export function RecreacaoDadosModal({
                 value={currentParticipacaoId}
                 onChange={handleSelectParticipant}
                 fetchData={async (search) => {
-                  return allParticipantes.filter(p =>
+                  return primaryResponsibleOptions.filter(p =>
                     p.pessoas?.nome_completo?.toLowerCase().includes(search.toLowerCase())
                   );
                 }}
                 getOptionLabel={(p) => `${p.pessoas?.nome_completo} (${p.equipes?.nome || 'Sem Equipe'})`}
                 getOptionValue={(p) => p.id}
                 placeholder="Busque pelo nome..."
+                initialOptions={primaryResponsibleOptions}
               />
             </div>
           )}
@@ -280,7 +291,11 @@ export function RecreacaoDadosModal({
             </button>
           </div>
 
-          {children.length === 0 ? (
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+              <Loader className="animate-spin" size={28} />
+            </div>
+          ) : children.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.4, border: '2px dashed var(--border-color)', borderRadius: '12px' }}>
               <Users size={32} style={{ margin: '0 auto 0.5rem auto', display: 'block' }} />
               <p style={{ margin: 0 }}>Nenhuma criança cadastrada.</p>
