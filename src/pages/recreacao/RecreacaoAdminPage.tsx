@@ -6,12 +6,14 @@ import {
   Loader,
   Plus,
   Search,
+  Download,
   Trash2,
   X
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import { useDebounce } from '../../hooks/useDebounce';
 
 import { Modal } from '../../components/ui/Modal';
@@ -107,6 +109,57 @@ export function RecreacaoAdminPage() {
     }
   };
 
+  const formatDateForExport = (date?: string | null) => {
+    if (!date) return '';
+    const [year, month, day] = date.split('-');
+    return year && month && day ? `${day}/${month}/${year}` : date;
+  };
+
+  const sanitizeFileName = (value: string) =>
+    value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .toLowerCase();
+
+  const handleExportExcel = () => {
+    if (filteredRegistros.length === 0) {
+      toast.error('Não há crianças para exportar.');
+      return;
+    }
+
+    const selectedEncontro = encontros.find(encontro => encontro.id === selectedEncontroId);
+    const rows = filteredRegistros.map(reg => ({
+      'Nome da criança': reg.nome_crianca?.toUpperCase(),
+      'Data de nascimento': formatDateForExport(reg.data_nascimento),
+      'Idade': formatChildAge(reg.data_nascimento, reg.idade),
+      'Observações / Alergias': reg.observacoes?.trim() || '',
+      'Responsável principal': reg.participacoes?.pessoas?.nome_completo || '',
+      'Equipe do responsável principal': reg.participacoes?.equipes?.nome || '',
+      'Segundo responsável': reg.outro_responsavel?.pessoas?.nome_completo || '',
+      'Equipe do segundo responsável': reg.outro_responsavel?.equipes?.nome || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet['!cols'] = [
+      { wch: 32 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 42 },
+      { wch: 32 },
+      { wch: 28 },
+      { wch: 32 },
+      { wch: 28 }
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Recreação Infantil');
+
+    const encontroName = sanitizeFileName(selectedEncontro?.nome || 'encontro');
+    XLSX.writeFile(workbook, `recreacao_infantil_${encontroName}.xlsx`);
+  };
+
   const filteredRegistros = useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
     
@@ -137,10 +190,21 @@ export function RecreacaoAdminPage() {
           </div>
         </div>
 
-        <button onClick={handleAddNew} className="btn-primary flex items-center gap-2">
-          <Plus size={18} />
-          <span>Novo Cadastro</span>
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button
+            onClick={handleExportExcel}
+            className="btn-secondary flex items-center gap-2"
+            disabled={isLoading || filteredRegistros.length === 0}
+          >
+            <Download size={18} />
+            <span>Exportar Excel</span>
+          </button>
+
+          <button onClick={handleAddNew} className="btn-primary flex items-center gap-2">
+            <Plus size={18} />
+            <span>Novo Cadastro</span>
+          </button>
+        </div>
       </div>
 
       <div className="card" style={{ marginBottom: '2rem', padding: '1.25rem' }}>
