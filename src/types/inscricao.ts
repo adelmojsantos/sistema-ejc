@@ -1,6 +1,7 @@
 import type { Pessoa } from './pessoa';
 import type { RecepcaoDados } from './recepcao';
 import type { RecreacaoDados } from './recreacao';
+import type { VisitaStatus } from './visitacao';
 
 export interface Inscricao {
   id: string; // uuid
@@ -33,6 +34,7 @@ export interface InscricaoEnriched extends Inscricao {
   visita_participacao?: {
     id: string;
     visitante: boolean;
+    status?: VisitaStatus | null;
     visita_grupos?: {
       nome: string | null;
     } | null;

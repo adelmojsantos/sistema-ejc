@@ -38,6 +38,16 @@ function formatDateTime(value: string | null | undefined) {
   return date.toLocaleString('pt-BR');
 }
 
+function getVisitaStatusLabel(status: string | null | undefined) {
+  const labels: Record<string, string> = {
+    pendente: 'Visita pendente',
+    realizada: 'Visita realizada',
+    ausente: 'Ausente na visita',
+    cancelada: 'Visita cancelada',
+  };
+  return labels[status || ''] || 'Visita sem status';
+}
+
 interface DesistentesTabProps {
   desistentes: ParticipacaoCancelada[];
   total: number;
@@ -146,6 +156,7 @@ export function SecretariaParticipantesPage() {
   const [activeTab, setActiveTab] = useState<'participantes' | 'desistentes'>('participantes');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterVeiculo, setFilterVeiculo] = useState(false);
+  const [filterSemFoto, setFilterSemFoto] = useState(false);
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [pendingGeoCount, setPendingGeoCount] = useState(0);
   const [geoProgressItems, setGeoProgressItems] = useState<GeoProgressItem[]>([]);
@@ -213,6 +224,7 @@ export function SecretariaParticipantesPage() {
       .filter(p => {
         // Filtro de veículo
         if (filterVeiculo && !p.recepcao_dados) return false;
+        if (filterSemFoto && p.foto_url) return false;
 
         if (!term) return true;
 
@@ -230,7 +242,7 @@ export function SecretariaParticipantesPage() {
         return !!(matchNome || matchCpf || matchEmail || matchTelefone || matchComunidade || matchBairro || matchCidade);
       })
       .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
-  }, [participantes, debouncedSearch, filterVeiculo]);
+  }, [participantes, debouncedSearch, filterVeiculo, filterSemFoto]);
 
   const filteredDesistentes = React.useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
@@ -449,6 +461,7 @@ export function SecretariaParticipantesPage() {
     setActiveTab(tab);
     setSearchTerm('');
     setFilterVeiculo(false);
+    setFilterSemFoto(false);
   };
 
   const handleStartPhotoAdjustment = (participante: InscricaoEnriched) => {
@@ -599,6 +612,31 @@ export function SecretariaParticipantesPage() {
   const countComVeiculo = React.useMemo(
     () => participantes.filter(p => !!p.recepcao_dados).length,
     [participantes]
+  );
+  const countSemFoto = React.useMemo(
+    () => participantes.filter(p => !p.foto_url).length,
+    [participantes]
+  );
+  const participantSummary = (
+    <p className="secretaria-result-summary secretaria-result-summary--with-actions">
+      <span>Mostrando <strong>{filteredParticipantes.length}</strong> de <strong>{participantes.length}</strong> {participantes.length === 1 ? 'participante encontrado' : 'participantes encontrados'}</span>
+      <button
+        type="button"
+        onClick={() => setFilterSemFoto(v => !v)}
+        className={`secretaria-summary-filter${filterSemFoto ? ' is-active' : ''}`}
+        title={filterSemFoto ? 'Remover filtro sem foto' : 'Mostrar apenas participantes sem foto'}
+      >
+        <ImageIcon size={13} />
+        Sem foto
+        <strong>{countSemFoto}</strong>
+      </button>
+      {filterVeiculo && (
+        <span className="secretaria-active-filter-pill">
+          <Car size={12} /> Filtro: com veículo
+          <button type="button" onClick={() => setFilterVeiculo(false)} aria-label="Remover filtro de veículo"><X size={11} /></button>
+        </span>
+      )}
+    </p>
   );
 
   return (
@@ -800,7 +838,7 @@ export function SecretariaParticipantesPage() {
                   title={filterVeiculo ? 'Remover filtro de veículo' : 'Mostrar apenas participantes com veículo'}
                 >
                   <Car size={16} />
-                  <span>Com veículo{filterVeiculo ? ' ✓' : ''}</span>
+                  <span>Com veículo</span>
                 </button>
               </div>
               )}
@@ -821,35 +859,33 @@ export function SecretariaParticipantesPage() {
               <p>Carregando participantes...</p>
             </div>
           ) : filteredParticipantes.length === 0 ? (
-            <div className="empty-state">
-              <Users size={48} style={{ opacity: 0.3 }} />
-              <p>
-                {filterVeiculo && participantes.length > 0
-                  ? 'Nenhum participante com veículo encontrado.'
-                  : 'Nenhum participante encontrado.'}
-              </p>
-              {filterVeiculo && (
-                <button
-                  type="button"
-                  onClick={() => setFilterVeiculo(false)}
-                  className="btn-secondary"
-                  style={{ marginTop: '1rem', fontSize: '0.85rem' }}
-                >
-                  Remover filtro de veículo
-                </button>
-              )}
-            </div>
+            <>
+              {participantSummary}
+              <div className="empty-state">
+                <Users size={48} style={{ opacity: 0.3 }} />
+                <p>
+                  {(filterVeiculo || filterSemFoto) && participantes.length > 0
+                    ? 'Nenhum participante encontrado para os filtros selecionados.'
+                    : 'Nenhum participante encontrado.'}
+                </p>
+                {(filterVeiculo || filterSemFoto) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterVeiculo(false);
+                      setFilterSemFoto(false);
+                    }}
+                    className="btn-secondary"
+                    style={{ marginTop: '1rem', fontSize: '0.85rem' }}
+                  >
+                    Remover filtros
+                  </button>
+                )}
+              </div>
+            </>
           ) : (
             <>
-              <p style={{ fontSize: '0.85rem', opacity: 0.6, margin: '0 0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span>Mostrando <strong>{filteredParticipantes.length}</strong> de <strong>{participantes.length}</strong> {participantes.length === 1 ? 'participante encontrado' : 'participantes encontrados'}</span>
-                {filterVeiculo && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', backgroundColor: 'rgba(37,99,235,0.1)', color: 'var(--primary-color)', borderRadius: '20px', padding: '0.15rem 0.6rem', fontSize: '0.75rem', fontWeight: 600, border: '1px solid rgba(37,99,235,0.25)' }}>
-                    <Car size={12} /> Filtro: com veículo
-                    <button type="button" onClick={() => setFilterVeiculo(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex', alignItems: 'center', padding: 0, marginLeft: '0.1rem' }}><X size={11} /></button>
-                  </span>
-                )}
-              </p>
+              {participantSummary}
 
               <div className="pessoa-grid secretaria-pessoa-grid">
                 {filteredParticipantes.map((p) => {
@@ -859,7 +895,9 @@ export function SecretariaParticipantesPage() {
                     : 'Endereço não informado';
                   const localidade = [p.pessoas?.bairro, p.pessoas?.cidade].filter(Boolean).join(' - ') || 'Bairro/Cidade não informados';
                   const nomeParticipante = p.pessoas?.nome_completo || 'Nome não informado';
-                  const duplaVisitante = p.visita_participacao?.find((v) => !v.visitante)?.visita_grupos?.nome;
+                  const visitaPrincipal = p.visita_participacao?.find((v) => !v.visitante);
+                  const duplaVisitante = visitaPrincipal?.visita_grupos?.nome;
+                  const visitaStatus = visitaPrincipal?.status;
                   const circuloVinculado = p.circulo_participacao?.[0]?.circulos?.nome;
                   const isAdjustingPhoto = adjustingPhotoId === p.id;
                   const photoPosition = isAdjustingPhoto ? tempPhotoPosition : (p.foto_posicao_y ?? 50);
@@ -902,6 +940,10 @@ export function SecretariaParticipantesPage() {
                                 <Users size={11} /> {duplaVisitante}
                               </span>
                             )}
+                            <span className={`secretaria-context-badge visit-status ${visitaPrincipal ? (visitaStatus || 'sem-status') : 'sem-visita'}`}>
+                              <Clock size={11} />
+                              {visitaPrincipal ? getVisitaStatusLabel(visitaStatus) : 'Sem visita'}
+                            </span>
                             {p.recepcao_dados && (
                               <span className="secretaria-context-badge vehicle">
                                 <Car size={11} />
@@ -1322,6 +1364,56 @@ export function SecretariaParticipantesPage() {
           opacity: 0.6;
           margin: 0 0 0.75rem;
         }
+        .secretaria-result-summary--with-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+          opacity: 1;
+          color: var(--muted-text);
+        }
+        .secretaria-summary-filter,
+        .secretaria-active-filter-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.3rem;
+          border-radius: 20px;
+          padding: 0.15rem 0.6rem;
+          font-size: 0.75rem;
+          font-weight: 700;
+          border: 1px solid rgba(37,99,235,0.25);
+          background: rgba(37,99,235,0.08);
+          color: var(--primary-color);
+        }
+        .secretaria-summary-filter {
+          cursor: pointer;
+        }
+        .secretaria-summary-filter:not(.is-active) {
+          background: var(--card-bg);
+          color: var(--text-color);
+          border-color: var(--border-color);
+        }
+        .secretaria-summary-filter strong {
+          font-size: 0.68rem;
+          min-width: 18px;
+          height: 18px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0 0.25rem;
+          background: rgba(37,99,235,0.12);
+        }
+        .secretaria-active-filter-pill button {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: inherit;
+          display: inline-flex;
+          align-items: center;
+          padding: 0;
+          margin-left: 0.1rem;
+        }
         .secretaria-desistentes-list {
           display: flex;
           flex-direction: column;
@@ -1587,6 +1679,28 @@ export function SecretariaParticipantesPage() {
           border-color: rgba(37, 99, 235, 0.2);
           background: rgba(37, 99, 235, 0.08);
           color: var(--primary-color);
+        }
+        .secretaria-context-badge.visit-status.pendente {
+          border-color: rgba(245, 158, 11, 0.25);
+          background: rgba(245, 158, 11, 0.1);
+          color: #d97706;
+        }
+        .secretaria-context-badge.visit-status.realizada {
+          border-color: rgba(16, 185, 129, 0.25);
+          background: rgba(16, 185, 129, 0.1);
+          color: #059669;
+        }
+        .secretaria-context-badge.visit-status.ausente,
+        .secretaria-context-badge.visit-status.cancelada {
+          border-color: rgba(239, 68, 68, 0.25);
+          background: rgba(239, 68, 68, 0.1);
+          color: #dc2626;
+        }
+        .secretaria-context-badge.visit-status.sem-status,
+        .secretaria-context-badge.visit-status.sem-visita {
+          border-color: var(--border-color);
+          background: color-mix(in srgb, var(--muted-text) 8%, transparent);
+          color: var(--muted-text);
         }
         .secretaria-photo-preview-modal {
           display: flex;
