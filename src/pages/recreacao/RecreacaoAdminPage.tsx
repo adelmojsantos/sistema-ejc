@@ -131,14 +131,14 @@ export function RecreacaoAdminPage() {
 
     const selectedEncontro = encontros.find(encontro => encontro.id === selectedEncontroId);
     const rows = filteredRegistros.map(reg => ({
-      'Nome da criança': reg.nome_crianca?.toUpperCase(),
+      'Nome da criança': reg.nome_crianca?.toUpperCase().trim(),
       'Data de nascimento': formatDateForExport(reg.data_nascimento),
       'Idade': formatChildAge(reg.data_nascimento, reg.idade),
       'Observações / Alergias': reg.observacoes?.trim() || '',
-      'Responsável principal': reg.participacoes?.pessoas?.nome_completo || '',
-      'Equipe do responsável principal': reg.participacoes?.equipes?.nome || '',
-      'Segundo responsável': reg.outro_responsavel?.pessoas?.nome_completo || '',
-      'Equipe do segundo responsável': reg.outro_responsavel?.equipes?.nome || ''
+      'Responsável principal': reg.participacoes?.pessoas?.nome_completo?.trim() || '',
+      'Equipe do responsável principal': reg.participacoes?.equipes?.nome?.trim() || '',
+      'Segundo responsável': reg.outro_responsavel?.pessoas?.nome_completo?.trim() || '',
+      'Equipe do segundo responsável': reg.outro_responsavel?.equipes?.nome?.trim() || ''
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
