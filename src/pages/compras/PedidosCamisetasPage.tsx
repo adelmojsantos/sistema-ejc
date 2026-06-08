@@ -859,61 +859,71 @@ export function PedidosCamisetasPage() {
             </span>
           </div>
 
-          {relatorioEquipes.filter(r => r.total_camisetas > 0).map(r => (
-            <div
-              key={r.equipe_id}
-              className={`card card--clickable ${selectedEquipeId === r.equipe_id ? 'active-filter' : ''}`}
-              style={{
-                padding: '0.5rem',
-                borderTop: '4px solid var(--primary-color)',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                aspectRatio: '1 / 1',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                textAlign: 'center',
-                position: 'relative',
-                backgroundColor: selectedEquipeId === r.equipe_id
-                  ? 'rgba(var(--primary-rgb), 0.4)'
-                  : (r.comprovante_camisetas_url ? 'var(--success-bg)' : 'var(--card-bg)'),
-                boxShadow: selectedEquipeId === r.equipe_id ? '0 0 0 2px var(--primary-color)' : 'none',
-                zIndex: selectedEquipeId === r.equipe_id ? 2 : 1
-              }}
-              onClick={() => setSelectedEquipeId(r.equipe_id)}
-            >
-              {r.comprovante_camisetas_url && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.open(r.comprovante_camisetas_url!, '_blank');
-                  }}
-                  title="Ver Comprovante"
-                  style={{
-                    position: 'absolute',
-                    top: '4px',
-                    right: '4px',
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--success-color)',
-                    cursor: 'pointer',
-                    padding: '4px'
-                  }}
-                >
-                  <FileText size={14} />
-                </button>
-              )}
-              <span className="badge badge-primary" style={{ fontSize: '1.2rem', padding: '0.25rem 0.75rem', marginBottom: '0.5rem' }}>
-                {r.total_camisetas}
-              </span>
-              <h3 style={{ fontSize: '0.8rem', margin: '0 0 0.25rem 0', lineHeight: '1.2' }}>{r.equipe_nome}</h3>
-              <p style={{ fontSize: '0.65rem', margin: '0 0 0.25rem 0', opacity: 0.6 }}>{r.total_pedidos} {r.total_pedidos === 1 ? 'pessoa' : 'pessoas'}</p>
-              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-color)' }}>
-                {r.total_valor > 0 ? r.total_valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a confirmar'}
-              </span>
-            </div>
-          ))}
+          {relatorioEquipes.filter(r => r.total_camisetas > 0).map(r => {
+            const comprovantes = r.comprovantes_camisetas_urls?.length
+              ? r.comprovantes_camisetas_urls
+              : r.comprovante_camisetas_url
+                ? [r.comprovante_camisetas_url]
+                : [];
+
+            return (
+              <div
+                key={r.equipe_id}
+                className={`card card--clickable ${selectedEquipeId === r.equipe_id ? 'active-filter' : ''}`}
+                style={{
+                  padding: '0.5rem',
+                  borderTop: '4px solid var(--primary-color)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  aspectRatio: '1 / 1',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  textAlign: 'center',
+                  position: 'relative',
+                  backgroundColor: selectedEquipeId === r.equipe_id
+                    ? 'rgba(var(--primary-rgb), 0.4)'
+                    : (comprovantes.length > 0 ? 'var(--success-bg)' : 'var(--card-bg)'),
+                  boxShadow: selectedEquipeId === r.equipe_id ? '0 0 0 2px var(--primary-color)' : 'none',
+                  zIndex: selectedEquipeId === r.equipe_id ? 2 : 1
+                }}
+                onClick={() => setSelectedEquipeId(r.equipe_id)}
+              >
+                {comprovantes.length > 0 && (
+                  <div style={{ position: 'absolute', top: '4px', right: '4px', display: 'flex', gap: '2px' }}>
+                    {comprovantes.map((url, index) => (
+                      <button
+                        key={`${url}-${index}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(url, '_blank');
+                        }}
+                        title={`Ver Comprovante ${index + 1}`}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--success-color)',
+                          cursor: 'pointer',
+                          padding: '4px'
+                        }}
+                      >
+                        <FileText size={14} />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <span className="badge badge-primary" style={{ fontSize: '1.2rem', padding: '0.25rem 0.75rem', marginBottom: '0.5rem' }}>
+                  {r.total_camisetas}
+                </span>
+                <h3 style={{ fontSize: '0.8rem', margin: '0 0 0.25rem 0', lineHeight: '1.2' }}>{r.equipe_nome}</h3>
+                <p style={{ fontSize: '0.65rem', margin: '0 0 0.25rem 0', opacity: 0.6 }}>{r.total_pedidos} {r.total_pedidos === 1 ? 'pessoa' : 'pessoas'}</p>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                  {r.total_valor > 0 ? r.total_valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a confirmar'}
+                </span>
+              </div>
+            );
+          })}
         </section>
 
 

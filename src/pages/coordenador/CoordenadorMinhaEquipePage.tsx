@@ -140,10 +140,12 @@ export function CoordenadorMinhaEquipePage() {
   const [isFinalizingTeam, setIsFinalizingTeam] = useState(false);
   const [isUploadingProof, setIsUploadingProof] = useState<string | null>(null); // 'taxas' | 'camisetas' | null
   const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
+  const [comprovantesTaxasUrls, setComprovantesTaxasUrls] = useState<string[]>([]);
   const [showBulkShirtModal, setShowBulkShirtModal] = useState(false);
   const [showShirtSummaryModal, setShowShirtSummaryModal] = useState(false);
   const [showTaxaSummaryModal, setShowTaxaSummaryModal] = useState(false);
   const [comprovanteCamisetasUrl, setComprovanteCamisetasUrl] = useState<string | null>(null);
+  const [comprovantesCamisetasUrls, setComprovantesCamisetasUrls] = useState<string[]>([]);
   const [pixTaxa, setPixTaxa] = useState<{
     chave: string | null;
     tipo: PixTipo | null;
@@ -294,8 +296,12 @@ export function CoordenadorMinhaEquipePage() {
         const conf = await equipeService.obterConfirmacao(userParticipacao.equipe_id, userParticipacao.encontro_id);
         if (conf) {
           setTeamConfirmation(conf);
-          setComprovanteUrl(conf.comprovante_taxas_url);
-          setComprovanteCamisetasUrl(conf.comprovante_camisetas_url);
+          const taxasUrls = equipeService.normalizeComprovantes(conf.comprovante_taxas_url, conf.comprovantes_taxas_urls);
+          const camisetasUrls = equipeService.normalizeComprovantes(conf.comprovante_camisetas_url, conf.comprovantes_camisetas_urls);
+          setComprovantesTaxasUrls(taxasUrls);
+          setComprovanteUrl(taxasUrls[taxasUrls.length - 1] || null);
+          setComprovantesCamisetasUrls(camisetasUrls);
+          setComprovanteCamisetasUrl(camisetasUrls[camisetasUrls.length - 1] || null);
         }
       }
 
@@ -381,10 +387,15 @@ export function CoordenadorMinhaEquipePage() {
     setIsUploadingProof(tipo);
     try {
       const url = await equipeService.uploadComprovante(userParticipacao.equipe_id, userParticipacao.encontro_id, file, tipo);
-      await equipeService.atualizarComprovante(userParticipacao.equipe_id, userParticipacao.encontro_id, url, user.id, tipo);
+      const urls = await equipeService.atualizarComprovante(userParticipacao.equipe_id, userParticipacao.encontro_id, url, user.id, tipo);
 
-      if (tipo === 'taxas') setComprovanteUrl(url);
-      else setComprovanteCamisetasUrl(url);
+      if (tipo === 'taxas') {
+        setComprovantesTaxasUrls(urls);
+        setComprovanteUrl(url);
+      } else {
+        setComprovantesCamisetasUrls(urls);
+        setComprovanteCamisetasUrl(url);
+      }
 
       toast.success(`Comprovante de ${tipo} enviado com sucesso!`);
 
@@ -396,6 +407,7 @@ export function CoordenadorMinhaEquipePage() {
       toast.error('Erro ao enviar comprovante');
     } finally {
       setIsUploadingProof(null);
+      e.target.value = '';
     }
   };
 
@@ -1104,6 +1116,24 @@ export function CoordenadorMinhaEquipePage() {
             </div>
           </div>
 
+          {comprovantesTaxasUrls.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+              {comprovantesTaxasUrls.map((url, index) => (
+                <a
+                  key={`${url}-${index}`}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary"
+                  style={{ fontSize: '0.72rem', padding: '0.35rem 0.55rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                >
+                  <Eye size={14} />
+                  <span>Comprovante {index + 1}</span>
+                </a>
+              ))}
+            </div>
+          )}
+
           <div style={{ margin: '0.25rem 0' }}>
             <PixPaymentInfo
               chave={pixTaxa.chave}
@@ -1114,15 +1144,9 @@ export function CoordenadorMinhaEquipePage() {
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {comprovanteUrl && (
-              <a href={comprovanteUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center' }}>
-                <Eye size={18} />
-                <span>Ver</span>
-              </a>
-            )}
             <label className={`btn ${comprovanteUrl ? 'btn-secondary' : 'btn-primary'}`} style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', cursor: isUploadingProof === 'taxas' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center', margin: 0 }}>
               {isUploadingProof === 'taxas' ? <Loader className="animate-spin" size={14} /> : <Upload size={14} />}
-              <span>{comprovanteUrl ? 'Trocar' : 'Enviar Comprovante'}</span>
+              <span>{comprovanteUrl ? 'Adicionar Comprovante' : 'Enviar Comprovante'}</span>
               <input type="file" onChange={(e) => handleUploadProof(e, 'taxas')} accept="image/*,.pdf" style={{ display: 'none' }} disabled={isUploadingProof === 'taxas'} />
             </label>
           </div>
@@ -1208,6 +1232,24 @@ export function CoordenadorMinhaEquipePage() {
             </div>
           </div>
 
+          {comprovantesCamisetasUrls.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+              {comprovantesCamisetasUrls.map((url, index) => (
+                <a
+                  key={`${url}-${index}`}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary"
+                  style={{ fontSize: '0.72rem', padding: '0.35rem 0.55rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                >
+                  <Eye size={14} />
+                  <span>Comprovante {index + 1}</span>
+                </a>
+              ))}
+            </div>
+          )}
+
 
           <div style={{ margin: '0.25rem 0' }}>
             <PixPaymentInfo
@@ -1219,15 +1261,9 @@ export function CoordenadorMinhaEquipePage() {
           </div>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {comprovanteCamisetasUrl && (
-              <a href={comprovanteCamisetasUrl} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center' }}>
-                <Eye size={18} />
-                <span>Ver</span>
-              </a>
-            )}
             <label className={`btn ${comprovanteCamisetasUrl ? 'btn-secondary' : 'btn-primary'}`} style={{ fontSize: '0.8rem', padding: '0.5rem 0.75rem', cursor: isUploadingProof === 'camisetas' ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', flex: 1, justifyContent: 'center', margin: 0 }}>
               {isUploadingProof === 'camisetas' ? <Loader className="animate-spin" size={14} /> : <Upload size={14} />}
-              <span>{comprovanteCamisetasUrl ? 'Trocar' : 'Enviar Comprovante'}</span>
+              <span>{comprovanteCamisetasUrl ? 'Adicionar Comprovante' : 'Enviar Comprovante'}</span>
               <input type="file" onChange={(e) => handleUploadProof(e, 'camisetas')} accept="image/*,.pdf" style={{ display: 'none' }} disabled={isUploadingProof === 'camisetas'} />
             </label>
           </div>

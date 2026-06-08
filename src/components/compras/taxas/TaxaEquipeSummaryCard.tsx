@@ -13,6 +13,12 @@ export const TaxaEquipeSummaryCard: React.FC<TaxaEquipeSummaryCardProps> = ({
   isSelected,
   onClick
 }) => {
+  const comprovantes = report.comprovantes_taxas_urls?.length
+    ? report.comprovantes_taxas_urls
+    : report.comprovante_taxas_url
+      ? [report.comprovante_taxas_url]
+      : [];
+
   return (
     <div
       className={`card card--clickable ${isSelected ? 'active-filter' : ''}`}
@@ -22,7 +28,7 @@ export const TaxaEquipeSummaryCard: React.FC<TaxaEquipeSummaryCardProps> = ({
         cursor: 'pointer',
         backgroundColor: isSelected
           ? 'rgba(37, 99, 235, 0.1)'
-          : report.comprovante_taxas_url
+          : comprovantes.length > 0
             ? 'var(--success-bg)'
             : 'var(--card-bg)'
       }}
@@ -38,24 +44,25 @@ export const TaxaEquipeSummaryCard: React.FC<TaxaEquipeSummaryCardProps> = ({
           </span>
         </div>
         <div style={{ display: 'flex', gap: '0.4rem' }}>
-          {report.comprovante_taxas_url && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(report.comprovante_taxas_url!, '_blank');
-              }}
-              className="btn-icon"
-              title="Ver Comprovante Taxas"
-              style={{
-                padding: '0.4rem',
-                backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                color: 'var(--primary-color)',
-                borderRadius: '8px'
-              }}
-            >
-              <FileText size={16} />
-            </button>
-          )}
+          {comprovantes.map((url, index) => (
+              <button
+                key={`${url}-${index}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(url, '_blank');
+                }}
+                className="btn-icon"
+                title={`Ver Comprovante Taxas ${index + 1}`}
+                style={{
+                  padding: '0.4rem',
+                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                  color: 'var(--primary-color)',
+                  borderRadius: '8px'
+                }}
+              >
+                <FileText size={16} />
+              </button>
+          ))}
         </div>
       </div>
     </div>

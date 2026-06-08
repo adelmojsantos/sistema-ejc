@@ -35,6 +35,7 @@ export interface TaxaReport {
   pagos: number;
   pendentes: number;
   comprovante_taxas_url?: string | null;
+  comprovantes_taxas_urls?: string[];
 }
 
 export interface CamisetaEquipeReport {
@@ -44,6 +45,7 @@ export interface CamisetaEquipeReport {
   total_camisetas: number;
   total_valor: number;
   comprovante_camisetas_url?: string | null;
+  comprovantes_camisetas_urls?: string[];
 }
 
 export type PedidoDetalhadoCamiseta = CamisetaPedido & {
@@ -95,6 +97,18 @@ type ResumoIntencaoRow = {
   camiseta_modelos?: MaybeArray<ModeloRow>;
 };
 
+const normalizeComprovantes = (latestUrl?: string | null, urls?: unknown): string[] => {
+  const list = Array.isArray(urls)
+    ? urls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    : [];
+
+  if (latestUrl && !list.includes(latestUrl)) {
+    return [latestUrl, ...list];
+  }
+
+  return list;
+};
+
 export const comprasService = {
   async listarRelatorioTaxas(encontroId: string): Promise<TaxaReport[]> {
     const { data: parts, error: partsError } = await supabase
@@ -114,7 +128,7 @@ export const comprasService = {
 
     const { data: confs, error: confsError } = await supabase
       .from('equipe_confirmacoes')
-      .select('equipe_id, comprovante_taxas_url')
+      .select('equipe_id, comprovante_taxas_url, comprovantes_taxas_urls')
       .eq('encontro_id', encontroId);
 
     if (confsError) throw confsError;
@@ -122,13 +136,16 @@ export const comprasService = {
     const relatorio = (equipes || []).map(eq => {
       const teamParts = (parts || []).filter(p => p.equipe_id === eq.id);
       const pagos = teamParts.filter(p => p.pago_taxa).length;
+      const conf = confs?.find(c => c.equipe_id === eq.id);
+      const comprovantes = normalizeComprovantes(conf?.comprovante_taxas_url || null, conf?.comprovantes_taxas_urls);
       return {
         equipe_id: eq.id,
         equipe_nome: eq.nome || 'Sem Equipe',
         total_membros: teamParts.length,
         pagos,
         pendentes: teamParts.length - pagos,
-        comprovante_taxas_url: confs?.find(c => c.equipe_id === eq.id)?.comprovante_taxas_url || null
+        comprovante_taxas_url: comprovantes[comprovantes.length - 1] || null,
+        comprovantes_taxas_urls: comprovantes
       };
     });
 
@@ -264,7 +281,7 @@ export const comprasService = {
 
     const { data: confs } = await supabase
       .from('equipe_confirmacoes')
-      .select('equipe_id, comprovante_camisetas_url')
+      .select('equipe_id, comprovante_camisetas_url, comprovantes_camisetas_urls')
       .eq('encontro_id', encontroId);
 
     const relatorio = (equipes || []).map(eq => {
@@ -283,13 +300,17 @@ export const comprasService = {
         return sum + (p.quantidade * valorUnitario);
       }, 0);
 
+      const conf = confs?.find(c => c.equipe_id === eq.id);
+      const comprovantes = normalizeComprovantes(conf?.comprovante_camisetas_url || null, conf?.comprovantes_camisetas_urls);
+
       return {
         equipe_id: eq.id,
         equipe_nome: eq.nome || 'Sem Equipe',
         total_pedidos: totalPessoas,
         total_camisetas: totalCamisetas,
         total_valor: totalValor,
-        comprovante_camisetas_url: confs?.find(c => c.equipe_id === eq.id)?.comprovante_camisetas_url || null
+        comprovante_camisetas_url: comprovantes[comprovantes.length - 1] || null,
+        comprovantes_camisetas_urls: comprovantes
       };
     });
 

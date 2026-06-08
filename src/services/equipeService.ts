@@ -2,6 +2,19 @@ import { supabase } from '../lib/supabase';
 import type { Equipe, EquipeFormData } from '../types/equipe';
 
 const TABLE = 'equipes';
+type ComprovanteTipo = 'taxas' | 'camisetas';
+
+const normalizeComprovantes = (latestUrl?: string | null, urls?: unknown): string[] => {
+    const list = Array.isArray(urls)
+        ? urls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+        : [];
+
+    if (latestUrl && !list.includes(latestUrl)) {
+        return [latestUrl, ...list];
+    }
+
+    return list;
+};
 
 export const equipeService = {
     async listar(): Promise<Equipe[]> {
@@ -262,7 +275,9 @@ export const equipeService = {
 
         if (error) throw error;
     },
-    async uploadComprovante(equipeId: string, encontroId: string, file: File, tipo: 'taxas' | 'camisetas'): Promise<string> {
+    normalizeComprovantes,
+
+    async uploadComprovante(equipeId: string, encontroId: string, file: File, tipo: ComprovanteTipo): Promise<string> {
         const fileExt = file.name.split('.').pop();
         const fileName = `comprovante_${tipo}_${equipeId}_${encontroId}_${Date.now()}.${fileExt}`;
         const filePath = `comprovantes/${tipo}/${fileName}`;
@@ -280,34 +295,41 @@ export const equipeService = {
 
         return data.publicUrl;
     },
-    async atualizarComprovante(equipeId: string, encontroId: string, url: string, usuarioId: string, tipo: 'taxas' | 'camisetas'): Promise<void> {
+    async atualizarComprovante(equipeId: string, encontroId: string, url: string, usuarioId: string, tipo: ComprovanteTipo): Promise<string[]> {
         const field = tipo === 'taxas' ? 'comprovante_taxas_url' : 'comprovante_camisetas_url';
+        const listField = tipo === 'taxas' ? 'comprovantes_taxas_urls' : 'comprovantes_camisetas_urls';
         
         // Verifica se já existe confirmação
         const { data: existing } = await supabase
             .from('equipe_confirmacoes')
-            .select('id')
+            .select(`id, ${field}, ${listField}`)
             .eq('equipe_id', equipeId)
             .eq('encontro_id', encontroId)
             .maybeSingle();
 
         if (existing) {
+            const currentUrls = normalizeComprovantes(existing[field as keyof typeof existing] as string | null, existing[listField as keyof typeof existing]);
+            const nextUrls = [...currentUrls, url];
             const { error } = await supabase
                 .from('equipe_confirmacoes')
-                .update({ [field]: url })
+                .update({ [field]: url, [listField]: nextUrls })
                 .eq('id', existing.id);
             if (error) throw error;
+            return nextUrls;
         } else {
+            const nextUrls = [url];
             const { error } = await supabase
                 .from('equipe_confirmacoes')
                 .insert([{
                     equipe_id: equipeId,
                     encontro_id: encontroId,
                     [field]: url,
+                    [listField]: nextUrls,
                     confirmado_por: usuarioId,
                     confirmado_em: new Date().toISOString()
                 }]);
             if (error) throw error;
+            return nextUrls;
         }
     },
     async verificarSeEquipeCompleta(equipeId: string, encontroId: string, isParticipante: boolean): Promise<boolean> {
