@@ -133,6 +133,11 @@ button {
   color: #fff;
   cursor: pointer;
   transition: background-color 0.25s, border-color 0.25s, transform 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  white-space: nowrap;
 }
 
 button:hover {

@@ -967,19 +967,31 @@ function QuestionStep({
               Salvar rascunho
             </button>
           )}
-          <button type="button" className="btn-secondary" disabled={isFirst || saving} onClick={onPrevious}>
-            <ChevronLeft size={16} />
+          <button type="button" className="btn-secondary common-button" disabled={isFirst || saving} onClick={onPrevious}>
+            <ChevronLeft size={18} />
             Anterior
           </button>
           {isLast ? (
-            <button type="button" className="btn-primary" disabled={saving || isSent} onClick={onSubmit}>
-              {saving ? <Loader className="animate-spin" size={16} /> : <CheckCircle size={16} />}
+            <button type="button" className="btn-primary common-button" disabled={saving || isSent} onClick={onSubmit}>
+              {saving ? <Loader className="animate-spin" size={18} /> : <CheckCircle size={18} />}
               Enviar
             </button>
           ) : (
-            <button type="button" className="btn-primary" disabled={saving} onClick={onNext}>
-              {saving ? <Loader className="animate-spin" size={16} /> : <ChevronRight size={16} />}
-              Avançar
+            <button type="button" className="btn-primary common-button" disabled={saving} onClick={onNext}>
+                {saving ? <Loader className="animate-spin" size={18} /> :
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.3rem',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Avançar
+                    <ChevronRight size={18} />
+                  </span>
+              }
             </button>
           )}
         </div>
