@@ -4,6 +4,7 @@ import { useExternalAccess } from '../../hooks/useExternalAccess';
 import { recreacaoService } from '../../services/recreacaoService';
 import { equipeService } from '../../services/equipeService';
 import { inscricaoService } from '../../services/inscricaoService';
+import { encontroService } from '../../services/encontroService';
 import { FormField } from '../../components/ui/FormField';
 import { FormRow } from '../../components/ui/FormRow';
 import { Loader, Baby, Car, CheckCircle, LogOut, Plus, Trash2, Pencil, Users } from 'lucide-react';
@@ -13,6 +14,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import type { RecreacaoDados, RecreacaoDadosFormData } from '../../types/recreacao';
 import type { Equipe } from '../../types/equipe';
 import type { InscricaoEnriched } from '../../types/inscricao';
+import type { Encontro } from '../../types/encontro';
 import {
   calculateAgeParts,
   formatAgeParts,
@@ -32,6 +34,7 @@ export default function FormRecreacaoPage() {
   
   const [allEquipes, setAllEquipes] = useState<Equipe[]>([]);
   const [allParticipantes, setAllParticipantes] = useState<InscricaoEnriched[]>([]);
+  const [encontro, setEncontro] = useState<Encontro | null>(null);
   const [idToDelete, setIdToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
@@ -55,12 +58,14 @@ export default function FormRecreacaoPage() {
     if (!session?.encontro_id) return;
     
     try {
-      const [equipes, participantes] = await Promise.all([
+      const [equipes, participantes, encontroData] = await Promise.all([
         equipeService.listar(),
-        inscricaoService.listarPorEncontro(session.encontro_id)
+        inscricaoService.listarPorEncontro(session.encontro_id),
+        encontroService.obterPorId(session.encontro_id)
       ]);
       setAllEquipes(equipes);
       setAllParticipantes(participantes);
+      setEncontro(encontroData);
       
       // Default team to current participant's team if not already set
       if (session.participacoes?.equipe_id) {
@@ -100,7 +105,8 @@ export default function FormRecreacaoPage() {
     e.preventDefault();
     if (!session?.participacao_id) return;
 
-    const calculatedAge = calculateAgeParts(formData.data_nascimento);
+    const encontroStartDate = encontro?.data_inicio ? new Date(`${encontro.data_inicio}T00:00:00`) : undefined;
+    const calculatedAge = calculateAgeParts(formData.data_nascimento, encontroStartDate);
 
     if (formData.data_nascimento && !calculatedAge) {
       toast.error('Informe uma data de nascimento válida.');
@@ -108,7 +114,7 @@ export default function FormRecreacaoPage() {
     }
 
     if (calculatedAge && calculatedAge.totalMonths > MAX_RECREACAO_AGE_MONTHS) {
-      toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.');
+      toast.error('Lembrando: a idade máxima para recreação é 6 anos e 11 meses no primeiro dia do encontro.');
       return;
     }
 
@@ -189,7 +195,8 @@ export default function FormRecreacaoPage() {
     .filter(p => p.id !== session?.participacao_id) // Don't list self as second responsible
     .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
 
-  const formAge = calculateAgeParts(formData.data_nascimento);
+  const encontroStartDate = encontro?.data_inicio ? new Date(`${encontro.data_inicio}T00:00:00`) : undefined;
+  const formAge = calculateAgeParts(formData.data_nascimento, encontroStartDate);
 
   if (isSessionLoading || isLoading) {
     return (
@@ -558,14 +565,13 @@ export default function FormRecreacaoPage() {
                     type="number"
                     required
                     min={0}
-                    max={7}
-                    onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('A idade máxima é 7 anos e 11 meses')}
+                    max={6}
+                    onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('A idade máxima é 6 anos e 11 meses no primeiro dia do encontro')}
                     onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
                     onBlur={e => {
                       const val = parseInt((e.target as HTMLInputElement).value);
-                      if (val > 7) {
-                        toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.', {
-                          icon: '🧒',
+                      if (val > 6) {
+                        toast.error('Lembrando: a idade máxima para recreação é 6 anos e 11 meses no primeiro dia do encontro.', {
                           duration: 5000
                         });
                       }

@@ -8,10 +8,12 @@ import { FormRow } from '../ui/FormRow';
 import { recreacaoService } from '../../services/recreacaoService';
 import { equipeService } from '../../services/equipeService';
 import { inscricaoService } from '../../services/inscricaoService';
+import { encontroService } from '../../services/encontroService';
 import { LiveSearchSelect } from '../ui/LiveSearchSelect';
 import type { RecreacaoDados, RecreacaoDadosFormData } from '../../types/recreacao';
 import type { Equipe } from '../../types/equipe';
 import type { InscricaoEnriched } from '../../types/inscricao';
+import type { Encontro } from '../../types/encontro';
 import {
   calculateAgeParts,
   formatAgeParts,
@@ -50,6 +52,7 @@ export function RecreacaoDadosModal({
 
   const [allEquipes, setAllEquipes] = useState<Equipe[]>([]);
   const [allParticipantes, setAllParticipantes] = useState<InscricaoEnriched[]>([]);
+  const [encontro, setEncontro] = useState<Encontro | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -80,12 +83,14 @@ export function RecreacaoDadosModal({
 
   const loadInitialData = useCallback(async () => {
     try {
-      const [equipes, participantes] = await Promise.all([
+      const [equipes, participantes, encontroData] = await Promise.all([
         equipeService.listar(),
-        inscricaoService.listarPorEncontro(encontroId)
+        inscricaoService.listarPorEncontro(encontroId),
+        encontroService.obterPorId(encontroId)
       ]);
       setAllEquipes(equipes);
       setAllParticipantes(participantes);
+      setEncontro(encontroData);
     } catch (error) {
       console.error('Erro ao carregar dados auxiliares:', error);
     }
@@ -175,7 +180,8 @@ export function RecreacaoDadosModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentParticipacaoId) return;
-    const calculatedAge = calculateAgeParts(formData.data_nascimento);
+    const encontroStartDate = encontro?.data_inicio ? new Date(`${encontro.data_inicio}T00:00:00`) : undefined;
+    const calculatedAge = calculateAgeParts(formData.data_nascimento, encontroStartDate);
 
     if (formData.data_nascimento && !calculatedAge) {
       toast.error('Informe uma data de nascimento válida.');
@@ -183,7 +189,7 @@ export function RecreacaoDadosModal({
     }
 
     if (calculatedAge && calculatedAge.totalMonths > MAX_RECREACAO_AGE_MONTHS) {
-      toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.');
+      toast.error('Lembrando: a idade máxima para recreação é 6 anos e 11 meses no primeiro dia do encontro.');
       return;
     }
 
@@ -254,7 +260,8 @@ export function RecreacaoDadosModal({
   const primaryResponsibleOptions = allParticipantes
     .filter(p => p.participante !== true)
     .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
-  const formAge = calculateAgeParts(formData.data_nascimento);
+  const encontroStartDate = encontro?.data_inicio ? new Date(`${encontro.data_inicio}T00:00:00`) : undefined;
+  const formAge = calculateAgeParts(formData.data_nascimento, encontroStartDate);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Recreação Infantil - ${initialParticipanteNome || currentParticipant?.pessoas?.nome_completo || 'Novo Registro'}`} maxWidth="600px">
@@ -389,14 +396,13 @@ export function RecreacaoDadosModal({
                 type="number"
                 required
                 min={0}
-                max={7}
-                onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('A idade máxima é 7 anos e 11 meses')}
+                max={6}
+                onInvalid={e => (e.target as HTMLInputElement).setCustomValidity('A idade máxima é 6 anos e 11 meses no primeiro dia do encontro')}
                 onInput={e => (e.target as HTMLInputElement).setCustomValidity('')}
                 onBlur={e => {
                   const val = parseInt((e.target as HTMLInputElement).value);
-                  if (val > 7) {
-                    toast.error('Lembrando: a idade máxima para recreação é 7 anos e 11 meses.', {
-                      icon: '🧒',
+                  if (val > 6) {
+                    toast.error('Lembrando: a idade máxima para recreação é 6 anos e 11 meses no primeiro dia do encontro.', {
                       duration: 5000
                     });
                   }

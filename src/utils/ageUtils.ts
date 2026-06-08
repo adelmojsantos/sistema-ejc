@@ -4,7 +4,7 @@ export interface AgeParts {
   totalMonths: number;
 }
 
-export const MAX_RECREACAO_AGE_MONTHS = 7 * 12 + 11;
+export const MAX_RECREACAO_AGE_MONTHS = 6 * 12 + 11;
 
 const parseLocalDate = (dateString: string): Date | null => {
   const [year, month, day] = dateString.split('-').map(Number);

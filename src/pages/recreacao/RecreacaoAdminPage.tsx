@@ -6,6 +6,7 @@ import {
   Loader,
   Plus,
   Search,
+  Trash2,
   X
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -16,6 +17,7 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { Modal } from '../../components/ui/Modal';
 
 import { Gear, WhatsappLogo } from 'phosphor-react';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useEncontros } from '../../contexts/EncontroContext';
@@ -45,6 +47,8 @@ export function RecreacaoAdminPage() {
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [obsToShow, setObsToShow] = useState<string | null>(null);
+  const [registroToDelete, setRegistroToDelete] = useState<RecreacaoDados | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Seleciona encontro ativo via contexto
   useEffect(() => {
@@ -84,6 +88,23 @@ export function RecreacaoAdminPage() {
     setSelectedParticipacaoId(null);
     setSelectedChildId(null);
     setIsModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!registroToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await recreacaoService.excluir(registroToDelete.id);
+      toast.success('Cadastro removido com sucesso.');
+      setRegistroToDelete(null);
+      await loadRegistros();
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao remover cadastro de recreação.');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const filteredRegistros = useMemo(() => {
@@ -251,7 +272,7 @@ export function RecreacaoAdminPage() {
                 {/* Linha 2: Grid de Responsáveis, Obs e Botão */}
                 <div className="card-main-row" style={{
                   display: 'grid',
-                  gridTemplateColumns: 'minmax(300px, 2fr) minmax(200px, 1.2fr) 120px',
+                  gridTemplateColumns: 'minmax(300px, 2fr) minmax(200px, 1.2fr) 220px',
                   alignItems: 'center',
                   gap: '2rem'
                 }}>
@@ -362,7 +383,7 @@ export function RecreacaoAdminPage() {
                     )}
                   </div>
 
-                  <div className="admin-card-actions" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <div className="admin-card-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                     <button
                       onClick={() => handleEdit(reg)}
                       className="btn-success flex items-center justify-center gap-2"
@@ -370,7 +391,7 @@ export function RecreacaoAdminPage() {
                         padding: '0.5rem 1rem',
                         fontSize: '0.85rem',
                         fontWeight: 600,
-                        width: '100%',
+                        flex: 1,
                         backgroundColor: '#10b981',
                         color: 'white',
                         border: 'none',
@@ -379,7 +400,25 @@ export function RecreacaoAdminPage() {
                         transition: 'opacity 0.2s'
                       }}
                     >
-                      <Gear size={16} /> Gerenciar
+                      <Gear size={16} /> Editar
+                    </button>
+                    <button
+                      onClick={() => setRegistroToDelete(reg)}
+                      className="btn-danger-solid flex items-center justify-center gap-2"
+                      style={{
+                        padding: '0.5rem 1rem',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        flex: 1,
+                        backgroundColor: '#ef4444',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'opacity 0.2s'
+                      }}
+                    >
+                      <Trash2 size={16} /> Remover
                     </button>
                   </div>
                 </div>
@@ -425,6 +464,23 @@ export function RecreacaoAdminPage() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!registroToDelete}
+        title="Remover cadastro"
+        message={
+          <>
+            Tem certeza que deseja remover o cadastro de{' '}
+            <strong>{registroToDelete?.nome_crianca}</strong> da recreação infantil?
+          </>
+        }
+        confirmText="Remover"
+        cancelText="Cancelar"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setRegistroToDelete(null)}
+        isLoading={isDeleting}
+        isDestructive
+      />
 
       <style>{`
         .hover-card {
@@ -487,9 +543,10 @@ export function RecreacaoAdminPage() {
           .admin-card-actions {
             width: 100%;
             margin-top: 0.25rem;
+            gap: 0.5rem !important;
           }
           .admin-card-actions button {
-            width: 100%;
+            flex: 1;
           }
           .obs-section {
             max-width: 100% !important;
