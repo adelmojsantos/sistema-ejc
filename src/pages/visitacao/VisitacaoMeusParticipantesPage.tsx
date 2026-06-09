@@ -25,6 +25,7 @@ import { inscricaoService } from '../../services/inscricaoService';
 import type { VisitaParticipacaoEnriched, VisitaStatus, VisitaGrupo } from '../../types/visitacao';
 import { toast } from 'react-hot-toast';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Modal } from '../../components/ui/Modal';
 import { MyParticipantsMap } from '../../components/visitacao/MyParticipantsMap';
 import { formatPhone } from '../../utils/stringUtils';
 import { formatPlate } from '../../utils/plateUtils';
@@ -76,6 +77,7 @@ export function VisitacaoMeusParticipantesPage() {
     const [grupoNome, setGrupoNome] = useState('');
     const [filterStatus, setFilterStatus] = useState<'todos' | 'pendentes' | 'visitados' | 'ausentes' | 'cancelados'>('todos');
     const [filterVeiculo, setFilterVeiculo] = useState(false);
+    const [previewPhoto, setPreviewPhoto] = useState<{ url: string; nome: string } | null>(null);
 
     useEffect(() => {
         sessionStorage.setItem('visita_view_mode', viewMode);
@@ -156,6 +158,8 @@ export function VisitacaoMeusParticipantesPage() {
                             *,
                             participacoes:participacao_id (
                                 id,
+                                foto_url,
+                                foto_posicao_y,
                                 pessoas (*),
                                 recepcao_dados (*)
                             )
@@ -221,7 +225,15 @@ export function VisitacaoMeusParticipantesPage() {
         if (filterVeiculo) {
             lista = lista.filter(p => !!getVehicleData((p as VisitaListItem).participacoes?.recepcao_dados));
         }
-        return lista;
+        return lista.sort((a, b) => {
+            const aCancelado = a.status === 'cancelada';
+            const bCancelado = b.status === 'cancelada';
+            if (aCancelado !== bCancelado) return aCancelado ? 1 : -1;
+
+            const nomeA = a.participacoes?.pessoas?.nome_completo || '';
+            const nomeB = b.participacoes?.pessoas?.nome_completo || '';
+            return nomeA.localeCompare(nomeB, 'pt-BR', { sensitivity: 'base' });
+        });
     }, [participantes, filterStatus, filterVeiculo]);
 
     const urgentes = useMemo(() => {
@@ -466,13 +478,31 @@ export function VisitacaoMeusParticipantesPage() {
                                                 {/* Header do Card */}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0, flex: 1 }}>
-                                                        <div style={{
-                                                            width: '48px', height: '48px', borderRadius: '50%', background: status.color + '20',
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'center', color: status.color,
-                                                            fontWeight: 700, fontSize: '1.2rem', flexShrink: 0
-                                                        }}>
-                                                            {pessoa?.nome_completo?.charAt(0) || <Users size={24} />}
-                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            className={`visita-participant-avatar${p.participacoes?.foto_url ? ' has-photo' : ''}`}
+                                                            style={{ background: status.color + '20', color: status.color }}
+                                                            onClick={p.participacoes?.foto_url
+                                                                ? (event) => {
+                                                                    event.stopPropagation();
+                                                                    setPreviewPhoto({
+                                                                        url: p.participacoes.foto_url!,
+                                                                        nome: pessoa?.nome_completo || 'Participante',
+                                                                    });
+                                                                }
+                                                                : undefined}
+                                                            aria-label={p.participacoes?.foto_url ? `Abrir foto de ${pessoa?.nome_completo || 'participante'}` : undefined}
+                                                        >
+                                                            {p.participacoes?.foto_url ? (
+                                                                <img
+                                                                    src={p.participacoes.foto_url}
+                                                                    alt={pessoa?.nome_completo || 'Participante'}
+                                                                    style={{ objectPosition: `center ${p.participacoes.foto_posicao_y ?? 50}%` }}
+                                                                />
+                                                            ) : (
+                                                                pessoa?.nome_completo?.charAt(0) || <Users size={24} />
+                                                            )}
+                                                        </button>
                                                         <div style={{ minWidth: 0, flex: 1 }}>
                                                             <h4 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pessoa?.nome_completo}</h4>
                                                             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
@@ -673,6 +703,19 @@ export function VisitacaoMeusParticipantesPage() {
                 </>
             )}
 
+            <Modal
+                isOpen={!!previewPhoto}
+                onClose={() => setPreviewPhoto(null)}
+                title={previewPhoto?.nome || 'Foto do participante'}
+                maxWidth="min(92vw, 900px)"
+            >
+                {previewPhoto && (
+                    <div className="visita-photo-preview">
+                        <img src={previewPhoto.url} alt={previewPhoto.nome} />
+                    </div>
+                )}
+            </Modal>
+
             <style>{`
                     .hover-primary:hover {
                         color: var(--primary-color) !important;
@@ -683,6 +726,46 @@ export function VisitacaoMeusParticipantesPage() {
                     .whatsapp-link:hover {
                         color: #25D366 !important;
                         transform: translateX(4px);
+                    }
+                    .visita-participant-avatar {
+                        width: 48px;
+                        height: 48px;
+                        border-radius: 50%;
+                        border: 1px solid var(--border-color);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        overflow: hidden;
+                        font-weight: 700;
+                        font-size: 1.2rem;
+                        flex-shrink: 0;
+                        padding: 0;
+                    }
+                    .visita-participant-avatar.has-photo {
+                        cursor: pointer;
+                    }
+                    .visita-participant-avatar.has-photo:hover {
+                        border-color: var(--primary-color);
+                    }
+                    .visita-participant-avatar img {
+                        width: 100%;
+                        height: 100%;
+                        object-fit: cover;
+                        display: block;
+                    }
+                    .visita-photo-preview {
+                        width: 100%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .visita-photo-preview img {
+                        display: block;
+                        max-width: 100%;
+                        max-height: calc(100vh - 190px);
+                        object-fit: contain;
+                        border-radius: 8px;
+                        background: var(--secondary-bg);
                     }
                 `}</style>
         </>
