@@ -159,7 +159,6 @@ export function VisitacaoMeusParticipantesPage() {
                             participacoes:participacao_id (
                                 id,
                                 foto_url,
-                                foto_posicao_y,
                                 pessoas (*),
                                 recepcao_dados (*)
                             )

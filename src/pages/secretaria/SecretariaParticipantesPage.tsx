@@ -78,7 +78,7 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
   return (
     <>
       <p className="secretaria-result-summary">
-        Mostrando <strong>{desistentes.length}</strong> de <strong>{total}</strong> {total === 1 ? 'desistente registrado' : 'desistentes registrados'}
+        Mostrando <strong>{desistentes.length}</strong> de <strong>{total}</strong> {total === 1 ? 'registro no histórico' : 'registros no histórico'}
       </p>
 
       <div className="secretaria-desistentes-list">
@@ -86,9 +86,10 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
           const pessoa = desistencia.pessoas;
           const nome = pessoa?.nome_completo || 'Nome não informado';
           const dupla = desistencia.visita_grupos?.nome || 'Dupla não informada';
+          const isRevertida = !!desistencia.revertido_em;
 
           return (
-            <article key={desistencia.id} className="card secretaria-desistente-card">
+            <article key={desistencia.id} className={`card secretaria-desistente-card ${isRevertida ? 'is-reverted' : 'is-active'}`}>
               <div className="secretaria-desistente-avatar">
                 {nome.charAt(0)}
               </div>
@@ -97,8 +98,15 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
                 <div>
                   <h3>{nome}</h3>
                   <div className="secretaria-desistente-badges">
+                    <span className={`secretaria-desistente-status ${isRevertida ? 'is-reverted' : 'is-active'}`}>
+                      {isRevertida ? <CheckCircle size={12} /> : <UserMinus size={12} />}
+                      {isRevertida ? 'Desistência revertida' : 'Desistência ativa'}
+                    </span>
                     <span><Users size={12} /> {dupla}</span>
-                    <span><Clock size={12} /> {formatDateTime(desistencia.data_cancelamento)}</span>
+                    <span><Clock size={12} /> Desistiu em {formatDateTime(desistencia.data_cancelamento)}</span>
+                    {isRevertida && (
+                      <span><RotateCcw size={12} /> Retornou em {formatDateTime(desistencia.revertido_em)}</span>
+                    )}
                   </div>
                 </div>
 
@@ -110,7 +118,9 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
               </div>
 
               <div className="secretaria-desistente-actions">
-                {canRestore ? (
+                {isRevertida ? (
+                  <span className="secretaria-desistente-readonly">Histórico encerrado</span>
+                ) : canRestore ? (
                   <button
                     type="button"
                     className="btn-primary secretaria-restore-button"
@@ -200,7 +210,7 @@ export function SecretariaParticipantesPage() {
     if (!selectedEncontroId) return;
     setIsLoadingDesistentes(true);
     try {
-      const data = await inscricaoService.listarCanceladosPorEncontro(selectedEncontroId);
+      const data = await inscricaoService.listarHistoricoDesistenciasPorEncontro(selectedEncontroId);
       setDesistentes(data);
     } catch (error) {
       console.error('Erro ao carregar desistentes:', error);
@@ -264,7 +274,15 @@ export function SecretariaParticipantesPage() {
 
         return !!(matchNome || matchCpf || matchEmail || matchTelefone || matchComunidade || matchDupla || matchObservacoes);
       })
-      .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
+      .sort((a, b) => {
+        const nameComparison = (a.pessoas?.nome_completo || '').localeCompare(
+          b.pessoas?.nome_completo || '',
+          'pt-BR',
+          { sensitivity: 'base' }
+        );
+        if (nameComparison !== 0) return nameComparison;
+        return new Date(b.data_cancelamento || 0).getTime() - new Date(a.data_cancelamento || 0).getTime();
+      });
   }, [desistentes, debouncedSearch]);
 
   const selectedEncontro = encontros.find(e => e.id === selectedEncontroId);
@@ -755,7 +773,7 @@ export function SecretariaParticipantesPage() {
               onClick={() => handleTabChange('desistentes')}
             >
               <UserMinus size={16} />
-              Desistentes
+              Histórico de desistências
               <span>{desistentes.length}</span>
             </button>
           </div>
@@ -777,7 +795,7 @@ export function SecretariaParticipantesPage() {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0, flex: 2 }}>
-                <label className="form-label">{activeTab === 'desistentes' ? 'Buscar Desistente' : 'Buscar Participante'}</label>
+                <label className="form-label">{activeTab === 'desistentes' ? 'Buscar no histórico' : 'Buscar Participante'}</label>
                 <div className="form-input-wrapper">
                   <div className="form-input-icon">
                     <Search size={16} />
@@ -1427,6 +1445,14 @@ export function SecretariaParticipantesPage() {
           padding: 1rem;
           border-left: 4px solid #ef4444;
         }
+        .secretaria-desistente-card.is-reverted {
+          border-left-color: #16a34a;
+          opacity: 0.82;
+        }
+        .secretaria-desistente-card.is-reverted .secretaria-desistente-avatar {
+          background: rgba(22, 163, 74, 0.1);
+          color: #16a34a;
+        }
         .secretaria-desistente-avatar {
           width: 46px;
           height: 46px;
@@ -1469,6 +1495,16 @@ export function SecretariaParticipantesPage() {
           font-weight: 800;
           color: var(--text-color);
           background: var(--secondary-bg);
+        }
+        .secretaria-desistente-badges .secretaria-desistente-status.is-active {
+          border-color: rgba(239, 68, 68, 0.35);
+          background: rgba(239, 68, 68, 0.1);
+          color: #dc2626;
+        }
+        .secretaria-desistente-badges .secretaria-desistente-status.is-reverted {
+          border-color: rgba(22, 163, 74, 0.35);
+          background: rgba(22, 163, 74, 0.1);
+          color: #15803d;
         }
         .secretaria-desistente-details span {
           font-size: 0.78rem;

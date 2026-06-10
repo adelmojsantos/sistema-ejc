@@ -7,6 +7,7 @@ export interface Palestra {
     titulo: string;
     palestrante_nome: string | null;
     palestrante_foto_url: string | null;
+    palestrante_foto_posicao_y?: number | null;
     resumo: string | null;
     ordem: number;
     created_at?: string;
@@ -20,6 +21,7 @@ export interface PalestraFormData {
     titulo: string;
     palestrante_nome?: string | null;
     palestrante_foto_url?: string | null;
+    palestrante_foto_posicao_y?: number | null;
     resumo?: string | null;
     ordem?: number;
 }

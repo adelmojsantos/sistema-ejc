@@ -732,9 +732,10 @@ export function MontagemCirculos() {
                                   }}
                                   fetchData={(busca, pag) =>
                                     equipeCirculoId
-                                      ? inscricaoService.buscarEncontreirosDaEquipePorNome(selectedEncontroId, equipeCirculoId, busca, pag, 10)
+                                      ? inscricaoService.buscarEncontreirosDaEquipePorNome(selectedEncontroId, equipeCirculoId, busca, pag, 100)
                                       : Promise.resolve([])
                                   }
+                                  pageSize={100}
                                   getOptionLabel={item => item.pessoas?.nome_completo ?? '—'}
                                   getOptionValue={item => item.id}
                                   renderOption={item => (
@@ -768,9 +769,10 @@ export function MontagemCirculos() {
                                   }}
                                   fetchData={(busca, pag) =>
                                     equipeCirculoId
-                                      ? inscricaoService.buscarEncontreirosDaEquipePorNome(selectedEncontroId, equipeCirculoId, busca, pag, 10)
+                                      ? inscricaoService.buscarEncontreirosDaEquipePorNome(selectedEncontroId, equipeCirculoId, busca, pag, 100)
                                       : Promise.resolve([])
                                   }
+                                  pageSize={100}
                                   getOptionLabel={item => item.pessoas?.nome_completo ?? '—'}
                                   getOptionValue={item => item.id}
                                   renderOption={item => (
@@ -818,8 +820,9 @@ export function MontagemCirculos() {
                               handleAddParticipante(val, circulo.id);
                             }}
                             fetchData={(busca, pag) =>
-                              inscricaoService.buscarParticipantesPorNome(selectedEncontroId, busca, pag, 10)
+                              inscricaoService.buscarParticipantesPorNome(selectedEncontroId, busca, pag, 100)
                             }
+                            pageSize={100}
                             getOptionLabel={item => item.pessoas?.nome_completo ?? '—'}
                             getOptionValue={item => item.id}
                             renderOption={item => {

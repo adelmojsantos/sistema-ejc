@@ -411,6 +411,21 @@ export const inscricaoService = {
         return (data || []) as ParticipacaoCancelada[];
     },
 
+    async listarHistoricoDesistenciasPorEncontro(encontroId: string): Promise<ParticipacaoCancelada[]> {
+        const { data, error } = await supabase
+            .from('participacoes_canceladas')
+            .select(`
+                *,
+                pessoas:pessoa_id (*),
+                visita_grupos:grupo_id (nome)
+            `)
+            .eq('encontro_id', encontroId)
+            .order('data_cancelamento', { ascending: false });
+
+        if (error) throw error;
+        return (data || []) as ParticipacaoCancelada[];
+    },
+
     async desfazerDesistencia(cancelamentoId: string): Promise<{
         participacao_id?: string;
         visita_id?: string;

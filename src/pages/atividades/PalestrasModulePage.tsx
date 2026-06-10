@@ -1,4 +1,4 @@
-import { Camera, ImagePlus, Loader, Mic2, Pencil, Plus, Trash2, Upload, User } from 'lucide-react';
+import { Camera, ImagePlus, Loader, Mic2, Minus, Pencil, Plus, SlidersHorizontal, Trash2, Upload, User } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -52,15 +52,24 @@ export function PalestrasModulePage() {
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
   const [isPhotoActionSheetOpen, setIsPhotoActionSheetOpen] = useState(false);
+  const [isListPhotoActionSheetOpen, setIsListPhotoActionSheetOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [photoModalPalestra, setPhotoModalPalestra] = useState<Palestra | null>(null);
+  const [listPhotoTarget, setListPhotoTarget] = useState<Palestra | null>(null);
+  const [tempPhotoPosition, setTempPhotoPosition] = useState(50);
+  const [isSavingListPhoto, setIsSavingListPhoto] = useState(false);
+  const [isDeletingPhoto, setIsDeletingPhoto] = useState(false);
   const [editingPalestra, setEditingPalestra] = useState<Palestra | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Palestra | null>(null);
   const [formData, setFormData] = useState<PalestraFormData>(emptyForm('', 1));
   const photoFileInputRef = useRef<HTMLInputElement>(null);
   const photoCameraInputRef = useRef<HTMLInputElement>(null);
+  const listPhotoFileInputRef = useRef<HTMLInputElement>(null);
+  const listPhotoCameraInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!selectedEncontroId) {
+    const selectedEncontroExists = encontros.some((encontro) => encontro.id === selectedEncontroId);
+    if (!selectedEncontroId || !selectedEncontroExists) {
       setSelectedEncontroId(encontroAtivo?.id ?? encontros[encontros.length - 1]?.id ?? '');
     }
   }, [encontroAtivo, encontros, selectedEncontroId]);
@@ -213,6 +222,117 @@ export function PalestrasModulePage() {
     setIsDraggingPhoto(false);
   };
 
+  const updatePalestraState = (id: string, updates: Partial<Palestra>) => {
+    setPalestras((current) => current.map((palestra) => (
+      palestra.id === id ? { ...palestra, ...updates } : palestra
+    )));
+    setPhotoModalPalestra((current) => current?.id === id ? { ...current, ...updates } : current);
+    setListPhotoTarget((current) => current?.id === id ? { ...current, ...updates } : current);
+  };
+
+  const openListPhotoPicker = (palestra: Palestra) => {
+    setListPhotoTarget(palestra);
+    if (window.innerWidth <= 768) {
+      setIsListPhotoActionSheetOpen(true);
+    } else {
+      listPhotoFileInputRef.current?.click();
+    }
+  };
+
+  const handleListPhotoClick = (palestra: Palestra) => {
+    if (palestra.palestrante_foto_url) {
+      setPhotoModalPalestra(palestra);
+      setListPhotoTarget(palestra);
+      setTempPhotoPosition(palestra.palestrante_foto_posicao_y ?? 50);
+      return;
+    }
+    openListPhotoPicker(palestra);
+  };
+
+  const processListPhotoFile = async (file?: File) => {
+    if (!file || !listPhotoTarget) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione uma imagem válida.');
+      return;
+    }
+
+    const target = listPhotoTarget;
+    const toastId = toast.loading('Enviando foto...');
+    setIsSavingListPhoto(true);
+    try {
+      const url = await palestraService.uploadFoto(file);
+      try {
+        await palestraService.atualizar(target.id, {
+          palestrante_foto_url: url,
+          palestrante_foto_posicao_y: 50,
+        });
+      } catch (error) {
+        const message = error instanceof Error
+          ? error.message
+          : String((error as { message?: unknown })?.message ?? '');
+        if (!message.includes('palestrante_foto_posicao_y')) throw error;
+        await palestraService.atualizar(target.id, { palestrante_foto_url: url });
+      }
+      const updates = { palestrante_foto_url: url, palestrante_foto_posicao_y: 50 };
+      updatePalestraState(target.id, updates);
+      setTempPhotoPosition(50);
+      toast.success('Foto atualizada.', { id: toastId });
+    } catch (error) {
+      console.error('Erro ao atualizar foto do palestrante:', error);
+      toast.error('Não foi possível atualizar a foto.', { id: toastId });
+    } finally {
+      setIsSavingListPhoto(false);
+    }
+  };
+
+  const handleListFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    setIsListPhotoActionSheetOpen(false);
+    await processListPhotoFile(event.target.files?.[0]);
+    event.target.value = '';
+  };
+
+  const handleSaveListPhotoPosition = async () => {
+    if (!photoModalPalestra) return;
+    setIsSavingListPhoto(true);
+    try {
+      await palestraService.atualizar(photoModalPalestra.id, {
+        palestrante_foto_posicao_y: tempPhotoPosition,
+      });
+      updatePalestraState(photoModalPalestra.id, {
+        palestrante_foto_posicao_y: tempPhotoPosition,
+      });
+      toast.success('Enquadramento atualizado.');
+    } catch (error) {
+      console.error('Erro ao ajustar foto do palestrante:', error);
+      toast.error('Não foi possível salvar o enquadramento.');
+    } finally {
+      setIsSavingListPhoto(false);
+    }
+  };
+  const handleDeletePhoto = async () => {
+    if (!photoModalPalestra) return;
+    const palestraId = photoModalPalestra.id;
+    setIsDeletingPhoto(true);
+    try {
+      await palestraService.atualizar(palestraId, {
+        palestrante_foto_url: null,
+      });
+      updatePalestraState(palestraId, {
+        palestrante_foto_url: null,
+        palestrante_foto_posicao_y: 50,
+      });
+      setPhotoModalPalestra(null);
+      setListPhotoTarget(null);
+      setTempPhotoPosition(50);
+      toast.success('Foto removida.');
+    } catch (error) {
+      console.error('Erro ao remover foto do palestrante:', error);
+      toast.error('Não foi possível remover a foto do palestrante.');
+    } finally {
+      setIsDeletingPhoto(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
 
@@ -292,13 +412,25 @@ export function PalestrasModulePage() {
             {palestras.map((palestra) => (
               <article key={palestra.id} className="pessoa-row palestras-row">
                 <div className="pessoa-row-main palestras-row-main">
-                  <span className="pessoa-avatar small palestras-row-avatar">
+                  <button
+                    type="button"
+                    className="pessoa-avatar small palestras-row-avatar"
+                    onClick={() => handleListPhotoClick(palestra)}
+                    aria-label={palestra.palestrante_foto_url
+                      ? `Abrir foto de ${palestra.palestrante_nome || 'palestrante'}`
+                      : `Adicionar foto de ${palestra.palestrante_nome || 'palestrante'}`}
+                    title={palestra.palestrante_foto_url ? 'Visualizar e ajustar foto' : 'Adicionar foto'}
+                  >
                     {palestra.palestrante_foto_url ? (
-                      <img src={palestra.palestrante_foto_url} alt={palestra.palestrante_nome ?? ''} />
+                      <img
+                        src={palestra.palestrante_foto_url}
+                        alt={palestra.palestrante_nome ?? ''}
+                        style={{ objectPosition: `center ${palestra.palestrante_foto_posicao_y ?? 50}%` }}
+                      />
                     ) : (
-                      <User size={16} />
+                      <ImagePlus size={16} />
                     )}
-                  </span>
+                  </button>
                   <span className="pessoa-row-info">
                     <span className="pessoa-row-label">Palestra {palestra.ordem}</span>
                     <h3 className="pessoa-row-name">{palestra.titulo}</h3>
@@ -524,6 +656,100 @@ export function PalestrasModulePage() {
         </form>
       </Modal>
 
+      <Modal
+        isOpen={!!photoModalPalestra}
+        onClose={() => setPhotoModalPalestra(null)}
+        title={photoModalPalestra?.palestrante_nome || 'Foto do Palestrante'}
+        maxWidth="min(92vw, 760px)"
+      >
+        {photoModalPalestra && (
+          <div className="palestras-list-photo-modal">
+            <div className="palestras-list-photo-frame">
+              {photoModalPalestra.palestrante_foto_url ? (
+                <img
+                  src={photoModalPalestra.palestrante_foto_url}
+                  alt={photoModalPalestra.palestrante_nome || 'Palestrante'}
+                  style={{ objectPosition: `center ${tempPhotoPosition}%` }}
+                />
+              ) : (
+                <div className="palestras-photo-placeholder">
+                  <User size={36} />
+                  <span>Sem foto cadastrada</span>
+                </div>
+              )}
+              {isSavingListPhoto && (
+                <div className="palestras-list-photo-loading">
+                  <Loader className="animate-spin" size={28} />
+                </div>
+              )}
+            </div>
+
+            {photoModalPalestra.palestrante_foto_url && (
+              <div className="palestras-list-photo-adjust">
+                <label>Ajustar enquadramento vertical</label>
+                <div className="palestras-list-photo-adjust-control">
+                  <button type="button" onClick={() => setTempPhotoPosition((value) => Math.max(0, value - 2))} aria-label="Subir enquadramento">
+                    <Minus size={16} />
+                  </button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={tempPhotoPosition}
+                    onChange={(event) => setTempPhotoPosition(Number(event.target.value))}
+                  />
+                  <button type="button" onClick={() => setTempPhotoPosition((value) => Math.min(100, value + 2))} aria-label="Descer enquadramento">
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="palestras-list-photo-actions">
+              <button type="button" className="btn-secondary" onClick={() => openListPhotoPicker(photoModalPalestra)} disabled={isSavingListPhoto || isDeletingPhoto}>
+                <Camera size={16} />
+                Alterar foto
+              </button>
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={handleDeletePhoto}
+                disabled={isSavingListPhoto || isDeletingPhoto}
+              >
+                <Trash2 size={16} />
+                Remover foto
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleSaveListPhotoPosition}
+                disabled={isSavingListPhoto || isDeletingPhoto || !photoModalPalestra.palestrante_foto_url}>
+                  <SlidersHorizontal size={16} />
+                  Salvar ajuste
+                </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <input
+        ref={listPhotoFileInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={handleListFileUpload}
+        disabled={isSavingListPhoto}
+      />
+      <input
+        ref={listPhotoCameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        hidden
+        onChange={handleListFileUpload}
+        disabled={isSavingListPhoto}
+      />
+
       <ConfirmDialog
         isOpen={!!deleteTarget}
         title="Remover Palestra"
@@ -568,6 +794,44 @@ export function PalestrasModulePage() {
               </button>
             </div>
             <button type="button" className="photo-actions-cancel" onClick={() => setIsPhotoActionSheetOpen(false)}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isListPhotoActionSheetOpen && (
+        <div className="photo-actions-modal-overlay" onClick={() => setIsListPhotoActionSheetOpen(false)}>
+          <div className="photo-actions-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="photo-actions-header">
+              <h3>Foto do Palestrante</h3>
+              <p>Como você deseja inserir a foto?</p>
+            </div>
+            <div className="photo-actions-buttons">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsListPhotoActionSheetOpen(false);
+                  listPhotoCameraInputRef.current?.click();
+                }}
+                className="photo-action-btn"
+              >
+                <Camera size={20} />
+                Tirar Foto (Câmera)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsListPhotoActionSheetOpen(false);
+                  listPhotoFileInputRef.current?.click();
+                }}
+                className="photo-action-btn"
+              >
+                <ImagePlus size={20} />
+                Escolher da Galeria
+              </button>
+            </div>
+            <button type="button" className="photo-actions-cancel" onClick={() => setIsListPhotoActionSheetOpen(false)}>
               Cancelar
             </button>
           </div>
@@ -633,12 +897,105 @@ export function PalestrasModulePage() {
           overflow: hidden;
           background: var(--primary-color);
           color: white;
+          border: 1px solid var(--border-color);
+          padding: 0;
+          cursor: pointer;
+          transition: border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .palestras-row-avatar:hover {
+          border-color: var(--primary-color);
+          transform: scale(1.04);
         }
 
         .palestras-row-avatar img {
           width: 100%;
           height: 100%;
           object-fit: cover;
+        }
+
+        .palestras-list-photo-modal {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .palestras-list-photo-frame {
+          position: relative;
+          width: 100%;
+          height: min(58vh, 520px);
+          overflow: hidden;
+          border-radius: 8px;
+          border: 1px solid var(--border-color);
+          background: var(--secondary-bg);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .palestras-list-photo-frame img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .palestras-list-photo-loading {
+          position: absolute;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.48);
+          color: #fff;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .palestras-list-photo-adjust {
+          display: grid;
+          gap: 0.65rem;
+        }
+
+        .palestras-list-photo-adjust label {
+          font-size: 0.85rem;
+          font-weight: 800;
+        }
+
+        .palestras-list-photo-adjust-control {
+          display: grid;
+          grid-template-columns: 38px 1fr 38px;
+          align-items: center;
+          gap: 0.55rem;
+        }
+
+        .palestras-list-photo-adjust-control button {
+          width: 38px;
+          height: 38px;
+          border-radius: 8px;
+          border: 1px solid var(--border-color);
+          background: var(--card-bg);
+          color: var(--text-color);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+
+        .palestras-list-photo-adjust-control input {
+          width: 100%;
+          accent-color: var(--primary-color);
+        }
+
+        .palestras-list-photo-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+        }
+
+        .palestras-list-photo-actions button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.45rem;
         }
 
         .palestras-summary-col .pessoa-row-value {
@@ -895,6 +1252,14 @@ export function PalestrasModulePage() {
 
           .palestras-summary-col {
             align-items: flex-start;
+          }
+
+          .palestras-list-photo-frame {
+            height: min(48vh, 420px);
+          }
+
+          .palestras-list-photo-actions button {
+            flex: 1;
           }
 
           .palestras-form-actions {
