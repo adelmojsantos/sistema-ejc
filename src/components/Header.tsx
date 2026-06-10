@@ -83,6 +83,10 @@ export function Header() {
     }
   }
 
+  if (hasPermission('modulo_ligacao') || hasPermission('modulo_admin')) {
+    navLinks.push({ to: '/ligacao', label: 'Ligação' });
+  }
+
   const hasVisitacaoAccess = hasPermission('modulo_visitacao_coordenar') || hasPermission('modulo_visitacao_duplas') || hasPermission('modulo_admin');
   if (hasVisitacaoAccess) {
     navLinks.push({ to: '/visitacao', label: 'Visitação' });

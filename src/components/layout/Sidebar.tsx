@@ -18,7 +18,8 @@ import {
   ShoppingBag,
   UsersRound,
   Crown,
-  HeartPulse
+  HeartPulse,
+  Mail
 } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
@@ -87,6 +88,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   if (hasCuidadosAccess) {
     menuItems.push({ to: '/cuidados', label: 'Cuidados', icon: HeartPulse });
+  }
+
+  if (hasPermission('modulo_ligacao') || hasPermission('modulo_admin')) {
+    menuItems.push({ to: '/ligacao', label: 'Ligação', icon: Mail });
   }
 
   if (hasPermission('modulo_coordenador') || userParticipacao?.coordenador) {

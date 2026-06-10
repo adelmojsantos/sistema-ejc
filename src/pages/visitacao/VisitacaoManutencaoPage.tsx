@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home, Heart, UtensilsCrossed, Pill, AlertTriangle, Upload, ImagePlus, Calendar, Shirt, Plus, Trash2, X, Car, Pencil } from 'lucide-react';
+import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home, Heart, UtensilsCrossed, Pill, AlertTriangle, Upload, ImagePlus, Calendar, Shirt, Plus, Trash2, X, Car, Pencil, CheckCircle, FileText } from 'lucide-react';
 import { visitacaoService, type IntencaoCamisetaItem } from '../../services/visitacaoService';
 import { camisetaService } from '../../services/camisetaService';
 import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
@@ -254,6 +254,11 @@ export function VisitacaoManutencaoPage() {
     const [tamanhosCamiseta, setTamanhosCamiseta] = useState<CamisetaTamanho[]>([]);
     const [showAddIntencao, setShowAddIntencao] = useState(false);
     const [newIntencao, setNewIntencao] = useState({ modelo_id: '', tamanho: '', quantidade: 1 });
+    const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
+    const [uploadingProofId, setUploadingProofId] = useState<string | null>(null);
+    const [removingProofId, setRemovingProofId] = useState<string | null>(null);
+    const [proofTargetId, setProofTargetId] = useState<string | null>(null);
+    const proofInputRef = useRef<HTMLInputElement>(null);
 
     const processFile = useCallback(async (file: File) => {
         if (!file || !visita || !file.type.startsWith('image/')) return;
@@ -275,6 +280,72 @@ export function VisitacaoManutencaoPage() {
             setUploading(false);
         }
     }, [visita]);
+
+    const handleToggleIntencaoPayment = async (item: IntencaoCamisetaItem) => {
+        if (!item.id) {
+            toast.error('Salve a visita antes de registrar o pagamento.');
+            return;
+        }
+
+        const novoStatus = !item.pago;
+        setUpdatingPaymentId(item.id);
+        try {
+            await visitacaoService.atualizarPagamentoIntencao(item.id, novoStatus);
+            setIntencoes(prev => prev.map(current => current.id === item.id
+                ? { ...current, pago: novoStatus, pago_em: novoStatus ? new Date().toISOString() : null }
+                : current
+            ));
+            toast.success(novoStatus ? 'Pagamento registrado.' : 'Pagamento marcado como pendente.');
+        } catch (error) {
+            console.error('Erro ao atualizar pagamento:', error);
+            toast.error('Erro ao atualizar pagamento.');
+        } finally {
+            setUpdatingPaymentId(null);
+        }
+    };
+
+    const handleProofSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        const targetId = proofTargetId;
+        event.target.value = '';
+        if (!file || !targetId) return;
+
+        setUploadingProofId(targetId);
+        try {
+            const url = await visitacaoService.uploadComprovanteIntencao(targetId, file);
+            await visitacaoService.atualizarPagamentoIntencao(targetId, true);
+            setIntencoes(prev => prev.map(item => item.id === targetId
+                ? { ...item, comprovante_url: url, pago: true, pago_em: new Date().toISOString() }
+                : item
+            ));
+            toast.success('Comprovante anexado e pagamento registrado.');
+        } catch (error) {
+            console.error('Erro ao anexar comprovante:', error);
+            toast.error('Erro ao anexar comprovante.');
+        } finally {
+            setUploadingProofId(null);
+            setProofTargetId(null);
+        }
+    };
+
+    const handleRemoveIntencaoProof = async (item: IntencaoCamisetaItem) => {
+        if (!item.id) return;
+
+        setRemovingProofId(item.id);
+        try {
+            await visitacaoService.removerComprovanteIntencao(item.id);
+            setIntencoes(prev => prev.map(current => current.id === item.id
+                ? { ...current, comprovante_url: null }
+                : current
+            ));
+            toast.success('Comprovante removido.');
+        } catch (error) {
+            console.error('Erro ao remover comprovante:', error);
+            toast.error('Erro ao remover comprovante.');
+        } finally {
+            setRemovingProofId(null);
+        }
+    };
 
     const removePhoto = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
@@ -1208,39 +1279,122 @@ export function VisitacaoManutencaoPage() {
                             {/* Lista de intenções */}
                             {intencoes.length > 0 && (
                                 <div style={{ padding: '0.75rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <input
+                                        ref={proofInputRef}
+                                        type="file"
+                                        accept="image/*,application/pdf"
+                                        onChange={handleProofSelected}
+                                        style={{ display: 'none' }}
+                                    />
                                     {intencoes.map((item, idx) => {
                                         const modeloNome = item.camiseta_modelos?.nome
                                             || modelosCamiseta.find(m => m.id === item.modelo_id)?.nome
                                             || 'Modelo';
                                         return (
                                             <div key={idx} style={{
-                                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                                                 padding: '0.6rem 0.75rem', borderRadius: '10px',
                                                 background: 'rgba(99, 102, 241, 0.07)',
                                                 border: '1px solid rgba(99, 102, 241, 0.15)'
                                             }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                    <Shirt size={14} color="#6366f1" />
-                                                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{modeloNome}</span>
-                                                    <span style={{
-                                                        fontSize: '0.78rem', fontWeight: 700, padding: '2px 8px',
-                                                        borderRadius: '6px', background: 'rgba(99,102,241,0.15)', color: '#6366f1'
-                                                    }}>{item.tamanho}</span>
-                                                    <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>× {item.quantidade}</span>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                                        <Shirt size={14} color="#6366f1" />
+                                                        <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{modeloNome}</span>
+                                                        <span style={{
+                                                            fontSize: '0.78rem', fontWeight: 700, padding: '2px 8px',
+                                                            borderRadius: '6px', background: 'rgba(99,102,241,0.15)', color: '#6366f1'
+                                                        }}>{item.tamanho}</span>
+                                                        <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>× {item.quantidade}</span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setIntencoes(prev => prev.filter((_, i) => i !== idx))}
+                                                        style={{
+                                                            background: 'none', border: 'none', cursor: 'pointer',
+                                                            color: '#ef4444', opacity: 0.5, padding: '4px',
+                                                            display: 'flex', transition: 'opacity 0.2s', flexShrink: 0
+                                                        }}
+                                                        onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                                                        onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}
+                                                        title="Remover"
+                                                    >
+                                                        <Trash2 size={15} />
+                                                    </button>
                                                 </div>
-                                                <button
-                                                    onClick={() => setIntencoes(prev => prev.filter((_, i) => i !== idx))}
-                                                    style={{
-                                                        background: 'none', border: 'none', cursor: 'pointer',
-                                                        color: '#ef4444', opacity: 0.5, padding: '4px',
-                                                        display: 'flex', transition: 'opacity 0.2s'
-                                                    }}
-                                                    onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                                                    onMouseLeave={e => (e.currentTarget.style.opacity = '0.5')}
-                                                    title="Remover"
-                                                >
-                                                    <Trash2 size={15} />
-                                                </button>
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap',
+                                                    marginTop: '0.65rem', paddingTop: '0.6rem',
+                                                    borderTop: '1px solid rgba(99,102,241,0.12)'
+                                                }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleToggleIntencaoPayment(item)}
+                                                        disabled={!item.id || updatingPaymentId === item.id || isHistory}
+                                                        style={{
+                                                            border: `1px solid ${item.pago ? 'rgba(22,163,74,0.35)' : 'var(--border-color)'}`,
+                                                            background: item.pago ? 'rgba(22,163,74,0.1)' : 'var(--card-bg)',
+                                                            color: item.pago ? '#16a34a' : 'var(--text-color)',
+                                                            borderRadius: '8px', padding: '0.4rem 0.65rem',
+                                                            display: 'flex', alignItems: 'center', gap: '0.35rem',
+                                                            fontSize: '0.78rem', fontWeight: 700,
+                                                            cursor: item.id && !isHistory ? 'pointer' : 'not-allowed',
+                                                            opacity: item.id ? 1 : 0.55
+                                                        }}
+                                                    >
+                                                        {updatingPaymentId === item.id ? <Loader size={14} className="spin" /> : <CheckCircle size={14} />}
+                                                        {item.pago ? 'Pago' : 'Marcar como pago'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (!item.id) return;
+                                                            setProofTargetId(item.id);
+                                                            proofInputRef.current?.click();
+                                                        }}
+                                                        disabled={!item.id || uploadingProofId === item.id || isHistory}
+                                                        style={{
+                                                            border: '1px solid var(--border-color)', background: 'var(--card-bg)',
+                                                            color: 'var(--text-color)', borderRadius: '8px', padding: '0.4rem 0.65rem',
+                                                            display: 'flex', alignItems: 'center', gap: '0.35rem',
+                                                            fontSize: '0.78rem', fontWeight: 600,
+                                                            cursor: item.id && !isHistory ? 'pointer' : 'not-allowed',
+                                                            opacity: item.id ? 1 : 0.55
+                                                        }}
+                                                    >
+                                                        {uploadingProofId === item.id ? <Loader size={14} className="spin" /> : <Upload size={14} />}
+                                                        {item.comprovante_url ? 'Alterar comprovante' : 'Anexar comprovante'}
+                                                    </button>
+                                                    {item.comprovante_url && (
+                                                        <>
+                                                            <a
+                                                                href={item.comprovante_url}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600 }}
+                                                            >
+                                                                <FileText size={14} /> Ver comprovante
+                                                            </a>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveIntencaoProof(item)}
+                                                                disabled={removingProofId === item.id || isHistory}
+                                                                style={{
+                                                                    border: 'none', background: 'none', color: '#ef4444',
+                                                                    padding: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem',
+                                                                    fontSize: '0.78rem', fontWeight: 600,
+                                                                    cursor: isHistory ? 'not-allowed' : 'pointer'
+                                                                }}
+                                                            >
+                                                                {removingProofId === item.id ? <Loader size={14} className="spin" /> : <Trash2 size={14} />}
+                                                                Remover comprovante
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    {!item.id && (
+                                                        <span style={{ fontSize: '0.72rem', opacity: 0.6 }}>
+                                                            Salve a visita para registrar o pagamento.
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         );
                                     })}

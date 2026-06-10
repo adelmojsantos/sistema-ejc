@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronLeft, ChevronUp, Copy, Download, FileText, Loader, Plus, Search, Shirt, Trash2, X } from 'lucide-react';
+import { CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Copy, Download, FileText, Loader, Plus, Search, Shirt, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -22,6 +22,22 @@ type DetailsConfig = {
   modeloNome: string;
 };
 
+const getProofType = (url: string) => {
+  const cleanUrl = url.split('?')[0].toLowerCase();
+  if (/\.(png|jpe?g|webp|gif|bmp|avif)$/.test(cleanUrl)) return 'image';
+  if (cleanUrl.endsWith('.pdf')) return 'pdf';
+  return 'file';
+};
+
+const getProofName = (url: string, index: number) => {
+  try {
+    const name = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
+    return name || `Comprovante ${index + 1}`;
+  } catch {
+    return `Comprovante ${index + 1}`;
+  }
+};
+
 export function PedidosCamisetasPage() {
   const navigate = useNavigate();
   const { encontros } = useEncontros();
@@ -40,6 +56,10 @@ export function PedidosCamisetasPage() {
   const [resumoIntencoes, setResumoIntencoes] = useState<ResumoIntencoes[]>([]);
   const [intencoesDetalhadas, setIntencoesDetalhadas] = useState<IntencaoCamisetaDetalhe[]>([]);
   const [viewDetailsConfig, setViewDetailsConfig] = useState<DetailsConfig | null>(null);
+  const [showPaidIntentions, setShowPaidIntentions] = useState(false);
+  const [paidIntentionsSearch, setPaidIntentionsSearch] = useState('');
+  const [proofGallery, setProofGallery] = useState<{ equipeNome: string; urls: string[] } | null>(null);
+  const [intencaoPaymentFilter, setIntencaoPaymentFilter] = useState<'todos' | 'pagos' | 'pendentes'>('todos');
   const debouncedSearch = useDebounce(searchTerm, 400);
 
   // Estados para Novo Pedido
@@ -60,7 +80,7 @@ export function PedidosCamisetasPage() {
 
   // Bloqueia a rolagem do corpo da página quando um modal está aberto
   useEffect(() => {
-    if (viewDetailsConfig || isAddingOrder) {
+    if (viewDetailsConfig || showPaidIntentions || proofGallery || isAddingOrder) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -68,7 +88,11 @@ export function PedidosCamisetasPage() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [viewDetailsConfig, isAddingOrder]);
+  }, [viewDetailsConfig, showPaidIntentions, proofGallery, isAddingOrder]);
+
+  useEffect(() => {
+    setIntencaoPaymentFilter('todos');
+  }, [viewDetailsConfig]);
 
   useEffect(() => {
     if (encontros.length > 0 && !selectedEncontroId) {
@@ -131,6 +155,7 @@ export function PedidosCamisetasPage() {
       participacao_id: string;
       pessoa_nome: string;
       equipe_nome: string;
+      pago_camiseta: boolean;
       models: Map<string, ModelGroup>;
       total_valor: number;
     }
@@ -144,6 +169,7 @@ export function PedidosCamisetasPage() {
           participacao_id: p.participacao_id,
           pessoa_nome: p.pessoa_nome,
           equipe_nome: p.equipe_nome,
+          pago_camiseta: p.pago_camiseta,
           models: new Map(),
           total_valor: 0
         });
@@ -186,12 +212,18 @@ export function PedidosCamisetasPage() {
     if (viewDetailsConfig.origem === 'intencao') {
       return intencoesDetalhadas
         .filter(item => item.modelo_id === viewDetailsConfig.modeloId && item.tamanho === viewDetailsConfig.tamanho)
+        .filter(item => intencaoPaymentFilter === 'todos'
+          || (intencaoPaymentFilter === 'pagos' && item.pago)
+          || (intencaoPaymentFilter === 'pendentes' && !item.pago))
         .sort((a, b) => a.encontrista_nome.localeCompare(b.encontrista_nome))
         .map(item => ({
           id: item.id,
           nome: item.encontrista_nome,
           referencia: item.dupla_nome ? `Visitado por ${item.dupla_nome}` : 'Dupla não informada',
-          quantidade: item.quantidade
+          quantidade: item.quantidade,
+          pago: item.pago,
+          comprovante_url: item.comprovante_url,
+          pago_em: item.pago_em
         }));
     }
 
@@ -202,9 +234,30 @@ export function PedidosCamisetasPage() {
         id: p.id,
         nome: p.pessoa_nome,
         referencia: p.dupla_visitante_nome ? `Visitado por ${p.dupla_visitante_nome}` : p.equipe_nome,
-        quantidade: p.quantidade
+        quantidade: p.quantidade,
+        pago: undefined,
+        comprovante_url: null,
+        pago_em: null
       }));
-  }, [intencoesDetalhadas, pedidos, viewDetailsConfig]);
+  }, [intencaoPaymentFilter, intencoesDetalhadas, pedidos, viewDetailsConfig]);
+
+  const paidIntentions = useMemo(() => (
+    intencoesDetalhadas
+      .filter(item => item.pago)
+      .sort((a, b) => {
+        const nameCompare = a.encontrista_nome.localeCompare(b.encontrista_nome);
+        return nameCompare !== 0 ? nameCompare : a.modelo_nome.localeCompare(b.modelo_nome);
+      })
+  ), [intencoesDetalhadas]);
+
+  const filteredPaidIntentions = useMemo(() => {
+    const normalizedSearch = paidIntentionsSearch.trim().toLocaleLowerCase('pt-BR');
+    if (!normalizedSearch) return paidIntentions;
+
+    return paidIntentions.filter(item =>
+      item.encontrista_nome.toLocaleLowerCase('pt-BR').includes(normalizedSearch)
+    );
+  }, [paidIntentions, paidIntentionsSearch]);
 
   const handleCopySummary = () => {
     if (resumo.length === 0) {
@@ -514,8 +567,35 @@ export function PedidosCamisetasPage() {
     }
   };
 
+  const handleDownloadProof = async (url: string, index: number) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Download indisponível');
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = getProofName(url, index);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleDownloadAllProofs = async () => {
+    if (!proofGallery) return;
+
+    for (const [index, url] of proofGallery.urls.entries()) {
+      await handleDownloadProof(url, index);
+    }
+  };
+
   return (
-    <div className="fade-in">
+    <div className="fade-in compras-camisetas-page">
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button onClick={() => navigate('/compras')} className="icon-btn">
@@ -630,6 +710,7 @@ export function PedidosCamisetasPage() {
             overflow: 'hidden'
           }}>
           <button
+            className="compras-summary-trigger"
             onClick={() => setShowResumo(!showResumo)}
             style={{
               width: '100%',
@@ -646,11 +727,11 @@ export function PedidosCamisetasPage() {
             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.1)'}
             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.05)'}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{ padding: '0.6rem', backgroundColor: 'var(--primary-color)', color: 'white', borderRadius: '10px', display: 'flex' }}>
+            <div className="compras-summary-trigger__main">
+              <div className="compras-summary-trigger__icon" style={{ backgroundColor: 'var(--primary-color)' }}>
                 <Shirt size={20} />
               </div>
-              <div style={{ textAlign: 'left' }}>
+              <div className="compras-summary-trigger__content">
                 <h2 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-color)', fontWeight: 600 }}>
                   Resumo de Pedidos (Equipes)
                 </h2>
@@ -659,7 +740,7 @@ export function PedidosCamisetasPage() {
                 </p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.6, color: 'var(--primary-color)' }}>
+            <div className="compras-summary-trigger__action" style={{ color: 'var(--primary-color)' }}>
               <span style={{ fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase' }}>
                 {showResumo ? 'Ocultar' : 'Expandir'}
               </span>
@@ -722,6 +803,7 @@ export function PedidosCamisetasPage() {
             overflow: 'hidden'
           }}>
           <button
+            className="compras-summary-trigger"
             onClick={() => setShowIntencoes(!showIntencoes)}
             style={{
               width: '100%',
@@ -738,19 +820,27 @@ export function PedidosCamisetasPage() {
             onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.1)'}
             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.05)'}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <div style={{ padding: '0.6rem', backgroundColor: '#6366f1', color: 'white', borderRadius: '10px', display: 'flex' }}>
+            <div className="compras-summary-trigger__main">
+              <div className="compras-summary-trigger__icon" style={{ backgroundColor: '#6366f1' }}>
                 <Shirt size={20} />
               </div>
-              <div style={{ textAlign: 'left' }}>
-                <h2 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-color)', fontWeight: 600 }}>
+              <div className="compras-summary-trigger__content">
+                <h2 className="compras-summary-trigger__title-with-badges" style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-color)', fontWeight: 600 }}>
                   Intenções de Compra (Encontristas)
                   {resumoIntencoes.length > 0 && (
                     <span style={{
-                      marginLeft: '0.5rem', fontSize: '0.72rem', fontWeight: 700,
+                      fontSize: '0.72rem', fontWeight: 700,
                       background: '#6366f1', color: 'white', padding: '2px 8px', borderRadius: '999px'
                     }}>
                       {resumoIntencoes.reduce((s, m) => s + m.total, 0)} un. estimadas
+                    </span>
+                  )}
+                  {intencoesDetalhadas.some(item => item.pago) && (
+                    <span style={{
+                      fontSize: '0.72rem', fontWeight: 700,
+                      background: 'rgba(22,163,74,0.12)', color: '#16a34a', padding: '2px 8px', borderRadius: '999px'
+                    }}>
+                      {intencoesDetalhadas.filter(item => item.pago).reduce((sum, item) => sum + item.quantidade, 0)} un. pagas
                     </span>
                   )}
                 </h2>
@@ -759,7 +849,7 @@ export function PedidosCamisetasPage() {
                 </p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: 0.6, color: '#6366f1' }}>
+            <div className="compras-summary-trigger__action" style={{ color: '#6366f1' }}>
               <span style={{ fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase' }}>
                 {showIntencoes ? 'Ocultar' : 'Expandir'}
               </span>
@@ -769,6 +859,30 @@ export function PedidosCamisetasPage() {
 
           {showIntencoes && (
             <div style={{ padding: '1rem', borderTop: '1px solid rgba(99, 102, 241, 0.16)' }}>
+              {paidIntentions.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPaidIntentions(true)}
+                  style={{
+                    border: '1px solid rgba(22,163,74,0.35)',
+                    background: 'rgba(22,163,74,0.1)',
+                    color: '#16a34a',
+                    borderRadius: '8px',
+                    padding: '0.55rem 0.8rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <CheckCircle size={16} />
+                  Ver todas as pagas ({paidIntentions.length})
+                </button>
+              </div>
+              )}
               {resumoIntencoes.length === 0 ? (
                 <div className="card" style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>
                   Nenhuma intenção registrada nas visitas deste encontro.
@@ -825,24 +939,12 @@ export function PedidosCamisetasPage() {
         </section>
 
         {/* Resumo por Equipe */}
-        <section className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+        <section className="grid-container compras-team-filter-grid" style={{ marginBottom: '2rem' }}>
           {/* Card TOTAL GERAL */}
           <div
-            className={`card card--clickable ${selectedEquipeId === 'all' ? 'active-filter' : ''}`}
+            className={`compras-team-filter-card ${selectedEquipeId === 'all' ? 'compras-team-filter-card--selected' : ''}`}
             style={{
-              padding: '0.5rem',
-              borderTop: '4px solid var(--text-color)',
               cursor: 'pointer',
-              transition: 'all 0.2s',
-              aspectRatio: '1 / 1',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center',
-              textAlign: 'center',
-              backgroundColor: selectedEquipeId === 'all' ? 'rgba(var(--primary-rgb), 0.4)' : 'var(--card-bg)',
-              boxShadow: selectedEquipeId === 'all' ? '0 0 0 2px var(--text-color)' : 'none',
-              zIndex: selectedEquipeId === 'all' ? 2 : 1
             }}
             onClick={() => setSelectedEquipeId('all')}
           >
@@ -869,49 +971,29 @@ export function PedidosCamisetasPage() {
             return (
               <div
                 key={r.equipe_id}
-                className={`card card--clickable ${selectedEquipeId === r.equipe_id ? 'active-filter' : ''}`}
+                className={[
+                  'compras-team-filter-card',
+                  selectedEquipeId === r.equipe_id ? 'compras-team-filter-card--selected' : '',
+                  comprovantes.length > 0 ? 'compras-team-filter-card--has-proof' : ''
+                ].filter(Boolean).join(' ')}
                 style={{
-                  padding: '0.5rem',
-                  borderTop: '4px solid var(--primary-color)',
                   cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  aspectRatio: '1 / 1',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  textAlign: 'center',
                   position: 'relative',
-                  backgroundColor: selectedEquipeId === r.equipe_id
-                    ? 'rgba(var(--primary-rgb), 0.4)'
-                    : (comprovantes.length > 0 ? 'var(--success-bg)' : 'var(--card-bg)'),
-                  boxShadow: selectedEquipeId === r.equipe_id ? '0 0 0 2px var(--primary-color)' : 'none',
-                  zIndex: selectedEquipeId === r.equipe_id ? 2 : 1
                 }}
                 onClick={() => setSelectedEquipeId(r.equipe_id)}
               >
                 {comprovantes.length > 0 && (
-                  <div style={{ position: 'absolute', top: '4px', right: '4px', display: 'flex', gap: '2px' }}>
-                    {comprovantes.map((url, index) => (
-                      <button
-                        key={`${url}-${index}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(url, '_blank');
-                        }}
-                        title={`Ver Comprovante ${index + 1}`}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--success-color)',
-                          cursor: 'pointer',
-                          padding: '4px'
-                        }}
-                      >
-                        <FileText size={14} />
-                      </button>
-                    ))}
-                  </div>
+                  <button
+                    type="button"
+                    className="compras-team-filter-card__proof-button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setProofGallery({ equipeNome: r.equipe_nome, urls: comprovantes });
+                    }}
+                    title="Ver comprovantes"
+                  >
+                    <FileText size={14} />
+                  </button>
                 )}
                 <span className="badge badge-primary" style={{ fontSize: '1.2rem', padding: '0.25rem 0.75rem', marginBottom: '0.5rem' }}>
                   {r.total_camisetas}
@@ -996,7 +1078,23 @@ export function PedidosCamisetasPage() {
                   }}>
                     <div>
                       <h3 style={{ fontSize: '1rem', margin: '0 0 0.15rem 0', fontWeight: 700 }}>{group.pessoa_nome}</h3>
-                      <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{group.equipe_nome}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>{group.equipe_nome}</span>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          padding: '0.15rem 0.45rem',
+                          borderRadius: '999px',
+                          background: group.pago_camiseta ? 'var(--success-bg)' : 'rgba(245,158,11,0.12)',
+                          color: group.pago_camiseta ? 'var(--success-text)' : '#d97706',
+                          fontSize: '0.68rem',
+                          fontWeight: 800
+                        }}>
+                          {group.pago_camiseta && <CheckCircle size={12} />}
+                          {group.pago_camiseta ? 'Pago' : 'Pendente'}
+                        </span>
+                      </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', fontWeight: 700 }}>Total do Pedido</div>
@@ -1098,6 +1196,149 @@ export function PedidosCamisetasPage() {
             </div>
           )}
         </div>
+        {/* Galeria de comprovantes da equipe */}
+        {proofGallery && (
+          <div className="modal-overlay compras-proof-gallery-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)' }}>
+            <div className="modal-content animate-fade-in compras-proof-gallery">
+              <div className="modal-header compras-proof-gallery__header">
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Comprovantes de camisetas</h2>
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', opacity: 0.62 }}>
+                    {proofGallery.equipeNome} · {proofGallery.urls.length} comprovante(s)
+                  </p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  {proofGallery.urls.length > 1 && (
+                    <button type="button" className="btn-secondary compras-proof-gallery__download-all" onClick={handleDownloadAllProofs}>
+                      <Download size={16} /> <span>Baixar todos</span>
+                    </button>
+                  )}
+                  <button className="btn-icon" onClick={() => setProofGallery(null)} style={{ margin: 0, display: 'flex' }}>
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+              <div className="modal-body">
+                <div className="compras-proof-gallery__grid">
+                  {proofGallery.urls.map((url, index) => {
+                    const proofType = getProofType(url);
+                    const proofName = getProofName(url, index);
+
+                    return (
+                      <article key={`${url}-${index}`} className="compras-proof-gallery__item">
+                        <div className="compras-proof-gallery__preview">
+                          {proofType === 'image' ? (
+                            <img src={url} alt={`Prévia do comprovante ${index + 1}`} />
+                          ) : proofType === 'pdf' ? (
+                            <iframe src={url} title={`Prévia do comprovante ${index + 1}`} />
+                          ) : (
+                            <div className="compras-proof-gallery__file-placeholder">
+                              <FileText size={38} />
+                              <span>Prévia indisponível</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="compras-proof-gallery__item-footer">
+                          <div title={proofName}>
+                            <strong>Comprovante {index + 1}</strong>
+                            <span>{proofName}</span>
+                          </div>
+                          <div className="compras-proof-gallery__actions">
+                            <a href={url} target="_blank" rel="noreferrer" className="btn-secondary">
+                              <FileText size={15} /> Ver
+                            </a>
+                            <button type="button" className="btn-secondary" onClick={() => handleDownloadProof(url, index)}>
+                              <Download size={15} /> Baixar
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Modal de todas as intenções pagas */}
+        {showPaidIntentions && (
+          <div className="modal-overlay compras-paid-modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)' }}>
+            <div className="modal-content animate-fade-in compras-paid-modal">
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1rem' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Camisetas pagas</h2>
+                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', opacity: 0.62 }}>
+                    {paidIntentions.length} intenções pagas.
+                  </p>
+                </div>
+                <button
+                  className="btn-icon"
+                  onClick={() => {
+                    setShowPaidIntentions(false);
+                    setPaidIntentionsSearch('');
+                  }}
+                  style={{ margin: 0, display: 'flex' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+                <div style={{ position: 'relative', marginBottom: '1rem' }}>
+                  <Search
+                    size={17}
+                    style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.55 }}
+                  />
+                  <input
+                    type="search"
+                    className="form-input"
+                    value={paidIntentionsSearch}
+                    onChange={event => setPaidIntentionsSearch(event.target.value)}
+                    placeholder="Buscar por nome"
+                    autoFocus
+                    style={{ paddingLeft: '2.4rem' }}
+                  />
+                </div>
+                {paidIntentionsSearch.trim() && (
+                  <div style={{ fontSize: '0.75rem', opacity: 0.62, marginBottom: '0.75rem' }}>
+                    {filteredPaidIntentions.length} resultado(s) encontrado(s)
+                  </div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {filteredPaidIntentions.length === 0 ? (
+                    <div className="compras-paid-modal__empty">
+                      Nenhuma camiseta paga encontrada para este nome.
+                    </div>
+                  ) : filteredPaidIntentions.map(item => (
+                    <div
+                      key={item.id}
+                      className="compras-paid-modal__item"
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700 }}>{item.encontrista_nome}</div>
+                        <div style={{ fontSize: '0.78rem', opacity: 0.7, marginTop: '0.15rem' }}>
+                          {item.modelo_nome} · Tamanho {item.tamanho}
+                        </div>
+                        {item.comprovante_url && (
+                          <a
+                            href={item.comprovante_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.4rem', fontSize: '0.75rem', fontWeight: 600 }}
+                          >
+                            <FileText size={14} /> Ver recibo
+                          </a>
+                        )}
+                      </div>
+                      <span className="badge badge-primary" style={{ flexShrink: 0 }}>
+                        {item.quantidade} un
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Modal de Detalhes do Resumo */}
         {viewDetailsConfig && (
           <div className="modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)' }}>
@@ -1118,6 +1359,30 @@ export function PedidosCamisetasPage() {
                 </button>
               </div>
               <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                {viewDetailsConfig.origem === 'intencao' && (
+                  <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                    {([
+                      ['todos', 'Todos'],
+                      ['pagos', 'Pagos'],
+                      ['pendentes', 'Pendentes']
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setIntencaoPaymentFilter(value)}
+                        style={{
+                          border: `1px solid ${intencaoPaymentFilter === value ? '#6366f1' : 'var(--border-color)'}`,
+                          background: intencaoPaymentFilter === value ? 'rgba(99,102,241,0.12)' : 'var(--card-bg)',
+                          color: intencaoPaymentFilter === value ? '#6366f1' : 'var(--text-color)',
+                          borderRadius: '8px', padding: '0.45rem 0.75rem',
+                          cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {detailsItems.length === 0 ? (
                     <div className="card" style={{ padding: '2rem', textAlign: 'center', opacity: 0.6 }}>
@@ -1129,6 +1394,28 @@ export function PedidosCamisetasPage() {
                         <div>
                           <div style={{ fontWeight: 600 }}>{item.nome}</div>
                           <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{item.referencia}</div>
+                          {viewDetailsConfig.origem === 'intencao' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                              <span style={{
+                                display: 'flex', alignItems: 'center', gap: '0.25rem',
+                                fontSize: '0.72rem', fontWeight: 700,
+                                color: item.pago ? '#16a34a' : '#d97706'
+                              }}>
+                                {item.pago && <CheckCircle size={13} />}
+                                {item.pago ? 'Pago' : 'Pagamento pendente'}
+                              </span>
+                              {item.comprovante_url && (
+                                <a
+                                  href={item.comprovante_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 600 }}
+                                >
+                                  <FileText size={13} /> Ver comprovante
+                                </a>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <span className="badge badge-primary" style={{ flexShrink: 0 }}>
                           {item.quantidade} un

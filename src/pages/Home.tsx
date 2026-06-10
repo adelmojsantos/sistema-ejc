@@ -1,6 +1,6 @@
 import type { Variants } from 'framer-motion';
 import { motion } from 'framer-motion';
-import { Calendar, Crown, FileText, Folder, HeartPulse, ListChecks, MapPin, Shield, ShoppingBag, UserPlus, Users, Users2Icon, UsersRound } from 'lucide-react';
+import { Calendar, Crown, FileText, Folder, HeartPulse, ListChecks, Mail, MapPin, Shield, ShoppingBag, UserPlus, Users, Users2Icon, UsersRound } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
@@ -168,6 +168,16 @@ export function Home() {
       path: '/cuidados',
       icon: <HeartPulse size={36} />,
       accent: 'success'
+    });
+  }
+
+  if (hasPermission('modulo_ligacao') || hasPermission('modulo_admin')) {
+    dashboardActions.push({
+      title: 'Ligação',
+      description: 'Localização de participantes e encontreiros para entrega de cartas e recados.',
+      path: '/ligacao',
+      icon: <Mail size={36} />,
+      accent: 'amber'
     });
   }
 

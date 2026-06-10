@@ -26,6 +26,9 @@ export interface IntencaoCamisetaDetalhe {
   quantidade: number;
   encontrista_nome: string;
   dupla_nome: string | null;
+  pago: boolean;
+  comprovante_url: string | null;
+  pago_em: string | null;
 }
 
 export interface TaxaReport {
@@ -54,6 +57,7 @@ export type PedidoDetalhadoCamiseta = CamisetaPedido & {
   equipe_nome: string;
   valor_unitario: number;
   participante: boolean;
+  pago_camiseta: boolean;
   dupla_visitante_nome: string | null;
 };
 
@@ -74,6 +78,7 @@ type ParticipacaoPedidoRow = {
   encontro_id?: string;
   equipe_id?: string | null;
   participante?: boolean | null;
+  pago_camiseta?: boolean | null;
   pessoas?: MaybeArray<{ nome_completo?: string | null }>;
   equipes?: MaybeArray<{ nome?: string | null }>;
 };
@@ -201,7 +206,7 @@ export const comprasService = {
   async listarPedidosDetalhados(encontroId: string): Promise<PedidoDetalhadoCamiseta[]> {
     const { data: pedidos, error } = await supabase
       .from('camiseta_pedidos')
-      .select('*, camiseta_modelos(nome, valor), participacoes!inner(encontro_id, equipe_id, participante, pessoas(nome_completo), equipes(nome))')
+      .select('*, camiseta_modelos(nome, valor), participacoes!inner(encontro_id, equipe_id, participante, pago_camiseta, pessoas(nome_completo), equipes(nome))')
       .eq('participacoes.encontro_id', encontroId);
 
     if (error) throw error;
@@ -251,6 +256,7 @@ export const comprasService = {
         equipe_id: participacao?.equipe_id || null,
         equipe_nome: equipe?.nome || 'Sem Equipe',
         participante: participacao?.participante || false,
+        pago_camiseta: participacao?.pago_camiseta || false,
         valor_unitario: valorUnitario,
         dupla_visitante_nome: duplaPorParticipacao.get(p.participacao_id) || null
       };
@@ -404,7 +410,7 @@ export const comprasService = {
 
     const { data: intencoes, error: intencoesError } = await supabase
       .from('visita_intencao_camiseta')
-      .select('id, visita_id, modelo_id, tamanho, quantidade, camiseta_modelos(id, nome)')
+      .select('id, visita_id, modelo_id, tamanho, quantidade, pago, comprovante_url, pago_em, camiseta_modelos(id, nome)')
       .in('visita_id', visitaIds);
 
     if (intencoesError) throw intencoesError;
@@ -415,6 +421,9 @@ export const comprasService = {
       modelo_id: string;
       tamanho: string;
       quantidade: number;
+      pago: boolean;
+      comprovante_url: string | null;
+      pago_em: string | null;
       camiseta_modelos?: { id?: string; nome?: string | null } | { id?: string; nome?: string | null }[] | null;
     };
 
@@ -430,7 +439,10 @@ export const comprasService = {
         tamanho: item.tamanho || 'Não Informado',
         quantidade: item.quantidade,
         encontrista_nome: visita?.encontrista_nome || 'Encontrista sem nome',
-        dupla_nome: visita?.dupla_nome || null
+        dupla_nome: visita?.dupla_nome || null,
+        pago: item.pago,
+        comprovante_url: item.comprovante_url,
+        pago_em: item.pago_em
       };
     });
   }

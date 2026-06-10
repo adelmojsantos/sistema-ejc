@@ -39,6 +39,7 @@ import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CoordenadorAvaliacaoPage } from './pages/coordenador/CoordenadorAvaliacaoPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
 import { CuidadosPage } from './pages/cuidados/CuidadosPage';
+import { LigacaoPage } from './pages/ligacao/LigacaoPage';
 import { RecepcaoAdminPage } from './pages/recepcao/RecepcaoAdminPage';
 import { RecreacaoAdminPage } from './pages/recreacao/RecreacaoAdminPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -369,6 +370,12 @@ function AnimatedRoutes() {
           <Route path="/cuidados" element={
             <ProtectedRoute requiredPermissions={['modulo_cuidados', 'modulo_admin']}>
               <CuidadosPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/ligacao" element={
+            <ProtectedRoute requiredPermissions={['modulo_ligacao', 'modulo_admin']}>
+              <LigacaoPage />
             </ProtectedRoute>
           } />
 

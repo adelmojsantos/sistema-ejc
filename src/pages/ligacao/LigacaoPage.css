@@ -1,0 +1,378 @@
+.ligacao-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ligacao-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  width: min(560px, 100%);
+}
+
+.ligacao-tabs button {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--muted-text);
+  min-height: 44px;
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.ligacao-tabs button.is-active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 9%, var(--card-bg));
+}
+
+.ligacao-tabs button span {
+  min-width: 1.75rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  padding: 0 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--secondary-bg);
+  color: var(--text-color);
+  font-size: 0.72rem;
+}
+
+.ligacao-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(240px, 340px);
+  gap: 1rem;
+  align-items: end;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border-radius: 8px;
+}
+
+.ligacao-header-encontro {
+  width: min(340px, 100%);
+  text-align: left;
+}
+
+.ligacao-header-encontro .form-label {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+@media (min-width: 992px) {
+  .ligacao-page .page-header-top {
+    align-items: center;
+  }
+
+  .ligacao-page .page-header-actions {
+    margin-top: 0;
+  }
+}
+
+.ligacao-toolbar .form-group {
+  margin-bottom: 0;
+}
+
+.ligacao-clear-search {
+  position: absolute;
+  top: 50%;
+  right: 0.65rem;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--muted-text);
+  padding: 0.25rem;
+  display: inline-flex;
+  cursor: pointer;
+}
+
+.ligacao-color-filter {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.ligacao-color-filter__button {
+  min-height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--muted-text);
+  padding: 0.45rem 0.65rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.ligacao-color-filter__button--verde.is-active {
+  border-color: #16a34a;
+  color: #15803d;
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.ligacao-color-filter__button--amarela.is-active {
+  border-color: #ca8a04;
+  color: #a16207;
+  background: rgba(234, 179, 8, 0.13);
+}
+
+.ligacao-color-filter__button--vermelha.is-active {
+  border-color: #dc2626;
+  color: #b91c1c;
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.ligacao-color-filter__button--todas.is-active {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 9%, var(--card-bg));
+}
+
+.ligacao-result-summary {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  color: var(--muted-text);
+  font-size: 0.82rem;
+}
+
+.ligacao-list-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ligacao-list-controls .ligacao-color-filter {
+  width: min(560px, 100%);
+}
+
+.ligacao-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.ligacao-card {
+  min-width: 0;
+  border: 1px solid var(--border-color);
+  border-left: 4px solid var(--primary-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.ligacao-card--encontreiro {
+  border-left-color: var(--muted-text);
+}
+
+.ligacao-card--team-verde {
+  border-left-color: #16a34a;
+}
+
+.ligacao-card--team-amarela {
+  border-left-color: #eab308;
+}
+
+.ligacao-card--team-vermelha {
+  border-left-color: #dc2626;
+}
+
+.ligacao-card__header {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.ligacao-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+  border: 1px solid var(--border-color);
+  background: var(--secondary-bg);
+}
+
+.ligacao-avatar--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary-color);
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.ligacao-card__identity {
+  min-width: 0;
+}
+
+.ligacao-card__type {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--muted-text);
+  font-size: 0.67rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ligacao-card h3 {
+  margin: 0.2rem 0 0;
+  color: var(--text-color);
+  font-size: 0.96rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.ligacao-team-badge {
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 0.45rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0.2rem 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 750;
+  color: var(--text-color);
+  background: var(--secondary-bg);
+}
+
+.ligacao-team-badge span:not(.ligacao-team-badge__dot) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ligacao-team-badge__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--muted-text);
+}
+
+.ligacao-team-badge--verde .ligacao-team-badge__dot {
+  background: #16a34a;
+}
+
+.ligacao-team-badge--amarela .ligacao-team-badge__dot {
+  background: #eab308;
+}
+
+.ligacao-team-badge--vermelha .ligacao-team-badge__dot {
+  background: #dc2626;
+}
+
+.ligacao-card__details {
+  margin: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ligacao-card__details div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: baseline;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.ligacao-card__details dt {
+  color: var(--muted-text);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ligacao-card__details dd {
+  margin: 0;
+  color: var(--text-color);
+  font-size: 0.8rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.ligacao-state {
+  min-height: 150px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--muted-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.ligacao-state--empty {
+  flex-direction: column;
+}
+
+.ligacao-state h3,
+.ligacao-state p {
+  margin: 0;
+}
+
+.ligacao-state h3 {
+  color: var(--text-color);
+}
+
+@media (max-width: 1100px) {
+  .ligacao-toolbar {
+    grid-template-columns: minmax(260px, 1fr) minmax(220px, 300px);
+  }
+
+  .ligacao-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .ligacao-toolbar,
+  .ligacao-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ligacao-header-encontro {
+    width: 100%;
+  }
+
+  .ligacao-color-filter {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ligacao-list-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ligacao-result-summary {
+    justify-content: flex-start;
+  }
+
+  .ligacao-card__details div {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+}
