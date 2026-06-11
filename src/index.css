@@ -7024,3 +7024,174 @@ textarea.form-input {
     grid-template-columns: 1fr;
   }
 }
+
+/* Secretaria - detalhes dos integrantes da equipe */
+.secretaria-team-member-card__toggle {
+  display: none !important;
+}
+
+.secretaria-team-member-card__contact-details {
+  margin-top: 0.75rem;
+  padding-left: 60px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  color: var(--muted-text);
+  font-size: 0.85rem;
+}
+
+.secretaria-team-member-card__contact-details span {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.secretaria-team-member-card__contact-details svg {
+  flex-shrink: 0;
+}
+
+.secretaria-team-member-card__sections {
+  grid-template-columns: 1fr 1fr;
+}
+
+.secretaria-team-member-card__mobile-actions {
+  display: none;
+}
+
+.secretaria-team-member-card__confirmed-badge {
+  padding: 0.35rem 0.65rem;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .secretaria-team-member-card {
+    padding: 0.9rem !important;
+  }
+
+  .secretaria-team-member-card__header {
+    align-items: center !important;
+    gap: 0.75rem !important;
+    cursor: pointer;
+  }
+
+  .secretaria-team-member-card__header > div:first-child {
+    flex-basis: calc(100% - 150px);
+  }
+
+  .secretaria-team-member-card__avatar,
+  .secretaria-team-member-card__coordinator-badge {
+    display: none !important;
+  }
+
+  .secretaria-team-member-card__header h3 {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 0.95rem !important;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .secretaria-team-member-card__header > div:first-child > div {
+    gap: 0 !important;
+  }
+
+  .secretaria-team-member-card__actions {
+    gap: 0.35rem !important;
+    flex-shrink: 0;
+  }
+
+  .secretaria-team-member-card__actions .btn-icon {
+    width: 30px !important;
+    height: 30px !important;
+  }
+
+  .secretaria-team-member-card__desktop-action {
+    display: none !important;
+  }
+
+  .secretaria-team-member-card__toggle {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-color) !important;
+    padding: 0;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    transition: transform 0.2s ease;
+  }
+
+  .secretaria-team-member-card__chevron {
+    width: 10px;
+    height: 10px;
+    display: block;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translate(-2px, -2px);
+  }
+
+  .secretaria-team-member-card--expanded .secretaria-team-member-card__toggle {
+    transform: rotate(180deg);
+  }
+
+  .secretaria-team-member-card__details {
+    display: none;
+  }
+
+  .secretaria-team-member-card--expanded .secretaria-team-member-card__details {
+    display: block;
+    animation: fadeIn 0.2s ease;
+  }
+
+  .secretaria-team-member-card__contact-details {
+    margin-top: 0.9rem;
+    padding: 0.9rem 0 0;
+    flex-direction: column;
+    gap: 0.65rem;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.8rem;
+  }
+
+  .secretaria-team-member-card__contact-details span {
+    overflow-wrap: anywhere;
+  }
+
+  .secretaria-team-member-card__mobile-actions {
+    margin-top: 0.9rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.65rem;
+  }
+
+  .secretaria-team-member-card__mobile-actions .btn-secondary {
+    min-width: 0;
+    padding: 0.65rem 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .secretaria-team-member-card__remove-action {
+    color: #ef4444 !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+  }
+
+  .secretaria-team-member-card__sections {
+    grid-template-columns: 1fr;
+    gap: 0.75rem !important;
+    margin-top: 0.9rem !important;
+    padding-top: 0 !important;
+    border-top: none !important;
+  }
+}

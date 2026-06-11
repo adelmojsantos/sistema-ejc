@@ -73,7 +73,7 @@ export function ConfirmationTeamDetailPage() {
   // O encontroId vem via route state (passado pelo navigate da página de listagem)
   // Caso acesso direto pela URL: busca o encontro ativo como fallback
   const [encontroId, setEncontroId] = useState<string>(
-    (location.state as any)?.encontroId || ''
+    (location.state as { encontroId?: string } | null)?.encontroId || ''
   );
   const [equipeNome, setEquipeNome] = useState<string>('');
   const [participacoes, setParticipacoes] = useState<InscricaoEnriched[]>([]);
@@ -99,6 +99,11 @@ export function ConfirmationTeamDetailPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [allInscricoesInEncontro, setAllInscricoesInEncontro] = useState<InscricaoEnriched[]>([]);
   const [showQuickAddPerson, setShowQuickAddPerson] = useState(false);
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
+
+  const toggleMemberDetails = (memberId: string) => {
+    setExpandedMemberId(currentId => currentId === memberId ? null : memberId);
+  };
 
   // Resolve encontroId caso acesso direto pela URL (sem route state), usando o contexto
   const { encontroAtivo } = useEncontros();
@@ -287,7 +292,7 @@ export function ConfirmationTeamDetailPage() {
           infoEquipe: inscricoesMap.get(p.id)
         }));
 
-        setSearchResults(enrichedResults as any);
+        setSearchResults(enrichedResults);
       } catch (error) {
         console.error("Erro na busca de pessoas:", error);
       } finally {
@@ -330,7 +335,7 @@ export function ConfirmationTeamDetailPage() {
     setIsActionLoading(true);
     try {
       await inscricaoService.excluir(memberToRemove.id);
-      toast.success(`${memberToRemove.pessoas?.nome_completo} removido(a) com sucesso.`);
+      toast.success(`${memberToRemove.pessoas?.nome_completo} removido(a) do encontro.`);
       setMemberToRemove(null);
       await loadData();
     } catch {
@@ -340,7 +345,7 @@ export function ConfirmationTeamDetailPage() {
     }
   };
 
-  const handleQuickAddPerson = async (formData: PessoaFormData, _shouldConfirm: boolean) => {
+  const handleQuickAddPerson = async (formData: PessoaFormData) => {
     if (!equipe_id || !encontroId) return;
     setIsActionLoading(true);
     try {
@@ -478,7 +483,7 @@ export function ConfirmationTeamDetailPage() {
       const maxWidths = Object.keys(data[0] || {}).map(key => {
         return Math.max(
           key.length,
-          ...data.map((row: any) => String(row[key]).length)
+          ...data.map(row => String(row[key as keyof typeof row]).length)
         );
       });
       worksheet['!cols'] = maxWidths.map(w => ({ wch: w + 2 }));
@@ -515,7 +520,7 @@ export function ConfirmationTeamDetailPage() {
             onCancel={() => setEditingPessoa(null)}
             isLoading={isActionLoading}
             isConfirmationContext={true}
-            hideConfirmAction={isTeamConfirmed}
+            hideConfirmAction={false}
           />
         </div>
       </div>
@@ -719,6 +724,22 @@ export function ConfirmationTeamDetailPage() {
 
         {!isLoading && isTeamConfirmed && (
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="btn-secondary flex items-center gap-2"
+              style={{
+                fontSize: '0.85rem',
+                padding: '0.6rem 1.25rem',
+                borderRadius: '12px',
+                fontWeight: 600,
+                border: '1px solid var(--border-color)',
+                cursor: 'pointer'
+              }}
+            >
+              <UserPlus size={16} />
+              <span>Adicionar Integrante</span>
+            </button>
+
             {/* Menu de Exportação Moderno */}
             <div style={{ position: 'relative' }}>
               <button
@@ -855,7 +876,7 @@ export function ConfirmationTeamDetailPage() {
               padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700,
               backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)'
             }}>
-              ✓ EQUIPE FINALIZADA
+              ✓ FINALIZADA
             </span>
           </div>
         )}
@@ -949,18 +970,34 @@ export function ConfirmationTeamDetailPage() {
               <p>Nenhum integrante encontrado.</p>
             </div>
           ) : (
-            filteredParts.map((p) => (
+            filteredParts.map((p) => {
+              const isExpanded = expandedMemberId === p.id;
+
+              return (
               <div
                 key={p.id}
-                className="card animate-fade-in"
+                className={`card animate-fade-in secretaria-team-member-card${isExpanded ? ' secretaria-team-member-card--expanded' : ''}`}
                 style={{
                   padding: '1.25rem',
                   borderLeft: p.coordenador ? '4px solid #f59e0b' : '1px solid var(--border-color)'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                <div
+                  className="secretaria-team-member-card__header"
+                  onClick={() => toggleMemberDetails(p.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      toggleMemberDetails(p.id);
+                    }
+                  }}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}
+                >
                   <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                    <div style={{
+                    <div className="secretaria-team-member-card__avatar" style={{
                       width: '44px', height: '44px', borderRadius: '12px',
                       backgroundColor: 'rgba(var(--primary-rgb), 0.1)', color: 'var(--primary-color)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1rem'
@@ -971,49 +1008,35 @@ export function ConfirmationTeamDetailPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                         <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>{p.pessoas.nome_completo}</h3>
                         {p.coordenador && (
-                          <span className="badge" style={{ fontSize: '0.6rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', fontWeight: 800 }}>COORDENADOR</span>
+                          <span className="badge secretaria-team-member-card__coordinator-badge" style={{ fontSize: '0.6rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', fontWeight: 800 }}>COORDENADOR</span>
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem', fontSize: '0.85rem', opacity: 0.7, flexWrap: 'wrap', minWidth: 0 }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           <Phone size={14} style={{ flexShrink: 0 }} /> {formatTelefone(p.pessoas.telefone)}
                         </span>
-                        {p.pessoas.email && (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.pessoas.email}>
-                            <Mail size={14} style={{ flexShrink: 0 }} /> {p.pessoas.email}
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.25rem', fontSize: '0.85rem', opacity: 0.6, minWidth: 0 }}>
-                        <MapPin size={14} style={{ flexShrink: 0 }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {[p.pessoas.endereco, p.pessoas.numero, p.pessoas.bairro, p.pessoas.cidade].filter(Boolean).join(', ')}
-                        </span>
                       </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                  <div
+                    className="secretaria-team-member-card__actions"
+                    onClick={event => event.stopPropagation()}
+                    onKeyDown={event => event.stopPropagation()}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}
+                  >
                     {p.dados_confirmados ? (
-                      <div
-                        className="btn-icon"
-                        style={{
-                          backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981',
-                          border: '1px solid rgba(16, 185, 129, 0.2)',
-                          width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'default'
-                        }}
-                        title="Dados Confirmados"
-                      >
-                        <CheckCircle size={18} style={{ flexShrink: 0 }} />
-                      </div>
+                      <span className="secretaria-team-member-card__confirmed-badge">
+                        Confirmado
+                      </span>
                     ) : (
                       <button
                         onClick={() => handleConfirmOneMember(p.id)}
-                        disabled={isActionLoading || isTeamConfirmed}
+                        disabled={isActionLoading}
                         className="btn-icon"
                         style={{
                           backgroundColor: 'rgba(255, 255, 255, 0.03)', color: 'var(--text-color)',
-                          border: '1px solid var(--border-color)', opacity: isTeamConfirmed ? 0.3 : 0.5,
+                          border: '1px solid var(--border-color)', opacity: 0.5,
                           width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center'
                         }}
                         title="Confirmar integrante"
@@ -1023,39 +1046,76 @@ export function ConfirmationTeamDetailPage() {
                     )}
                     <button
                       onClick={() => setEditingPessoa(p.pessoas)}
-                      className="btn-icon"
+                      className="btn-icon secretaria-team-member-card__desktop-action"
                       style={{
                         backgroundColor: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)',
-                        width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        height: '32px', padding: '0 0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
                         color: 'var(--text-color)'
                       }}
                       title="Editar Dados"
                     >
                       <Pencil size={18} style={{ flexShrink: 0 }} />
+                      <span>Editar</span>
                     </button>
-                    {!isTeamConfirmed && (
-                      <button
-                        onClick={() => setMemberToRemove(p)}
-                        disabled={isActionLoading}
-                        className="btn-icon"
-                        style={{
-                          backgroundColor: 'rgba(239, 68, 68, 0.05)', color: '#ef4444',
-                          border: '1px solid rgba(239, 68, 68, 0.2)',
-                          width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          cursor: 'pointer'
-                        }}
-                        title="Remover Integrante"
-                      >
-                        <UserX size={18} style={{ flexShrink: 0 }} />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setMemberToRemove(p)}
+                      disabled={isActionLoading}
+                      className="btn-icon secretaria-team-member-card__desktop-action"
+                      style={{
+                        backgroundColor: 'rgba(239, 68, 68, 0.05)', color: '#ef4444',
+                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                        height: '32px', padding: '0 0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
+                        cursor: 'pointer'
+                      }}
+                      title="Desvincular Integrante"
+                    >
+                      <UserX size={18} style={{ flexShrink: 0 }} />
+                      <span>Desvincular</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-icon secretaria-team-member-card__toggle"
+                      onClick={() => toggleMemberDetails(p.id)}
+                      aria-label={isExpanded ? 'Ocultar detalhes do integrante' : 'Exibir detalhes do integrante'}
+                      aria-expanded={isExpanded}
+                    >
+                      <span className="secretaria-team-member-card__chevron" aria-hidden="true" />
+                    </button>
                   </div>
                 </div>
 
-                {/* Seções de Recepção e Recreação (Novas) */}
-                <div style={{
+                <div className="secretaria-team-member-card__details">
+                  <div className="secretaria-team-member-card__contact-details">
+                    {p.pessoas.email && (
+                      <span title={p.pessoas.email}>
+                        <Mail size={14} /> {p.pessoas.email}
+                      </span>
+                    )}
+                    <span>
+                      <MapPin size={14} />
+                      {[p.pessoas.endereco, p.pessoas.numero, p.pessoas.bairro, p.pessoas.cidade].filter(Boolean).join(', ') || 'Endereço não informado'}
+                    </span>
+                  </div>
+
+                  <div className="secretaria-team-member-card__mobile-actions">
+                    <button type="button" onClick={() => setEditingPessoa(p.pessoas)} className="btn-secondary">
+                      <Pencil size={16} />
+                      Editar dados
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberToRemove(p)}
+                      disabled={isActionLoading}
+                      className="btn-secondary secretaria-team-member-card__remove-action"
+                    >
+                      <UserX size={16} />
+                      Remover do encontro
+                    </button>
+                  </div>
+
+                {/* Seções de Recepção e Recreação */}
+                <div className="secretaria-team-member-card__sections" style={{
                   display: 'grid',
-                  gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr',
                   gap: '1.25rem',
                   marginTop: '1.25rem',
                   paddingTop: '1.25rem',
@@ -1123,7 +1183,7 @@ export function ConfirmationTeamDetailPage() {
                                         await recepcaoService.excluir(p.recepcao_dados!.id);
                                         toast.success('Veículo removido!');
                                         loadData();
-                                      } catch (e) {
+                                      } catch {
                                         toast.error('Erro ao remover veículo');
                                       }
                                     }
@@ -1211,8 +1271,10 @@ export function ConfirmationTeamDetailPage() {
                     )}
                   </div>
                 </div>
+                </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
@@ -1252,15 +1314,15 @@ export function ConfirmationTeamDetailPage() {
       {/* Modal de remoção de integrante */}
       <ConfirmDialog
         isOpen={!!memberToRemove}
-        title="Remover Integrante da Equipe"
+        title="Desvincular Integrante da Equipe"
         message={
           <>
             Tem certeza que deseja desvincular <strong style={{ color: 'var(--text-color)' }}>{memberToRemove?.pessoas?.nome_completo}</strong> desta equipe?
             <br /><br />
-            Esta ação <strong style={{ color: 'var(--danger-text)' }}>removerá o vínculo</strong> da pessoa com este encontro/equipe.
+            Esta ação removerá a participação da pessoa neste encontro e a deixará disponível para ser adicionada a outra equipe.
           </>
         }
-        confirmText="Sim, remover"
+        confirmText="Sim, desvincular"
         cancelText="Cancelar"
         onConfirm={handleRemoveMember}
         onCancel={() => setMemberToRemove(null)}
