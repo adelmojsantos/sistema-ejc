@@ -531,8 +531,8 @@ export function ConfirmationTeamDetailPage() {
   return (
     <div className="fade-in">
       {/* Cabeçalho */}
-      <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <div className="page-header secretaria-team-detail-header" style={{ marginBottom: '1.5rem' }}>
+        <div className="secretaria-team-detail-header__title" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button
             onClick={() => navigate('/secretaria/confirmacoes', { state: { encontroId } })}
             className="icon-btn"
@@ -549,25 +549,9 @@ export function ConfirmationTeamDetailPage() {
         </div>
 
         {!isLoading && !isTeamConfirmed && (
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="btn-secondary flex items-center gap-2"
-              style={{
-                fontSize: '0.85rem',
-                padding: '0.6rem 1.25rem',
-                borderRadius: '12px',
-                fontWeight: 600,
-                border: '1px solid var(--border-color)',
-                cursor: 'pointer'
-              }}
-            >
-              <UserPlus size={16} />
-              <span>Adicionar Integrante</span>
-            </button>
-
+          <div className="secretaria-team-detail-header__actions" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             {/* Menu de Exportação Moderno */}
-            <div style={{ position: 'relative' }}>
+            <div className="secretaria-team-detail-header__export" style={{ position: 'relative' }}>
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
                 className="btn-primary"
@@ -598,7 +582,7 @@ export function ConfirmationTeamDetailPage() {
                     style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} 
                     onClick={() => setShowExportMenu(false)} 
                   />
-                  <div style={{
+                  <div className="secretaria-team-export-menu" style={{
                     position: 'absolute',
                     top: 'calc(100% + 8px)',
                     right: 0,
@@ -612,6 +596,8 @@ export function ConfirmationTeamDetailPage() {
                     zIndex: 101,
                     display: 'flex',
                     flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    justifyContent: 'flex-start',
                     gap: '4px',
                     animation: 'slideUp 0.2s ease-out'
                   }}>
@@ -631,7 +617,7 @@ export function ConfirmationTeamDetailPage() {
                       disabled={isExporting}
                       style={{
                         display: 'flex',
-                        alignItems: 'center',
+                        alignItems: 'flex-start',
                         gap: '12px',
                         padding: '0.75rem',
                         borderRadius: '12px',
@@ -666,6 +652,7 @@ export function ConfirmationTeamDetailPage() {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
+                        justifyContent: 'flex-start',
                         gap: '12px',
                         padding: '0.75rem',
                         borderRadius: '12px',
@@ -723,25 +710,9 @@ export function ConfirmationTeamDetailPage() {
         )}
 
         {!isLoading && isTeamConfirmed && (
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="btn-secondary flex items-center gap-2"
-              style={{
-                fontSize: '0.85rem',
-                padding: '0.6rem 1.25rem',
-                borderRadius: '12px',
-                fontWeight: 600,
-                border: '1px solid var(--border-color)',
-                cursor: 'pointer'
-              }}
-            >
-              <UserPlus size={16} />
-              <span>Adicionar Integrante</span>
-            </button>
-
+          <div className="secretaria-team-detail-header__actions" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             {/* Menu de Exportação Moderno */}
-            <div style={{ position: 'relative' }}>
+            <div className="secretaria-team-detail-header__export" style={{ position: 'relative' }}>
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
                 className="btn-primary"
@@ -772,7 +743,7 @@ export function ConfirmationTeamDetailPage() {
                     style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 100 }} 
                     onClick={() => setShowExportMenu(false)} 
                   />
-                  <div style={{
+                  <div className="secretaria-team-export-menu" style={{
                     position: 'absolute',
                     top: 'calc(100% + 8px)',
                     right: 0,
@@ -872,7 +843,7 @@ export function ConfirmationTeamDetailPage() {
               )}
             </div>
 
-            <span style={{
+            <span className="secretaria-team-detail-header__status" style={{
               padding: '0.4rem 1rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 700,
               backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)'
             }}>
@@ -884,34 +855,35 @@ export function ConfirmationTeamDetailPage() {
 
       {/* Stats da equipe */}
       {!isLoading && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
-          {/* Total */}
-          <div
-            onClick={() => setActiveTeamFilter('all')}
-            className="card"
-            style={{
-              padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
-              border: activeTeamFilter === 'all' ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
-              transform: activeTeamFilter === 'all' ? 'translateY(-2px)' : 'none',
-              transition: 'all 0.2s', position: 'relative'
-            }}
-          >
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'rgba(37, 99, 235, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)' }}>
+        <>
+          <div className="secretaria-team-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+            {/* Total */}
+            <div
+              onClick={() => setActiveTeamFilter('all')}
+              className="card secretaria-team-stat-card"
+              style={{
+                padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
+                border: activeTeamFilter === 'all' ? '2px solid var(--primary-color)' : '1px solid var(--border-color)',
+                transform: activeTeamFilter === 'all' ? 'translateY(-2px)' : 'none',
+                transition: 'all 0.2s', position: 'relative'
+              }}
+            >
+            <div className="secretaria-team-stat-card__icon" style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'rgba(37, 99, 235, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary-color)' }}>
               <Users size={20} />
             </div>
-            <div style={{ flex: 1 }}>
+            <div className="secretaria-team-stat-card__content" style={{ flex: 1 }}>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{teamStats.total}</div>
               <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Total</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--primary-color)', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+            <div className="secretaria-team-stat-card__filter" style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'var(--primary-color)', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
               <span>FILTRAR</span><ChevronRight size={10} />
             </div>
-          </div>
+            </div>
 
-          {/* Confirmados */}
-          <div
+            {/* Confirmados */}
+            <div
             onClick={() => setActiveTeamFilter('confirmed')}
-            className="card"
+            className="card secretaria-team-stat-card"
             style={{
               padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
               border: activeTeamFilter === 'confirmed' ? '2px solid #10b981' : '1px solid var(--border-color)',
@@ -919,22 +891,22 @@ export function ConfirmationTeamDetailPage() {
               transition: 'all 0.2s', position: 'relative'
             }}
           >
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+            <div className="secretaria-team-stat-card__icon" style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
               <CheckCircle size={20} />
             </div>
-            <div style={{ flex: 1 }}>
+            <div className="secretaria-team-stat-card__content" style={{ flex: 1 }}>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{teamStats.confirmed}</div>
               <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Confirmados</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#10b981', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+            <div className="secretaria-team-stat-card__filter" style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#10b981', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
               <span>FILTRAR</span><ChevronRight size={10} />
             </div>
-          </div>
+            </div>
 
-          {/* Pendentes */}
-          <div
+            {/* Pendentes */}
+            <div
             onClick={() => setActiveTeamFilter('pending')}
-            className="card"
+            className="card secretaria-team-stat-card"
             style={{
               padding: '1rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer',
               border: activeTeamFilter === 'pending' ? '2px solid #f59e0b' : '1px solid var(--border-color)',
@@ -942,18 +914,30 @@ export function ConfirmationTeamDetailPage() {
               transition: 'all 0.2s', position: 'relative'
             }}
           >
-            <div style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
+            <div className="secretaria-team-stat-card__icon" style={{ width: '40px', height: '40px', borderRadius: '10px', backgroundColor: 'rgba(245, 158, 11, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f59e0b' }}>
               <AlertCircle size={20} />
             </div>
-            <div style={{ flex: 1 }}>
+            <div className="secretaria-team-stat-card__content" style={{ flex: 1 }}>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 }}>{teamStats.pending}</div>
               <div style={{ fontSize: '0.75rem', opacity: 0.5, fontWeight: 600, textTransform: 'uppercase' }}>Pendentes</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#f59e0b', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
+            <div className="secretaria-team-stat-card__filter" style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#f59e0b', fontSize: '0.65rem', fontWeight: 700, opacity: 0.7 }}>
               <span>FILTRAR</span><ChevronRight size={10} />
             </div>
+            </div>
           </div>
-        </div>
+
+          <div className="secretaria-team-add-member-action">
+            <button
+              type="button"
+              onClick={() => setShowAddModal(true)}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <UserPlus size={17} />
+              <span>Adicionar Integrante</span>
+            </button>
+          </div>
+        </>
       )}
 
       {/* Lista de integrantes */}

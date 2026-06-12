@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle, FileSpreadsheet, FileText, Users, ListChecks, MapPin, DoorOpen } from 'lucide-react';
+import { CheckCircle, FileSpreadsheet, FileText, Users, ListChecks, MapPin, DoorOpen, Tags } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface SecretariaCategory {
@@ -83,6 +83,15 @@ const CATEGORIES: SecretariaCategory[] = [
     description: 'Impressão das placas de identificação das salas por equipe.',
     icon: <DoorOpen size={34} />,
     color: '#a16207',
+    available: true
+  },
+  {
+    id: 'sec-etiquetas',
+    path: '/secretaria/etiquetas',
+    label: 'Gerador de Etiquetas',
+    description: 'Configure modelos, selecione registros e imprima etiquetas em medidas reais.',
+    icon: <Tags size={34} />,
+    color: '#2563eb',
     available: true
   }
 ];

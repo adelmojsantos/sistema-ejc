@@ -8,7 +8,7 @@ import { ChevronLeft, Search, Filter, Users, UserCheck, Shield, User, Download, 
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { useEquipes } from '../../contexts/EquipeContext';
+import { useEquipes } from '../../hooks/useEquipes';
 import type { Encontro } from '../../types/encontro';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';

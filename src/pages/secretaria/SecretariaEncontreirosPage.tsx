@@ -8,9 +8,12 @@ import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { useEquipes } from '../../contexts/EquipeContext';
+import { useEquipes } from '../../hooks/useEquipes';
 import type { Encontro } from '../../types/encontro';
 import type { InscricaoEnriched } from '../../types/inscricao';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 function formatTelefone(tel: string | null | undefined) {
   if (!tel) return '—';
@@ -18,6 +21,16 @@ function formatTelefone(tel: string | null | undefined) {
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return tel;
+}
+
+function formatEnderecoCompleto(pessoa: InscricaoEnriched['pessoas']) {
+  if (!pessoa) return '—';
+
+  const logradouro = [pessoa.endereco, pessoa.numero].filter(Boolean).join(', ');
+  const cidadeEstado = [pessoa.cidade, pessoa.estado].filter(Boolean).join('/');
+  const partes = [logradouro, pessoa.complemento, pessoa.bairro, cidadeEstado, pessoa.cep].filter(Boolean);
+
+  return partes.length > 0 ? partes.join(' - ') : '—';
 }
 
 export function SecretariaEncontreirosPage() {
@@ -32,6 +45,7 @@ export function SecretariaEncontreirosPage() {
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [filterTeamId, setFilterTeamId] = useState<string>('all');
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
 
@@ -102,6 +116,84 @@ export function SecretariaEncontreirosPage() {
       .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
   }, [participantes, debouncedSearch, filterTeamId]);
 
+  const getExportData = () => filteredParticipantes.map((participacao, index) => ({
+    '#': index + 1,
+    'Nome Completo': participacao.pessoas?.nome_completo || '—',
+    'Equipe': participacao.equipes?.nome || 'Sem Equipe',
+    'Função': participacao.coordenador ? 'Coordenador' : 'Membro',
+    'Telefone': formatTelefone(participacao.pessoas?.telefone),
+    'E-mail': participacao.pessoas?.email || '—',
+    'Endereço Completo': formatEnderecoCompleto(participacao.pessoas)
+  }));
+
+  const exportFileName = `encontreiros_${selectedEncontro?.nome || 'encontro'}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_-]+/g, '_')
+    .toLowerCase();
+
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      const data = getExportData();
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+      doc.setFontSize(16);
+      doc.text(`Encontreiros: ${selectedEncontro?.nome || 'Encontro'}`, 14, 18);
+
+      autoTable(doc, {
+        head: [['#', 'Nome', 'Equipe', 'Função', 'Telefone', 'E-mail', 'Endereço Completo']],
+        body: data.map(item => [
+          item['#'],
+          item['Nome Completo'],
+          item['Equipe'],
+          item['Função'],
+          item['Telefone'],
+          item['E-mail'],
+          item['Endereço Completo']
+        ]),
+        startY: 25,
+        styles: { fontSize: 8 },
+        columnStyles: {
+          1: { cellWidth: 45 },
+          2: { cellWidth: 32 },
+          5: { cellWidth: 45 },
+          6: { cellWidth: 75 }
+        }
+      });
+
+      doc.save(`${exportFileName}.pdf`);
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro ao exportar encontreiros em PDF:', error);
+      toast.error('Erro ao gerar PDF.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      const data = getExportData();
+      const worksheet = XLSX.utils.json_to_sheet(data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Encontreiros');
+
+      worksheet['!cols'] = Object.keys(data[0] || {}).map(key => ({
+        wch: Math.max(key.length, ...data.map(row => String(row[key as keyof typeof row]).length)) + 2
+      }));
+
+      XLSX.writeFile(workbook, `${exportFileName}.xlsx`);
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Erro ao exportar encontreiros em Excel:', error);
+      toast.error('Erro ao gerar planilha.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <>
       <div className="fade-in">
@@ -121,16 +213,16 @@ export function SecretariaEncontreirosPage() {
               onClick={() => setShowExportMenu(!showExportMenu)}
               className="btn-primary flex items-center gap-2"
               style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
-              disabled={filteredParticipantes.length === 0}
+              disabled={filteredParticipantes.length === 0 || isExporting}
             >
-              <Download size={16} />
+              {isExporting ? <Loader size={16} className="animate-spin" /> : <Download size={16} />}
               <span className="hide-mobile">Exportar</span>
             </button>
 
             {showExportMenu && (
               <>
                 <div onClick={() => setShowExportMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
-                <div style={{
+                <div className="secretaria-encontreiros-export-menu" style={{
                   position: 'absolute',
                   right: 0,
                   top: '120%',
@@ -143,21 +235,21 @@ export function SecretariaEncontreirosPage() {
                   overflow: 'hidden',
                   animation: 'fadeInUp 0.2s ease'
                 }}>
-                  <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-color)', opacity: 0.5, fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase' }}>
+                  <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-color)', opacity: 0.5, fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', textAlign: 'left' }}>
                     Exportar como
                   </div>
-                  <button className="dropdown-item-custom">
-                    <div className="icon-box-pdf"><FileText size={18} /></div>
+                  <button className="dropdown-item-custom" onClick={handleExportPDF} disabled={isExporting}>
+                    <div className="icon-box-pdf">{isExporting ? <Loader size={18} className="animate-spin" /> : <FileText size={18} />}</div>
                     <div style={{ textAlign: 'left' }}>
                       <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>PDF</div>
-                      <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Documento formatado</div>
+                      <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{isExporting ? 'Gerando...' : 'Documento formatado'}</div>
                     </div>
                   </button>
-                  <button className="dropdown-item-custom">
-                    <div className="icon-box-excel"><FileSpreadsheet size={18} /></div>
+                  <button className="dropdown-item-custom" onClick={handleExportExcel} disabled={isExporting}>
+                    <div className="icon-box-excel">{isExporting ? <Loader size={18} className="animate-spin" /> : <FileSpreadsheet size={18} />}</div>
                     <div style={{ textAlign: 'left' }}>
                       <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>Excel</div>
-                      <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>Planilha editável</div>
+                      <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>{isExporting ? 'Gerando...' : 'Planilha editável'}</div>
                     </div>
                   </button>
                 </div>
@@ -344,6 +436,12 @@ export function SecretariaEncontreirosPage() {
           cursor: pointer;
           color: var(--text-color);
           transition: background-color 0.15s;
+          justify-content: flex-start;
+          text-align: left;
+        }
+        .dropdown-item-custom > div:last-child {
+          min-width: 0;
+          text-align: left;
         }
         .dropdown-item-custom:hover {
           background-color: var(--primary-light);

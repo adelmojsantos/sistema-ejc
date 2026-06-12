@@ -6889,6 +6889,15 @@ textarea.form-input {
   gap: 1rem;
 }
 
+.compras-proof-gallery__body--single {
+  overflow: hidden !important;
+}
+
+.compras-proof-gallery__grid--single {
+  grid-template-columns: minmax(0, 560px);
+  justify-content: center;
+}
+
 .compras-proof-gallery__item {
   min-width: 0;
   overflow: hidden;
@@ -6906,8 +6915,7 @@ textarea.form-input {
   background: var(--surface-1);
 }
 
-.compras-proof-gallery__preview img,
-.compras-proof-gallery__preview iframe {
+.compras-proof-gallery__preview img {
   width: 100%;
   height: 100%;
   border: 0;
@@ -6921,6 +6929,16 @@ textarea.form-input {
   gap: 0.5rem;
   opacity: 0.55;
   font-size: 0.8rem;
+  color: inherit;
+  text-align: center;
+  text-decoration: none;
+}
+
+.compras-proof-gallery__file-placeholder strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--primary-color);
 }
 
 .compras-proof-gallery__item-footer {
@@ -7070,7 +7088,222 @@ textarea.form-input {
   white-space: nowrap;
 }
 
+.secretaria-team-add-member-action {
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.secretaria-team-add-member-action .btn-secondary {
+  min-height: 42px;
+  padding: 0.65rem 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.secretaria-team-detail-header {
+  width: 100%;
+  flex-wrap: nowrap;
+}
+
+.secretaria-team-detail-header__title {
+  min-width: 0;
+  flex: 1;
+}
+
+.secretaria-team-detail-header__actions {
+  position: relative;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.secretaria-team-detail-header__actions > button,
+.secretaria-team-detail-header__export > button,
+.secretaria-team-detail-header__status {
+  min-height: 42px;
+}
+
+.secretaria-team-detail-header__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.secretaria-team-export-menu {
+  box-sizing: border-box;
+  width: 280px;
+  max-width: calc(100vw - 2rem);
+}
+
+.compras-proof-gallery__actions .compras-proof-gallery__delete {
+  color: var(--danger-color);
+}
+
+.secretaria-team-export-menu > button {
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+.secretaria-team-export-menu > button > div:last-child {
+  min-width: 0;
+  text-align: left;
+}
+
 @media (max-width: 768px) {
+  .secretaria-team-detail-header {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 1rem !important;
+  }
+
+  .secretaria-team-detail-header__title {
+    min-width: 0;
+  }
+
+  .secretaria-team-detail-header__title .page-title {
+    max-width: calc(100vw - 7rem);
+    overflow: hidden;
+    font-size: 1.55rem !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .secretaria-team-detail-header__actions {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.65rem !important;
+  }
+
+  .secretaria-team-detail-header__actions > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .secretaria-team-detail-header__actions > button,
+  .secretaria-team-detail-header__export,
+  .secretaria-team-detail-header__export > button {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .secretaria-team-detail-header__actions > button,
+  .secretaria-team-detail-header__export > button {
+    min-height: 44px;
+    padding: 0.55rem 0.65rem !important;
+    justify-content: center;
+    gap: 0.45rem !important;
+    font-size: 0.76rem !important;
+    white-space: nowrap;
+  }
+
+  .secretaria-team-detail-header__status {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    padding: 0.6rem 0.75rem !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-size: 0.68rem !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .secretaria-team-detail-header__export {
+    position: static !important;
+  }
+
+  .secretaria-team-export-menu {
+    position: absolute !important;
+    top: calc(100% + 0.65rem) !important;
+    right: 0 !important;
+    bottom: auto !important;
+    left: 0 !important;
+    box-sizing: border-box;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none;
+    margin: 0;
+    padding: 0.9rem !important;
+    border-radius: 18px !important;
+    z-index: 101;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .secretaria-team-export-menu > button {
+    min-height: 58px;
+  }
+
+  .secretaria-team-add-member-action {
+    margin-bottom: 1.25rem;
+  }
+
+  .secretaria-team-add-member-action .btn-secondary {
+    width: 100%;
+  }
+
+  .secretaria-team-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  .secretaria-team-stat-card {
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 94px;
+    padding: 0.65rem 0.35rem !important;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.35rem !important;
+    text-align: center;
+  }
+
+  .secretaria-team-stat-card__icon {
+    width: 30px !important;
+    height: 30px !important;
+    flex-shrink: 0;
+    border-radius: 8px !important;
+  }
+
+  .secretaria-team-stat-card__icon svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .secretaria-team-stat-card__content {
+    width: 100%;
+    min-width: 0;
+    flex: 0 0 auto !important;
+  }
+
+  .secretaria-team-stat-card__content > div:first-child {
+    font-size: 1.2rem !important;
+  }
+
+  .secretaria-team-stat-card__content > div:last-child {
+    overflow: hidden;
+    font-size: 0.56rem !important;
+    letter-spacing: 0;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .secretaria-team-stat-card__filter {
+    display: none !important;
+  }
+
   .secretaria-team-member-card {
     padding: 0.9rem !important;
   }

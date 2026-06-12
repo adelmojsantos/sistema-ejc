@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, Loader, XCircle } from 'lucide-react';
+import { CheckCircle, Loader, Users, XCircle } from 'lucide-react';
 import type { InscricaoEnriched } from '../../../types/inscricao';
 
 interface TaxaParticipanteItemProps {
@@ -16,6 +16,9 @@ export const TaxaParticipanteItem: React.FC<TaxaParticipanteItemProps> = ({
   onToggle
 }) => {
   const isPago = participante.pago_taxa;
+  const duplaVisitante = participante.visita_participacao
+    ?.find(visita => !visita.visitante)
+    ?.visita_grupos?.nome;
 
   return (
     <div className="card" style={{
@@ -39,6 +42,19 @@ export const TaxaParticipanteItem: React.FC<TaxaParticipanteItemProps> = ({
               ? (participante.pessoas?.cpf || 'Encontrista') 
               : (participante.equipes?.nome || 'Sem Equipe')}
           </p>
+          {activeTab === 'encontristas' && (
+            <p style={{
+              fontSize: '0.78rem',
+              margin: '0.3rem 0 0',
+              opacity: duplaVisitante ? 0.75 : 0.5,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem'
+            }}>
+              <Users size={14} />
+              Visitado pela dupla: {duplaVisitante || 'Não definida'}
+            </p>
+          )}
         </div>
 
         <div style={{ minWidth: '110px', textAlign: 'center' }}>

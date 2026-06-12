@@ -7,17 +7,10 @@
  * Uso:
  *   const { equipes, isLoading, reload } = useEquipes();
  */
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { equipeService } from '../services/equipeService';
 import type { Equipe } from '../types/equipe';
-
-interface EquipeContextType {
-  equipes: Equipe[];
-  isLoading: boolean;
-  reload: () => Promise<void>;
-}
-
-const EquipeContext = createContext<EquipeContextType | null>(null);
+import { EquipeContext } from './EquipeContextDefinition';
 
 export function EquipeProvider({ children }: { children: React.ReactNode }) {
   const [equipes, setEquipes] = useState<Equipe[]>([]);
@@ -44,10 +37,4 @@ export function EquipeProvider({ children }: { children: React.ReactNode }) {
       {children}
     </EquipeContext.Provider>
   );
-}
-
-export function useEquipes() {
-  const ctx = useContext(EquipeContext);
-  if (!ctx) throw new Error('useEquipes deve ser usado dentro de <EquipeProvider>');
-  return ctx;
 }

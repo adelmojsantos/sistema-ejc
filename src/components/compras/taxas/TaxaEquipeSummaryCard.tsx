@@ -6,12 +6,14 @@ interface TaxaEquipeSummaryCardProps {
   report: TaxaReport;
   isSelected: boolean;
   onClick: () => void;
+  onOpenProofs: (equipeNome: string, urls: string[]) => void;
 }
 
 export const TaxaEquipeSummaryCard: React.FC<TaxaEquipeSummaryCardProps> = ({
   report,
   isSelected,
-  onClick
+  onClick,
+  onOpenProofs
 }) => {
   const comprovantes = report.comprovantes_taxas_urls?.length
     ? report.comprovantes_taxas_urls
@@ -43,27 +45,25 @@ export const TaxaEquipeSummaryCard: React.FC<TaxaEquipeSummaryCardProps> = ({
             {report.pagos}/{report.total_membros}
           </span>
         </div>
-        <div style={{ display: 'flex', gap: '0.4rem' }}>
-          {comprovantes.map((url, index) => (
-              <button
-                key={`${url}-${index}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(url, '_blank');
-                }}
-                className="btn-icon"
-                title={`Ver Comprovante Taxas ${index + 1}`}
-                style={{
-                  padding: '0.4rem',
-                  backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                  color: 'var(--primary-color)',
-                  borderRadius: '8px'
-                }}
-              >
-                <FileText size={16} />
-              </button>
-          ))}
-        </div>
+        {comprovantes.length > 0 && (
+          <button
+            type="button"
+            onClick={event => {
+              event.stopPropagation();
+              onOpenProofs(report.equipe_nome, comprovantes);
+            }}
+            className="btn-icon"
+            title={`Ver ${comprovantes.length} comprovante(s) de taxas`}
+            style={{
+              padding: '0.4rem',
+              backgroundColor: 'rgba(37, 99, 235, 0.1)',
+              color: 'var(--primary-color)',
+              borderRadius: '8px'
+            }}
+          >
+            <FileText size={16} />
+          </button>
+        )}
       </div>
     </div>
   );

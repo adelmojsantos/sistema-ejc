@@ -55,6 +55,7 @@ import type { RecreacaoDados } from '../../types/recreacao';
 import { formatBRL } from '../../utils/currencyUtils';
 import { formatChildAge } from '../../utils/ageUtils';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
+import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
 import { Minus, Plus } from 'phosphor-react';
 
 interface EquipeMember {
@@ -146,6 +147,7 @@ export function CoordenadorMinhaEquipePage() {
   const [showTaxaSummaryModal, setShowTaxaSummaryModal] = useState(false);
   const [comprovanteCamisetasUrl, setComprovanteCamisetasUrl] = useState<string | null>(null);
   const [comprovantesCamisetasUrls, setComprovantesCamisetasUrls] = useState<string[]>([]);
+  const [proofGallery, setProofGallery] = useState<{ title: string; tipo: 'taxas' | 'camisetas'; urls: string[] } | null>(null);
   const [pixTaxa, setPixTaxa] = useState<{
     chave: string | null;
     tipo: PixTipo | null;
@@ -408,6 +410,39 @@ export function CoordenadorMinhaEquipePage() {
     } finally {
       setIsUploadingProof(null);
       e.target.value = '';
+    }
+  };
+
+  const handleDeleteProof = async (url: string) => {
+    if (!proofGallery || !userParticipacao?.equipe_id || !userParticipacao?.encontro_id) return;
+
+    try {
+      const nextUrls = await equipeService.removerComprovante(
+        userParticipacao.equipe_id,
+        userParticipacao.encontro_id,
+        url,
+        proofGallery.tipo
+      );
+      const latestUrl = nextUrls[nextUrls.length - 1] || null;
+
+      if (proofGallery.tipo === 'taxas') {
+        setComprovantesTaxasUrls(nextUrls);
+        setComprovanteUrl(latestUrl);
+      } else {
+        setComprovantesCamisetasUrls(nextUrls);
+        setComprovanteCamisetasUrl(latestUrl);
+      }
+
+      if (nextUrls.length === 0) {
+        setProofGallery(null);
+      } else {
+        setProofGallery(current => current ? { ...current, urls: nextUrls } : null);
+      }
+      toast.success('Comprovante excluído com sucesso!');
+    } catch (error) {
+      console.error('Erro ao excluir comprovante:', error);
+      toast.error('Erro ao excluir comprovante.');
+      throw error;
     }
   };
 
@@ -1117,21 +1152,15 @@ export function CoordenadorMinhaEquipePage() {
           </div>
 
           {comprovantesTaxasUrls.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-              {comprovantesTaxasUrls.map((url, index) => (
-                <a
-                  key={`${url}-${index}`}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary"
-                  style={{ fontSize: '0.72rem', padding: '0.35rem 0.55rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                >
-                  <Eye size={14} />
-                  <span>Comprovante {index + 1}</span>
-                </a>
-              ))}
-            </div>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setProofGallery({ title: 'Comprovantes de taxas', tipo: 'taxas', urls: comprovantesTaxasUrls })}
+              style={{ fontSize: '0.75rem', padding: '0.45rem 0.65rem', display: 'flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center' }}
+            >
+              <Eye size={14} />
+              <span>Ver comprovantes ({comprovantesTaxasUrls.length})</span>
+            </button>
           )}
 
           <div style={{ margin: '0.25rem 0' }}>
@@ -1233,21 +1262,15 @@ export function CoordenadorMinhaEquipePage() {
           </div>
 
           {comprovantesCamisetasUrls.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-              {comprovantesCamisetasUrls.map((url, index) => (
-                <a
-                  key={`${url}-${index}`}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-secondary"
-                  style={{ fontSize: '0.72rem', padding: '0.35rem 0.55rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-                >
-                  <Eye size={14} />
-                  <span>Comprovante {index + 1}</span>
-                </a>
-              ))}
-            </div>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setProofGallery({ title: 'Comprovantes de camisetas', tipo: 'camisetas', urls: comprovantesCamisetasUrls })}
+              style={{ fontSize: '0.75rem', padding: '0.45rem 0.65rem', display: 'flex', alignItems: 'center', gap: '0.35rem', justifyContent: 'center' }}
+            >
+              <Eye size={14} />
+              <span>Ver comprovantes ({comprovantesCamisetasUrls.length})</span>
+            </button>
           )}
 
 
@@ -1994,6 +2017,16 @@ export function CoordenadorMinhaEquipePage() {
         equipeNome={equipeNome}
         valorTaxa={valorTaxa}
       />
+
+      {proofGallery && (
+        <PaymentProofGalleryModal
+          title={proofGallery.title}
+          entityName={equipeNome}
+          urls={proofGallery.urls}
+          onClose={() => setProofGallery(null)}
+          onDelete={handleDeleteProof}
+        />
+      )}
 
       <ConfirmDialog
         isOpen={!!deleteTarget}

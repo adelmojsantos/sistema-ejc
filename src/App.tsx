@@ -59,6 +59,7 @@ import { SecretariaEncontreirosPage } from './pages/secretaria/SecretariaEncontr
 import { GerenciarListaEsperaPage } from './pages/secretaria/GerenciarListaEsperaPage';
 import { SecretariaFotosPage } from './pages/secretaria/SecretariaFotosPage';
 import { SecretariaPlacasEquipesPage } from './pages/secretaria/SecretariaPlacasEquipesPage';
+import { LabelGeneratorPage } from './pages/secretaria/LabelGeneratorPage';
 import { ComprasPage } from './pages/compras/ComprasPage';
 import { TaxasPage } from './pages/compras/TaxasPage';
 import { PedidosCamisetasPage } from './pages/compras/PedidosCamisetasPage';
@@ -214,6 +215,7 @@ function AnimatedRoutes() {
             <Route path="lista-espera" element={<GerenciarListaEsperaPage />} />
             <Route path="fotos-equipes" element={<SecretariaFotosPage />} />
             <Route path="placas-equipes" element={<SecretariaPlacasEquipesPage />} />
+            <Route path="etiquetas" element={<LabelGeneratorPage />} />
           </Route>
 
           <Route path="/visitacao" element={

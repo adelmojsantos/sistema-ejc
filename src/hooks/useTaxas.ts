@@ -15,6 +15,9 @@ interface UseTaxasProps {
   valorTaxa: number;
 }
 
+const isEquipeDirigentes = (nome?: string | null) =>
+  nome?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'dirigentes';
+
 export function useTaxas({ encontroId, valorTaxa }: UseTaxasProps) {
   // Estados de Dados
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
@@ -40,9 +43,9 @@ export function useTaxas({ encontroId, valorTaxa }: UseTaxasProps) {
         equipeService.listar(),
         comprasService.listarRelatorioTaxas(encontroId)
       ]);
-      setParticipantes(partsData);
-      setEquipes(eqData);
-      setRelatorioTaxas(relData);
+      setParticipantes(partsData.filter(participacao => !isEquipeDirigentes(participacao.equipes?.nome)));
+      setEquipes(eqData.filter(equipe => !isEquipeDirigentes(equipe.nome)));
+      setRelatorioTaxas(relData.filter(relatorio => !isEquipeDirigentes(relatorio.equipe_nome)));
     } catch (error) {
       console.error('Erro ao carregar dados de taxas:', error);
       toast.error('Erro ao carregar dados de taxas.');

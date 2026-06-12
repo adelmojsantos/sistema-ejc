@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { useEquipes } from '../../contexts/EquipeContext';
+import { useEquipes } from '../../hooks/useEquipes';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebounce } from '../../hooks/useDebounce';
 import { encontroService } from '../../services/encontroService';

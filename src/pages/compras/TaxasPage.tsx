@@ -1,5 +1,5 @@
 import { ChevronLeft, Loader, Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useEncontros } from '../../contexts/EncontroContext';
@@ -9,21 +9,16 @@ import { TaxaStatCard } from '../../components/compras/taxas/TaxaStatCard';
 import { TaxaParticipanteItem } from '../../components/compras/taxas/TaxaParticipanteItem';
 import { TaxaEquipeSummaryCard } from '../../components/compras/taxas/TaxaEquipeSummaryCard';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
+import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
 
 export function TaxasPage() {
   const navigate = useNavigate();
   const { encontros } = useEncontros();
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
-
-  // Sincroniza encontro ativo inicialmente
-  useEffect(() => {
-    if (encontros.length > 0 && !selectedEncontroId) {
-      const active = encontros.find(e => e.ativo);
-      setSelectedEncontroId(active?.id || encontros[0].id);
-    }
-  }, [encontros, selectedEncontroId]);
-
-  const encontroData = encontros.find(e => e.id === selectedEncontroId);
+  const [proofGallery, setProofGallery] = useState<{ equipeNome: string; urls: string[] } | null>(null);
+  const encontroPadraoId = encontros.find(e => e.ativo)?.id || encontros[0]?.id || '';
+  const encontroSelecionadoId = selectedEncontroId || encontroPadraoId;
+  const encontroData = encontros.find(e => e.id === encontroSelecionadoId);
   const valorTaxa = encontroData?.valor_taxa || 0;
 
   // Nossa Camada de Orquestração (Hook Interactor)
@@ -38,7 +33,7 @@ export function TaxasPage() {
     selectedEquipeId,
     searchTerm,
     actions
-  } = useTaxas({ encontroId: selectedEncontroId, valorTaxa });
+  } = useTaxas({ encontroId: encontroSelecionadoId, valorTaxa });
 
   return (
     <div className="fade-in">
@@ -56,7 +51,7 @@ export function TaxasPage() {
 
         <div className="form-group" style={{ marginBottom: 0, minWidth: '220px' }}>
           <LiveSearchSelect
-            value={selectedEncontroId}
+            value={encontroSelecionadoId}
             onChange={val => setSelectedEncontroId(val)}
             fetchData={async (s, p) => await encontroService.buscarComPaginacao(s, p)}
             getOptionLabel={e => e.nome}
@@ -69,7 +64,7 @@ export function TaxasPage() {
       <div style={{ padding: '0 1rem', marginBottom: '1.5rem' }}>
         <PixPaymentInfo 
           chave={encontroData?.pix_taxa_chave}
-          tipo={encontroData?.pix_taxa_tipo as any}
+          tipo={encontroData?.pix_taxa_tipo}
           qrCodeUrl={encontroData?.pix_taxa_qrcode_url}
           variant="compact"
         />
@@ -149,6 +144,7 @@ export function TaxasPage() {
               report={r}
               isSelected={selectedEquipeId === r.equipe_id}
               onClick={() => actions.setSelectedEquipeId(r.equipe_id)}
+              onOpenProofs={(equipeNome, urls) => setProofGallery({ equipeNome, urls })}
             />
           ))}
         </section>
@@ -214,6 +210,14 @@ export function TaxasPage() {
           ))
         )}
       </div>
+      {proofGallery && (
+        <PaymentProofGalleryModal
+          title="Comprovantes de taxas"
+          entityName={proofGallery.equipeNome}
+          urls={proofGallery.urls}
+          onClose={() => setProofGallery(null)}
+        />
+      )}
     </div>
   );
 }

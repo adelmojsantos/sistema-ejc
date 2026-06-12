@@ -332,6 +332,44 @@ export const equipeService = {
             return nextUrls;
         }
     },
+    async removerComprovante(equipeId: string, encontroId: string, url: string, tipo: ComprovanteTipo): Promise<string[]> {
+        const field = tipo === 'taxas' ? 'comprovante_taxas_url' : 'comprovante_camisetas_url';
+        const listField = tipo === 'taxas' ? 'comprovantes_taxas_urls' : 'comprovantes_camisetas_urls';
+
+        const { data: existing, error: selectError } = await supabase
+            .from('equipe_confirmacoes')
+            .select(`id, ${field}, ${listField}`)
+            .eq('equipe_id', equipeId)
+            .eq('encontro_id', encontroId)
+            .maybeSingle();
+
+        if (selectError) throw selectError;
+        if (!existing) return [];
+
+        const currentUrls = normalizeComprovantes(existing[field as keyof typeof existing] as string | null, existing[listField as keyof typeof existing]);
+        const nextUrls = currentUrls.filter(currentUrl => currentUrl !== url);
+        const latestUrl = nextUrls[nextUrls.length - 1] || null;
+
+        const { error: updateError } = await supabase
+            .from('equipe_confirmacoes')
+            .update({ [field]: latestUrl, [listField]: nextUrls })
+            .eq('id', existing.id);
+
+        if (updateError) throw updateError;
+
+        try {
+            const marker = '/storage/v1/object/public/galeria/';
+            const storagePath = decodeURIComponent(new URL(url).pathname.split(marker)[1] || '');
+            if (storagePath) {
+                const { error: storageError } = await supabase.storage.from('galeria').remove([storagePath]);
+                if (storageError) console.error('Erro ao remover arquivo do comprovante:', storageError);
+            }
+        } catch (error) {
+            console.error('Erro ao identificar arquivo do comprovante:', error);
+        }
+
+        return nextUrls;
+    },
     async verificarSeEquipeCompleta(equipeId: string, encontroId: string, isParticipante: boolean): Promise<boolean> {
         const { data, error } = await supabase
             .from('participacoes')

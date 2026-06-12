@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -20,22 +21,6 @@ type DetailsConfig = {
   modeloId: string;
   tamanho: string;
   modeloNome: string;
-};
-
-const getProofType = (url: string) => {
-  const cleanUrl = url.split('?')[0].toLowerCase();
-  if (/\.(png|jpe?g|webp|gif|bmp|avif)$/.test(cleanUrl)) return 'image';
-  if (cleanUrl.endsWith('.pdf')) return 'pdf';
-  return 'file';
-};
-
-const getProofName = (url: string, index: number) => {
-  try {
-    const name = decodeURIComponent(new URL(url).pathname.split('/').pop() || '');
-    return name || `Comprovante ${index + 1}`;
-  } catch {
-    return `Comprovante ${index + 1}`;
-  }
 };
 
 export function PedidosCamisetasPage() {
@@ -80,7 +65,7 @@ export function PedidosCamisetasPage() {
 
   // Bloqueia a rolagem do corpo da página quando um modal está aberto
   useEffect(() => {
-    if (viewDetailsConfig || showPaidIntentions || proofGallery || isAddingOrder) {
+    if (viewDetailsConfig || showPaidIntentions || isAddingOrder) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -88,7 +73,7 @@ export function PedidosCamisetasPage() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [viewDetailsConfig, showPaidIntentions, proofGallery, isAddingOrder]);
+  }, [viewDetailsConfig, showPaidIntentions, isAddingOrder]);
 
   useEffect(() => {
     setIntencaoPaymentFilter('todos');
@@ -564,33 +549,6 @@ export function PedidosCamisetasPage() {
       toast.error('Erro ao remover pedido.');
     } finally {
       setIsDeleting(false);
-    }
-  };
-
-  const handleDownloadProof = async (url: string, index: number) => {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('Download indisponível');
-
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = getProofName(url, index);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(blobUrl);
-    } catch {
-      window.open(url, '_blank', 'noopener,noreferrer');
-    }
-  };
-
-  const handleDownloadAllProofs = async () => {
-    if (!proofGallery) return;
-
-    for (const [index, url] of proofGallery.urls.entries()) {
-      await handleDownloadProof(url, index);
     }
   };
 
@@ -1198,67 +1156,12 @@ export function PedidosCamisetasPage() {
         </div>
         {/* Galeria de comprovantes da equipe */}
         {proofGallery && (
-          <div className="modal-overlay compras-proof-gallery-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)' }}>
-            <div className="modal-content animate-fade-in compras-proof-gallery">
-              <div className="modal-header compras-proof-gallery__header">
-                <div>
-                  <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Comprovantes de camisetas</h2>
-                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', opacity: 0.62 }}>
-                    {proofGallery.equipeNome} · {proofGallery.urls.length} comprovante(s)
-                  </p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {proofGallery.urls.length > 1 && (
-                    <button type="button" className="btn-secondary compras-proof-gallery__download-all" onClick={handleDownloadAllProofs}>
-                      <Download size={16} /> <span>Baixar todos</span>
-                    </button>
-                  )}
-                  <button className="btn-icon" onClick={() => setProofGallery(null)} style={{ margin: 0, display: 'flex' }}>
-                    <X size={20} />
-                  </button>
-                </div>
-              </div>
-              <div className="modal-body">
-                <div className="compras-proof-gallery__grid">
-                  {proofGallery.urls.map((url, index) => {
-                    const proofType = getProofType(url);
-                    const proofName = getProofName(url, index);
-
-                    return (
-                      <article key={`${url}-${index}`} className="compras-proof-gallery__item">
-                        <div className="compras-proof-gallery__preview">
-                          {proofType === 'image' ? (
-                            <img src={url} alt={`Prévia do comprovante ${index + 1}`} />
-                          ) : proofType === 'pdf' ? (
-                            <iframe src={url} title={`Prévia do comprovante ${index + 1}`} />
-                          ) : (
-                            <div className="compras-proof-gallery__file-placeholder">
-                              <FileText size={38} />
-                              <span>Prévia indisponível</span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="compras-proof-gallery__item-footer">
-                          <div title={proofName}>
-                            <strong>Comprovante {index + 1}</strong>
-                            <span>{proofName}</span>
-                          </div>
-                          <div className="compras-proof-gallery__actions">
-                            <a href={url} target="_blank" rel="noreferrer" className="btn-secondary">
-                              <FileText size={15} /> Ver
-                            </a>
-                            <button type="button" className="btn-secondary" onClick={() => handleDownloadProof(url, index)}>
-                              <Download size={15} /> Baixar
-                            </button>
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
+          <PaymentProofGalleryModal
+            title="Comprovantes de camisetas"
+            entityName={proofGallery.equipeNome}
+            urls={proofGallery.urls}
+            onClose={() => setProofGallery(null)}
+          />
         )}
         {/* Modal de todas as intenções pagas */}
         {showPaidIntentions && (

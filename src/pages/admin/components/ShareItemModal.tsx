@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import { Users, Shield, Trash2, Loader, PlusCircle } from 'lucide-react';
 import { bibliotecaService, type BibliotecaCompartilhamento } from '../../../services/bibliotecaService';
-import { useEquipes } from '../../../contexts/EquipeContext';
+import { useEquipes } from '../../../hooks/useEquipes';
 import { toast } from 'react-hot-toast';
 
 interface ShareItemModalProps {

@@ -22,7 +22,7 @@ import type { InscricaoEnriched } from '../../types/inscricao';
 import type { CirculoParticipacaoEnriched } from '../../types/circuloParticipacao';
 
 import { useEncontros } from '../../contexts/EncontroContext';
-import { useEquipes } from '../../contexts/EquipeContext';
+import { useEquipes } from '../../hooks/useEquipes';
 
 /* ------------------------------------------------------------------ */
 

@@ -37,7 +37,7 @@ import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { visitacaoService } from '../../services/visitacaoService';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { useEquipes } from '../../contexts/EquipeContext';
+import { useEquipes } from '../../hooks/useEquipes';
 import type { Encontro } from '../../types/encontro';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { VisitaGrupo, VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';

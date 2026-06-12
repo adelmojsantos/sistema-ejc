@@ -101,12 +101,23 @@ export const visitacaoService = {
 
     // Visit Execution
     async atualizarVisita(id: string, updates: Partial<VisitaParticipacao>): Promise<void> {
-        const { error } = await supabase
+        const { data, error } = await supabase
             .from(PARTICIPACAO_TABLE)
             .update(updates)
-            .eq('id', id);
+            .eq('id', id)
+            .select('participacao_id')
+            .single();
 
         if (error) throw error;
+
+        if (updates.taxa_paga !== undefined) {
+            const { error: participacaoError } = await supabase
+                .from('participacoes')
+                .update({ pago_taxa: updates.taxa_paga })
+                .eq('id', data.participacao_id);
+
+            if (participacaoError) throw participacaoError;
+        }
     },
 
     async uploadFoto(participacaoId: string, file: File): Promise<string> {
