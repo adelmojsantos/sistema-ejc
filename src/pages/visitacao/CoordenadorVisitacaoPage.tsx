@@ -21,9 +21,12 @@ import {
   CheckCircle,
   Clock,
   AlertTriangle,
-  ChevronRight
+  ChevronRight,
+  Camera,
+  Eye,
+  ImagePlus
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { WhatsappLogo } from 'phosphor-react';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
@@ -78,6 +81,10 @@ export function CoordenadorVisitacaoPage() {
   const [monitorFilter, setMonitorFilter] = useState<'todos' | 'pendentes' | 'concluidos' | 'nao_iniciados'>('todos');
   const [selectedDuoForDetails, setSelectedDuoForDetails] = useState<any>(null);
   const [selectedDuoForCanceled, setSelectedDuoForCanceled] = useState<any>(null);
+  const [photoPreviewGroup, setPhotoPreviewGroup] = useState<VisitaGrupo | null>(null);
+  const [photoTargetGroup, setPhotoTargetGroup] = useState<VisitaGrupo | null>(null);
+  const [uploadingGroupId, setUploadingGroupId] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // UI States
   const [isFetching, setIsFetching] = useState(false);
@@ -256,6 +263,60 @@ export function CoordenadorVisitacaoPage() {
       toast.error('Erro ao excluir grupo.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const openGroupPhotoPicker = (group: VisitaGrupo) => {
+    setPhotoTargetGroup(group);
+    photoInputRef.current?.click();
+  };
+
+  const handleGroupPhotoSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !photoTargetGroup) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione uma imagem para a foto da dupla.');
+      return;
+    }
+
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 8MB.');
+      return;
+    }
+
+    const target = photoTargetGroup;
+    setUploadingGroupId(target.id);
+    try {
+      const fotoUrl = await visitacaoService.uploadFotoGrupo(target.id, file);
+      await visitacaoService.atualizarFotoGrupo(target.id, fotoUrl);
+      setGrupos(current => current.map(group => group.id === target.id ? { ...group, foto_url: fotoUrl } : group));
+      setPhotoPreviewGroup(current => current?.id === target.id ? { ...current, foto_url: fotoUrl } : current);
+      toast.success(target.foto_url ? 'Foto da dupla trocada.' : 'Foto da dupla adicionada.');
+    } catch (error) {
+      console.error('Erro ao salvar foto da dupla:', error);
+      toast.error('Erro ao salvar foto da dupla.');
+    } finally {
+      setUploadingGroupId(null);
+      setPhotoTargetGroup(null);
+    }
+  };
+
+  const handleDeleteGroupPhoto = async (group: VisitaGrupo) => {
+    if (!group.foto_url || !confirm(`Deseja excluir a foto da dupla "${group.nome}"?`)) return;
+
+    setUploadingGroupId(group.id);
+    try {
+      await visitacaoService.removerFotoGrupo(group.id, group.foto_url);
+      setGrupos(current => current.map(item => item.id === group.id ? { ...item, foto_url: null } : item));
+      setPhotoPreviewGroup(null);
+      toast.success('Foto da dupla excluída.');
+    } catch (error) {
+      console.error('Erro ao excluir foto da dupla:', error);
+      toast.error('Erro ao excluir foto da dupla.');
+    } finally {
+      setUploadingGroupId(null);
     }
   };
 
@@ -633,14 +694,25 @@ export function CoordenadorVisitacaoPage() {
                   <div style={{ padding: '1.25rem', overflow: 'hidden' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '0.5rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
-                        <div style={{
+                        <button
+                          type="button"
+                          onClick={() => g.foto_url ? setPhotoPreviewGroup(g) : openGroupPhotoPicker(g)}
+                          disabled={uploadingGroupId === g.id}
+                          title={g.foto_url ? 'Ver foto da dupla' : 'Adicionar foto da dupla'}
+                          style={{
                           width: '40px', height: '40px', borderRadius: '10px',
                           background: 'var(--primary-color)15', color: 'var(--primary-color)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
-                          flexShrink: 0
+                          flexShrink: 0, overflow: 'hidden', padding: 0, border: 'none', cursor: 'pointer'
                         }}>
-                          {g.nome?.charAt(0)}
-                        </div>
+                          {uploadingGroupId === g.id ? (
+                            <Loader size={18} className="animate-spin" />
+                          ) : g.foto_url ? (
+                            <img src={g.foto_url} alt={`Foto ${g.nome}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <Camera size={18} />
+                          )}
+                        </button>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           {editingName === g.id ? (
                             <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
@@ -663,6 +735,34 @@ export function CoordenadorVisitacaoPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                               <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.nome}</h4>
                               <div className="duo-actions-on-hover" style={{ display: 'flex', gap: '4px' }}>
+                                {g.foto_url && (
+                                  <button
+                                    onClick={() => setPhotoPreviewGroup(g)}
+                                    className="icon-btn"
+                                    style={{ padding: '2px', opacity: 0.5 }}
+                                    title="Ver foto"
+                                  >
+                                    <Eye size={12} />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => openGroupPhotoPicker(g)}
+                                  className="icon-btn"
+                                  style={{ padding: '2px', opacity: 0.5 }}
+                                  title={g.foto_url ? 'Trocar foto' : 'Adicionar foto'}
+                                >
+                                  <ImagePlus size={12} />
+                                </button>
+                                {g.foto_url && (
+                                  <button
+                                    onClick={() => handleDeleteGroupPhoto(g)}
+                                    className="icon-btn text-danger"
+                                    style={{ padding: '2px', opacity: 0.5 }}
+                                    title="Excluir foto"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => { setEditingName(g.id); setTempName(g.nome || ''); }}
                                   className="icon-btn" style={{ padding: '2px', opacity: 0.5 }}
@@ -934,6 +1034,31 @@ export function CoordenadorVisitacaoPage() {
                 })
               )}
             </div>
+          </Modal>
+
+          <Modal
+            isOpen={!!photoPreviewGroup}
+            onClose={() => setPhotoPreviewGroup(null)}
+            title={`Foto: ${photoPreviewGroup?.nome || 'Dupla'}`}
+            maxWidth="720px"
+          >
+            {photoPreviewGroup?.foto_url && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <img
+                  src={photoPreviewGroup.foto_url}
+                  alt={`Foto da dupla ${photoPreviewGroup.nome}`}
+                  style={{ width: '100%', maxHeight: '62vh', objectFit: 'contain', borderRadius: '12px', background: 'var(--secondary-bg)' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <button type="button" className="btn-secondary" onClick={() => openGroupPhotoPicker(photoPreviewGroup)}>
+                    <ImagePlus size={16} /> Trocar foto
+                  </button>
+                  <button type="button" className="btn-danger-solid" onClick={() => handleDeleteGroupPhoto(photoPreviewGroup)}>
+                    <Trash2 size={16} /> Excluir foto
+                  </button>
+                </div>
+              </div>
+            )}
           </Modal>
 
           <Modal
@@ -1635,6 +1760,13 @@ export function CoordenadorVisitacaoPage() {
         grupos={grupos}
         vinculos={vinculos}
         onSuccess={loadData}
+      />
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleGroupPhotoSelected}
+        style={{ display: 'none' }}
       />
     </>
   );

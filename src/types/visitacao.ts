@@ -6,6 +6,7 @@ export interface VisitaGrupo {
     id: string; // uuid
     encontro_id: string; // uuid
     nome: string | null;
+    foto_url: string | null;
     created_at: string;
 }
 
@@ -44,7 +45,7 @@ export interface VisitaParticipacaoEnriched extends VisitaParticipacao {
     };
 }
 
-export type VisitaGrupoFormData = Omit<VisitaGrupo, 'id' | 'created_at'>;
+export type VisitaGrupoFormData = Omit<VisitaGrupo, 'id' | 'created_at' | 'foto_url'>;
 export type VisitaParticipacaoFormData = {
     grupo_id: string;
     participacao_id: string;

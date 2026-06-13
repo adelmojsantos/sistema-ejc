@@ -51,6 +51,43 @@ export const visitacaoService = {
         if (error) throw error;
     },
 
+    async uploadFotoGrupo(id: string, file: File): Promise<string> {
+        const fileExt = file.name.split('.').pop() || 'jpg';
+        const filePath = `fotos/duplas/${id}_${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+            .from('galeria')
+            .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage.from('galeria').getPublicUrl(filePath);
+        return data.publicUrl;
+    },
+
+    async atualizarFotoGrupo(id: string, fotoUrl: string | null): Promise<void> {
+        const { error } = await supabase
+            .from(GRUPOS_TABLE)
+            .update({ foto_url: fotoUrl })
+            .eq('id', id);
+
+        if (error) throw error;
+    },
+
+    async removerFotoGrupo(id: string, fotoUrl: string): Promise<void> {
+        await this.atualizarFotoGrupo(id, null);
+
+        try {
+            const marker = '/storage/v1/object/public/galeria/';
+            const storagePath = decodeURIComponent(new URL(fotoUrl).pathname.split(marker)[1] || '');
+            if (storagePath) {
+                const { error } = await supabase.storage.from('galeria').remove([storagePath]);
+                if (error) console.error('Erro ao remover foto da dupla:', error);
+            }
+        } catch (error) {
+            console.error('Erro ao identificar foto da dupla:', error);
+        }
+    },
+
     async excluirGrupo(id: string): Promise<void> {
         const { error } = await supabase
             .from(GRUPOS_TABLE)

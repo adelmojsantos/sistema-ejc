@@ -79,8 +79,8 @@ const CATEGORIES: SecretariaCategory[] = [
   {
     id: 'sec-placas-equipes',
     path: '/secretaria/placas-equipes',
-    label: 'Placas das Salas',
-    description: 'Impressão das placas de identificação das salas por equipe.',
+    label: 'Placas',
+    description: 'Impressão das placas de salas e das duplas de visitação.',
     icon: <DoorOpen size={34} />,
     color: '#a16207',
     available: true

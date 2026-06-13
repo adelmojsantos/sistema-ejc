@@ -44,8 +44,11 @@ import liturgiaIcon from '../../assets/liturgia.png';
 import cafeIcon from '../../assets/cafe.png';
 import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
+import { visitacaoService } from '../../services/visitacaoService';
+import { PageHeader } from '../../components/ui/PageHeader';
 import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
+import type { VisitaGrupo, VisitaParticipacaoEnriched } from '../../types/visitacao';
 
 import './SecretariaPlacasEquipesPage.css'
 
@@ -55,6 +58,8 @@ interface PlacaEquipe {
   Icon?: LucideIcon;
   imageSrc?: string;
   colors: string;
+  subtitle?: string;
+  isPhoto?: boolean;
 }
 
 const iconBackgrounds = [
@@ -112,7 +117,12 @@ export function SecretariaPlacasEquipesPage() {
   const [encontros, setEncontros] = useState<Encontro[]>([]);
   const [encontroId, setEncontroId] = useState('');
   const [equipes, setEquipes] = useState<Equipe[]>([]);
+  const [grupos, setGrupos] = useState<VisitaGrupo[]>([]);
+  const [vinculos, setVinculos] = useState<VisitaParticipacaoEnriched[]>([]);
+  const [activeTab, setActiveTab] = useState<'salas' | 'duplas'>('salas');
+  const [paperSize, setPaperSize] = useState<'a4' | 'a5'>('a4');
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingDuplas, setIsLoadingDuplas] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -147,6 +157,38 @@ export function SecretariaPlacasEquipesPage() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!encontroId) {
+      setGrupos([]);
+      setVinculos([]);
+      return;
+    }
+
+    let isMounted = true;
+    const loadDuplas = async () => {
+      setIsLoadingDuplas(true);
+      try {
+        const [gruposData, vinculosData] = await Promise.all([
+          visitacaoService.listarGrupos(encontroId),
+          visitacaoService.listarParticipacaoPorEncontro(encontroId)
+        ]);
+        if (!isMounted) return;
+        setGrupos(gruposData);
+        setVinculos(vinculosData);
+      } catch (error) {
+        console.error('Erro ao carregar duplas para placas:', error);
+        toast.error('Não foi possível carregar as placas das duplas.');
+      } finally {
+        if (isMounted) setIsLoadingDuplas(false);
+      }
+    };
+
+    loadDuplas();
+    return () => {
+      isMounted = false;
+    };
+  }, [encontroId]);
 
   const selectedEncontro = useMemo(
     () => encontros.find((encontro) => encontro.id === encontroId) ?? null,
@@ -229,6 +271,29 @@ export function SecretariaPlacasEquipesPage() {
     });
   }, [equipes]);
 
+  const placasDuplas = useMemo<PlacaEquipe[]>(() => {
+    return grupos.map((grupo, index) => {
+      const visitados = vinculos.filter(vinculo =>
+        vinculo.grupo_id === grupo.id &&
+        !vinculo.visitante &&
+        vinculo.status === 'realizada'
+      ).length;
+
+      return {
+        id: grupo.id,
+        nome: grupo.nome?.trim() || 'Dupla sem nome',
+        imageSrc: grupo.foto_url || undefined,
+        Icon: grupo.foto_url ? undefined : UsersRound,
+        colors: iconBackgrounds[index % iconBackgrounds.length],
+        subtitle: `${visitados} ${visitados === 1 ? 'encontrista' : 'encontristas'}`,
+        isPhoto: !!grupo.foto_url
+      };
+    });
+  }, [grupos, vinculos]);
+
+  const placasAtivas = activeTab === 'salas' ? placas : placasDuplas;
+  const loadingAtivo = isLoading || (activeTab === 'duplas' && isLoadingDuplas);
+
   const handlePrint = () => {
     window.print();
   };
@@ -236,12 +301,33 @@ export function SecretariaPlacasEquipesPage() {
   return (
     <section className="secretaria-placas-page fade-in">
       <div className="placas-controls">
-        <header className="page-header">
-          <div>
-            <h2 className="page-title">Placas das Salas</h2>
-            <p className="text-muted">Gere uma placa em A4 paisagem para cada equipe.</p>
-          </div>
-        </header>
+        <PageHeader
+          title="Placas"
+          subtitle="Secretaria / Impressão"
+          backPath="/secretaria"
+          tabs={(
+            <div className="tabs-modern-container placas-tabs" role="tablist" aria-label="Tipo de placa">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'salas'}
+                className={`tab-btn-modern ${activeTab === 'salas' ? 'active' : ''}`}
+                onClick={() => setActiveTab('salas')}
+              >
+                Salas
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'duplas'}
+                className={`tab-btn-modern ${activeTab === 'duplas' ? 'active' : ''}`}
+                onClick={() => setActiveTab('duplas')}
+              >
+                Duplas
+              </button>
+            </div>
+          )}
+        />
 
         <div className="card placas-toolbar">
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -261,26 +347,48 @@ export function SecretariaPlacasEquipesPage() {
             </select>
           </div>
 
+          {activeTab === 'duplas' && (
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label" htmlFor="paper-size">Tamanho do papel</label>
+              <select
+                id="paper-size"
+                className="form-input"
+                value={paperSize}
+                onChange={(event) => setPaperSize(event.target.value as 'a4' | 'a5')}
+              >
+                <option value="a4">A4 retrato — 4 placas</option>
+                <option value="a5">A5 retrato — 4 placas</option>
+              </select>
+            </div>
+          )}
+
           <button
             type="button"
             className="btn btn-primary common-button"
             onClick={handlePrint}
-            disabled={isLoading || placas.length === 0}
+            disabled={loadingAtivo || placasAtivas.length === 0}
           >
             <Printer size={18} />
             Imprimir PDF
           </button>
         </div>
+
       </div>
 
-      {isLoading ? (
+      {loadingAtivo ? (
         <div className="card text-muted">Carregando placas...</div>
-      ) : placas.length === 0 ? (
-        <div className="card text-muted">Nenhuma equipe cadastrada para gerar placas.</div>
+      ) : placasAtivas.length === 0 ? (
+        <div className="card text-muted">
+          {activeTab === 'salas' ? 'Nenhuma equipe cadastrada para gerar placas.' : 'Nenhuma dupla cadastrada para gerar placas.'}
+        </div>
       ) : (
-        <div className="placas-print-area">
-          {placas.map(({ id, nome, Icon, imageSrc }) => (
-            <article className="placa-page" key={id}>
+        <>
+        <style>{`@media print { @page { size: ${activeTab === 'duplas' ? `${paperSize.toUpperCase()} portrait` : 'A4 landscape'}; margin: 0; } }`}</style>
+        <div className={`placas-print-area placas-print-area--${activeTab} ${activeTab === 'duplas' ? `placas-print-area--${paperSize}` : ''}`}>
+          {placasAtivas.map(({ id, nome, Icon, imageSrc, subtitle, isPhoto }) => {
+            return (
+            <div className="placa-preview-item" key={id}>
+              <article className={`placa-page ${subtitle ? 'placa-page--duo' : ''}`}>
               <div className="placa-page__logos">
                 <div className="placa-page__logo">
                   <img src={logoEjc} alt="Logo EJC" />
@@ -300,22 +408,30 @@ export function SecretariaPlacasEquipesPage() {
               </div>
 
               <div className="placa-page__body">
-                <div className="placa-page__icon" /* style={{ background: colors }} */>
+                <div className={`placa-page__icon ${isPhoto ? 'placa-page__icon--photo' : ''}`}>
                   {imageSrc ? (
-                    <img className="placa-page__icon-image" src={imageSrc} alt="" />
+                    <img
+                      className="placa-page__icon-image"
+                      src={imageSrc}
+                      alt=""
+                    />
                   ) : Icon ? (
                     <Icon strokeWidth={1.7} />
                   ) : null}
                 </div>
-                <h3 className="placa-page__team">{nome}</h3>
+                <h3 className={`placa-page__team ${subtitle ? 'placa-page__team--duo' : ''}`}>{nome}</h3>
+                {subtitle && <p className="placa-page__subtitle">{subtitle}</p>}
               </div>
 
               {/* <div className="placa-page__footer">
                 {selectedEncontro?.nome ?? 'EJC Capelinha'}
               </div> */}
-            </article>
-          ))}
+              </article>
+            </div>
+            );
+          })}
         </div>
+        </>
       )}
     </section>
   );
