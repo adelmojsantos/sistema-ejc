@@ -5,6 +5,7 @@ import {
   Info,
   Loader,
   Plus,
+  Printer,
   Search,
   Download,
   Trash2,
@@ -15,6 +16,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { useDebounce } from '../../hooks/useDebounce';
+import logoEjc from '../../assets/logo-ejc.svg';
 
 import { Modal } from '../../components/ui/Modal';
 
@@ -29,12 +31,24 @@ import { recreacaoService } from '../../services/recreacaoService';
 import type { Encontro } from '../../types/encontro';
 import type { RecreacaoDados } from '../../types/recreacao';
 import { formatChildAge } from '../../utils/ageUtils';
+import './RecreacaoAdminPage.css';
+
+type BadgeBackground = 'white' | 'yellow';
+
+const chunkItems = <T,>(items: T[], size: number): T[][] =>
+  Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
+    items.slice(index * size, index * size + size)
+  );
+
+const getFirstName = (fullName?: string | null) =>
+  fullName?.trim().split(/\s+/)[0] || '';
 
 export function RecreacaoAdminPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
 
   const canChangeEncontro = hasPermission('modulo_admin');
+  const canPrintBadges = hasPermission('modulo_secretaria') || hasPermission('modulo_admin');
 
   const { encontros, encontroAtivo } = useEncontros();
   const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
@@ -51,6 +65,8 @@ export function RecreacaoAdminPage() {
   const [obsToShow, setObsToShow] = useState<string | null>(null);
   const [registroToDelete, setRegistroToDelete] = useState<RecreacaoDados | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showBadges, setShowBadges] = useState(false);
+  const [badgeBackground, setBadgeBackground] = useState<BadgeBackground>('white');
 
   // Seleciona encontro ativo via contexto
   useEffect(() => {
@@ -177,6 +193,29 @@ export function RecreacaoAdminPage() {
     );
   }, [registros, debouncedSearch]);
 
+  const badgePages = useMemo(() => chunkItems(filteredRegistros, 8), [filteredRegistros]);
+  const selectedEncontro = encontros.find(encontro => encontro.id === selectedEncontroId);
+
+  const handlePrintBadges = () => {
+    if (!canPrintBadges) return;
+
+    if (filteredRegistros.length === 0) {
+      toast.error('Não há crianças para imprimir.');
+      return;
+    }
+
+    const previousTitle = document.title;
+    const cleanupPrintMode = () => {
+      document.body.classList.remove('recreacao-badges-printing');
+      document.title = previousTitle;
+    };
+
+    document.title = `Cracha Recreação - ${selectedEncontro?.nome || 'Encontro'}`;
+    document.body.classList.add('recreacao-badges-printing');
+    window.addEventListener('afterprint', cleanupPrintMode, { once: true });
+    window.print();
+  };
+
   return (
     <div className="fade-in">
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
@@ -199,6 +238,17 @@ export function RecreacaoAdminPage() {
             <Download size={18} />
             <span>Exportar Excel</span>
           </button>
+
+          {canPrintBadges && (
+            <button
+              onClick={() => setShowBadges(current => !current)}
+              className="btn-secondary flex items-center gap-2"
+              disabled={isLoading || filteredRegistros.length === 0}
+            >
+              <Printer size={18} />
+              <span>{showBadges ? 'Fechar crachás' : 'Imprimir crachás'}</span>
+            </button>
+          )}
 
           <button onClick={handleAddNew} className="btn-primary flex items-center gap-2">
             <Plus size={18} />
@@ -262,6 +312,95 @@ export function RecreacaoAdminPage() {
           </div>
         </div>
       </div>
+
+      {canPrintBadges && showBadges && filteredRegistros.length > 0 && (
+        <section className="recreacao-badges-panel">
+          <style>{'@media print { @page { margin: 0; size: A4 portrait; } }'}</style>
+          <div className="recreacao-badges-controls">
+            <div>
+              <h2>Prévia dos crachás</h2>
+              <p>
+                {filteredRegistros.length} crachá(s), com 8 por folha A4. A impressão respeita a busca atual.
+              </p>
+            </div>
+
+            <div className="recreacao-badges-actions">
+              <fieldset className="recreacao-badges-background">
+                <legend>Fundo do crachá</legend>
+                <label>
+                  <input
+                    type="radio"
+                    name="badge-background"
+                    value="white"
+                    checked={badgeBackground === 'white'}
+                    onChange={() => setBadgeBackground('white')}
+                  />
+                  Branco / papel amarelo
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="badge-background"
+                    value="yellow"
+                    checked={badgeBackground === 'yellow'}
+                    onChange={() => setBadgeBackground('yellow')}
+                  />
+                  Amarelo impresso
+                </label>
+              </fieldset>
+
+              <button type="button" className="btn-primary flex items-center gap-2" onClick={handlePrintBadges}>
+                <Printer size={18} />
+                Imprimir
+              </button>
+            </div>
+          </div>
+
+          <div className={`recreacao-badges-print-area recreacao-badges-print-area--${badgeBackground}`}>
+            {badgePages.map((page, pageIndex) => (
+              <div className="recreacao-badges-sheet" key={`badge-page-${pageIndex}`}>
+                {page.map(reg => {
+                  const responsaveis = [
+                    getFirstName(reg.participacoes?.pessoas?.nome_completo),
+                    getFirstName(reg.outro_responsavel?.pessoas?.nome_completo)
+                  ].filter(Boolean);
+
+                  return (
+                    <article className="recreacao-badge" key={reg.id}>
+                      <header className="recreacao-badge__header">
+                        <div className="recreacao-badge__logo">
+                          <img src={logoEjc} alt="Logo EJC" />
+                        </div>
+
+                        <div className="recreacao-badge__event">
+                          <strong>
+                            {selectedEncontro?.edicao
+                              ? `${selectedEncontro.edicao}º EJC`
+                              : selectedEncontro?.nome || 'EJC Capelinha'}
+                          </strong>
+                          {selectedEncontro?.tema && <span>{selectedEncontro.tema}</span>}
+                        </div>
+
+                        <div className="recreacao-badge__logo">
+                          {selectedEncontro?.logo_url && (
+                            <img src={selectedEncontro.logo_url} alt={`Logo ${selectedEncontro.nome}`} />
+                          )}
+                        </div>
+                      </header>
+
+                      <div className="recreacao-badge__body">
+                        <h3>{reg.nome_crianca}</h3>
+                        <p>{responsaveis.join(' e ') || 'Não informado'}</p>
+                        <span>Recreação Infantil</span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <p style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600, color: 'var(--muted-text)' }}>
         <strong style={{ color: 'var(--text-color)' }}>{registros.length}</strong> crianças cadastradas

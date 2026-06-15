@@ -1,0 +1,258 @@
+.recreacao-badges-panel {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  margin-bottom: 2rem;
+  overflow: hidden;
+}
+
+.recreacao-badges-controls {
+  align-items: center;
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  padding: 1.25rem;
+}
+
+.recreacao-badges-controls h2 {
+  font-size: 1.15rem;
+  margin: 0 0 0.25rem;
+}
+
+.recreacao-badges-controls p {
+  color: var(--muted-text);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.recreacao-badges-actions {
+  align-items: flex-end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.recreacao-badges-background {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  display: flex;
+  gap: 1rem;
+  margin: 0;
+  padding: 0.55rem 0.8rem 0.65rem;
+}
+
+.recreacao-badges-background legend {
+  color: var(--muted-text);
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 0 0.25rem;
+  text-transform: uppercase;
+}
+
+.recreacao-badges-background label {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  font-size: 0.8rem;
+  font-weight: 700;
+  gap: 0.35rem;
+}
+
+.recreacao-badges-print-area {
+  background: #e8ebef;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow-x: auto;
+  padding: 1.5rem;
+}
+
+.recreacao-badges-sheet {
+  align-content: center;
+  background: #fff;
+  box-shadow: 0 8px 26px rgba(15, 23, 42, 0.14);
+  box-sizing: border-box;
+  display: grid;
+  flex: none;
+  gap: 0;
+  grid-template-columns: repeat(2, 100mm);
+  grid-template-rows: repeat(4, 70mm);
+  justify-content: center;
+  margin: 0 auto;
+  min-height: 297mm;
+  padding: 8.5mm 5mm;
+  width: 210mm;
+}
+
+.recreacao-badge {
+  background: #fff;
+  border: 0.5mm dashed #1f4f8b;
+  box-sizing: border-box;
+  color: #17365d;
+  display: grid;
+  grid-template-rows: 22mm 1fr;
+  height: 70mm;
+  overflow: hidden;
+  padding: 4mm 5mm;
+  position: relative;
+  width: 100mm;
+}
+
+.recreacao-badges-print-area--yellow .recreacao-badge {
+  background: #fff4b8;
+}
+
+.recreacao-badge::after {
+  border: 0.6mm solid #f4bd29;
+  border-radius: 50%;
+  content: "";
+  height: 12mm;
+  opacity: 0.85;
+  position: absolute;
+  right: -5mm;
+  top: -5mm;
+  width: 12mm;
+}
+
+.recreacao-badge__header {
+  align-items: start;
+  display: grid;
+  gap: 2mm;
+  grid-template-columns: 20mm minmax(0, 1fr) 20mm;
+  min-width: 0;
+}
+
+.recreacao-badge__logo {
+  align-items: center;
+  display: flex;
+  height: 18mm;
+  justify-content: center;
+  min-width: 0;
+}
+
+.recreacao-badge__logo img {
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.recreacao-badge__event {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 18mm;
+  min-width: 0;
+  text-align: center;
+}
+
+.recreacao-badge__event strong {
+  color: #1f4f8b;
+  font-size: 4mm;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.recreacao-badge__event span {
+  color: #71591b;
+  font-size: 3.5mm;
+  font-weight: 800;
+  margin-top: 1mm;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.recreacao-badge__body {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+  text-align: center;
+}
+
+.recreacao-badge__body h3 {
+  color: #17365d;
+  font-size: 7mm;
+  font-weight: 950;
+  line-height: 0.98;
+  margin: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.recreacao-badge__body p {
+  color: #17365d;
+  font-size: 4mm;
+  font-weight: 800;
+  line-height: 1.05;
+  margin: 3mm 0 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.recreacao-badge__body span {
+  color: #71591b;
+  font-size: 2.4mm;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  margin-bottom: 2mm;
+  text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .recreacao-badges-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recreacao-badges-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media print {
+  body.recreacao-badges-printing {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body.recreacao-badges-printing * {
+    visibility: hidden !important;
+  }
+
+  body.recreacao-badges-printing .recreacao-badges-print-area,
+  body.recreacao-badges-printing .recreacao-badges-print-area * {
+    visibility: visible !important;
+  }
+
+  body.recreacao-badges-printing .recreacao-badges-print-area {
+    background: #fff;
+    border: 0;
+    display: block;
+    left: 0;
+    overflow: visible;
+    padding: 0;
+    position: absolute;
+    top: 0;
+    width: 210mm;
+  }
+
+  body.recreacao-badges-printing .recreacao-badges-sheet {
+    break-after: page;
+    box-shadow: none;
+    margin: 0;
+    page-break-after: always;
+  }
+
+  body.recreacao-badges-printing .recreacao-badges-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
