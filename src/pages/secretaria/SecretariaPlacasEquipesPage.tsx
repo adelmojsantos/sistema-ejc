@@ -113,16 +113,24 @@ const teamIcons: Record<string, LucideIcon> = {
   visitacao: Footprints
 };
 
-export function SecretariaPlacasEquipesPage() {
+interface SecretariaPlacasEquipesPageProps {
+  mode?: 'salas' | 'duplas';
+}
+
+export function SecretariaPlacasEquipesPage({ mode }: SecretariaPlacasEquipesPageProps) {
   const [encontros, setEncontros] = useState<Encontro[]>([]);
   const [encontroId, setEncontroId] = useState('');
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [grupos, setGrupos] = useState<VisitaGrupo[]>([]);
   const [vinculos, setVinculos] = useState<VisitaParticipacaoEnriched[]>([]);
-  const [activeTab, setActiveTab] = useState<'salas' | 'duplas'>('salas');
+  const [activeTab, setActiveTab] = useState<'salas' | 'duplas'>(mode ?? 'salas');
   const [paperSize, setPaperSize] = useState<'a4' | 'a5'>('a4');
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingDuplas, setIsLoadingDuplas] = useState(false);
+
+  useEffect(() => {
+    if (mode) setActiveTab(mode);
+  }, [mode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -295,6 +303,12 @@ export function SecretariaPlacasEquipesPage() {
   const loadingAtivo = isLoading || (activeTab === 'duplas' && isLoadingDuplas);
 
   const handlePrint = () => {
+    const cleanupPrintClass = () => {
+      document.body.classList.remove('placas-equipes-printing');
+    };
+
+    document.body.classList.add('placas-equipes-printing');
+    window.addEventListener('afterprint', cleanupPrintClass, { once: true });
     window.print();
   };
 
@@ -302,10 +316,10 @@ export function SecretariaPlacasEquipesPage() {
     <section className="secretaria-placas-page fade-in">
       <div className="placas-controls">
         <PageHeader
-          title="Placas"
-          subtitle="Secretaria / Impressão"
-          backPath="/secretaria"
-          tabs={(
+          title={activeTab === 'salas' ? 'Placa das Salas' : 'Placa de duplas'}
+          subtitle="Secretaria / Impressos"
+          backPath="/secretaria/impressos"
+          tabs={!mode ? (
             <div className="tabs-modern-container placas-tabs" role="tablist" aria-label="Tipo de placa">
               <button
                 type="button"
@@ -326,7 +340,7 @@ export function SecretariaPlacasEquipesPage() {
                 Duplas
               </button>
             </div>
-          )}
+          ) : undefined}
         />
 
         <div className="card placas-toolbar">

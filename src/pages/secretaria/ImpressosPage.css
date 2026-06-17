@@ -1,0 +1,35 @@
+.impressos-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.impressos-list {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.impressos-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  color: var(--text-color);
+  cursor: pointer;
+  min-height: 62px;
+  padding: 0.85rem 1rem;
+  text-align: center;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.impressos-card:hover {
+  border-color: rgba(var(--primary-rgb), 0.45);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.impressos-card strong {
+  display: block;
+  font-size: 0.98rem;
+  line-height: 1.2;
+}

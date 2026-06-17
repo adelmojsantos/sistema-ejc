@@ -66,8 +66,10 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
     if (path.startsWith('/secretaria/encontreiros')) return 'Encontreiros';
     if (path.startsWith('/secretaria/lista-espera')) return 'Lista de Espera';
     if (path.startsWith('/secretaria/confirmacoes')) return 'Relatório de Confirmações';
-    if (path.startsWith('/secretaria/placas-equipes')) return 'Placas';
+    if (path.startsWith('/secretaria/impressos')) return 'Impressos';
+    if (path.startsWith('/secretaria/placas-equipes')) return 'Impressos';
     if (path.startsWith('/palestras')) return 'Palestras';
+    if (path.startsWith('/relatorios')) return 'Impressos';
     if (path.startsWith('/recepcao')) return 'Recepção';
     if (path.startsWith('/recreacao')) return 'Recreação Infantil';
     if (path.startsWith('/secretaria')) return 'Secretaria';

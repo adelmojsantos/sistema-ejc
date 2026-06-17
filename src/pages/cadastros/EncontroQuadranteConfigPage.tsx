@@ -34,6 +34,13 @@ const visibilityOptions: { key: keyof QuadranteVisibilityConfig; label: string; 
     { key: 'palestras', label: 'Palestras', description: 'Lista de palestras e resumos.' },
 ];
 
+const sanitizeFileName = (value: string) =>
+    value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
 export function EncontroQuadranteConfigPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -234,6 +241,33 @@ export function EncontroQuadranteConfigPage() {
         link.href = url;
         link.click();
         toast.success('Download do QR Code iniciado com margens!');
+    };
+
+    const handleViewLogo = () => {
+        if (!logoUrl) return;
+        window.open(logoUrl, '_blank', 'noopener,noreferrer');
+    };
+
+    const handleDownloadLogo = async () => {
+        if (!logoUrl) return;
+
+        try {
+            const response = await fetch(logoUrl);
+            if (!response.ok) throw new Error('Erro ao baixar logo.');
+
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            const extension = blob.type.split('/')[1] || 'png';
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = `logo-quadrante-${sanitizeFileName(encontro?.nome || 'encontro')}.${extension}`;
+            link.click();
+            URL.revokeObjectURL(objectUrl);
+            toast.success('Download da logo iniciado.');
+        } catch (error) {
+            console.error('Erro ao baixar logo:', error);
+            toast.error('Não foi possível baixar a logo.');
+        }
     };
 
     if (loading) return <div className="p-8 text-center">Carregando...</div>;
@@ -484,13 +518,29 @@ export function EncontroQuadranteConfigPage() {
                                         <Upload size={16} /> {uploadingLogo ? 'Enviando...' : logoUrl ? 'Trocar logo' : 'Enviar logo'}
                                     </button>
                                     {logoUrl && (
-                                        <button
-                                            type="button"
-                                            className="btn-outline compact-danger"
-                                            onClick={() => setLogoUrl('')}
-                                        >
-                                            <X size={16} /> Remover
-                                        </button>
+                                        <>
+                                            <button
+                                                type="button"
+                                                className="btn-outline"
+                                                onClick={handleViewLogo}
+                                            >
+                                                <Eye size={16} /> Visualizar
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn-outline"
+                                                onClick={handleDownloadLogo}
+                                            >
+                                                <Download size={16} /> Baixar
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn-outline compact-danger"
+                                                onClick={() => setLogoUrl('')}
+                                            >
+                                                <X size={16} /> Remover
+                                            </button>
+                                        </>
                                     )}
                                     <p className="field-hint">Use uma imagem quadrada ou com fundo transparente para melhor resultado.</p>
                                 </div>

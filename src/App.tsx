@@ -42,6 +42,7 @@ import { CuidadosPage } from './pages/cuidados/CuidadosPage';
 import { LigacaoPage } from './pages/ligacao/LigacaoPage';
 import { RecepcaoAdminPage } from './pages/recepcao/RecepcaoAdminPage';
 import { RecreacaoAdminPage } from './pages/recreacao/RecreacaoAdminPage';
+import { RelatoriosPage } from './pages/relatorios/RelatoriosPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { Home } from './pages/Home';
 import LandingPage from './pages/LandingPage';
@@ -58,6 +59,8 @@ import { SecretariaParticipantesPage } from './pages/secretaria/SecretariaPartic
 import { SecretariaEncontreirosPage } from './pages/secretaria/SecretariaEncontreirosPage';
 import { GerenciarListaEsperaPage } from './pages/secretaria/GerenciarListaEsperaPage';
 import { SecretariaFotosPage } from './pages/secretaria/SecretariaFotosPage';
+import { ImpressosPage } from './pages/secretaria/ImpressosPage';
+import { IdentificacaoCarrosPage } from './pages/secretaria/IdentificacaoCarrosPage';
 import { SecretariaPlacasEquipesPage } from './pages/secretaria/SecretariaPlacasEquipesPage';
 import { LabelGeneratorPage } from './pages/secretaria/LabelGeneratorPage';
 import { ComprasPage } from './pages/compras/ComprasPage';
@@ -214,7 +217,13 @@ function AnimatedRoutes() {
             <Route path="encontreiros" element={<SecretariaEncontreirosPage />} />
             <Route path="lista-espera" element={<GerenciarListaEsperaPage />} />
             <Route path="fotos-equipes" element={<SecretariaFotosPage />} />
-            <Route path="placas-equipes" element={<SecretariaPlacasEquipesPage />} />
+            <Route path="placas-equipes" element={<Navigate to="/secretaria/impressos" replace />} />
+            <Route path="impressos" element={<ImpressosPage />} />
+            <Route path="impressos/placas-salas" element={<SecretariaPlacasEquipesPage mode="salas" />} />
+            <Route path="impressos/placas-duplas" element={<SecretariaPlacasEquipesPage mode="duplas" />} />
+            <Route path="impressos/relacao-crachas" element={<RelatoriosPage mode="relacao-crachas" />} />
+            <Route path="impressos/crachas-mesa" element={<RelatoriosPage mode="crachas-mesa" />} />
+            <Route path="impressos/identificacao-carros" element={<IdentificacaoCarrosPage />} />
             <Route path="etiquetas" element={<LabelGeneratorPage />} />
           </Route>
 
@@ -354,6 +363,12 @@ function AnimatedRoutes() {
           <Route path="/palestras" element={
             <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
               <PalestrasModulePage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/relatorios" element={
+            <ProtectedRoute requiredPermissions={['modulo_secretaria', 'modulo_admin']}>
+              <Navigate to="/secretaria/impressos" replace />
             </ProtectedRoute>
           } />
 

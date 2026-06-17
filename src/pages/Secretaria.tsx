@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { CheckCircle, FileSpreadsheet, FileText, Users, ListChecks, MapPin, DoorOpen, Tags } from 'lucide-react';
+import { CheckCircle, FileSpreadsheet, FileText, Users, ListChecks, MapPin, Printer, Tags } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 interface SecretariaCategory {
@@ -77,11 +77,11 @@ const CATEGORIES: SecretariaCategory[] = [
     available: true
   },
   {
-    id: 'sec-placas-equipes',
-    path: '/secretaria/placas-equipes',
-    label: 'Placas',
-    description: 'Impressão das placas de salas e das duplas de visitação.',
-    icon: <DoorOpen size={34} />,
+    id: 'sec-impressos',
+    path: '/secretaria/impressos',
+    label: 'Impressos',
+    description: 'Central de placas, relações e crachás para impressão.',
+    icon: <Printer size={34} />,
     color: '#a16207',
     available: true
   },
