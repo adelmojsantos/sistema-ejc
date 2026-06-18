@@ -15,7 +15,7 @@ export type LabelTextTransform = 'none' | 'uppercase' | 'lowercase' | 'capitaliz
 export type LabelTextAlign = 'left' | 'center' | 'right';
 export type SheetSize = 'a4' | 'letter' | 'custom';
 export type SheetOrientation = 'portrait' | 'landscape';
-export type LabelGrouping = 'none' | 'circulo' | 'equipe';
+export type LabelGrouping = 'none' | 'circulo' | 'equipe' | 'dupla';
 export type LabelTeamColor = 'verde' | 'amarela' | 'vermelha';
 
 export interface LabelField {
@@ -77,6 +77,8 @@ export interface LabelDataItem {
   equipe: string;
   equipeId: string | null;
   equipeCor: LabelTeamColor | null;
+  visitaGrupoId: string | null;
+  visitaGrupo: string;
   circulo: string;
   funcao: string;
   telefone: string;
@@ -84,7 +86,7 @@ export interface LabelDataItem {
   codigo: string;
   qrCode: string;
   imagem: string;
-  tipo: 'participante' | 'encontreiro';
+  tipo: 'participante' | 'encontreiro' | 'equipe';
   status: 'confirmado' | 'pendente';
 }
 
@@ -93,6 +95,7 @@ export interface LabelDataFilters {
   equipeId: string;
   equipeCor: '' | LabelTeamColor;
   equipeIds: string[];
+  visitaGrupoId: string;
   circulo: string;
   status: string;
   tipo: string;

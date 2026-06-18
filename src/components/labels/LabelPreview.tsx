@@ -22,7 +22,7 @@ export function LabelPreview({ template, items }: LabelPreviewProps) {
       </div>
       {mode === 'labels' ? (
         <div className="label-readable-preview">
-          {items.slice(0, 12).map((item) => <LabelCanvas key={item.id} template={template} item={item} />)}
+          {items.slice(0, 12).map((item, index) => <LabelCanvas key={`${item.id}-${index}`} template={template} item={item} />)}
           {items.length > 12 && <p>Exibindo 12 de {items.length} etiquetas. Todas serão incluídas na impressão.</p>}
         </div>
       ) : (

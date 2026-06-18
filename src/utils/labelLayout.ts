@@ -8,7 +8,7 @@ export const SHEET_SIZES = {
 const now = new Date().toISOString();
 
 export const DEFAULT_LABEL_TEMPLATE: LabelTemplate = {
-  id: 'default-colacril-6180',
+  id: '',
   name: 'Carta 30 etiquetas - 66,7 x 25,4 mm',
   width: 66.7,
   height: 25.4,
@@ -178,18 +178,45 @@ export function paginateLabels(items: LabelDataItem[], settings: PrintSettings) 
 
 export function sortLabelItems(items: LabelDataItem[], grouping: LabelGrouping = 'none') {
   return [...items].sort((a, b) => {
-    const groupA = grouping === 'equipe' ? a.equipe : grouping === 'circulo' ? a.circulo : '';
-    const groupB = grouping === 'equipe' ? b.equipe : grouping === 'circulo' ? b.circulo : '';
+    const groupA = getLabelGroupValue(a, grouping);
+    const groupB = getLabelGroupValue(b, grouping);
     const groupComparison = groupA.localeCompare(groupB, 'pt-BR', { sensitivity: 'base' });
     if (groupComparison !== 0) return groupComparison;
-    return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
+    return (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' });
   });
+}
+
+export function getLabelGroupValue(item: LabelDataItem, grouping: LabelGrouping = 'none') {
+  if (grouping === 'equipe') return item.equipe || 'Sem equipe';
+  if (grouping === 'circulo') return item.circulo || 'Sem circulo';
+  if (grouping === 'dupla') return item.visitaGrupo || 'Sem dupla';
+  return '';
 }
 
 export function matchesLabelTeamScope(item: LabelDataItem, filters: LabelDataFilters) {
   if (filters.equipeCor && item.equipeCor !== filters.equipeCor) return false;
   if (filters.equipeIds.length > 0 && (!item.equipeId || !filters.equipeIds.includes(item.equipeId))) return false;
   return true;
+}
+
+export function matchesLabelFilters(item: LabelDataItem, filters: LabelDataFilters) {
+  const search = filters.search.toLocaleLowerCase('pt-BR').trim();
+  const searchable = [
+    item.nome,
+    item.equipe,
+    item.circulo,
+    item.visitaGrupo,
+  ].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
+
+  return (
+    (!search || searchable.includes(search)) &&
+    (!filters.equipeId || item.equipeId === filters.equipeId) &&
+    matchesLabelTeamScope(item, filters) &&
+    (!filters.visitaGrupoId || item.visitaGrupoId === filters.visitaGrupoId) &&
+    (!filters.circulo || item.circulo === filters.circulo) &&
+    (!filters.status || item.status === filters.status) &&
+    (!filters.tipo || item.tipo === filters.tipo)
+  );
 }
 
 export function validateLabelLayout(template: LabelTemplate): string[] {
@@ -225,6 +252,8 @@ export const LABEL_PREVIEW_ITEM: LabelDataItem = {
   equipe: 'Secretaria',
   equipeId: null,
   equipeCor: 'verde',
+  visitaGrupoId: null,
+  visitaGrupo: 'Dupla João e Ana',
   circulo: 'São Lucas',
   funcao: 'Coordenadora',
   telefone: '(11) 99999-9999',

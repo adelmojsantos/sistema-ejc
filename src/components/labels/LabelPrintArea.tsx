@@ -35,7 +35,7 @@ export const LabelPrintArea = forwardRef<HTMLDivElement, LabelPrintAreaProps>(fu
               rowGap: `${template.printSettings.verticalGap}mm`,
             }}
           >
-            {page.map((item) => <LabelCanvas key={item.id} template={template} item={item} />)}
+            {page.map((item, itemIndex) => <LabelCanvas key={`${item.id}-${pageIndex}-${itemIndex}`} template={template} item={item} />)}
           </div>
         </section>
       ))}

@@ -17,12 +17,12 @@ import { labelTemplateService } from '../../services/labelTemplateService';
 import { labelPdfService } from '../../services/labelPdfService';
 import type { Encontro } from '../../types/encontro';
 import type { LabelDataFilters, LabelDataItem, LabelGrouping, LabelTemplate } from '../../types/label';
-import { cloneDefaultLabelTemplate, getOrientedSheetDimensions, matchesLabelTeamScope, sortLabelItems, validateLabelLayout } from '../../utils/labelLayout';
+import { cloneDefaultLabelTemplate, getOrientedSheetDimensions, matchesLabelFilters, sortLabelItems, validateLabelLayout } from '../../utils/labelLayout';
 import './LabelGeneratorPage.css';
 
 type GeneratorTab = 'modelo' | 'dados' | 'preview';
 
-const initialFilters: LabelDataFilters = { search: '', equipeId: '', equipeCor: '', equipeIds: [], circulo: '', status: '', tipo: '' };
+const initialFilters: LabelDataFilters = { search: '', equipeId: '', equipeCor: '', equipeIds: [], visitaGrupoId: '', circulo: '', status: '', tipo: '' };
 
 export function LabelGeneratorPage() {
   const { encontros, encontroAtivo } = useEncontros();
@@ -40,13 +40,46 @@ export function LabelGeneratorPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [labelQuantity, setLabelQuantity] = useState(1);
   const printRef = useRef<HTMLDivElement>(null);
 
+  const equipeItems = useMemo<LabelDataItem[]>(() => equipes
+    .filter((equipe) => !equipe.deleted_at)
+    .map((equipe) => {
+      const nome = equipe.nome?.trim() || 'Equipe sem nome';
+      return {
+        id: `equipe-${equipe.id}`,
+        nome,
+        equipe: nome,
+        equipeId: equipe.id,
+        equipeCor: equipe.acesso_plenario || null,
+        visitaGrupoId: null,
+        visitaGrupo: '',
+        circulo: '',
+        funcao: 'Equipe',
+        telefone: '',
+        observacao: '',
+        codigo: equipe.id.slice(0, 8).toUpperCase(),
+        qrCode: equipe.id,
+        imagem: equipe.foto_url || '',
+        tipo: 'equipe',
+        status: 'confirmado',
+      };
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })),
+  [equipes]);
+
+  const allItems = useMemo(() => [...items, ...equipeItems], [equipeItems, items]);
+
   const selectedItems = useMemo(
-    () => sortLabelItems(items.filter((item) => selectedIds.has(item.id) && matchesLabelTeamScope(item, filters)), grouping),
-    [filters, grouping, items, selectedIds],
+    () => sortLabelItems(allItems.filter((item) => selectedIds.has(item.id) && matchesLabelFilters(item, filters)), grouping),
+    [allItems, filters, grouping, selectedIds],
   );
-  const pages = useLabelPagination(selectedItems, template.printSettings);
+  const repeatedItems = useMemo(
+    () => selectedItems.flatMap((item) => Array.from({ length: labelQuantity }, () => item)),
+    [labelQuantity, selectedItems],
+  );
+  const pages = useLabelPagination(repeatedItems, template.printSettings);
   const sheet = getOrientedSheetDimensions(template.printSettings);
   const layoutErrors = useMemo(() => validateLabelLayout(template), [template]);
 
@@ -167,7 +200,7 @@ export function LabelGeneratorPage() {
   };
 
   const duplicateTemplate = () => {
-    setTemplate({ ...JSON.parse(JSON.stringify(template)) as LabelTemplate, id: '', name: `${template.name} - cópia`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    setTemplate({ ...JSON.parse(JSON.stringify(template)) as LabelTemplate, id: '', name: 'Novo modelo', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     toast.success('Cópia criada. Ajuste o nome e salve o novo modelo.');
   };
 
@@ -182,18 +215,20 @@ export function LabelGeneratorPage() {
 
   const print = () => {
     if (selectedItems.length === 0) return toast.error('Selecione ao menos um registro.');
+    if (labelQuantity < 1) return toast.error('Informe ao menos 1 etiqueta por registro.');
     if (layoutErrors.length > 0) return toast.error('Corrija a grade da folha antes de imprimir.');
     handlePrint();
   };
 
   const exportPdf = async () => {
     if (selectedItems.length === 0) return toast.error('Selecione ao menos um registro.');
+    if (labelQuantity < 1) return toast.error('Informe ao menos 1 etiqueta por registro.');
     if (layoutErrors.length > 0) return toast.error('Corrija a grade da folha antes de gerar o PDF.');
     if (!printRef.current) return toast.error('A área de etiquetas ainda não está pronta.');
 
     setIsGeneratingPdf(true);
     try {
-      await labelPdfService.gerar(printRef.current, template, selectedItems);
+      await labelPdfService.gerar(printRef.current, template, repeatedItems);
       toast.success('PDF gerado com sucesso.');
     } catch (error) {
       console.error(error);
@@ -221,7 +256,7 @@ export function LabelGeneratorPage() {
         tabs={(
           <div className="label-steps">
             <button type="button" className={activeTab === 'modelo' ? 'is-active' : ''} onClick={() => setActiveTab('modelo')}><b>1</b><span><strong>Monte a etiqueta</strong><small>Conteúdo e aparência</small></span></button>
-            <button type="button" className={activeTab === 'dados' ? 'is-active' : ''} onClick={() => setActiveTab('dados')}><b>2</b><span><strong>Escolha as pessoas</strong><small>{selectedItems.length} serão geradas</small></span></button>
+            <button type="button" className={activeTab === 'dados' ? 'is-active' : ''} onClick={() => setActiveTab('dados')}><b>2</b><span><strong>Escolha os dados</strong><small>{repeatedItems.length} serão geradas</small></span></button>
             <button type="button" className={activeTab === 'preview' ? 'is-active' : ''} onClick={() => setActiveTab('preview')}><b>3</b><span><strong>Confira e gere</strong><small>{pages.length} página(s)</small></span></button>
           </div>
         )}
@@ -246,6 +281,20 @@ export function LabelGeneratorPage() {
             {templates.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
           </select>
         </label>
+        <label className="standard-label-group label-quantity-field">
+          <span className="form-label standard-label">Qtd. por registro</span>
+          <input
+            className="form-input"
+            type="number"
+            min={1}
+            max={999}
+            value={labelQuantity}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              setLabelQuantity(Number.isFinite(value) ? Math.max(1, Math.min(999, value)) : 1);
+            }}
+          />
+        </label>
         <div className="label-model-actions">
           <button type="button" className="btn-secondary-sm" onClick={duplicateTemplate}><CopyPlus size={16} /> Criar cópia</button>
           <button type="button" className="btn-primary-sm" onClick={saveTemplate} disabled={isSaving}>{isSaving ? <Loader className="animate-spin" size={16} /> : <Save size={16} />} Salvar</button>
@@ -256,11 +305,14 @@ export function LabelGeneratorPage() {
       {layoutErrors.length > 0 && <div className="label-layout-warning"><strong>A grade não cabe na folha:</strong> {layoutErrors.join(' ')}</div>}
 
       {activeTab === 'modelo' && <LabelTemplateEditor template={template} selectedFieldId={selectedFieldId} onSelectedFieldChange={setSelectedFieldId} onChange={setTemplate} />}
-      {activeTab === 'dados' && <LabelDataSelector items={items} selectedIds={selectedIds} filters={filters} equipes={equipes} grouping={grouping} isLoading={isLoadingData} onFiltersChange={setFilters} onGroupingChange={setGrouping} onToggle={toggleSelection} onSelectAll={(ids) => setSelectedIds(new Set(ids))} onClear={() => setSelectedIds(new Set())} />}
+      {activeTab === 'dados' && <LabelDataSelector items={allItems} selectedIds={selectedIds} filters={filters} equipes={equipes} grouping={grouping} isLoading={isLoadingData} onFiltersChange={setFilters} onGroupingChange={setGrouping} onToggle={toggleSelection} onSelectAll={(ids) => setSelectedIds(new Set(ids))} onClear={() => setSelectedIds(new Set())} />}
       {activeTab === 'preview' && (
         <div className="label-preview-panel">
-          <div className="label-print-guidance"><strong>{selectedItems.length} etiquetas em {pages.length} página(s).</strong><span>O PDF será gerado diretamente com o tamanho e as margens configuradas.</span></div>
-          <LabelPreview template={template} items={selectedItems} />
+          <div className="label-print-guidance">
+            <strong>{repeatedItems.length} etiquetas em {pages.length} página(s).</strong>
+            <span>{selectedItems.length} registro(s) selecionado(s), {labelQuantity} etiqueta(s) por registro.</span>
+          </div>
+          <LabelPreview template={template} items={repeatedItems} />
         </div>
       )}
 
@@ -281,7 +333,7 @@ export function LabelGeneratorPage() {
 
       <div className="label-print-only"><LabelPrintArea ref={printRef} template={template} pages={pages} /></div>
 
-      <ConfirmDialog isOpen={showDeleteConfirm} title="Excluir modelo?" message={`O modelo “${template.name}” será removido deste navegador.`} confirmText="Excluir" isDestructive onConfirm={deleteTemplate} onCancel={() => setShowDeleteConfirm(false)} />
+      <ConfirmDialog isOpen={showDeleteConfirm} title="Excluir modelo?" message={`O modelo “${template.name}” será removido do banco de dados.`} confirmText="Excluir" isDestructive onConfirm={deleteTemplate} onCancel={() => setShowDeleteConfirm(false)} />
     </section>
   );
 }

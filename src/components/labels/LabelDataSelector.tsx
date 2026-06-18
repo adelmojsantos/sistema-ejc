@@ -2,7 +2,7 @@ import { CheckSquare, ChevronDown, Loader, Search, Square, Users, X } from 'luci
 import { useMemo } from 'react';
 import type { Equipe } from '../../types/equipe';
 import type { LabelDataFilters, LabelDataItem, LabelGrouping, LabelTeamColor } from '../../types/label';
-import { matchesLabelTeamScope, sortLabelItems } from '../../utils/labelLayout';
+import { getLabelGroupValue, matchesLabelFilters, sortLabelItems } from '../../utils/labelLayout';
 
 interface LabelDataSelectorProps {
   items: LabelDataItem[];
@@ -31,23 +31,25 @@ export function LabelDataSelector({
   onSelectAll,
   onClear,
 }: LabelDataSelectorProps) {
-  const circles = useMemo(() => [...new Set(items.map((item) => item.circulo))].sort(), [items]);
+  const circles = useMemo(() => [...new Set(items.map((item) => item.circulo).filter(Boolean))].sort(), [items]);
+  const visitGroups = useMemo(
+    () => Array.from(
+      items.reduce((map, item) => {
+        if (item.visitaGrupoId) map.set(item.visitaGrupoId, item.visitaGrupo || 'Sem dupla');
+        return map;
+      }, new Map<string, string>()),
+      ([id, nome]) => ({ id, nome }),
+    ).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })),
+    [items],
+  );
   const filtered = useMemo(() => {
-    const search = filters.search.toLocaleLowerCase('pt-BR').trim();
-    return sortLabelItems(items.filter((item) =>
-      (!search || `${item.nome} ${item.equipe} ${item.circulo}`.toLocaleLowerCase('pt-BR').includes(search)) &&
-      (!filters.equipeId || item.equipeId === filters.equipeId) &&
-      matchesLabelTeamScope(item, filters) &&
-      (!filters.circulo || item.circulo === filters.circulo) &&
-      (!filters.status || item.status === filters.status) &&
-      (!filters.tipo || item.tipo === filters.tipo)
-    ), grouping);
+    return sortLabelItems(items.filter((item) => matchesLabelFilters(item, filters)), grouping);
   }, [filters, grouping, items]);
 
   const setFilter = <K extends keyof LabelDataFilters>(key: K, value: LabelDataFilters[K]) => onFiltersChange({ ...filters, [key]: value });
   const toggleEquipe = (id: string) => setFilter('equipeIds', filters.equipeIds.includes(id) ? filters.equipeIds.filter((item) => item !== id) : [...filters.equipeIds, id]);
-  const groupLabel = (item: LabelDataItem) => grouping === 'equipe' ? item.equipe : grouping === 'circulo' ? item.circulo : '';
-  const printableSelectedCount = useMemo(() => items.filter((item) => selectedIds.has(item.id) && matchesLabelTeamScope(item, filters)).length, [filters, items, selectedIds]);
+  const groupLabel = (item: LabelDataItem) => getLabelGroupValue(item, grouping);
+  const printableSelectedCount = useMemo(() => items.filter((item) => selectedIds.has(item.id) && matchesLabelFilters(item, filters)).length, [filters, items, selectedIds]);
 
   return (
     <div className="label-selector">
@@ -62,6 +64,7 @@ export function LabelDataSelector({
             <option value="none">Somente ordem alfabética</option>
             <option value="circulo">Círculo</option>
             <option value="equipe">Equipe</option>
+            <option value="dupla">Dupla da visitação</option>
           </select>
         </label>
         <label className="standard-label-group">
@@ -91,8 +94,12 @@ export function LabelDataSelector({
       <div className="label-selector-filters">
         <div className="form-input-wrapper">
           <Search size={16} className="form-input-icon" />
-          <input className="form-input form-input--with-icon" placeholder="Buscar por nome, equipe ou círculo" value={filters.search} onChange={(event) => setFilter('search', event.target.value)} />
+          <input className="form-input form-input--with-icon" placeholder="Buscar por nome, equipe, círculo ou dupla" value={filters.search} onChange={(event) => setFilter('search', event.target.value)} />
         </div>
+        <select className="form-input" value={filters.visitaGrupoId} onChange={(event) => setFilter('visitaGrupoId', event.target.value)}>
+          <option value="">Todas as duplas</option>
+          {visitGroups.map((group) => <option key={group.id} value={group.id}>{group.nome}</option>)}
+        </select>
         <select className="form-input" value={filters.circulo} onChange={(event) => setFilter('circulo', event.target.value)}>
           <option value="">Todos os círculos</option>
           {circles.map((circle) => <option key={circle} value={circle}>{circle}</option>)}
@@ -106,6 +113,7 @@ export function LabelDataSelector({
           <option value="">Todos os tipos</option>
           <option value="participante">Participantes</option>
           <option value="encontreiro">Encontreiros</option>
+          <option value="equipe">Equipes</option>
         </select>
       </div>
 
@@ -113,7 +121,7 @@ export function LabelDataSelector({
         <strong>{printableSelectedCount} etiqueta(s) serão geradas</strong>
         <div>
           <button type="button" className="btn-secondary-sm" onClick={() => onSelectAll(filtered.map((item) => item.id))}><CheckSquare size={15} /> Selecionar filtrados</button>
-          <button type="button" className="btn-secondary-sm" onClick={() => onFiltersChange({ search: '', equipeId: '', equipeCor: '', equipeIds: [], circulo: '', status: '', tipo: '' })}><Search size={15} /> Limpar filtros</button>
+          <button type="button" className="btn-secondary-sm" onClick={() => onFiltersChange({ search: '', equipeId: '', equipeCor: '', equipeIds: [], visitaGrupoId: '', circulo: '', status: '', tipo: '' })}><Search size={15} /> Limpar filtros</button>
           <button type="button" className="btn-secondary-sm" onClick={onClear}><X size={15} /> Limpar</button>
         </div>
       </div>
@@ -123,18 +131,18 @@ export function LabelDataSelector({
       ) : (
         <div className="label-data-table-wrap">
           <table className="label-data-table">
-            <thead><tr><th></th><th>Nome</th><th>Equipe</th><th>Círculo</th><th>Tipo</th><th>Status</th></tr></thead>
+            <thead><tr><th></th><th>Nome</th><th>Equipe</th><th>Dupla</th><th>Círculo</th><th>Tipo</th><th>Status</th></tr></thead>
             <tbody>
               {filtered.map((item, index) => {
                 const currentGroup = groupLabel(item);
                 const previousGroup = index > 0 ? groupLabel(filtered[index - 1]) : '';
                 return [
                   grouping !== 'none' && currentGroup !== previousGroup
-                    ? <tr className="label-group-row" key={`group-${currentGroup}`}><td colSpan={6}>{currentGroup}</td></tr>
+                    ? <tr className="label-group-row" key={`group-${currentGroup}`}><td colSpan={7}>{currentGroup}</td></tr>
                     : null,
                   <tr key={item.id} className={selectedIds.has(item.id) ? 'is-selected' : ''} onClick={() => onToggle(item.id)}>
                     <td>{selectedIds.has(item.id) ? <CheckSquare size={18} /> : <Square size={18} />}</td>
-                    <td><strong>{item.nome}</strong></td><td>{item.equipe}</td><td>{item.circulo}</td><td>{item.tipo}</td><td>{item.status}</td>
+                    <td><strong>{item.nome}</strong></td><td>{item.equipe}</td><td>{item.visitaGrupo || '-'}</td><td>{item.circulo}</td><td>{item.tipo}</td><td>{item.status}</td>
                   </tr>,
                 ];
               })}

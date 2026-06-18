@@ -7,8 +7,9 @@
 .label-steps button small { font-size: .68rem; opacity: .8; }
 .label-steps button.is-active { background: var(--primary-light); border-color: var(--primary-color); color: var(--primary-color); }
 .label-steps button.is-active b { background: var(--primary-color); color: #fff; }
-.label-context-bar { align-items: end; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; display: grid; gap: .8rem; grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) auto; padding: .8rem 1rem; }
+.label-context-bar { align-items: end; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; display: grid; gap: .8rem; grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) minmax(130px, .35fr) auto; padding: .8rem 1rem; }
 .label-context-bar .standard-label-group { margin: 0; }
+.label-quantity-field input { text-align: center; }
 .label-model-actions { display: flex; gap: .4rem; }
 .label-layout-warning { background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: 10px; color: var(--danger-text); padding: .7rem 1rem; }
 
@@ -73,7 +74,7 @@
 .label-team-dot.is-verde { background: #10b981; }
 .label-team-dot.is-amarela { background: #f59e0b; }
 .label-team-dot.is-vermelha { background: #dc2626; }
-.label-selector-filters { display: grid; grid-template-columns: 1.5fr repeat(3, minmax(140px, 1fr)); gap: .65rem; margin-top: .8rem; }
+.label-selector-filters { display: grid; grid-template-columns: 1.5fr repeat(4, minmax(140px, 1fr)); gap: .65rem; margin-top: .8rem; }
 .label-selector-toolbar { align-items: center; background: var(--secondary-bg); border-radius: 9px; display: flex; gap: 1rem; justify-content: space-between; margin: 1rem 0; padding: .65rem .8rem; }
 .label-selector-toolbar > div { display: flex; gap: .4rem; }
 .label-data-table-wrap { border: 1px solid var(--border-color); border-radius: 10px; overflow: auto; max-height: 60vh; }
