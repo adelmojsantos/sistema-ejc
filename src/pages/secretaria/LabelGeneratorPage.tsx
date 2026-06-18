@@ -45,7 +45,7 @@ export function LabelGeneratorPage() {
 
   const equipeItems = useMemo<LabelDataItem[]>(() => equipes
     .filter((equipe) => !equipe.deleted_at)
-    .map((equipe) => {
+    .map((equipe): LabelDataItem => {
       const nome = equipe.nome?.trim() || 'Equipe sem nome';
       return {
         id: `equipe-${equipe.id}`,

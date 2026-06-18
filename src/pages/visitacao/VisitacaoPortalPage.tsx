@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import {
     Shield, ArrowRight, MapPin, UserCheck
@@ -13,7 +14,7 @@ export function VisitacaoPortalPage() {
         id: string;
         title: string;
         description: string;
-        icon: JSX.Element;
+        icon: ReactNode;
         path: string;
         permissions: string[];
         color: string;
