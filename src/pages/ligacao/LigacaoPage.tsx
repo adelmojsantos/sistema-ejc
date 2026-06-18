@@ -2,7 +2,9 @@ import {
   CircleUserRound,
   Loader,
   Mail,
+  RefreshCw,
   Search,
+  UserCheck,
   UserRound,
   UsersRound,
   X
@@ -17,6 +19,7 @@ import { useEquipes } from '../../hooks/useEquipes';
 import { useAuth } from '../../hooks/useAuth';
 import { useDebounce } from '../../hooks/useDebounce';
 import { encontroService } from '../../services/encontroService';
+import { encontroPresencaService } from '../../services/encontroPresencaService';
 import { ligacaoService } from '../../services/ligacaoService';
 import type { Encontro } from '../../types/encontro';
 import type { LigacaoCorEquipe, LigacaoRegistro, LigacaoTipoPessoa } from '../../types/ligacao';
@@ -24,6 +27,14 @@ import { normalizeString } from '../../utils/stringUtils';
 import './LigacaoPage.css';
 
 type LigacaoFiltroCor = 'todas' | LigacaoCorEquipe;
+
+const todayDate = () => {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const equipeCorLabel: Record<LigacaoCorEquipe, string> = {
   verde: 'Verde',
@@ -102,8 +113,11 @@ export function LigacaoPage() {
   const [teamColorFilter, setTeamColorFilter] = useState<LigacaoFiltroCor>('todas');
   const [teamFilter, setTeamFilter] = useState('todas');
   const [circleFilter, setCircleFilter] = useState('todos');
+  const [showPresentesHoje, setShowPresentesHoje] = useState(false);
+  const [presentesHojeIds, setPresentesHojeIds] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingPresentes, setIsLoadingPresentes] = useState(false);
   const debouncedSearch = useDebounce(searchTerm, 300);
 
   const canChangeEncontro = hasPermission('modulo_admin');
@@ -136,6 +150,27 @@ export function LigacaoPage() {
     loadRegistros();
   }, [loadRegistros]);
 
+  const loadPresentesHoje = useCallback(async () => {
+    if (!selectedEncontroId) {
+      setPresentesHojeIds(new Set());
+      return;
+    }
+
+    setIsLoadingPresentes(true);
+    try {
+      setPresentesHojeIds(await encontroPresencaService.listarPresentesPorData(selectedEncontroId, todayDate()));
+    } catch (error) {
+      console.error('Erro ao carregar presentes de hoje:', error);
+      toast.error('Não foi possível atualizar os presentes de hoje.');
+    } finally {
+      setIsLoadingPresentes(false);
+    }
+  }, [selectedEncontroId]);
+
+  useEffect(() => {
+    if (showPresentesHoje) loadPresentesHoje();
+  }, [loadPresentesHoje, showPresentesHoje]);
+
   const participantes = useMemo(
     () => registros.filter((registro) => registro.tipo === 'participante'),
     [registros]
@@ -166,6 +201,9 @@ export function LigacaoPage() {
       if (activeTab === 'participante' && circleFilter !== 'todos' && registro.circulo !== circleFilter) {
         return false;
       }
+      if (activeTab === 'participante' && showPresentesHoje && !presentesHojeIds.has(registro.participacao_id)) {
+        return false;
+      }
 
       if (!term) return true;
 
@@ -175,7 +213,7 @@ export function LigacaoPage() {
 
       return normalizeString(searchable.filter(Boolean).join(' ')).includes(term);
     });
-  }, [activeTab, circleFilter, debouncedSearch, encontreiros, participantes, teamColorFilter, teamFilter]);
+  }, [activeTab, circleFilter, debouncedSearch, encontreiros, participantes, presentesHojeIds, showPresentesHoje, teamColorFilter, teamFilter]);
 
   const encontroSelector = canChangeEncontro ? (
     <div className="ligacao-header-encontro">
@@ -294,6 +332,29 @@ export function LigacaoPage() {
       </section>
 
       <div className="ligacao-list-controls">
+        {activeTab === 'participante' && (
+          <div className="ligacao-presenca-filter">
+            <button
+              type="button"
+              className={showPresentesHoje ? 'is-active' : ''}
+              onClick={() => setShowPresentesHoje((current) => !current)}
+            >
+              <UserCheck size={15} />
+              {showPresentesHoje ? 'Mostrando presentes hoje' : 'Ver presentes hoje'}
+            </button>
+            {showPresentesHoje && (
+              <button
+                type="button"
+                className="ligacao-presenca-filter__refresh"
+                onClick={loadPresentesHoje}
+                disabled={isLoadingPresentes}
+              >
+                <RefreshCw size={14} className={isLoadingPresentes ? 'spin' : undefined} />
+                Atualizar
+              </button>
+            )}
+          </div>
+        )}
         {activeTab === 'encontreiro' && (
           <div className="ligacao-color-filter" role="group" aria-label="Filtrar pela cor da equipe">
             {(['todas', 'verde', 'amarela', 'vermelha'] as LigacaoFiltroCor[]).map((color) => (

@@ -13,4 +13,5 @@ export interface LigacaoRegistro {
   equipe_id: string | null;
   equipe: string | null;
   equipe_cor: LigacaoCorEquipe | null;
+  presente_hoje?: boolean;
 }

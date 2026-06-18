@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import {
-    Shield, ArrowRight, MapPin
+    Shield, ArrowRight, MapPin, UserCheck
 } from 'lucide-react';
 import { SharedLibraryView } from '../../components/admin/biblioteca/SharedLibraryView';
 
@@ -9,14 +9,22 @@ export function VisitacaoPortalPage() {
     const navigate = useNavigate();
     const { hasPermission } = useAuth();
 
-    const modules = [
+    const modules: Array<{
+        id: string;
+        title: string;
+        description: string;
+        icon: JSX.Element;
+        path: string;
+        permissions: string[];
+        color: string;
+    }> = [
         {
             id: 'coordenar',
             title: 'Gestão e Montagem de Visitas',
             description: 'Gerencie duplas, vincule encontristas, organize rotas e acompanhe o progresso das visitas em tempo real.',
             icon: <Shield size={32} />,
             path: '/visitacao/coordenador',
-            permission: 'modulo_visitacao_coordenar',
+            permissions: ['modulo_visitacao_coordenar'],
             color: 'var(--primary-color)'
         },
         {
@@ -25,12 +33,21 @@ export function VisitacaoPortalPage() {
             description: 'Acesse sua lista de encontristas, registre visitas, controle pagamentos e visualize mapas de localização.',
             icon: <MapPin size={32} />,
             path: '/visitacao/meus-participantes',
-            permission: 'modulo_visitacao_duplas',
+            permissions: ['modulo_visitacao_duplas'],
             color: '#10b981'
+        },
+        {
+            id: 'presencas',
+            title: 'Presença no Encontro',
+            description: 'Marque, um a um, quem está presente em cada dia do encontro.',
+            icon: <UserCheck size={32} />,
+            path: '/visitacao/presencas',
+            permissions: ['modulo_visitacao_duplas', 'modulo_visitacao_coordenar'],
+            color: '#2563eb'
         }
     ];
 
-    const availableModules = modules.filter(m => hasPermission(m.permission) || hasPermission('modulo_admin'));
+    const availableModules = modules.filter(m => m.permissions.some(permission => hasPermission(permission)) || hasPermission('modulo_admin'));
 
     return (
         <div style={{ padding: '0 1rem' }}>

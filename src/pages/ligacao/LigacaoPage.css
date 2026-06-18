@@ -154,6 +154,38 @@
   width: min(560px, 100%);
 }
 
+.ligacao-presenca-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ligacao-presenca-filter button {
+  min-height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--muted-text);
+  padding: 0.45rem 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.ligacao-presenca-filter button.is-active {
+  border-color: #16a34a;
+  color: #15803d;
+  background: rgba(22, 163, 74, 0.1);
+}
+
+.ligacao-presenca-filter__refresh:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .ligacao-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

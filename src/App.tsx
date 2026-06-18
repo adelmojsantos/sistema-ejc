@@ -55,6 +55,7 @@ import { VisitacaoMeusParticipantesPage } from './pages/visitacao/VisitacaoMeusP
 import { CoordenadorVisitacaoPage } from './pages/visitacao/CoordenadorVisitacaoPage';
 import { VisitacaoManutencaoPage } from './pages/visitacao/VisitacaoManutencaoPage';
 import { VisitacaoPortalPage } from './pages/visitacao/VisitacaoPortalPage';
+import { VisitacaoPresencasPage } from './pages/visitacao/VisitacaoPresencasPage';
 import { SecretariaParticipantesPage } from './pages/secretaria/SecretariaParticipantesPage';
 import { SecretariaEncontreirosPage } from './pages/secretaria/SecretariaEncontreirosPage';
 import { GerenciarListaEsperaPage } from './pages/secretaria/GerenciarListaEsperaPage';
@@ -242,6 +243,12 @@ function AnimatedRoutes() {
           <Route path="/visitacao/meus-participantes" element={
             <ProtectedRoute requiredPermissions={['modulo_visitacao_duplas']}>
               <VisitacaoMeusParticipantesPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/visitacao/presencas" element={
+            <ProtectedRoute requiredPermissions={['modulo_visitacao_coordenar', 'modulo_visitacao_duplas', 'modulo_admin']}>
+              <VisitacaoPresencasPage />
             </ProtectedRoute>
           } />
 
