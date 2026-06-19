@@ -110,14 +110,13 @@ const sortMesaBadgeItems = (items: MesaBadgeItem[]) =>
     return a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' });
   });
 
-const responsavelComEquipe = (
+const responsavelNomeSeTiverEquipe = (
   responsavel?: { pessoas?: { nome_completo?: string | null }; equipes?: { nome?: string | null } } | null
 ) => {
   const equipe = responsavel?.equipes?.nome?.trim();
   if (!equipe) return '';
 
-  const nome = responsavel?.pessoas?.nome_completo?.trim() || 'Responsável';
-  return `${nome} (${equipe})`;
+  return responsavel?.pessoas?.nome_completo?.trim() || 'Responsável';
 };
 
 export function RelatoriosPage({ mode }: RelatoriosPageProps) {
@@ -229,15 +228,15 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
   const mesaRecreacao = useMemo(() => {
     const badges = recreacaoItems.map(item => {
       const responsaveis = [
-        responsavelComEquipe(item.participacoes),
-        responsavelComEquipe(item.outro_responsavel),
+        responsavelNomeSeTiverEquipe(item.participacoes),
+        responsavelNomeSeTiverEquipe(item.outro_responsavel),
       ].filter(Boolean);
 
       return {
         id: item.id,
         nome: item.nome_crianca,
         grupo: 'Recreação Infantil',
-        detalhes: responsaveis,
+        detalhes: responsaveis.length > 0 ? ['Responsáveis:', ...responsaveis] : [],
         icone: 'infantil' as const,
       };
     });
