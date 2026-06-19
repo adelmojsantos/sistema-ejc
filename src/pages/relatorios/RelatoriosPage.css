@@ -255,6 +255,33 @@
   margin-top: 0.25rem;
 }
 
+.mesa-report-tabs {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0.45rem;
+}
+
+.mesa-report-tabs button {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted-text);
+  cursor: pointer;
+  font-weight: 850;
+  padding: 0.75rem 1rem;
+}
+
+.mesa-report-tabs button:hover,
+.mesa-report-tabs button.is-active {
+  background: rgba(var(--primary-rgb), 0.1);
+  border-color: rgba(var(--primary-rgb), 0.28);
+  color: var(--primary-color);
+}
+
 .mesa-report__team-filter {
   display: grid;
   gap: 1rem;
@@ -361,6 +388,160 @@
   color: var(--muted-text);
   font-size: 0.9rem;
   margin: 0;
+}
+
+.mesa-avulsos {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+
+.mesa-avulsos__header,
+.mesa-avulsos__actions {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.mesa-avulsos__header h3,
+.mesa-avulsos__header p,
+.mesa-avulsos__list h4 {
+  margin: 0;
+}
+
+.mesa-avulsos__header h3 {
+  font-size: 1.05rem;
+}
+
+.mesa-avulsos__header p {
+  color: var(--muted-text);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.mesa-avulsos__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.mesa-avulsos__filters {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(180px, 240px) minmax(260px, 1fr);
+}
+
+.mesa-avulsos__filters .form-group {
+  margin-bottom: 0;
+}
+
+.mesa-avulsos__team-filter {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1rem;
+}
+
+.mesa-avulsos__team-color {
+  max-width: 150px;
+  min-height: 38px;
+}
+
+.mesa-avulsos__lists {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mesa-avulsos__list {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mesa-avulsos__list h4 {
+  background: var(--secondary-bg);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.86rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.mesa-avulsos__items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow: auto;
+  padding: 0.75rem;
+}
+
+.mesa-avulso-item {
+  align-items: center;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-color);
+  cursor: pointer;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+}
+
+.mesa-avulso-item:hover:not(:disabled) {
+  border-color: rgba(var(--primary-rgb), 0.45);
+  box-shadow: var(--shadow-sm);
+}
+
+.mesa-avulso-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.mesa-avulso-item span,
+.mesa-avulso-item strong,
+.mesa-avulso-item small {
+  display: block;
+  min-width: 0;
+}
+
+.mesa-avulso-item span {
+  overflow: hidden;
+}
+
+.mesa-avulso-item strong,
+.mesa-avulso-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-avulso-item strong {
+  font-size: 0.88rem;
+}
+
+.mesa-avulso-item small {
+  color: var(--muted-text);
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+
+.mesa-avulso-item svg {
+  flex: 0 0 auto;
+}
+
+.mesa-avulso-item--selected {
+  background: rgba(var(--primary-rgb), 0.06);
+}
+
+.mesa-avulsos__empty {
+  color: var(--muted-text);
+  font-size: 0.88rem;
+  margin: 0;
+  padding: 0.25rem;
 }
 
 .mesa-report__previews {
@@ -586,6 +767,9 @@
   .relatorios-options,
   .relatorios-filters,
   .relatorios-groups,
+  .mesa-report-tabs,
+  .mesa-avulsos__filters,
+  .mesa-avulsos__lists,
   .mesa-report__previews {
     grid-template-columns: 1fr;
   }
@@ -606,9 +790,18 @@
 
   .mesa-team-picker__header > div:last-child,
   .mesa-team-picker__header button,
+  .mesa-avulsos__header,
+  .mesa-avulsos__actions,
+  .mesa-avulsos__actions button,
   .mesa-print-area__header button,
   .mesa-report__actions button {
     width: 100%;
+  }
+
+  .mesa-avulsos__header,
+  .mesa-avulsos__actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .mesa-print-area__header {
@@ -642,14 +835,16 @@
 
   body.relatorios-mesa-printing.relatorios-mesa-printing--encontristas .mesa-print-area--encontristas,
   body.relatorios-mesa-printing.relatorios-mesa-printing--encontreiros .mesa-print-area--encontreiros,
-  body.relatorios-mesa-printing.relatorios-mesa-printing--recreacao .mesa-print-area--recreacao {
+  body.relatorios-mesa-printing.relatorios-mesa-printing--recreacao .mesa-print-area--recreacao,
+  body.relatorios-mesa-printing.relatorios-mesa-printing--avulsos .mesa-print-area--avulsos {
     display: block !important;
     visibility: visible !important;
   }
 
   body.relatorios-mesa-printing.relatorios-mesa-printing--encontristas .mesa-print-area--encontristas *,
   body.relatorios-mesa-printing.relatorios-mesa-printing--encontreiros .mesa-print-area--encontreiros *,
-  body.relatorios-mesa-printing.relatorios-mesa-printing--recreacao .mesa-print-area--recreacao * {
+  body.relatorios-mesa-printing.relatorios-mesa-printing--recreacao .mesa-print-area--recreacao *,
+  body.relatorios-mesa-printing.relatorios-mesa-printing--avulsos .mesa-print-area--avulsos * {
     visibility: visible !important;
   }
 

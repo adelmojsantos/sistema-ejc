@@ -1,4 +1,4 @@
-import { Baby, Copy, Download, FileText, Loader, Search, TableProperties } from 'lucide-react';
+import { Baby, Copy, Download, FileText, Loader, Plus, Search, TableProperties, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -24,7 +24,9 @@ const descricaoCor: Record<RelatorioCrachaCor, string> = {
 type RelatorioTipo = 'relacao-crachas' | 'crachas-mesa';
 type MesaEquipeCor = Exclude<RelatorioCrachaCor, 'Branco'>;
 type MesaEquipeCorFilter = MesaEquipeCor | 'Todos';
-type MesaPrintTipo = 'encontristas' | 'encontreiros' | 'recreacao';
+type MesaPrintTipo = 'encontristas' | 'encontreiros' | 'recreacao' | 'avulsos';
+type MesaAvulsoTipo = 'encontrista' | 'encontreiro' | 'crianca';
+type MesaReportTab = 'gerais' | 'avulsos';
 
 interface MesaBadgeItem {
   id: string;
@@ -56,6 +58,12 @@ interface RelatoriosPageProps {
 }
 
 const mesaEquipeCores: MesaEquipeCorFilter[] = ['Todos', 'Verde', 'Amarelo', 'Vermelho'];
+const mesaAvulsoTipoLabels: Record<MesaAvulsoTipo, string> = {
+  encontrista: 'Encontrista',
+  encontreiro: 'Encontreiro',
+  crianca: 'Criança',
+};
+
 const mesaEquipeCorPlural: Record<MesaEquipeCorFilter, string> = {
   Todos: 'todas as cores',
   Verde: 'verdes',
@@ -129,8 +137,14 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [activeReport, setActiveReport] = useState<RelatorioTipo>(mode ?? 'relacao-crachas');
+  const [mesaReportTab, setMesaReportTab] = useState<MesaReportTab>('gerais');
   const [mesaEquipeCor, setMesaEquipeCor] = useState<MesaEquipeCorFilter>('Verde');
   const [selectedMesaEquipeIds, setSelectedMesaEquipeIds] = useState<string[]>([]);
+  const [mesaAvulsoTipo, setMesaAvulsoTipo] = useState<MesaAvulsoTipo>('encontrista');
+  const [mesaAvulsoSearch, setMesaAvulsoSearch] = useState('');
+  const [mesaAvulsoEquipeCor, setMesaAvulsoEquipeCor] = useState<MesaEquipeCorFilter>('Verde');
+  const [selectedMesaAvulsoEquipeIds, setSelectedMesaAvulsoEquipeIds] = useState<string[]>([]);
+  const [mesaAvulsosSelecionados, setMesaAvulsosSelecionados] = useState<MesaBadgeItem[]>([]);
 
   useEffect(() => {
     if (mode) setActiveReport(mode);
@@ -212,9 +226,33 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
   }, [items, mesaEquipeCor]);
 
+  const mesaAvulsoEquipesDaCor = useMemo(() => {
+    const teamMap = new Map<string, { nome: string; cor: RelatorioCrachaCor }>();
+
+    items.forEach(item => {
+      if (item.cor !== 'Branco' && (mesaAvulsoEquipeCor === 'Todos' || item.cor === mesaAvulsoEquipeCor) && item.equipeId) {
+        teamMap.set(item.equipeId, {
+          nome: item.equipe || 'Sem equipe',
+          cor: item.cor,
+        });
+      }
+    });
+
+    return Array.from(teamMap, ([id, data]) => ({ id, ...data }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
+  }, [items, mesaAvulsoEquipeCor]);
+
   useEffect(() => {
     setSelectedMesaEquipeIds(mesaEquipesDaCor.map(equipe => equipe.id));
   }, [mesaEquipesDaCor]);
+
+  useEffect(() => {
+    setSelectedMesaAvulsoEquipeIds(mesaAvulsoEquipesDaCor.map(equipe => equipe.id));
+  }, [mesaAvulsoEquipesDaCor]);
+
+  useEffect(() => {
+    setMesaAvulsosSelecionados([]);
+  }, [selectedEncontroId]);
 
   const mesaEncontreiros = useMemo(() => {
     const selectedIds = new Set(selectedMesaEquipeIds);
@@ -260,6 +298,50 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
     [mesaEncontreiros]
   );
   const mesaRecreacaoPages = useMemo(() => chunkItems(mesaRecreacao, 15), [mesaRecreacao]);
+  const mesaAvulsoCandidates = useMemo(() => {
+    const selectedTeamIds = new Set(selectedMesaAvulsoEquipeIds);
+    const term = mesaAvulsoSearch.trim().toLowerCase();
+
+    const candidates: MesaBadgeItem[] =
+      mesaAvulsoTipo === 'encontrista'
+        ? mesaEncontristas.map(item => ({
+          id: `encontrista-${item.id}`,
+          nome: item.nome,
+          grupo: item.circulo,
+        }))
+        : mesaAvulsoTipo === 'encontreiro'
+          ? sortMesaItems(items.filter(item =>
+            item.cor !== 'Branco' &&
+            (mesaAvulsoEquipeCor === 'Todos' || item.cor === mesaAvulsoEquipeCor) &&
+            item.equipeId &&
+            selectedTeamIds.has(item.equipeId)
+          )).map(item => ({
+            id: `encontreiro-${item.id}`,
+            nome: item.nome,
+            grupo: item.equipe,
+          }))
+          : mesaRecreacao.map(item => ({
+            ...item,
+            id: `crianca-${item.id}`,
+          }));
+
+    if (!term) return candidates;
+
+    return candidates.filter(item =>
+      item.nome.toLowerCase().includes(term) ||
+      item.grupo.toLowerCase().includes(term) ||
+      item.detalhes?.some(detalhe => detalhe.toLowerCase().includes(term))
+    );
+  }, [
+    items,
+    mesaAvulsoEquipeCor,
+    mesaAvulsoSearch,
+    mesaAvulsoTipo,
+    mesaEncontristas,
+    mesaRecreacao,
+    selectedMesaAvulsoEquipeIds,
+  ]);
+  const mesaAvulsosPages = useMemo(() => chunkItems(mesaAvulsosSelecionados, 15), [mesaAvulsosSelecionados]);
 
   const handleCopy = async () => {
     if (filteredItems.length === 0) {
@@ -300,7 +382,9 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
         ? mesaEncontristas
         : tipo === 'encontreiros'
           ? mesaEncontreiros
-          : mesaRecreacao;
+          : tipo === 'recreacao'
+            ? mesaRecreacao
+            : mesaAvulsosSelecionados;
 
     if (source.length === 0) {
       toast.error('Não há registros para imprimir nesta lista.');
@@ -333,6 +417,36 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
 
   const handleClearMesaEquipes = () => {
     setSelectedMesaEquipeIds([]);
+  };
+
+  const handleMesaAvulsoEquipeToggle = (equipeId: string) => {
+    setSelectedMesaAvulsoEquipeIds(current =>
+      current.includes(equipeId)
+        ? current.filter(id => id !== equipeId)
+        : [...current, equipeId]
+    );
+  };
+
+  const handleSelectAllMesaAvulsoEquipes = () => {
+    setSelectedMesaAvulsoEquipeIds(mesaAvulsoEquipesDaCor.map(equipe => equipe.id));
+  };
+
+  const handleClearMesaAvulsoEquipes = () => {
+    setSelectedMesaAvulsoEquipeIds([]);
+  };
+
+  const handleAddMesaAvulso = (item: MesaBadgeItem) => {
+    setMesaAvulsosSelecionados(current =>
+      current.some(selected => selected.id === item.id) ? current : [...current, item]
+    );
+  };
+
+  const handleRemoveMesaAvulso = (itemId: string) => {
+    setMesaAvulsosSelecionados(current => current.filter(item => item.id !== itemId));
+  };
+
+  const handleClearMesaAvulsos = () => {
+    setMesaAvulsosSelecionados([]);
   };
 
   return (
@@ -431,7 +545,28 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
             </div>
           </div>
 
-          <div className="mesa-report__team-filter card">
+          <div className="mesa-report-tabs" role="tablist" aria-label="Tipo de crachá de mesa">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mesaReportTab === 'gerais'}
+              className={mesaReportTab === 'gerais' ? 'is-active' : ''}
+              onClick={() => setMesaReportTab('gerais')}
+            >
+              Listas gerais
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mesaReportTab === 'avulsos'}
+              className={mesaReportTab === 'avulsos' ? 'is-active' : ''}
+              onClick={() => setMesaReportTab('avulsos')}
+            >
+              Avulsos
+            </button>
+          </div>
+
+          {mesaReportTab === 'gerais' && <div className="mesa-report__team-filter card">
             <div className="form-group">
               <label className="form-label" htmlFor="mesa-equipe-cor">Cor das equipes de encontreiros</label>
               <select
@@ -483,39 +618,216 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
                 </div>
               )}
             </div>
-          </div>
+          </div>}
+
+          {mesaReportTab === 'avulsos' && <section className="mesa-avulsos card">
+            <header className="mesa-avulsos__header">
+              <div>
+                <h3>Crachás de mesa avulsos</h3>
+                <p>Escolha o tipo, busque as pessoas e monte uma impressão manual.</p>
+              </div>
+              <div className="mesa-avulsos__actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleClearMesaAvulsos}
+                  disabled={mesaAvulsosSelecionados.length === 0}
+                >
+                  Limpar seleção
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary flex items-center gap-2"
+                  onClick={() => handlePrintMesa('avulsos')}
+                  disabled={isLoading || mesaAvulsosSelecionados.length === 0}
+                >
+                  <TableProperties size={16} />
+                  Imprimir avulsos ({mesaAvulsosSelecionados.length})
+                </button>
+              </div>
+            </header>
+
+            <div className="mesa-avulsos__filters">
+              <div className="form-group">
+                <label className="form-label" htmlFor="mesa-avulso-tipo">Tipo</label>
+                <select
+                  id="mesa-avulso-tipo"
+                  className="form-input"
+                  value={mesaAvulsoTipo}
+                  onChange={event => setMesaAvulsoTipo(event.target.value as MesaAvulsoTipo)}
+                >
+                  {Object.entries(mesaAvulsoTipoLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" htmlFor="mesa-avulso-search">Buscar</label>
+                <div className="form-input-wrapper">
+                  <div className="form-input-icon">
+                    <Search size={16} />
+                  </div>
+                  <input
+                    id="mesa-avulso-search"
+                    className="form-input form-input--with-icon"
+                    value={mesaAvulsoSearch}
+                    onChange={event => setMesaAvulsoSearch(event.target.value)}
+                    placeholder="Nome, círculo, equipe ou responsável..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {mesaAvulsoTipo === 'encontreiro' && (
+              <div className="mesa-team-picker mesa-avulsos__team-filter">
+                <div className="mesa-team-picker__header">
+                  <div>
+                    <strong>Equipes {mesaEquipeCorPlural[mesaAvulsoEquipeCor]}</strong>
+                    <span>
+                      {selectedMesaAvulsoEquipeIds.length} de {mesaAvulsoEquipesDaCor.length} selecionada(s)
+                    </span>
+                  </div>
+                  <div>
+                    <select
+                      className="form-input mesa-avulsos__team-color"
+                      value={mesaAvulsoEquipeCor}
+                      onChange={event => setMesaAvulsoEquipeCor(event.target.value as MesaEquipeCorFilter)}
+                      aria-label="Cor das equipes avulsas"
+                    >
+                      {mesaEquipeCores.map(cor => (
+                        <option key={cor} value={cor}>
+                          {cor}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="button" className="btn-secondary" onClick={handleSelectAllMesaAvulsoEquipes} disabled={mesaAvulsoEquipesDaCor.length === 0}>
+                      Selecionar todas
+                    </button>
+                    <button type="button" className="btn-secondary" onClick={handleClearMesaAvulsoEquipes} disabled={selectedMesaAvulsoEquipeIds.length === 0}>
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+
+                {mesaAvulsoEquipesDaCor.length === 0 ? (
+                  <p className="mesa-team-picker__empty">Nenhuma equipe desta cor encontrada neste encontro.</p>
+                ) : (
+                  <div className="mesa-team-picker__grid">
+                    {mesaAvulsoEquipesDaCor.map(equipe => (
+                      <label className={`mesa-team-checkbox mesa-team-checkbox--${equipe.cor.toLowerCase()}`} key={equipe.id}>
+                        <input
+                          type="checkbox"
+                          checked={selectedMesaAvulsoEquipeIds.includes(equipe.id)}
+                          onChange={() => handleMesaAvulsoEquipeToggle(equipe.id)}
+                        />
+                        <span>{equipe.nome}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="mesa-avulsos__lists">
+              <div className="mesa-avulsos__list">
+                <h4>Disponíveis ({mesaAvulsoCandidates.length})</h4>
+                <div className="mesa-avulsos__items">
+                  {mesaAvulsoCandidates.length === 0 ? (
+                    <p className="mesa-avulsos__empty">Nenhum registro encontrado.</p>
+                  ) : mesaAvulsoCandidates.map(item => {
+                    const alreadySelected = mesaAvulsosSelecionados.some(selected => selected.id === item.id);
+
+                    return (
+                      <button
+                        type="button"
+                        className="mesa-avulso-item"
+                        key={item.id}
+                        onClick={() => handleAddMesaAvulso(item)}
+                        disabled={alreadySelected}
+                      >
+                        <span>
+                          <strong>{item.nome}</strong>
+                          <small>{item.grupo}</small>
+                        </span>
+                        <Plus size={16} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mesa-avulsos__list">
+                <h4>Selecionados ({mesaAvulsosSelecionados.length})</h4>
+                <div className="mesa-avulsos__items">
+                  {mesaAvulsosSelecionados.length === 0 ? (
+                    <p className="mesa-avulsos__empty">Adicione pessoas para imprimir.</p>
+                  ) : mesaAvulsosSelecionados.map(item => (
+                    <button
+                      type="button"
+                      className="mesa-avulso-item mesa-avulso-item--selected"
+                      key={item.id}
+                      onClick={() => handleRemoveMesaAvulso(item.id)}
+                    >
+                      <span>
+                        <strong>{item.nome}</strong>
+                        <small>{item.grupo}</small>
+                      </span>
+                      <Trash2 size={16} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>}
 
           <div className="mesa-report__previews">
-            <MesaPrintArea
-              className="mesa-print-area--encontristas"
-              encontro={selectedEncontro}
-              items={mesaEncontristasPages}
-              logoEjc={logoEjc}
-              onPrint={() => handlePrintMesa('encontristas')}
-              printDisabled={isLoading || mesaEncontristas.length === 0}
-              printLabel={`Imprimir (${mesaEncontristas.length})`}
-              title="Encontristas"
-            />
-            <MesaPrintArea
-              className="mesa-print-area--encontreiros"
-              encontro={selectedEncontro}
-              items={mesaEncontreirosPages}
-              logoEjc={logoEjc}
-              onPrint={() => handlePrintMesa('encontreiros')}
-              printDisabled={isLoading || mesaEncontreiros.length === 0}
-              printLabel={`Imprimir (${mesaEncontreiros.length})`}
-              title="Encontreiros"
-            />
-            <MesaPrintArea
-              className="mesa-print-area--recreacao"
-              encontro={selectedEncontro}
-              items={mesaRecreacaoPages}
-              logoEjc={logoEjc}
-              onPrint={() => handlePrintMesa('recreacao')}
-              printDisabled={isLoading || mesaRecreacao.length === 0}
-              printLabel={`Imprimir (${mesaRecreacao.length})`}
-              title="Recreação Infantil"
-            />
+            {mesaReportTab === 'gerais' && <>
+              <MesaPrintArea
+                className="mesa-print-area--encontristas"
+                encontro={selectedEncontro}
+                items={mesaEncontristasPages}
+                logoEjc={logoEjc}
+                onPrint={() => handlePrintMesa('encontristas')}
+                printDisabled={isLoading || mesaEncontristas.length === 0}
+                printLabel={`Imprimir (${mesaEncontristas.length})`}
+                title="Encontristas"
+              />
+              <MesaPrintArea
+                className="mesa-print-area--encontreiros"
+                encontro={selectedEncontro}
+                items={mesaEncontreirosPages}
+                logoEjc={logoEjc}
+                onPrint={() => handlePrintMesa('encontreiros')}
+                printDisabled={isLoading || mesaEncontreiros.length === 0}
+                printLabel={`Imprimir (${mesaEncontreiros.length})`}
+                title="Encontreiros"
+              />
+              <MesaPrintArea
+                className="mesa-print-area--recreacao"
+                encontro={selectedEncontro}
+                items={mesaRecreacaoPages}
+                logoEjc={logoEjc}
+                onPrint={() => handlePrintMesa('recreacao')}
+                printDisabled={isLoading || mesaRecreacao.length === 0}
+                printLabel={`Imprimir (${mesaRecreacao.length})`}
+                title="Recreação Infantil"
+              />
+            </>}
+            {mesaReportTab === 'avulsos' && (
+              <MesaPrintArea
+                className="mesa-print-area--avulsos"
+                encontro={selectedEncontro}
+                items={mesaAvulsosPages}
+                logoEjc={logoEjc}
+                onPrint={() => handlePrintMesa('avulsos')}
+                printDisabled={isLoading || mesaAvulsosSelecionados.length === 0}
+                printLabel={`Imprimir (${mesaAvulsosSelecionados.length})`}
+                title="Avulsos"
+              />
+            )}
           </div>
         </section>
       ) : isLoading ? (
