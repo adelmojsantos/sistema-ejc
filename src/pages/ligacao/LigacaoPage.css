@@ -6,9 +6,9 @@
 
 .ligacao-tabs {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.65rem;
-  width: min(560px, 100%);
+  width: min(760px, 100%);
 }
 
 .ligacao-tabs button {
@@ -209,6 +209,10 @@
   border-left-color: var(--muted-text);
 }
 
+.ligacao-card--crianca {
+  border-left-color: #f59e0b;
+}
+
 .ligacao-card--team-verde {
   border-left-color: #16a34a;
 }
@@ -270,6 +274,24 @@
   overflow-wrap: anywhere;
 }
 
+.ligacao-card h3 small {
+  color: var(--muted-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.ligacao-static-filter {
+  min-height: 42px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--secondary-bg);
+  color: var(--muted-text);
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  align-items: center;
+  font-weight: 750;
+}
+
 .ligacao-team-badge {
   width: fit-content;
   max-width: 100%;
@@ -327,6 +349,14 @@
   align-items: baseline;
   padding-top: 0.4rem;
   border-top: 1px solid var(--border-color);
+}
+
+.ligacao-card__details .divider {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: baseline;
+  border-top: 1px dashed var(--border-color);
 }
 
 .ligacao-card__details dt {

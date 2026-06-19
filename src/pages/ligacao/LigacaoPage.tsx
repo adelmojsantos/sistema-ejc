@@ -1,4 +1,5 @@
 import {
+  Baby,
   CircleUserRound,
   Loader,
   Mail,
@@ -63,18 +64,19 @@ function LigacaoAvatar({ registro }: { registro: LigacaoRegistro }) {
 
 function LigacaoCard({ registro }: { registro: LigacaoRegistro }) {
   const isParticipante = registro.tipo === 'participante';
+  const isCrianca = registro.tipo === 'crianca';
 
   return (
-    <article className={`ligacao-card ligacao-card--${registro.tipo} ${!isParticipante ? `ligacao-card--team-${registro.equipe_cor || 'verde'}` : ''}`}>
+    <article className={`ligacao-card ligacao-card--${registro.tipo} ${!isParticipante && !isCrianca ? `ligacao-card--team-${registro.equipe_cor || 'verde'}` : ''}`}>
       <div className="ligacao-card__header">
         <LigacaoAvatar registro={registro} />
         <div className="ligacao-card__identity">
           <span className="ligacao-card__type">
-            {isParticipante ? <UserRound size={13} /> : <CircleUserRound size={13} />}
-            {isParticipante ? 'Participante' : 'Encontreiro'}
+            {isCrianca ? <Baby size={13} /> : isParticipante ? <UserRound size={13} /> : <CircleUserRound size={13} />}
+            {isCrianca ? 'Criança' : isParticipante ? 'Participante' : 'Encontreiro'}
           </span>
-          <h3>{registro.nome}</h3>
-          {!isParticipante && (
+          <h3>{registro.nome}{isCrianca && registro.idade ? <small> {registro.idade} anos</small> : null}</h3>
+          {!isParticipante && !isCrianca && (
             <div className={`ligacao-team-badge ligacao-team-badge--${registro.equipe_cor || 'verde'}`}>
               <span className="ligacao-team-badge__dot" />
               <span>Equipe: {registro.equipe || 'Não informada'}</span>
@@ -97,6 +99,23 @@ function LigacaoCard({ registro }: { registro: LigacaoRegistro }) {
             <dt>Dupla de visitação</dt>
             <dd>{registro.dupla_visitacao || 'Não informada'}</dd>
           </div>
+        </dl>
+      )}
+
+      {isCrianca && (
+        <dl className="ligacao-card__details">
+          <dt>Responsáveis</dt>
+          <div></div>
+            <dd>{registro.responsavel_principal || 'Não informado'}</dd>
+
+            <dt>{registro.equipe_responsavel_principal || 'Não informada'}</dt>
+          {registro.outro_responsavel && (
+            <>
+              <span className='divider'></span> 
+              <dd>{registro.outro_responsavel}</dd>
+              <dt>{registro.equipe_outro_responsavel ? ` ${registro.equipe_outro_responsavel}` : ''}</dt>
+            </>
+          )}
         </dl>
       )}
     </article>
@@ -181,6 +200,11 @@ export function LigacaoPage() {
     [registros]
   );
 
+  const criancas = useMemo(
+    () => registros.filter((registro) => registro.tipo === 'crianca'),
+    [registros]
+  );
+
   const circulos = useMemo(
     () => Array.from(new Set(participantes.map((registro) => registro.circulo).filter((circulo): circulo is string => !!circulo)))
       .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' })),
@@ -189,7 +213,7 @@ export function LigacaoPage() {
 
   const filteredRegistros = useMemo(() => {
     const term = normalizeString(debouncedSearch.trim());
-    const current = activeTab === 'participante' ? participantes : encontreiros;
+    const current = activeTab === 'participante' ? participantes : activeTab === 'crianca' ? criancas : encontreiros;
 
     return current.filter((registro) => {
       if (activeTab === 'encontreiro' && teamColorFilter !== 'todas' && registro.equipe_cor !== teamColorFilter) {
@@ -209,11 +233,13 @@ export function LigacaoPage() {
 
       const searchable = activeTab === 'participante'
         ? [registro.nome, registro.comunidade, registro.circulo, registro.dupla_visitacao]
+        : activeTab === 'crianca'
+          ? [registro.nome, registro.responsavel_principal, registro.telefone_responsavel_principal, registro.equipe_responsavel_principal, registro.outro_responsavel, registro.telefone_outro_responsavel, registro.equipe_outro_responsavel, registro.observacoes]
         : [registro.nome, registro.equipe, registro.equipe_cor ? equipeCorLabel[registro.equipe_cor] : null];
 
       return normalizeString(searchable.filter(Boolean).join(' ')).includes(term);
     });
-  }, [activeTab, circleFilter, debouncedSearch, encontreiros, participantes, presentesHojeIds, showPresentesHoje, teamColorFilter, teamFilter]);
+  }, [activeTab, circleFilter, criancas, debouncedSearch, encontreiros, participantes, presentesHojeIds, showPresentesHoje, teamColorFilter, teamFilter]);
 
   const encontroSelector = canChangeEncontro ? (
     <div className="ligacao-header-encontro">
@@ -253,6 +279,17 @@ export function LigacaoPage() {
         Encontreiros
         <span>{encontreiros.length}</span>
       </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={activeTab === 'crianca'}
+        className={activeTab === 'crianca' ? 'is-active' : ''}
+        onClick={() => setActiveTab('crianca')}
+      >
+        <Baby size={17} />
+        Crianças
+        <span>{criancas.length}</span>
+      </button>
     </div>
   );
 
@@ -278,6 +315,8 @@ export function LigacaoPage() {
               className="form-input form-input--with-icon"
               placeholder={activeTab === 'participante'
                 ? 'Nome, comunidade, círculo ou dupla...'
+                : activeTab === 'crianca'
+                  ? 'Nome da criança, responsável, telefone ou equipe...'
                 : 'Nome ou equipe...'}
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
@@ -310,6 +349,11 @@ export function LigacaoPage() {
                 <option key={circulo} value={circulo}>{circulo}</option>
               ))}
             </select>
+          </div>
+        ) : activeTab === 'crianca' ? (
+          <div className="form-group">
+            <label className="form-label">Lista</label>
+            <div className="ligacao-static-filter">Recreação infantil</div>
           </div>
         ) : (
           <div className="form-group">
@@ -372,8 +416,8 @@ export function LigacaoPage() {
         <div className="ligacao-result-summary">
           <span>
             <strong>{filteredRegistros.length}</strong> de{' '}
-            <strong>{activeTab === 'participante' ? participantes.length : encontreiros.length}</strong>{' '}
-            {activeTab === 'participante' ? 'participantes' : 'encontreiros'}
+            <strong>{activeTab === 'participante' ? participantes.length : activeTab === 'crianca' ? criancas.length : encontreiros.length}</strong>{' '}
+            {activeTab === 'participante' ? 'participantes' : activeTab === 'crianca' ? 'crianças' : 'encontreiros'}
           </span>
         </div>
       </div>

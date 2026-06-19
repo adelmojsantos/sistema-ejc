@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { HubCard } from '../../components/ui/HubCard';
 import { useAuth } from '../../hooks/useAuth';
 import {
-    Shield, ArrowRight, MapPin, UserCheck
+    Shield, MapPin, UserCheck
 } from 'lucide-react';
 import { SharedLibraryView } from '../../components/admin/biblioteca/SharedLibraryView';
 
@@ -51,43 +52,26 @@ export function VisitacaoPortalPage() {
     const availableModules = modules.filter(m => m.permissions.some(permission => hasPermission(permission)) || hasPermission('modulo_admin'));
 
     return (
-        <div style={{ padding: '0 1rem' }}>
-            <div style={{ marginBottom: '3rem', textAlign: 'center', marginTop: '2rem' }}>
-                <h1 style={{ marginBottom: '1rem', fontSize: '2.5rem' }}>Portal de Visitação</h1>
-                <p style={{ fontSize: '1.1rem', opacity: 0.7, maxWidth: '700px', margin: '0 auto' }}>
-                    Bem-vindo ao centro de operações da visitação. Selecione uma opção abaixo para gerenciar ou realizar as visitas deste encontro.
-                </p>
-            </div>
+        <section className="cadastros-hub fade-in">
+            <header className="page-header" style={{ textAlign: 'center', justifyContent: 'center' }}>
+                <div>
+                    <h1 className="page-title">Portal de Visitação</h1>
+                    <p className="text-muted" style={{ fontSize: '1.1rem', maxWidth: '700px', margin: '0 auto' }}>
+                        Bem-vindo ao centro de operações da visitação. Selecione uma opção abaixo para gerenciar ou realizar as visitas deste encontro.
+                    </p>
+                </div>
+            </header>
 
-            <div className="portal-grid">
+            <div className="cadastros-hub__grid">
                 {availableModules.map(module => (
-                    <div
+                    <HubCard
                         key={module.id}
+                        label={module.title}
+                        description={module.description}
+                        icon={module.icon}
+                        color={module.color}
                         onClick={() => navigate(module.path)}
-                        className="portal-card"
-                        style={{ cursor: 'pointer' }}
-                    >
-                        <div className="portal-card__icon" style={{
-                            background: `${module.color}15`,
-                            color: module.color
-                        }}>
-                            {module.icon}
-                        </div>
-                        <h2 className="portal-card__title">{module.title}</h2>
-                        <p className="portal-card__description">{module.description}</p>
-
-                        <div style={{
-                            marginTop: 'auto',
-                            paddingTop: '2rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            fontWeight: 700,
-                            color: module.color
-                        }}>
-                            Acessar Módulo <ArrowRight size={18} />
-                        </div>
-                    </div>
+                    />
                 ))}
 
                 {/* Card de Documentos Integrado na Grid */}
@@ -105,6 +89,6 @@ export function VisitacaoPortalPage() {
                     <button onClick={() => navigate('/dashboard')} className="btn-outline" style={{ marginTop: '1rem' }}>Voltar ao Início</button>
                 </div>
             )}
-        </div>
+        </section>
     );
 }

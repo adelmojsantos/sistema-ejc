@@ -1,6 +1,7 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle, FileSpreadsheet, FileText, Users, ListChecks, MapPin, Printer, Tags } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { HubCard } from '../components/ui/HubCard';
 
 interface SecretariaCategory {
   id: string;
@@ -110,31 +111,15 @@ export function Secretaria() {
 
       <div className="cadastros-hub__grid">
         {CATEGORIES.map((category) => (
-          <article
+          <HubCard
             key={category.id}
-            className={`cadastros-hub__card card ${!category.available ? 'is-disabled' : ''}`}
-            onClick={() => category.available && navigate(category.path)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event) => {
-              if (!category.available) return;
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                navigate(category.path);
-              }
-            }}
-          >
-            <div className="cadastros-hub__content">
-              <span className="cadastros-hub__icon" style={{ backgroundColor: `${category.color}15`, color: category.color }}>
-                {category.icon}
-              </span>
-              <div>
-                <h3>{category.label}</h3>
-                <p>{category.description}</p>
-              </div>
-            </div>
-            {!category.available && <span className="cadastros-hub__tag" style={{ position: 'absolute', bottom: '1.25rem' }}>Em Breve</span>}
-          </article>
+            label={category.label}
+            description={category.description}
+            icon={category.icon}
+            color={category.color}
+            available={category.available}
+            onClick={() => navigate(category.path)}
+          />
         ))}
       </div>
     </section>

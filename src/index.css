@@ -3003,7 +3003,7 @@ tbody tr:hover {
 /* Visitation Portal & Modern Tabs */
 .portal-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 2rem;
   margin-top: 2rem;
 }
@@ -3024,15 +3024,11 @@ tbody tr:hover {
   gap: 1rem;
 }
 
-
-
 .portal-card:hover {
   transform: translateY(-8px);
   box-shadow: 0 12px 30px -10px rgba(var(--primary-rgb, 37, 99, 235), 0.2);
   border-color: var(--primary-color);
 }
-
-
 
 .portal-card__icon {
   width: 64px;

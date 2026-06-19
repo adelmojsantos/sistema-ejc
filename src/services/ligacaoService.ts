@@ -4,6 +4,7 @@ import type { LigacaoCorEquipe, LigacaoRegistro } from '../types/ligacao';
 interface LigacaoPessoaRow {
   nome_completo: string | null;
   comunidade: string | null;
+  telefone?: string | null;
 }
 
 interface LigacaoEquipeRow {
@@ -30,6 +31,22 @@ interface LigacaoParticipacaoRow {
   equipes: LigacaoEquipeRow | LigacaoEquipeRow[] | null;
   circulo_participacao: LigacaoCirculoRow | LigacaoCirculoRow[] | null;
   visita_participacao: LigacaoVisitaRow | LigacaoVisitaRow[] | null;
+}
+
+interface LigacaoRecreacaoResponsavelRow {
+  encontro_id?: string;
+  equipe_id: string | null;
+  pessoas: LigacaoPessoaRow | LigacaoPessoaRow[] | null;
+  equipes: LigacaoEquipeRow | LigacaoEquipeRow[] | null;
+}
+
+interface LigacaoRecreacaoRow {
+  id: string;
+  nome_crianca: string | null;
+  idade: number | null;
+  observacoes: string | null;
+  participacoes: LigacaoRecreacaoResponsavelRow | LigacaoRecreacaoResponsavelRow[] | null;
+  outro_responsavel: LigacaoRecreacaoResponsavelRow | LigacaoRecreacaoResponsavelRow[] | null;
 }
 
 const firstOf = <T>(value: T | T[] | null | undefined): T | null => {
@@ -67,7 +84,7 @@ export const ligacaoService = {
 
     if (error) throw error;
 
-    return ((data ?? []) as LigacaoParticipacaoRow[])
+    const registrosPessoas = ((data ?? []) as LigacaoParticipacaoRow[])
       .map((participacao): LigacaoRegistro | null => {
         const pessoa = firstOf(participacao.pessoas);
         if (!pessoa) return null;
@@ -98,7 +115,81 @@ export const ligacaoService = {
           equipe_cor: isParticipante ? null : equipe?.acesso_plenario ?? 'verde'
         };
       })
-      .filter((registro): registro is LigacaoRegistro => registro !== null)
+      .filter((registro): registro is LigacaoRegistro => registro !== null);
+
+    const { data: recreacaoData, error: recreacaoError } = await supabase
+      .from('recreacao_dados')
+      .select(`
+        id,
+        nome_crianca,
+        idade,
+        observacoes,
+        participacoes:participacao_id!inner (
+          encontro_id,
+          equipe_id,
+          pessoas (
+            nome_completo,
+            comunidade,
+            telefone
+          ),
+          equipes (
+            id,
+            nome,
+            acesso_plenario
+          )
+        ),
+        outro_responsavel:outro_responsavel_id (
+          equipe_id,
+          pessoas (
+            nome_completo,
+            comunidade,
+            telefone
+          ),
+          equipes (
+            id,
+            nome,
+            acesso_plenario
+          )
+        )
+      `)
+      .eq('participacoes.encontro_id', encontroId);
+
+    if (recreacaoError) throw recreacaoError;
+
+    const registrosCriancas = ((recreacaoData ?? []) as unknown as LigacaoRecreacaoRow[])
+      .map((registro): LigacaoRegistro | null => {
+        const responsavel = firstOf(registro.participacoes);
+        const responsavelPessoa = firstOf(responsavel?.pessoas);
+        const responsavelEquipe = firstOf(responsavel?.equipes);
+        const outroResponsavel = firstOf(registro.outro_responsavel);
+        const outroPessoa = firstOf(outroResponsavel?.pessoas);
+        const outroEquipe = firstOf(outroResponsavel?.equipes);
+
+        return {
+          participacao_id: `recreacao-${registro.id}`,
+          tipo: 'crianca',
+          nome: registro.nome_crianca || 'Criança sem nome',
+          foto_url: null,
+          foto_posicao_y: 50,
+          comunidade: responsavelPessoa?.comunidade || null,
+          circulo: null,
+          dupla_visitacao: null,
+          equipe_id: null,
+          equipe: null,
+          equipe_cor: null,
+          idade: registro.idade ?? null,
+          responsavel_principal: responsavelPessoa?.nome_completo || null,
+          telefone_responsavel_principal: responsavelPessoa?.telefone || null,
+          equipe_responsavel_principal: responsavelEquipe?.nome || null,
+          outro_responsavel: outroPessoa?.nome_completo || null,
+          telefone_outro_responsavel: outroPessoa?.telefone || null,
+          equipe_outro_responsavel: outroEquipe?.nome || null,
+          observacoes: registro.observacoes || null,
+        };
+      })
+      .filter((registro): registro is LigacaoRegistro => registro !== null);
+
+    return [...registrosPessoas, ...registrosCriancas]
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
   }
 };

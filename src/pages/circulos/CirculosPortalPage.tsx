@@ -1,5 +1,6 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { UsersRound, ListTree, Layers, BookOpen, BookOpenCheck } from 'lucide-react';
+import { HubCard } from '../../components/ui/HubCard';
 import { useAuth } from '../../hooks/useAuth';
 
 const TABS = [
@@ -75,32 +76,14 @@ export function CirculosPortalPage() {
 
       <div className="cadastros-hub__grid" style={{ marginTop: '2rem' }}>
         {allowedTabs.map(tab => (
-          <article
+          <HubCard
             key={tab.id}
-            className="cadastros-hub__card card"
+            label={tab.label}
+            description={tab.description}
+            icon={tab.icon}
+            color={tab.color}
             onClick={() => navigate(tab.path)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={e => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                navigate(tab.path);
-              }
-            }}
-          >
-            <div className="cadastros-hub__content">
-              <span
-                className="cadastros-hub__icon"
-                style={{ backgroundColor: `${tab.color}15`, color: tab.color }}
-              >
-                {tab.icon}
-              </span>
-              <div>
-                <h3>{tab.label}</h3>
-                <p>{tab.description}</p>
-              </div>
-            </div>
-          </article>
+          />
         ))}
 
         {allowedTabs.length === 0 && (
