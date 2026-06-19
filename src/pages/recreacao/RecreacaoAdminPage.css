@@ -87,7 +87,7 @@
 
 .recreacao-badge {
   background: #fff;
-  border: 0.5mm dashed #1f4f8b;
+  border: 0.1mm dashed #d8dfe6;
   box-sizing: border-box;
   color: #17365d;
   display: grid;
@@ -101,18 +101,6 @@
 
 .recreacao-badges-print-area--yellow .recreacao-badge {
   background: #fff4b8;
-}
-
-.recreacao-badge::after {
-  border: 0.6mm solid #f4bd29;
-  border-radius: 50%;
-  content: "";
-  height: 12mm;
-  opacity: 0.85;
-  position: absolute;
-  right: -5mm;
-  top: -5mm;
-  width: 12mm;
 }
 
 .recreacao-badge__header {
@@ -129,12 +117,15 @@
   height: 18mm;
   justify-content: center;
   min-width: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
 }
 
 .recreacao-badge__logo img {
   height: 100%;
   max-width: 100%;
-  object-fit: contain;
+  object-fit: fill;
   width: 100%;
 }
 
@@ -198,6 +189,15 @@
 .recreacao-badge__body span {
   color: #71591b;
   font-size: 2.4mm;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  margin-bottom: 2mm;
+  text-transform: uppercase;
+}
+
+.recreacao-badge__body span.recreacao-badge__team {
+  color: #71591b;
+  font-size: 4mm;
   font-weight: 900;
   letter-spacing: 0.12em;
   margin-bottom: 2mm;

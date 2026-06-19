@@ -391,8 +391,10 @@ export function RecreacaoAdminPage() {
                       <div className="recreacao-badge__body">
                         <h3>{reg.nome_crianca}</h3>
                         <p>{responsaveis.join(' e ') || 'Não informado'}</p>
-                        <span>Recreação Infantil</span>
                       </div>
+                        <div className="recreacao-badge__body">
+                        <span className='recreacao-badge__team'>Recreação Infantil</span>
+                        </div>
                     </article>
                   );
                 })}

@@ -354,7 +354,7 @@ export function VisitacaoPresencasPage() {
                     disabled={isSaving}
                   >
                     {isSaving ? <Loader className="animate-spin" size={15} /> : <UserCheck size={15} />}
-                    {presente ? 'Desmarcar presença' : 'Confirmar presença'}
+                    {presente ? 'Desmarcar' : 'Presente'}
                   </button>
                   <button
                     type="button"
@@ -363,7 +363,7 @@ export function VisitacaoPresencasPage() {
                     disabled={isSaving}
                   >
                     <UserX size={15} />
-                    {ausente ? 'Desmarcar ausência' : 'Marcar ausência'}
+                    {ausente ? 'Desmarcar' : 'Ausente'}
                   </button>
                 </div>
               </article>
