@@ -609,9 +609,7 @@
 
 .mesa-badge {
   background: #fff;
-  border: 0;
-  border-left: 0.35mm solid #111827;
-  border-top: 0.35mm solid #111827;
+  border: 0.2mm dotted #cbd5e1;
   box-sizing: border-box;
   color: #000;
   display: grid;
@@ -619,14 +617,6 @@
   height: 55mm;
   overflow: hidden;
   width: 66mm;
-}
-
-.mesa-badge:nth-child(3n) {
-  border-right: 0.35mm solid #111827;
-}
-
-.mesa-badge:nth-last-child(-n+3) {
-  border-bottom: 0.35mm solid #111827;
 }
 
 .mesa-badge__top {

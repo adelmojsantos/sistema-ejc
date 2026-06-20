@@ -76,8 +76,8 @@
   display: grid;
   flex: none;
   gap: 0;
-  grid-template-columns: repeat(2, 100mm);
-  grid-template-rows: repeat(4, 70mm);
+  grid-template-columns: repeat(2, 95mm);
+  grid-template-rows: repeat(4, 65mm);
   justify-content: center;
   margin: 0 auto;
   min-height: 297mm;
@@ -92,11 +92,11 @@
   color: #17365d;
   display: grid;
   grid-template-rows: 22mm 1fr;
-  height: 70mm;
+  height: 65mm;
   overflow: hidden;
   padding: 4mm 5mm;
   position: relative;
-  width: 100mm;
+  width: 95mm;
 }
 
 .recreacao-badges-print-area--yellow .recreacao-badge {

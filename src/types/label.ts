@@ -2,6 +2,7 @@ export type LabelFieldType =
   | 'nome'
   | 'equipe'
   | 'circulo'
+  | 'visitaGrupo'
   | 'funcao'
   | 'telefone'
   | 'observacao'

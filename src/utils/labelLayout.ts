@@ -143,6 +143,7 @@ export const LABEL_FIELD_OPTIONS: { value: LabelField['type']; label: string }[]
   { value: 'nome', label: 'Nome' },
   { value: 'equipe', label: 'Equipe' },
   { value: 'circulo', label: 'Círculo' },
+  { value: 'visitaGrupo', label: 'Dupla da visitação' },
   { value: 'funcao', label: 'Função' },
   { value: 'telefone', label: 'Telefone' },
   { value: 'observacao', label: 'Observação' },
