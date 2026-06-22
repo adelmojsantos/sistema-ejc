@@ -100,6 +100,8 @@ const chunkItems = <T,>(items: T[], size: number): T[][] =>
     items.slice(index * size, index * size + size)
   );
 
+const mesaBadgesPerPage = 10;
+
 const sortMesaItems = (items: RelatorioCrachaItem[]) =>
   [...items].sort((a, b) => {
     const grupoA = a.cor === 'Branco' ? a.circulo : a.equipe;
@@ -286,7 +288,7 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
       id: item.id,
       nome: item.nome,
       grupo: item.circulo,
-    })), 15),
+    })), mesaBadgesPerPage),
     [mesaEncontristas]
   );
   const mesaEncontreirosPages = useMemo(
@@ -294,10 +296,10 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
       id: item.id,
       nome: item.nome,
       grupo: item.equipe,
-    })), 15),
+    })), mesaBadgesPerPage),
     [mesaEncontreiros]
   );
-  const mesaRecreacaoPages = useMemo(() => chunkItems(mesaRecreacao, 15), [mesaRecreacao]);
+  const mesaRecreacaoPages = useMemo(() => chunkItems(mesaRecreacao, mesaBadgesPerPage), [mesaRecreacao]);
   const mesaAvulsoCandidates = useMemo(() => {
     const selectedTeamIds = new Set(selectedMesaAvulsoEquipeIds);
     const term = mesaAvulsoSearch.trim().toLowerCase();
@@ -341,7 +343,7 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
     mesaRecreacao,
     selectedMesaAvulsoEquipeIds,
   ]);
-  const mesaAvulsosPages = useMemo(() => chunkItems(mesaAvulsosSelecionados, 15), [mesaAvulsosSelecionados]);
+  const mesaAvulsosPages = useMemo(() => chunkItems(mesaAvulsosSelecionados, mesaBadgesPerPage), [mesaAvulsosSelecionados]);
 
   const handleCopy = async () => {
     if (filteredItems.length === 0) {

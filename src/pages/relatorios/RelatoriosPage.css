@@ -588,13 +588,13 @@
   box-sizing: border-box;
   display: grid;
   gap: 0;
-  grid-template-columns: repeat(3, 66mm);
+  grid-template-columns: repeat(2, 92mm);
   grid-template-rows: repeat(5, 55mm);
   justify-content: center;
   margin: 0 auto;
   min-height: 297mm;
   overflow: auto;
-  padding: 9mm 5mm;
+  padding: 9mm 10mm;
   width: 210mm;
   zoom: 0.55;
 }
@@ -613,15 +613,16 @@
   box-sizing: border-box;
   color: #000;
   display: grid;
-  grid-template-rows: 15mm 21mm 1fr;
+  grid-template-rows: 15mm 20mm 20mm;
   height: 55mm;
   overflow: hidden;
-  width: 66mm;
+  width: 92mm;
 }
 
 .mesa-badge__top {
   display: grid;
   grid-template-columns: 16mm minmax(0, 1fr) 16mm;
+  padding: 0 2mm;
 }
 
 .mesa-badge__logo-box {
