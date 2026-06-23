@@ -23,7 +23,7 @@ export function VisitacaoPortalPage() {
         {
             id: 'coordenar',
             title: 'Gestão e Montagem de Visitas',
-            description: 'Gerencie duplas, vincule encontristas, organize rotas e acompanhe o progresso das visitas em tempo real.',
+            description: 'Gerencie duplas, vincule encontristas e acompanhe o progresso das visitas.',
             icon: <Shield size={32} />,
             path: '/visitacao/coordenador',
             permissions: ['modulo_visitacao_coordenar'],
