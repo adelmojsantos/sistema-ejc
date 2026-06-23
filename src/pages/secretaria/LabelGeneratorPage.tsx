@@ -2,6 +2,10 @@ import { ArrowLeft, ArrowRight, CopyPlus, Download, Loader, Printer, Save, Trash
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useReactToPrint } from 'react-to-print';
+import londrina100Url from '@fontsource/londrina-solid/files/londrina-solid-latin-100-normal.woff2?url';
+import londrina300Url from '@fontsource/londrina-solid/files/londrina-solid-latin-300-normal.woff2?url';
+import londrina400Url from '@fontsource/londrina-solid/files/londrina-solid-latin-400-normal.woff2?url';
+import londrina900Url from '@fontsource/londrina-solid/files/londrina-solid-latin-900-normal.woff2?url';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LabelDataSelector } from '../../components/labels/LabelDataSelector';
 import { LabelPreview } from '../../components/labels/LabelPreview';
@@ -24,6 +28,37 @@ import './LabelGeneratorPage.css';
 type GeneratorTab = 'modelo' | 'dados' | 'preview';
 
 const initialFilters: LabelDataFilters = { search: '', equipeId: '', equipeCor: '', equipeIds: [], visitaGrupoId: '', circulo: '', status: '', tipo: '' };
+
+const labelPrintFontFaces = `
+  @font-face {
+    font-family: 'Londrina Solid';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100;
+    src: url('${londrina100Url}') format('woff2');
+  }
+  @font-face {
+    font-family: 'Londrina Solid';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 300;
+    src: url('${londrina300Url}') format('woff2');
+  }
+  @font-face {
+    font-family: 'Londrina Solid';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400;
+    src: url('${londrina400Url}') format('woff2');
+  }
+  @font-face {
+    font-family: 'Londrina Solid';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 900;
+    src: url('${londrina900Url}') format('woff2');
+  }
+`;
 
 interface StepperInputProps {
   label: string;
@@ -190,6 +225,7 @@ export function LabelGeneratorPage() {
     documentTitle: `Etiquetas - ${template.name}`,
     ignoreGlobalStyles: true,
     pageStyle: `
+      ${labelPrintFontFaces}
       @page { size: ${sheet.width}mm ${sheet.height}mm; margin: 0; }
       html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
       * { box-sizing: border-box; }

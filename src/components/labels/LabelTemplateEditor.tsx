@@ -30,10 +30,9 @@ const FONT_OPTIONS = [
 
 export function LabelTemplateEditor({ template, selectedFieldId, onChange, onSelectedFieldChange }: LabelTemplateEditorProps) {
   const selectedField = useMemo(() => template.fields.find((field) => field.id === selectedFieldId) || null, [selectedFieldId, template.fields]);
-  const fontOptions = useMemo(() => {
-    if (!selectedField?.fontFamily || FONT_OPTIONS.includes(selectedField.fontFamily)) return FONT_OPTIONS;
-    return [selectedField.fontFamily, ...FONT_OPTIONS];
-  }, [selectedField?.fontFamily]);
+  const fontOptions = selectedField?.fontFamily && !FONT_OPTIONS.includes(selectedField.fontFamily)
+    ? [selectedField.fontFamily, ...FONT_OPTIONS]
+    : FONT_OPTIONS;
   const updateTemplate = <K extends keyof LabelTemplate>(key: K, value: LabelTemplate[K]) => onChange({ ...template, [key]: value });
   const updatePrint = <K extends keyof PrintSettings>(key: K, value: PrintSettings[K]) => onChange({ ...template, printSettings: { ...template.printSettings, [key]: value } });
   const updateField = <K extends keyof LabelField>(key: K, value: LabelField[K]) => {
