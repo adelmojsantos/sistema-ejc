@@ -5,6 +5,10 @@ import '@fontsource/plus-jakarta-sans/500.css';
 import '@fontsource/plus-jakarta-sans/600.css';
 import '@fontsource/plus-jakarta-sans/700.css';
 import '@fontsource/plus-jakarta-sans/800.css';
+import '@fontsource/londrina-solid/100.css';
+import '@fontsource/londrina-solid/300.css';
+import '@fontsource/londrina-solid/400.css';
+import '@fontsource/londrina-solid/900.css';
 import 'leaflet/dist/leaflet.css';
 import './index.css'
 import { LoadingProvider } from './contexts/LoadingContext'

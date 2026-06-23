@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react';
-import type { LabelDataItem, LabelTemplate } from '../../types/label';
+import type { LabelPrintItem, LabelTemplate } from '../../types/label';
 import { paginateLabels } from '../../utils/labelLayout';
 import { LabelCanvas } from './LabelCanvas';
 import { LabelPrintArea } from './LabelPrintArea';
 
 interface LabelPreviewProps {
   template: LabelTemplate;
-  items: LabelDataItem[];
+  items: LabelPrintItem[];
 }
 
 export function LabelPreview({ template, items }: LabelPreviewProps) {
   const [mode, setMode] = useState<'labels' | 'sheet'>('labels');
   const pages = useMemo(() => paginateLabels(items, template.printSettings), [items, template.printSettings]);
+  const readableItems = useMemo(() => items.filter((item): item is NonNullable<LabelPrintItem> => Boolean(item)), [items]);
   if (pages.length === 0) return <div className="label-empty-state">Selecione registros para visualizar as etiquetas.</div>;
 
   return (
@@ -22,8 +23,8 @@ export function LabelPreview({ template, items }: LabelPreviewProps) {
       </div>
       {mode === 'labels' ? (
         <div className="label-readable-preview">
-          {items.slice(0, 12).map((item, index) => <LabelCanvas key={`${item.id}-${index}`} template={template} item={item} />)}
-          {items.length > 12 && <p>Exibindo 12 de {items.length} etiquetas. Todas serão incluídas na impressão.</p>}
+          {readableItems.slice(0, 12).map((item, index) => <LabelCanvas key={`${item.id}-${index}`} template={template} item={item} />)}
+          {readableItems.length > 12 && <p>Exibindo 12 de {readableItems.length} etiquetas. Todas serão incluídas na impressão.</p>}
         </div>
       ) : (
         <div className="label-preview-scroll">

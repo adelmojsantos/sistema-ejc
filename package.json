@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/londrina-solid": "^5.2.7",
     "@fontsource/plus-jakarta-sans": "^5.2.8",
     "@phosphor-icons/react": "^2.1.10",
     "@supabase/supabase-js": "^2.98.0",

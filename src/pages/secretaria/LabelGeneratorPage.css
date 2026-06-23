@@ -7,9 +7,14 @@
 .label-steps button small { font-size: .68rem; opacity: .8; }
 .label-steps button.is-active { background: var(--primary-light); border-color: var(--primary-color); color: var(--primary-color); }
 .label-steps button.is-active b { background: var(--primary-color); color: #fff; }
-.label-context-bar { align-items: end; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; display: grid; gap: .8rem; grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) minmax(130px, .35fr) auto; padding: .8rem 1rem; }
+.label-context-bar { align-items: end; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; display: grid; gap: .8rem; grid-template-columns: minmax(220px, 1fr) minmax(260px, 1fr) minmax(130px, .35fr) minmax(130px, .35fr) auto; padding: .8rem 1rem; }
 .label-context-bar .standard-label-group { margin: 0; }
-.label-quantity-field input { text-align: center; }
+.label-stepper-control { align-items: stretch; background: var(--secondary-bg); border: 1px solid var(--border-color); border-radius: 12px; display: grid; grid-template-columns: 36px minmax(52px, 1fr) 36px; overflow: hidden; }
+.label-stepper-control button { background: transparent; border: 0; border-radius: 0; color: var(--text-color); font-size: 1.05rem; font-weight: 800; min-height: 40px; padding: 0; }
+.label-stepper-control button:not(:disabled):hover { background: var(--primary-light); color: var(--primary-color); }
+.label-stepper-control button:disabled { cursor: not-allowed; opacity: .35; }
+.label-stepper-control input { background: transparent; border: 0; border-left: 1px solid var(--border-color); border-radius: 0; border-right: 1px solid var(--border-color); min-height: 40px; padding: .45rem .25rem; text-align: center; }
+.label-stepper-control input:focus { box-shadow: inset 0 0 0 1px var(--primary-color); outline: none; }
 .label-model-actions { display: flex; gap: .4rem; }
 .label-layout-warning { background: var(--danger-bg); border: 1px solid var(--danger-border); border-radius: 10px; color: var(--danger-text); padding: .7rem 1rem; }
 
@@ -97,6 +102,7 @@
 .label-print-area { display: flex; flex-direction: column; gap: 12mm; align-items: center; }
 .label-print-page { box-sizing: border-box; background: #fff; box-shadow: var(--shadow-lg); flex: none; overflow: hidden; break-after: page; page-break-after: always; }
 .label-print-grid { display: grid; align-content: start; justify-content: start; }
+.label-print-skip-slot { box-sizing: border-box; height: 100%; width: 100%; }
 .label-preview-note { text-align: center; color: var(--muted-text); }
 .label-print-only {
   clip: rect(0 0 0 0);

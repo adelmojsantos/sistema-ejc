@@ -114,6 +114,7 @@ export function LabelDataSelector({
           <option value="participante">Participantes</option>
           <option value="encontreiro">Encontreiros</option>
           <option value="equipe">Equipes</option>
+          <option value="circulo">Círculos</option>
         </select>
       </div>
 

@@ -87,9 +87,11 @@ export interface LabelDataItem {
   codigo: string;
   qrCode: string;
   imagem: string;
-  tipo: 'participante' | 'encontreiro' | 'equipe';
+  tipo: 'participante' | 'encontreiro' | 'equipe' | 'circulo';
   status: 'confirmado' | 'pendente';
 }
+
+export type LabelPrintItem = LabelDataItem | null;
 
 export interface LabelDataFilters {
   search: string;

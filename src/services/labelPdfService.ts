@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import type { LabelDataItem, LabelField, LabelTemplate } from '../types/label';
+import type { LabelDataItem, LabelField, LabelPrintItem, LabelTemplate } from '../types/label';
 import { getFieldValue, getOrientedSheetDimensions, paginateLabels } from '../utils/labelLayout';
 
 function sanitizeFileName(value: string) {
@@ -110,7 +110,7 @@ async function drawField(
 }
 
 export const labelPdfService = {
-  async gerar(printArea: HTMLElement, template: LabelTemplate, items: LabelDataItem[]): Promise<void> {
+  async gerar(printArea: HTMLElement, template: LabelTemplate, items: LabelPrintItem[]): Promise<void> {
     const pages = paginateLabels(items, template.printSettings);
     if (pages.length === 0) throw new Error('Nenhuma página disponível para gerar o PDF.');
 
@@ -124,10 +124,12 @@ export const labelPdfService = {
       if (pageIndex > 0) doc.addPage([sheet.width, sheet.height], orientation);
 
       for (let itemIndex = 0; itemIndex < pages[pageIndex].length; itemIndex += 1) {
+        const item = pages[pageIndex][itemIndex];
         const column = itemIndex % template.printSettings.columns;
         const row = Math.floor(itemIndex / template.printSettings.columns);
         const originX = template.printSettings.marginLeft + column * (template.width + template.printSettings.horizontalGap);
         const originY = template.printSettings.marginTop + row * (template.height + template.printSettings.verticalGap);
+        if (!item) continue;
 
         doc.setFillColor(template.backgroundColor);
         if (template.borderRadius > 0) doc.roundedRect(originX, originY, template.width, template.height, template.borderRadius, template.borderRadius, 'F');
@@ -140,7 +142,7 @@ export const labelPdfService = {
 
         for (const field of template.fields) {
           const qrSvg = field.type === 'qrcode' && field.visible ? qrSvgs[qrIndex++] : undefined;
-          await drawField(doc, field, pages[pageIndex][itemIndex], originX, originY, qrSvg);
+          await drawField(doc, field, item, originX, originY, qrSvg);
         }
 
         if (template.borderWidth > 0) {

@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@fontsource/londrina-solid':
+        specifier: ^5.2.7
+        version: 5.2.7
       '@fontsource/plus-jakarta-sans':
         specifier: ^5.2.8
         version: 5.2.8
@@ -418,6 +421,9 @@ packages:
 
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
+
+  '@fontsource/londrina-solid@5.2.7':
+    resolution: {integrity: sha512-jESt0e2k2MCjSttOYuhof05rr6THnI5MO+J4eYj0RcwblvI3NfZPfsUwfjDiYoOAZfIgnwOZVZd3F3ORgshtew==}
 
   '@fontsource/plus-jakarta-sans@5.2.8':
     resolution: {integrity: sha512-P5qE49fqdeD+7DXH1KBxmMPlB17LTz1zvBhFH0tFzfnYTKVJVyb0pR6plh0ZGXxcB+Oayb54FZZw3V42/DawTw==}
@@ -2177,6 +2183,8 @@ snapshots:
 
   '@floating-ui/utils@0.2.11':
     optional: true
+
+  '@fontsource/londrina-solid@5.2.7': {}
 
   '@fontsource/plus-jakarta-sans@5.2.8': {}
 

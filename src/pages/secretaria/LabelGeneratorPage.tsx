@@ -12,17 +12,51 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useEquipes } from '../../hooks/useEquipes';
 import { useLabelPagination } from '../../hooks/useLabelPagination';
+import { circuloService } from '../../services/circuloService';
 import { labelDataService } from '../../services/labelDataService';
 import { labelTemplateService } from '../../services/labelTemplateService';
 import { labelPdfService } from '../../services/labelPdfService';
 import type { Encontro } from '../../types/encontro';
-import type { LabelDataFilters, LabelDataItem, LabelGrouping, LabelTemplate } from '../../types/label';
-import { cloneDefaultLabelTemplate, getOrientedSheetDimensions, matchesLabelFilters, sortLabelItems, validateLabelLayout } from '../../utils/labelLayout';
+import type { LabelDataFilters, LabelDataItem, LabelGrouping, LabelPrintItem, LabelTemplate } from '../../types/label';
+import { cloneDefaultLabelTemplate, getLabelsPerPage, getOrientedSheetDimensions, matchesLabelFilters, sortLabelItems, validateLabelLayout } from '../../utils/labelLayout';
 import './LabelGeneratorPage.css';
 
 type GeneratorTab = 'modelo' | 'dados' | 'preview';
 
 const initialFilters: LabelDataFilters = { search: '', equipeId: '', equipeCor: '', equipeIds: [], visitaGrupoId: '', circulo: '', status: '', tipo: '' };
+
+interface StepperInputProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+}
+
+function StepperInput({ label, value, min, max, onChange }: StepperInputProps) {
+  const clamp = (nextValue: number) => Math.max(min, Math.min(max, nextValue));
+
+  return (
+    <label className="standard-label-group label-stepper-field">
+      <span className="form-label standard-label">{label}</span>
+      <div className="label-stepper-control">
+        <button type="button" onClick={() => onChange(clamp(value - 1))} disabled={value <= min} aria-label={`Diminuir ${label}`}>-</button>
+        <input
+          className="form-input"
+          type="number"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(event) => {
+            const nextValue = Number(event.target.value);
+            onChange(Number.isFinite(nextValue) ? clamp(nextValue) : min);
+          }}
+        />
+        <button type="button" onClick={() => onChange(clamp(value + 1))} disabled={value >= max} aria-label={`Aumentar ${label}`}>+</button>
+      </div>
+    </label>
+  );
+}
 
 export function LabelGeneratorPage() {
   const { encontros, encontroAtivo } = useEncontros();
@@ -31,6 +65,7 @@ export function LabelGeneratorPage() {
   const [templates, setTemplates] = useState<LabelTemplate[]>([]);
   const [template, setTemplate] = useState<LabelTemplate>(cloneDefaultLabelTemplate);
   const [items, setItems] = useState<LabelDataItem[]>([]);
+  const [circuloItems, setCirculoItems] = useState<LabelDataItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<LabelDataFilters>(initialFilters);
   const [grouping, setGrouping] = useState<LabelGrouping>('none');
@@ -41,6 +76,7 @@ export function LabelGeneratorPage() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [labelQuantity, setLabelQuantity] = useState(1);
+  const [skippedLabels, setSkippedLabels] = useState(0);
   const printRef = useRef<HTMLDivElement>(null);
 
   const equipeItems = useMemo<LabelDataItem[]>(() => equipes
@@ -69,7 +105,7 @@ export function LabelGeneratorPage() {
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })),
   [equipes]);
 
-  const allItems = useMemo(() => [...items, ...equipeItems], [equipeItems, items]);
+  const allItems = useMemo(() => [...items, ...equipeItems, ...circuloItems], [circuloItems, equipeItems, items]);
 
   const selectedItems = useMemo(
     () => sortLabelItems(allItems.filter((item) => selectedIds.has(item.id) && matchesLabelFilters(item, filters)), grouping),
@@ -79,7 +115,13 @@ export function LabelGeneratorPage() {
     () => selectedItems.flatMap((item) => Array.from({ length: labelQuantity }, () => item)),
     [labelQuantity, selectedItems],
   );
-  const pages = useLabelPagination(repeatedItems, template.printSettings);
+  const labelsPerPage = useMemo(() => getLabelsPerPage(template.printSettings), [template.printSettings]);
+  const maxSkippedLabels = Math.max(0, labelsPerPage - 1);
+  const printableItems = useMemo<LabelPrintItem[]>(
+    () => skippedLabels > 0 ? [...Array<null>(skippedLabels).fill(null), ...repeatedItems] : repeatedItems,
+    [repeatedItems, skippedLabels],
+  );
+  const pages = useLabelPagination(printableItems, template.printSettings);
   const sheet = getOrientedSheetDimensions(template.printSettings);
   const layoutErrors = useMemo(() => validateLabelLayout(template), [template]);
 
@@ -88,10 +130,46 @@ export function LabelGeneratorPage() {
   }, [encontroAtivo, encontros, selectedEncontroId]);
 
   useEffect(() => {
+    setSkippedLabels((current) => Math.min(current, maxSkippedLabels));
+  }, [maxSkippedLabels]);
+
+  useEffect(() => {
     labelTemplateService.listar().then((data) => {
       setTemplates(data);
       if (data[0]) setTemplate(data[0]);
     });
+  }, []);
+
+  useEffect(() => {
+    circuloService.listar()
+      .then((circulos) => {
+        setCirculoItems(circulos.map((circulo): LabelDataItem => {
+          const nome = circulo.nome?.trim() || 'Círculo sem nome';
+
+          return {
+            id: `circulo-${circulo.id}`,
+            nome,
+            equipe: '',
+            equipeId: null,
+            equipeCor: null,
+            visitaGrupoId: null,
+            visitaGrupo: '',
+            circulo: nome,
+            funcao: 'Círculo',
+            telefone: '',
+            observacao: '',
+            codigo: String(circulo.id).padStart(4, '0'),
+            qrCode: String(circulo.id),
+            imagem: circulo.imagem_url || '',
+            tipo: 'circulo',
+            status: 'confirmado',
+          };
+        }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })));
+      })
+      .catch((error) => {
+        console.error(error);
+        toast.error('Erro ao carregar círculos para etiquetas.');
+      });
   }, []);
 
   useEffect(() => {
@@ -228,7 +306,7 @@ export function LabelGeneratorPage() {
 
     setIsGeneratingPdf(true);
     try {
-      await labelPdfService.gerar(printRef.current, template, repeatedItems);
+      await labelPdfService.gerar(printRef.current, template, printableItems);
       toast.success('PDF gerado com sucesso.');
     } catch (error) {
       console.error(error);
@@ -281,20 +359,8 @@ export function LabelGeneratorPage() {
             {templates.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
           </select>
         </label>
-        <label className="standard-label-group label-quantity-field">
-          <span className="form-label standard-label">Qtd. por registro</span>
-          <input
-            className="form-input"
-            type="number"
-            min={1}
-            max={999}
-            value={labelQuantity}
-            onChange={(event) => {
-              const value = Number(event.target.value);
-              setLabelQuantity(Number.isFinite(value) ? Math.max(1, Math.min(999, value)) : 1);
-            }}
-          />
-        </label>
+        <StepperInput label="Qtd. por registro" value={labelQuantity} min={1} max={999} onChange={setLabelQuantity} />
+        <StepperInput label="Pular na 1ª folha" value={skippedLabels} min={0} max={maxSkippedLabels} onChange={setSkippedLabels} />
         <div className="label-model-actions">
           <button type="button" className="btn-secondary-sm" onClick={duplicateTemplate}><CopyPlus size={16} /> Criar cópia</button>
           <button type="button" className="btn-primary-sm" onClick={saveTemplate} disabled={isSaving}>{isSaving ? <Loader className="animate-spin" size={16} /> : <Save size={16} />} Salvar</button>
@@ -310,9 +376,9 @@ export function LabelGeneratorPage() {
         <div className="label-preview-panel">
           <div className="label-print-guidance">
             <strong>{repeatedItems.length} etiquetas em {pages.length} página(s).</strong>
-            <span>{selectedItems.length} registro(s) selecionado(s), {labelQuantity} etiqueta(s) por registro.</span>
+            <span>{selectedItems.length} registro(s) selecionado(s), {labelQuantity} etiqueta(s) por registro{skippedLabels > 0 ? `, pulando ${skippedLabels} na primeira folha` : ''}.</span>
           </div>
-          <LabelPreview template={template} items={repeatedItems} />
+          <LabelPreview template={template} items={printableItems} />
         </div>
       )}
 

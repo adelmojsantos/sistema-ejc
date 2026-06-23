@@ -14,8 +14,26 @@ interface LabelTemplateEditorProps {
 
 const numberValue = (value: string) => Number(value) || 0;
 
+const FONT_OPTIONS = [
+  'Plus Jakarta Sans',
+  'Londrina Solid',
+  'Arial',
+  'Helvetica',
+  'Verdana',
+  'Georgia',
+  'Times New Roman',
+  'Courier New',
+  'system-ui',
+  'sans-serif',
+  'serif',
+];
+
 export function LabelTemplateEditor({ template, selectedFieldId, onChange, onSelectedFieldChange }: LabelTemplateEditorProps) {
   const selectedField = useMemo(() => template.fields.find((field) => field.id === selectedFieldId) || null, [selectedFieldId, template.fields]);
+  const fontOptions = useMemo(() => {
+    if (!selectedField?.fontFamily || FONT_OPTIONS.includes(selectedField.fontFamily)) return FONT_OPTIONS;
+    return [selectedField.fontFamily, ...FONT_OPTIONS];
+  }, [selectedField?.fontFamily]);
   const updateTemplate = <K extends keyof LabelTemplate>(key: K, value: LabelTemplate[K]) => onChange({ ...template, [key]: value });
   const updatePrint = <K extends keyof PrintSettings>(key: K, value: PrintSettings[K]) => onChange({ ...template, printSettings: { ...template.printSettings, [key]: value } });
   const updateField = <K extends keyof LabelField>(key: K, value: LabelField[K]) => {
@@ -170,7 +188,14 @@ export function LabelTemplateEditor({ template, selectedFieldId, onChange, onSel
               <details className="label-inline-details">
                 <summary>Mais opções de texto</summary>
                 <div className="label-form-grid">
-                  <FormField label="Fonte" value={selectedField.fontFamily} onChange={(event) => updateField('fontFamily', event.target.value)} floating={false} />
+                  <label className="standard-label-group">
+                    <span className="form-label standard-label">Fonte</span>
+                    <select className="form-input" value={selectedField.fontFamily} onChange={(event) => updateField('fontFamily', event.target.value)}>
+                      {fontOptions.map((font) => (
+                        <option key={font} value={font} style={{ fontFamily: font }}>{font}</option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="standard-label-group"><span className="form-label standard-label">Transformação</span><select className="form-input" value={selectedField.textTransform} onChange={(event) => updateField('textTransform', event.target.value as LabelField['textTransform'])}><option value="none">Nenhuma</option><option value="uppercase">Maiúsculo</option><option value="lowercase">Minúsculo</option><option value="capitalize">Capitalizado</option></select></label>
                 </div>
               </details>

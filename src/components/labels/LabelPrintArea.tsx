@@ -1,11 +1,11 @@
 import { forwardRef } from 'react';
-import type { LabelDataItem, LabelTemplate } from '../../types/label';
+import type { LabelPrintItem, LabelTemplate } from '../../types/label';
 import { getOrientedSheetDimensions } from '../../utils/labelLayout';
 import { LabelCanvas } from './LabelCanvas';
 
 interface LabelPrintAreaProps {
   template: LabelTemplate;
-  pages: LabelDataItem[][];
+  pages: LabelPrintItem[][];
   className?: string;
 }
 
@@ -35,7 +35,11 @@ export const LabelPrintArea = forwardRef<HTMLDivElement, LabelPrintAreaProps>(fu
               rowGap: `${template.printSettings.verticalGap}mm`,
             }}
           >
-            {page.map((item, itemIndex) => <LabelCanvas key={`${item.id}-${pageIndex}-${itemIndex}`} template={template} item={item} />)}
+            {page.map((item, itemIndex) => (
+              item
+                ? <LabelCanvas key={`${item.id}-${pageIndex}-${itemIndex}`} template={template} item={item} />
+                : <div key={`skip-${pageIndex}-${itemIndex}`} className="label-print-skip-slot" aria-hidden="true" />
+            ))}
           </div>
         </section>
       ))}

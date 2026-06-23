@@ -168,9 +168,9 @@ export function getLabelsPerPage(settings: PrintSettings) {
   return Math.max(1, settings.columns * settings.rows);
 }
 
-export function paginateLabels(items: LabelDataItem[], settings: PrintSettings) {
+export function paginateLabels<T>(items: T[], settings: PrintSettings) {
   const perPage = getLabelsPerPage(settings);
-  const pages: LabelDataItem[][] = [];
+  const pages: T[][] = [];
   for (let index = 0; index < items.length; index += perPage) {
     pages.push(items.slice(index, index + perPage));
   }
@@ -195,6 +195,7 @@ export function getLabelGroupValue(item: LabelDataItem, grouping: LabelGrouping 
 }
 
 export function matchesLabelTeamScope(item: LabelDataItem, filters: LabelDataFilters) {
+  if (item.tipo === 'circulo') return true;
   if (filters.equipeCor && item.equipeCor !== filters.equipeCor) return false;
   if (filters.equipeIds.length > 0 && (!item.equipeId || !filters.equipeIds.includes(item.equipeId))) return false;
   return true;
