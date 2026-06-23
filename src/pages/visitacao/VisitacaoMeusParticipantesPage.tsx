@@ -33,6 +33,7 @@ import { WhatsappLogo } from 'phosphor-react';
 
 type VisitaListItem = VisitaParticipacaoEnriched & {
     is_history?: boolean;
+    motivo_cancelamento?: string | null;
 };
 
 type VehicleData = {
@@ -178,6 +179,7 @@ export function VisitacaoMeusParticipantesPage() {
                             participacao_id: c.dados_snapshot?.participacao_id || '',
                             status: 'cancelada',
                             observacoes: c.observacoes,
+                            motivo_cancelamento: c.motivo_cancelamento,
                             taxa_paga: c.dados_snapshot?.taxa_paga || false,
                             participacoes: {
                                 id: c.dados_snapshot?.participacao_id || '',
@@ -649,6 +651,26 @@ export function VisitacaoMeusParticipantesPage() {
                                                         )}
                                                     </div>
                                                 </div>
+
+                                                {p.status === 'cancelada' && p.motivo_cancelamento && (
+                                                    <div style={{
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        gap: '0.35rem',
+                                                        padding: '0.75rem 1rem',
+                                                        background: 'rgba(239, 68, 68, 0.08)',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid rgba(239, 68, 68, 0.18)',
+                                                        color: 'var(--text-color)',
+                                                        fontSize: '0.85rem',
+                                                        lineHeight: 1.45
+                                                    }}>
+                                                        <strong style={{ color: '#ef4444', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                                            Motivo da desistência
+                                                        </strong>
+                                                        <span>{p.motivo_cancelamento}</span>
+                                                    </div>
+                                                )}
 
                                                 {/* Informações de Saúde */}
                                                 {(pessoa?.possui_restricao_alimentar || pessoa?.possui_alergia || pessoa?.usa_medicamento_continuo || pessoa?.possui_observacao_saude) && (

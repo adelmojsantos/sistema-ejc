@@ -561,7 +561,7 @@ export function VisitacaoManutencaoPage() {
         if (!id || !visita) return;
 
         if (status === 'cancelada') {
-            setMotivoDesistencia(observacoes.trim());
+            setMotivoDesistencia('');
             setMotivoDesistenciaError('');
             setIsConfirmDialogOpen(true);
             return;
@@ -579,7 +579,6 @@ export function VisitacaoManutencaoPage() {
             return;
         }
 
-        setObservacoes(motivo);
         setSaving(true);
         try {
             const { data: participacaoSnapshot, error: participacaoSnapshotError } = await supabase
@@ -596,7 +595,8 @@ export function VisitacaoManutencaoPage() {
                 encontro_id: (visita.participacoes as ParticipacaoComPessoa | null)?.encontro_id || '',
                 grupo_id: visita.grupo_id,
                 status_visita: status,
-                observacoes: motivo,
+                observacoes: observacoes.trim() || undefined,
+                motivo_cancelamento: motivo,
                 dados_snapshot: {
                     visita_participacao_id: id,
                     participacao_id: visita.participacao_id,

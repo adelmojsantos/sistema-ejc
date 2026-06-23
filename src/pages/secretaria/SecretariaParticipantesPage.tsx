@@ -113,7 +113,7 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
                 <div className="secretaria-desistente-details">
                   <span>{formatTelefone(pessoa?.telefone)}</span>
                   {pessoa?.comunidade && <span>{pessoa.comunidade}</span>}
-                  {desistencia.observacoes && <span>Obs.: {desistencia.observacoes}</span>}
+                  {desistencia.motivo_cancelamento && <span>Motivo: {desistencia.motivo_cancelamento}</span>}
                 </div>
               </div>
 
@@ -271,8 +271,9 @@ export function SecretariaParticipantesPage() {
         const matchComunidade = pessoa?.comunidade?.toLowerCase().includes(term);
         const matchDupla = dupla.toLowerCase().includes(term);
         const matchObservacoes = d.observacoes?.toLowerCase().includes(term);
+        const matchMotivo = d.motivo_cancelamento?.toLowerCase().includes(term);
 
-        return !!(matchNome || matchCpf || matchEmail || matchTelefone || matchComunidade || matchDupla || matchObservacoes);
+        return !!(matchNome || matchCpf || matchEmail || matchTelefone || matchComunidade || matchDupla || matchObservacoes || matchMotivo);
       })
       .sort((a, b) => {
         const nameComparison = (a.pessoas?.nome_completo || '').localeCompare(

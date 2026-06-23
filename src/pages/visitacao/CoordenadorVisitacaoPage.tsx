@@ -1015,8 +1015,13 @@ export function CoordenadorVisitacaoPage() {
                         </div>
                       </div>
 
-                      {(cancelado.observacoes || dataCancelamento) && (
+                      {(cancelado.motivo_cancelamento || cancelado.observacoes || dataCancelamento) && (
                         <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {cancelado.motivo_cancelamento && (
+                            <div style={{ fontSize: '0.85rem', lineHeight: 1.5 }}>
+                              <strong>Motivo:</strong> {cancelado.motivo_cancelamento}
+                            </div>
+                          )}
                           {cancelado.observacoes && (
                             <div style={{ fontSize: '0.85rem', lineHeight: 1.5 }}>
                               <strong>Observação:</strong> {cancelado.observacoes}

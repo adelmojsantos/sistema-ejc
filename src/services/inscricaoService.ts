@@ -363,15 +363,20 @@ export const inscricaoService = {
         encontro_id: string;
         grupo_id?: string;
         status_visita?: string;
-        observacoes?: string;
+        observacoes?: string | null;
+        motivo_cancelamento: string;
         dados_snapshot?: ParticipacaoCancelada['dados_snapshot'];
     }): Promise<void> {
         const { data: { user } } = await supabase.auth.getUser();
+        const motivoCancelamento = dados.motivo_cancelamento.trim();
+        if (!motivoCancelamento) throw new Error('Informe o motivo do cancelamento.');
         
         const { error } = await supabase
             .from('participacoes_canceladas')
             .insert([{
                 ...dados,
+                motivo_cancelamento: motivoCancelamento,
+                observacoes: dados.observacoes?.trim() || null,
                 cancelado_por: user?.id,
                 data_cancelamento: new Date().toISOString()
             }]);
