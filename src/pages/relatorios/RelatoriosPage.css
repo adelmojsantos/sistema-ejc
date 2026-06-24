@@ -588,13 +588,13 @@
   box-sizing: border-box;
   display: grid;
   gap: 0;
-  grid-template-columns: repeat(2, 92mm);
-  grid-template-rows: repeat(5, 55mm);
+  grid-template-columns: repeat(2, 82mm);
+  grid-template-rows: repeat(4, 68mm);
   justify-content: center;
   margin: 0 auto;
   min-height: 297mm;
   overflow: auto;
-  padding: 9mm 10mm;
+  padding: 12.5mm 20mm;
   width: 210mm;
   zoom: 0.55;
 }
@@ -609,20 +609,20 @@
 
 .mesa-badge {
   background: #fff;
-  border: 0.2mm dotted #cbd5e1;
+  border: 0.32mm dashed #64748b;
   box-sizing: border-box;
   color: #000;
   display: grid;
-  grid-template-rows: 15mm 20mm 20mm;
-  height: 55mm;
+  grid-template-rows: 17mm 31mm 20mm;
+  height: 68mm;
   overflow: hidden;
-  width: 92mm;
+  width: 82mm;
 }
 
 .mesa-badge__top {
   display: grid;
-  grid-template-columns: 16mm minmax(0, 1fr) 16mm;
-  padding: 0 2mm;
+  grid-template-columns: 17mm minmax(0, 1fr) 17mm;
+  padding: 1mm 2.5mm 0;
 }
 
 .mesa-badge__logo-box {
@@ -635,7 +635,7 @@
   display: flex;
   justify-content: center;
   min-width: 0;
-  margin: 1.4mm;
+  margin: 0.8mm 1.2mm 1.2mm;
   overflow: hidden;
   text-align: center;
 }
@@ -651,7 +651,7 @@
 }
 
 .mesa-badge__logo-box span {
-  font-size: 1.9mm;
+  font-size: 2.1mm;
   font-weight: 700;
   line-height: 1.05;
   text-transform: uppercase;
@@ -663,22 +663,22 @@
   flex-direction: column;
   justify-content: center;
   min-width: 0;
-  padding: 1mm 1.5mm;
+  padding: 1mm 1.2mm;
   text-align: center;
 }
 
 .mesa-badge__event strong {
-  font-size: 2.6mm;
+  font-size: 3mm;
   font-weight: 900;
   line-height: 1;
   text-transform: uppercase;
 }
 
 .mesa-badge__event span {
-  font-size: 2.5mm;
+  font-size: 2.75mm;
   font-style: italic;
   line-height: 1.05;
-  margin-top: 2mm;
+  margin-top: 1.7mm;
   max-width: 100%;
   overflow-wrap: anywhere;
   text-transform: uppercase;
@@ -686,36 +686,35 @@
 
 .mesa-badge__person {
   align-items: center;
-  border-bottom: 0.45mm solid #111827;
   display: flex;
   flex-direction: column;
   justify-content: center;
   min-width: 0;
-  padding: 1.5mm 2.5mm;
+  padding: 2mm 3mm 3.5mm;
   text-align: center;
 }
 
 .mesa-badge__child-icon {
   color: #92400e;
-  height: 4.2mm;
-  margin-bottom: 1mm;
-  stroke-width: 2.2;
-  width: 4.2mm;
+  height: 5mm;
+  margin-bottom: 1.2mm;
+  stroke-width: 2.4;
+  width: 5mm;
 }
 
 .mesa-badge__person strong {
-  font-size: 4mm;
+  font-size: 5.4mm;
   font-weight: 950;
-  line-height: 1;
+  line-height: 0.96;
   max-width: 100%;
   overflow-wrap: anywhere;
   text-transform: uppercase;
 }
 
 .mesa-badge__person span {
-  font-size: 3mm;
+  font-size: 3.5mm;
   line-height: 1;
-  margin-top: 2.5mm;
+  margin-top: 2.2mm;
   max-width: 100%;
   overflow-wrap: anywhere;
   text-transform: uppercase;

@@ -209,7 +209,9 @@ export function VisitacaoManutencaoPage() {
     const [observacoes, setObservacoes] = useState('');
     const [taxaPaga, setTaxaPaga] = useState(false);
     const [fotoUrl, setFotoUrl] = useState<string | null>(null);
+    const [fotoFamiliaUrl, setFotoFamiliaUrl] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
+    const [uploadingFamilyPhoto, setUploadingFamilyPhoto] = useState(false);
 
     // Correction states
     const [nomeCompleto, setNomeCompleto] = useState('');
@@ -244,9 +246,13 @@ export function VisitacaoManutencaoPage() {
 
     const [isHistory, setIsHistory] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [isDraggingFamilyPhoto, setIsDraggingFamilyPhoto] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
+    const familyFileInputRef = useRef<HTMLInputElement>(null);
+    const familyCameraInputRef = useRef<HTMLInputElement>(null);
     const [isPhotoActionSheetOpen, setIsPhotoActionSheetOpen] = useState(false);
+    const [isFamilyPhotoActionSheetOpen, setIsFamilyPhotoActionSheetOpen] = useState(false);
 
     // ---- Intenção de camiseta ----
     const [intencoes, setIntencoes] = useState<IntencaoCamisetaItem[]>([]);
@@ -278,6 +284,24 @@ export function VisitacaoManutencaoPage() {
             toast.error('Erro ao enviar foto.');
         } finally {
             setUploading(false);
+        }
+    }, [visita]);
+
+    const processFamilyPhotoFile = useCallback(async (file: File) => {
+        if (!file || !visita || !file.type.startsWith('image/')) return;
+        setUploadingFamilyPhoto(true);
+        try {
+            const url = await visitacaoService.uploadFotoFamilia(visita.id, file);
+            await visitacaoService.atualizarVisita(visita.id, {
+                foto_familia_url: url
+            });
+            setFotoFamiliaUrl(url);
+            toast.success('Foto da família enviada com sucesso!');
+        } catch (error) {
+            console.error('Erro ao enviar foto da família:', error);
+            toast.error('Erro ao enviar foto da família.');
+        } finally {
+            setUploadingFamilyPhoto(false);
         }
     }, [visita]);
 
@@ -370,6 +394,23 @@ export function VisitacaoManutencaoPage() {
         }
     };
 
+    const handleRemoveFamilyPhoto = async () => {
+        if (!visita) return;
+        setUploadingFamilyPhoto(true);
+        try {
+            await visitacaoService.atualizarVisita(visita.id, {
+                foto_familia_url: null
+            });
+            setFotoFamiliaUrl(null);
+            toast.success('Foto da família removida com sucesso!');
+        } catch (error) {
+            console.error('Erro ao remover foto da família:', error);
+            toast.error('Erro ao remover foto da família.');
+        } finally {
+            setUploadingFamilyPhoto(false);
+        }
+    };
+
     const handleDrop = useCallback((e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -388,6 +429,26 @@ export function VisitacaoManutencaoPage() {
         e.preventDefault();
         e.stopPropagation();
         setIsDragging(false);
+    }, []);
+
+    const handleFamilyPhotoDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingFamilyPhoto(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) processFamilyPhotoFile(file);
+    }, [processFamilyPhotoFile]);
+
+    const handleFamilyPhotoDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingFamilyPhoto(true);
+    }, []);
+
+    const handleFamilyPhotoDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDraggingFamilyPhoto(false);
     }, []);
 
     useEffect(() => {
@@ -442,6 +503,7 @@ export function VisitacaoManutencaoPage() {
                             participacao_id: historyData.dados_snapshot?.participacao_id || '',
                             created_at: historyData.data_cancelamento || '',
                             foto_url: null,
+                            foto_familia_url: historyData.dados_snapshot?.visita?.foto_familia_url || null,
                             data_visita: null,
                             participacoes: {
                                 id: historyData.dados_snapshot?.participacao_id || '',
@@ -459,6 +521,7 @@ export function VisitacaoManutencaoPage() {
                     setStatus(data.status || 'pendente');
                     setObservacoes(data.observacoes || '');
                     setTaxaPaga(data.taxa_paga || false);
+                    setFotoFamiliaUrl(data.foto_familia_url || null);
 
                     // Photo is now in participacoes
                     const part = data.participacoes as ParticipacaoComPessoa | null;
@@ -545,7 +608,15 @@ export function VisitacaoManutencaoPage() {
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         setIsPhotoActionSheetOpen(false);
         const file = e.target.files?.[0];
+        e.target.value = '';
         if (file) processFile(file);
+    };
+
+    const handleFamilyPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        setIsFamilyPhotoActionSheetOpen(false);
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (file) processFamilyPhotoFile(file);
     };
 
     const handlePhotoAreaClick = () => {
@@ -554,6 +625,15 @@ export function VisitacaoManutencaoPage() {
             setIsPhotoActionSheetOpen(true);
         } else {
             fileInputRef.current?.click();
+        }
+    };
+
+    const handleFamilyPhotoAreaClick = () => {
+        if (uploadingFamilyPhoto || isHistory) return;
+        if (window.innerWidth <= 768) {
+            setIsFamilyPhotoActionSheetOpen(true);
+        } else {
+            familyFileInputRef.current?.click();
         }
     };
 
@@ -610,6 +690,7 @@ export function VisitacaoManutencaoPage() {
                         status: visita.status,
                         observacoes: visita.observacoes,
                         foto_url: visita.foto_url,
+                        foto_familia_url: fotoFamiliaUrl,
                         taxa_paga: taxaPaga,
                         data_visita: visita.data_visita
                     }
@@ -661,6 +742,7 @@ export function VisitacaoManutencaoPage() {
             await visitacaoService.atualizarVisita(id, {
                 status,
                 observacoes,
+                foto_familia_url: fotoFamiliaUrl,
                 taxa_paga: taxaPaga,
                 data_visita: status === 'realizada' ? new Date().toISOString() : (visita.data_visita || undefined)
             });
@@ -1707,6 +1789,82 @@ export function VisitacaoManutencaoPage() {
                                     disabled={isHistory}
                                 />
                             </div>
+
+                            <div className="form-group" style={{ marginTop: '1.5rem' }}>
+                                <label className="form-label">Foto da família</label>
+                                <div
+                                    className={`visita-family-photo-area ${isDraggingFamilyPhoto ? 'dragging' : ''} ${fotoFamiliaUrl ? 'has-photo' : ''} ${isHistory ? 'disabled' : ''}`}
+                                    onClick={handleFamilyPhotoAreaClick}
+                                    onDrop={isHistory ? undefined : handleFamilyPhotoDrop}
+                                    onDragOver={isHistory ? undefined : handleFamilyPhotoDragOver}
+                                    onDragLeave={isHistory ? undefined : handleFamilyPhotoDragLeave}
+                                >
+                                    {fotoFamiliaUrl ? (
+                                        <img src={fotoFamiliaUrl} alt="Foto da família" />
+                                    ) : (
+                                        <div className="visita-family-photo-placeholder">
+                                            {isDraggingFamilyPhoto ? (
+                                                <>
+                                                    <Upload size={32} />
+                                                    <span>Solte a foto aqui</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <UsersRound size={32} />
+                                                    <span>Clique ou arraste a foto da família</span>
+                                                    <small>JPG, PNG ou imagem da câmera</small>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {fotoFamiliaUrl && !uploadingFamilyPhoto && !isHistory && (
+                                        <div className="visita-family-photo-overlay">
+                                            <Camera size={22} />
+                                            <span>Alterar foto</span>
+                                        </div>
+                                    )}
+
+                                    {fotoFamiliaUrl && !uploadingFamilyPhoto && !isHistory && (
+                                        <button
+                                            type="button"
+                                            className="visita-family-photo-remove"
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                handleRemoveFamilyPhoto();
+                                            }}
+                                            title="Remover foto da família"
+                                        >
+                                            <Trash2 size={22} />
+                                        </button>
+                                    )}
+
+                                    {uploadingFamilyPhoto && (
+                                        <div className="visita-family-photo-loading">
+                                            <Loader className="animate-spin" color="white" size={30} />
+                                        </div>
+                                    )}
+
+                                    <input
+                                        ref={familyFileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        style={{ display: 'none' }}
+                                        onChange={handleFamilyPhotoUpload}
+                                        disabled={uploadingFamilyPhoto || isHistory}
+                                    />
+
+                                    <input
+                                        ref={familyCameraInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        style={{ display: 'none' }}
+                                        onChange={handleFamilyPhotoUpload}
+                                        disabled={uploadingFamilyPhoto || isHistory}
+                                    />
+                                </div>
+                            </div>
                         </FormSection>
                     </div>
 
@@ -1819,6 +1977,129 @@ export function VisitacaoManutencaoPage() {
                     }
                     .visita-photo-area:hover .visita-photo-overlay {
                         opacity: 1;
+                    }
+                    .visita-family-photo-area {
+                        width: 100%;
+                        min-height: 220px;
+                        border-radius: 16px;
+                        background: var(--secondary-bg);
+                        border: 2px dashed var(--border-color);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        overflow: hidden;
+                        position: relative;
+                        cursor: pointer;
+                        transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease, transform 0.25s ease;
+                    }
+                    .visita-family-photo-area:hover {
+                        border-color: var(--primary-color);
+                        box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.1);
+                    }
+                    .visita-family-photo-area.dragging {
+                        border-color: var(--primary-color);
+                        background: rgba(var(--primary-rgb), 0.08);
+                        box-shadow: 0 0 0 6px rgba(var(--primary-rgb), 0.15);
+                        transform: scale(1.01);
+                    }
+                    .visita-family-photo-area.has-photo {
+                        min-height: clamp(220px, 34vw, 380px);
+                        border-style: solid;
+                        border-color: transparent;
+                        background: #111827;
+                    }
+                    .visita-family-photo-area.disabled {
+                        cursor: default;
+                        opacity: 0.92;
+                    }
+                    .visita-family-photo-area img {
+                        width: 100%;
+                        height: 100%;
+                        min-height: inherit;
+                        object-fit: cover;
+                        display: block;
+                    }
+                    .visita-family-photo-placeholder {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 0.45rem;
+                        padding: 1.5rem;
+                        color: var(--text-color);
+                        text-align: center;
+                        opacity: 0.55;
+                        font-weight: 700;
+                    }
+                    .visita-family-photo-placeholder small {
+                        font-size: 0.76rem;
+                        font-weight: 600;
+                        opacity: 0.7;
+                    }
+                    .visita-family-photo-area:hover .visita-family-photo-placeholder,
+                    .visita-family-photo-area.dragging .visita-family-photo-placeholder {
+                        opacity: 0.78;
+                    }
+                    .visita-family-photo-overlay,
+                    .visita-family-photo-loading {
+                        position: absolute;
+                        inset: 0;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                    }
+                    .visita-family-photo-overlay {
+                        flex-direction: column;
+                        gap: 0.3rem;
+                        background: rgba(0,0,0,0.52);
+                        font-weight: 800;
+                        opacity: 0;
+                        transition: opacity 0.25s ease;
+                        pointer-events: none;
+                    }
+                    .visita-family-photo-area:hover .visita-family-photo-overlay {
+                        opacity: 1;
+                    }
+                    .visita-family-photo-loading {
+                        background: rgba(0,0,0,0.5);
+                    }
+                    .visita-family-photo-remove {
+                        position: absolute;
+                        top: 12px;
+                        right: 12px;
+                        width: 46px;
+                        height: 46px;
+                        border: 0;
+                        border-radius: 50%;
+                        background: rgba(239, 68, 68, 0.92);
+                        color: #fff;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+                        z-index: 2;
+                    }
+                    .visita-family-photo-remove:hover {
+                        background: #ef4444;
+                    }
+                    @media (max-width: 639px) {
+                        .visita-family-photo-area {
+                            min-height: 190px;
+                            border-radius: 14px;
+                        }
+                        .visita-family-photo-area.has-photo {
+                            min-height: 230px;
+                        }
+                        .visita-family-photo-placeholder {
+                            padding: 1rem;
+                            font-size: 0.9rem;
+                        }
+                        .visita-family-photo-remove {
+                            width: 50px;
+                            height: 50px;
+                        }
                     }
                     .visita-hero-info {
                         flex: 1;
@@ -2246,6 +2527,42 @@ export function VisitacaoManutencaoPage() {
                             </button>
                         </div>
                         <button className="photo-actions-cancel" onClick={() => setIsPhotoActionSheetOpen(false)}>
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {isFamilyPhotoActionSheetOpen && (
+                <div className="photo-actions-modal-overlay">
+                    <div className="photo-actions-modal" onClick={e => e.stopPropagation()}>
+                        <div className="photo-actions-header">
+                            <h3>Foto da família</h3>
+                            <p>Como você deseja inserir a foto?</p>
+                        </div>
+                        <div className="photo-actions-buttons">
+                            <button
+                                onClick={() => {
+                                    setIsFamilyPhotoActionSheetOpen(false);
+                                    familyCameraInputRef.current?.click();
+                                }}
+                                className="photo-action-btn"
+                            >
+                                <Camera size={20} />
+                                Tirar Foto (Câmera)
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setIsFamilyPhotoActionSheetOpen(false);
+                                    familyFileInputRef.current?.click();
+                                }}
+                                className="photo-action-btn"
+                            >
+                                <ImagePlus size={20} />
+                                Escolher da Galeria
+                            </button>
+                        </div>
+                        <button className="photo-actions-cancel" onClick={() => setIsFamilyPhotoActionSheetOpen(false)}>
                             Cancelar
                         </button>
                     </div>

@@ -9,6 +9,7 @@ import type { InscricaoEnriched } from '../types/inscricao';
 import { useDebounce } from './useDebounce';
 
 export type TaxaTab = 'encontristas' | 'equipes';
+export type TaxaPaymentStatusFilter = 'todos' | 'pagos' | 'pendentes';
 
 interface UseTaxasProps {
   encontroId: string;
@@ -27,6 +28,7 @@ export function useTaxas({ encontroId, valorTaxa }: UseTaxasProps) {
   // Estados de UI/Filtros
   const [activeTab, setActiveTab] = useState<TaxaTab>('encontristas');
   const [selectedEquipeId, setSelectedEquipeId] = useState<string>('all');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<TaxaPaymentStatusFilter>('todos');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
 
@@ -68,9 +70,10 @@ export function useTaxas({ encontroId, valorTaxa }: UseTaxasProps) {
     taxaService.filtrarParticipantes(participantes, {
       tab: activeTab,
       equipeId: selectedEquipeId,
+      status: paymentStatusFilter,
       search: debouncedSearch
     }),
-    [participantes, activeTab, selectedEquipeId, debouncedSearch]
+    [participantes, activeTab, selectedEquipeId, paymentStatusFilter, debouncedSearch]
   );
 
   // Ações/Mutações
@@ -105,12 +108,14 @@ export function useTaxas({ encontroId, valorTaxa }: UseTaxasProps) {
     // UI State
     activeTab,
     selectedEquipeId,
+    paymentStatusFilter,
     searchTerm,
     
     // Actions
     actions: {
       setActiveTab,
       setSelectedEquipeId,
+      setPaymentStatusFilter,
       setSearchTerm,
       togglePagamento,
       refresh: loadData

@@ -100,7 +100,7 @@ const chunkItems = <T,>(items: T[], size: number): T[][] =>
     items.slice(index * size, index * size + size)
   );
 
-const mesaBadgesPerPage = 10;
+const mesaBadgesPerPage = 8;
 
 const sortMesaItems = (items: RelatorioCrachaItem[]) =>
   [...items].sort((a, b) => {

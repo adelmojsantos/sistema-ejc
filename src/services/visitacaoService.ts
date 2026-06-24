@@ -175,6 +175,24 @@ export const visitacaoService = {
         return data.publicUrl;
     },
 
+    async uploadFotoFamilia(visitaId: string, file: File): Promise<string> {
+        const fileExt = file.name.split('.').pop() || 'jpg';
+        const fileName = `${visitaId}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `fotos/visitacao/familias/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('galeria')
+            .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+            .from('galeria')
+            .getPublicUrl(filePath);
+
+        return data.publicUrl;
+    },
+
     async atualizarPessoa(id: string, updates: Record<string, unknown>): Promise<void> {
         const { error } = await supabase
             .from('pessoas')

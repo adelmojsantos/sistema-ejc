@@ -20,6 +20,7 @@ export interface VisitaParticipacao {
     status: VisitaStatus;
     observacoes: string | null;
     foto_url: string | null;
+    foto_familia_url: string | null;
     taxa_paga: boolean;
     data_visita: string | null;
 }

@@ -31,6 +31,7 @@ export function TaxasPage() {
     updatingId,
     activeTab,
     selectedEquipeId,
+    paymentStatusFilter,
     searchTerm,
     actions
   } = useTaxas({ encontroId: encontroSelecionadoId, valorTaxa });
@@ -125,11 +126,12 @@ export function TaxasPage() {
       {activeTab === 'equipes' && (
         <section className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
           <div
-            className={`card card--clickable ${selectedEquipeId === 'all' ? 'active-filter' : ''}`}
+            className="card card--clickable"
             style={{
               padding: '0.75rem 1rem',
               cursor: 'pointer',
-              backgroundColor: selectedEquipeId === 'all' ? 'rgba(37, 99, 235, 0.05)' : 'var(--card-bg)'
+              borderLeft: selectedEquipeId === 'all' ? '4px solid #f59e0b' : undefined,
+              backgroundColor: selectedEquipeId === 'all' ? 'rgba(245, 158, 11, 0.24)' : 'var(--card-bg)'
             }}
             onClick={() => actions.setSelectedEquipeId('all')}
           >
@@ -178,6 +180,45 @@ export function TaxasPage() {
               </select>
             </div>
           )}
+          <div
+            role="group"
+            aria-label="Filtrar por status de pagamento"
+            style={{
+              display: 'inline-flex',
+              gap: '0.35rem',
+              padding: '0.25rem',
+              border: '1px solid var(--border-color)',
+              borderRadius: '999px',
+              background: 'var(--secondary-bg)',
+              flexWrap: 'wrap'
+            }}
+          >
+            {[
+              { value: 'todos', label: 'Todos' },
+              { value: 'pagos', label: 'Pagos' },
+              { value: 'pendentes', label: 'Não pagos' }
+            ].map(option => {
+              const isActive = paymentStatusFilter === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={isActive ? 'btn-primary' : 'btn-secondary'}
+                  onClick={() => actions.setPaymentStatusFilter(option.value as 'todos' | 'pagos' | 'pendentes')}
+                  style={{
+                    minHeight: '2rem',
+                    padding: '0 0.85rem',
+                    borderRadius: '999px',
+                    fontSize: '0.78rem',
+                    fontWeight: 800,
+                    boxShadow: 'none'
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 

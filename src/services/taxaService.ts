@@ -51,10 +51,11 @@ export const taxaService = {
     options: {
       tab: 'encontristas' | 'equipes';
       equipeId: string;
+      status: 'todos' | 'pagos' | 'pendentes';
       search: string;
     }
   ): InscricaoEnriched[] {
-    const { tab, equipeId, search } = options;
+    const { tab, equipeId, status, search } = options;
     const searchTerm = search.toLowerCase();
 
     return participantes
@@ -63,9 +64,12 @@ export const taxaService = {
         if (!matchTab) return false;
 
         const matchEquipe = tab === 'encontristas' || equipeId === 'all' || p.equipe_id === equipeId;
+        const matchStatus = status === 'todos'
+          || (status === 'pagos' && !!p.pago_taxa)
+          || (status === 'pendentes' && !p.pago_taxa);
         const matchSearch = (p.pessoas?.nome_completo || '').toLowerCase().includes(searchTerm);
 
-        return matchEquipe && matchSearch;
+        return matchEquipe && matchStatus && matchSearch;
       })
       .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
   },

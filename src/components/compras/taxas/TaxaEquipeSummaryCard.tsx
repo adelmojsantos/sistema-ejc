@@ -20,19 +20,34 @@ export const TaxaEquipeSummaryCard: React.FC<TaxaEquipeSummaryCardProps> = ({
     : report.comprovante_taxas_url
       ? [report.comprovante_taxas_url]
       : [];
+  const hasPending = report.pendentes > 0;
+  const hasProof = comprovantes.length > 0;
+  const statusStyle = hasPending
+    ? {
+      borderColor: '#ef4444',
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    }
+    : hasProof
+      ? {
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      }
+      : {
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37, 99, 235, 0.12)',
+      };
+  const selectionColor = '#f59e0b';
+  const selectedBackground = 'rgba(245, 158, 11, 0.24)';
 
   return (
     <div
-      className={`card card--clickable ${isSelected ? 'active-filter' : ''}`}
+      className="card card--clickable"
       style={{
         padding: '0.75rem 1rem',
-        borderLeft: `4px solid ${report.pendentes === 0 ? 'var(--success-color)' : 'var(--warning-color)'}`,
+        borderLeft: `4px solid ${statusStyle.borderColor}`,
         cursor: 'pointer',
-        backgroundColor: isSelected
-          ? 'rgba(37, 99, 235, 0.1)'
-          : comprovantes.length > 0
-            ? 'var(--success-bg)'
-            : 'var(--card-bg)'
+        backgroundColor: isSelected ? selectedBackground : statusStyle.backgroundColor,
+        boxShadow: undefined
       }}
       onClick={onClick}
     >
