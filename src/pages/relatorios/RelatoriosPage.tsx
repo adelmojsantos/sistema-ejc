@@ -1,4 +1,4 @@
-import { Baby, Copy, Download, FileText, Loader, Plus, Search, TableProperties, Trash2 } from 'lucide-react';
+import { Baby, Copy, Download, FileText, ImagePlus, Loader, Plus, Search, TableProperties, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -147,6 +147,8 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
   const [mesaAvulsoEquipeCor, setMesaAvulsoEquipeCor] = useState<MesaEquipeCorFilter>('Verde');
   const [selectedMesaAvulsoEquipeIds, setSelectedMesaAvulsoEquipeIds] = useState<string[]>([]);
   const [mesaAvulsosSelecionados, setMesaAvulsosSelecionados] = useState<MesaBadgeItem[]>([]);
+  const [mesaLogoLocalUrl, setMesaLogoLocalUrl] = useState<string | null>(null);
+  const [mesaLogoLocalName, setMesaLogoLocalName] = useState('');
 
   useEffect(() => {
     if (mode) setActiveReport(mode);
@@ -405,6 +407,23 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
     window.print();
   };
 
+  const handleMesaLogoUpload = (file?: File) => {
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione um arquivo de imagem.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setMesaLogoLocalUrl(typeof reader.result === 'string' ? reader.result : null);
+      setMesaLogoLocalName(file.name);
+    };
+    reader.onerror = () => toast.error('Não foi possível carregar a imagem.');
+    reader.readAsDataURL(file);
+  };
+
   const handleMesaEquipeToggle = (equipeId: string) => {
     setSelectedMesaEquipeIds(current =>
       current.includes(equipeId)
@@ -544,6 +563,43 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
               <p>
                 Imprima as listas separadamente: encontristas em papel branco e encontreiros conforme as equipes selecionadas.
               </p>
+            </div>
+            <div className={`mesa-logo-local ${mesaLogoLocalUrl ? 'mesa-logo-local--selected' : ''}`}>
+              <input
+                id="mesa-logo-local-input"
+                type="file"
+                accept="image/*"
+                onChange={event => {
+                  handleMesaLogoUpload(event.target.files?.[0]);
+                  event.currentTarget.value = '';
+                }}
+              />
+              {mesaLogoLocalUrl ? (
+                <div className="mesa-logo-local__preview">
+                  <img src={mesaLogoLocalUrl} alt="" aria-hidden="true" />
+                  <div>
+                    <strong>Logo personalizado</strong>
+                    <span title={mesaLogoLocalName}>{mesaLogoLocalName}</span>
+                  </div>
+                  <label className="mesa-logo-local__icon-action" htmlFor="mesa-logo-local-input" title="Trocar logo">
+                    <ImagePlus size={16} />
+                  </label>
+                  <button type="button" className="mesa-logo-local__icon-action" onClick={() => {
+                    setMesaLogoLocalUrl(null);
+                    setMesaLogoLocalName('');
+                  }} title="Limpar logo">
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <label className="mesa-logo-local__upload" htmlFor="mesa-logo-local-input">
+                  <span>
+                    <ImagePlus size={18} />
+                  </span>
+                  <strong>Imagem do logo</strong>
+                  <small>Selecionar arquivo local</small>
+                </label>
+              )}
             </div>
           </div>
 
@@ -791,6 +847,7 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
                 className="mesa-print-area--encontristas"
                 encontro={selectedEncontro}
                 items={mesaEncontristasPages}
+                logoOverrideUrl={mesaLogoLocalUrl}
                 logoEjc={logoEjc}
                 onPrint={() => handlePrintMesa('encontristas')}
                 printDisabled={isLoading || mesaEncontristas.length === 0}
@@ -801,6 +858,7 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
                 className="mesa-print-area--encontreiros"
                 encontro={selectedEncontro}
                 items={mesaEncontreirosPages}
+                logoOverrideUrl={mesaLogoLocalUrl}
                 logoEjc={logoEjc}
                 onPrint={() => handlePrintMesa('encontreiros')}
                 printDisabled={isLoading || mesaEncontreiros.length === 0}
@@ -811,6 +869,7 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
                 className="mesa-print-area--recreacao"
                 encontro={selectedEncontro}
                 items={mesaRecreacaoPages}
+                logoOverrideUrl={mesaLogoLocalUrl}
                 logoEjc={logoEjc}
                 onPrint={() => handlePrintMesa('recreacao')}
                 printDisabled={isLoading || mesaRecreacao.length === 0}
@@ -823,6 +882,7 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
                 className="mesa-print-area--avulsos"
                 encontro={selectedEncontro}
                 items={mesaAvulsosPages}
+                logoOverrideUrl={mesaLogoLocalUrl}
                 logoEjc={logoEjc}
                 onPrint={() => handlePrintMesa('avulsos')}
                 printDisabled={isLoading || mesaAvulsosSelecionados.length === 0}
@@ -885,6 +945,7 @@ interface MesaPrintAreaProps {
   className: string;
   encontro?: Encontro;
   items: MesaBadgeItem[][];
+  logoOverrideUrl: string | null;
   logoEjc: string;
   onPrint: () => void;
   printDisabled: boolean;
@@ -892,7 +953,7 @@ interface MesaPrintAreaProps {
   title: string;
 }
 
-function MesaPrintArea({ className, encontro, items, logoEjc, onPrint, printDisabled, printLabel, title }: MesaPrintAreaProps) {
+function MesaPrintArea({ className, encontro, items, logoOverrideUrl, logoEjc, onPrint, printDisabled, printLabel, title }: MesaPrintAreaProps) {
   const columnsPerPage = 2;
 
   return (
@@ -920,6 +981,7 @@ function MesaPrintArea({ className, encontro, items, logoEjc, onPrint, printDisa
                 !hasNextInRow ? 'mesa-badge--right-edge' : '',
                 !hasItemBelow ? 'mesa-badge--bottom-edge' : '',
               ].filter(Boolean).join(' ');
+              const badgeLogoUrl = logoOverrideUrl || encontro?.logo_url || '';
 
               return (
                 <article className={`mesa-badge ${edgeClasses}`} key={item.id}>
@@ -934,8 +996,8 @@ function MesaPrintArea({ className, encontro, items, logoEjc, onPrint, printDisa
                     </div>
 
                     <div className="mesa-badge__logo-box">
-                      {encontro?.logo_url ? (
-                        <img src={encontro.logo_url} alt={`Logo ${encontro.nome}`} />
+                      {badgeLogoUrl ? (
+                        <img src={badgeLogoUrl} alt={logoOverrideUrl ? 'Logo local dos crachás' : `Logo ${encontro?.nome}`} />
                       ) : (
                         <span>Logo encontro</span>
                       )}

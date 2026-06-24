@@ -36,8 +36,8 @@ function todayKey() {
   return `${now.getFullYear()}-${month}-${day}`;
 }
 
-function isLastDay(dataFim: string | null | undefined) {
-  return !!dataFim && dateKey(dataFim) === todayKey();
+function isAtOrAfterEndDate(dataFim: string | null | undefined) {
+  return !!dataFim && dateKey(dataFim) <= todayKey();
 }
 
 function respostaPreenchida(pergunta: AvaliacaoPergunta, value: string | undefined) {
@@ -119,7 +119,7 @@ export function CoordenadorAvaliacaoPage() {
 
   const isAdmin = hasPermission('modulo_admin');
   const isSent = envio?.status === 'enviado';
-  const isReleased = isAdmin || isLastDay(encontro?.data_fim);
+  const isReleased = isAdmin || isAtOrAfterEndDate(encontro?.data_fim);
   const equipeId = userParticipacao?.equipe_id ?? null;
   const encontroId = userParticipacao?.encontro_id ?? null;
 

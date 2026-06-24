@@ -257,6 +257,144 @@
   margin-top: 0.25rem;
 }
 
+.mesa-logo-local {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: flex-end;
+  min-width: min(100%, 320px);
+}
+
+.mesa-logo-local input {
+  display: none;
+}
+
+.mesa-logo-local__upload {
+  align-items: center;
+  background: rgba(var(--primary-rgb), 0.06);
+  border: 1.5px dashed rgba(var(--primary-rgb), 0.35);
+  border-radius: 14px;
+  color: var(--text-color);
+  cursor: pointer;
+  display: grid;
+  gap: 0.15rem 0.6rem;
+  grid-template-columns: 34px minmax(0, 1fr);
+  justify-content: center;
+  line-height: 1;
+  min-height: 54px;
+  min-width: 230px;
+  padding: 0.55rem 0.75rem;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.mesa-logo-local__upload:hover {
+  background: rgba(var(--primary-rgb), 0.1);
+  border-color: rgba(var(--primary-rgb), 0.55);
+  transform: translateY(-1px);
+}
+
+.mesa-logo-local__upload > span {
+  align-items: center;
+  align-self: stretch;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  display: inline-flex;
+  grid-row: span 2;
+  justify-content: center;
+}
+
+.mesa-logo-local__upload strong,
+.mesa-logo-local__upload small {
+  display: block;
+  min-width: 0;
+}
+
+.mesa-logo-local__upload strong {
+  font-size: 0.86rem;
+  font-weight: 850;
+  line-height: 1.1;
+}
+
+.mesa-logo-local__upload small {
+  color: var(--muted-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.mesa-logo-local__preview {
+  align-items: center;
+  background: rgba(var(--primary-rgb), 0.06);
+  border: 1px solid rgba(var(--primary-rgb), 0.22);
+  border-radius: 12px;
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: 42px minmax(120px, 1fr) 34px 34px;
+  max-width: min(100%, 420px);
+  padding: 0.4rem 0.45rem;
+}
+
+.mesa-logo-local__preview img {
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  height: 42px;
+  object-fit: contain;
+  padding: 0.25rem;
+  width: 42px;
+}
+
+.mesa-logo-local__preview div {
+  min-width: 0;
+}
+
+.mesa-logo-local__preview strong,
+.mesa-logo-local__preview span {
+  display: block;
+  min-width: 0;
+}
+
+.mesa-logo-local__preview strong {
+  color: var(--text-color);
+  font-size: 0.8rem;
+  font-weight: 850;
+  line-height: 1.1;
+}
+
+.mesa-logo-local__preview span {
+  color: var(--muted-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 0.15rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mesa-logo-local__icon-action {
+  align-items: center;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-color);
+  cursor: pointer;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  width: 34px;
+}
+
+.mesa-logo-local__icon-action:hover {
+  background: rgba(var(--primary-rgb), 0.12);
+  border-color: rgba(var(--primary-rgb), 0.35);
+}
+
 .mesa-report-tabs {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
@@ -719,10 +857,11 @@
 .mesa-badge__person strong {
   font-size: 5.4mm;
   font-weight: 950;
-  line-height: 0.96;
+  line-height: 1.2;
   max-width: 100%;
   overflow-wrap: anywhere;
   text-transform: uppercase;
+  margin-bottom: 2mm;
 }
 
 .mesa-badge__person span {
@@ -781,6 +920,20 @@
   .mesa-report__actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .mesa-logo-local {
+    justify-content: stretch;
+  }
+
+  .mesa-logo-local__upload {
+    width: 100%;
+  }
+
+  .mesa-logo-local__preview {
+    grid-template-columns: 42px minmax(0, 1fr) 34px 34px;
+    max-width: 100%;
+    width: 100%;
   }
 
   .mesa-report__team-filter {

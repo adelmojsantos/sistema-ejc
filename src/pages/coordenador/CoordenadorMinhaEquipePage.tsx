@@ -234,7 +234,7 @@ export function CoordenadorMinhaEquipePage() {
 
       const dataFim = encontroResult.data?.data_fim ?? null;
       const hoje = todayKey();
-      const liberada = isAdmin || (!!dataFim && dateKey(dataFim) === hoje);
+      const liberada = isAdmin || (!!dataFim && dateKey(dataFim) <= hoje);
 
       setAvaliacaoResumo({
         totalPerguntas: estado.perguntas.length,
