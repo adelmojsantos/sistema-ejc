@@ -36,7 +36,6 @@ export const TaxaEquipeSummaryCard: React.FC<TaxaEquipeSummaryCardProps> = ({
         borderColor: '#2563eb',
         backgroundColor: 'rgba(37, 99, 235, 0.12)',
       };
-  const selectionColor = '#f59e0b';
   const selectedBackground = 'rgba(245, 158, 11, 0.24)';
 
   return (
