@@ -208,7 +208,9 @@
 
 .relatorio-table th {
   background: var(--card-bg);
-  box-shadow: 0 1px 0 var(--border-color), 0 4px 10px rgba(15, 23, 42, 0.08);
+  box-shadow:
+    0 1px 0 var(--border-color),
+    0 4px 10px rgba(15, 23, 42, 0.08);
   color: var(--muted-text);
   font-size: 0.72rem;
   font-weight: 900;
@@ -609,7 +611,9 @@
 
 .mesa-badge {
   background: #fff;
-  border: 0.32mm dashed #64748b;
+  border: 0;
+  border-left: 0.32mm dashed #64748b;
+  border-top: 0.32mm dashed #64748b;
   box-sizing: border-box;
   color: #000;
   display: grid;
@@ -619,23 +623,33 @@
   width: 82mm;
 }
 
+.mesa-badge--right-edge {
+  border-right: 0.32mm dashed #64748b;
+}
+
+.mesa-badge--bottom-edge {
+  border-bottom: 0.32mm dashed #64748b;
+}
+
 .mesa-badge__top {
   display: grid;
-  grid-template-columns: 17mm minmax(0, 1fr) 17mm;
-  padding: 1mm 2.5mm 0;
+  grid-template-columns: 20mm minmax(0, 1fr) 20mm;
+  padding: 0.8mm 2mm 0;
 }
 
 .mesa-badge__logo-box {
   align-items: center;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(216, 233, 248, 0.7));
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.9),
+    rgba(216, 233, 248, 0.7)
+  );
   border-radius: 2mm;
-  box-shadow:
-    0 1.2mm 2.8mm rgba(15, 23, 42, 0.1);
+  box-shadow: 0 1.2mm 2.8mm rgba(15, 23, 42, 0.1);
   display: flex;
   justify-content: center;
   min-width: 0;
-  margin: 0.8mm 1.2mm 1.2mm;
+  margin: 0.4mm 0.7mm 0.9mm;
   overflow: hidden;
   text-align: center;
 }
@@ -823,18 +837,30 @@
     width: 210mm;
   }
 
-  body.relatorios-mesa-printing.relatorios-mesa-printing--encontristas .mesa-print-area--encontristas,
-  body.relatorios-mesa-printing.relatorios-mesa-printing--encontreiros .mesa-print-area--encontreiros,
-  body.relatorios-mesa-printing.relatorios-mesa-printing--recreacao .mesa-print-area--recreacao,
-  body.relatorios-mesa-printing.relatorios-mesa-printing--avulsos .mesa-print-area--avulsos {
+  body.relatorios-mesa-printing.relatorios-mesa-printing--encontristas
+    .mesa-print-area--encontristas,
+  body.relatorios-mesa-printing.relatorios-mesa-printing--encontreiros
+    .mesa-print-area--encontreiros,
+  body.relatorios-mesa-printing.relatorios-mesa-printing--recreacao
+    .mesa-print-area--recreacao,
+  body.relatorios-mesa-printing.relatorios-mesa-printing--avulsos
+    .mesa-print-area--avulsos {
     display: block !important;
     visibility: visible !important;
   }
 
-  body.relatorios-mesa-printing.relatorios-mesa-printing--encontristas .mesa-print-area--encontristas *,
-  body.relatorios-mesa-printing.relatorios-mesa-printing--encontreiros .mesa-print-area--encontreiros *,
-  body.relatorios-mesa-printing.relatorios-mesa-printing--recreacao .mesa-print-area--recreacao *,
-  body.relatorios-mesa-printing.relatorios-mesa-printing--avulsos .mesa-print-area--avulsos * {
+  body.relatorios-mesa-printing.relatorios-mesa-printing--encontristas
+    .mesa-print-area--encontristas
+    *,
+  body.relatorios-mesa-printing.relatorios-mesa-printing--encontreiros
+    .mesa-print-area--encontreiros
+    *,
+  body.relatorios-mesa-printing.relatorios-mesa-printing--recreacao
+    .mesa-print-area--recreacao
+    *,
+  body.relatorios-mesa-printing.relatorios-mesa-printing--avulsos
+    .mesa-print-area--avulsos
+    * {
     visibility: visible !important;
   }
 

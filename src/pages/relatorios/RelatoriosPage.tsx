@@ -893,6 +893,8 @@ interface MesaPrintAreaProps {
 }
 
 function MesaPrintArea({ className, encontro, items, logoEjc, onPrint, printDisabled, printLabel, title }: MesaPrintAreaProps) {
+  const columnsPerPage = 2;
+
   return (
     <section className={`mesa-print-area ${className}`}>
       <header className="mesa-print-area__header">
@@ -910,42 +912,52 @@ function MesaPrintArea({ className, encontro, items, logoEjc, onPrint, printDisa
       ) : (
         items.map((page, pageIndex) => (
           <div className="mesa-sheet" key={`${className}-${pageIndex}`}>
-            {page.map(item => (
-              <article className="mesa-badge" key={item.id}>
-                <header className="mesa-badge__top">
-                  <div className="mesa-badge__logo-box">
-                    <img src={logoEjc} alt="Logo EJC" />
-                  </div>
+            {page.map((item, itemIndex) => {
+              const isLastColumn = (itemIndex + 1) % columnsPerPage === 0;
+              const hasNextInRow = !isLastColumn && itemIndex + 1 < page.length;
+              const hasItemBelow = itemIndex + columnsPerPage < page.length;
+              const edgeClasses = [
+                !hasNextInRow ? 'mesa-badge--right-edge' : '',
+                !hasItemBelow ? 'mesa-badge--bottom-edge' : '',
+              ].filter(Boolean).join(' ');
 
-                  <div className="mesa-badge__event">
-                    <strong>{encontro?.edicao ? `${encontro.edicao}º EJC` : encontro?.nome || 'EJC'}</strong>
-                    <span>{encontro?.tema ? `"${encontro.tema}"` : ''}</span>
-                  </div>
+              return (
+                <article className={`mesa-badge ${edgeClasses}`} key={item.id}>
+                  <header className="mesa-badge__top">
+                    <div className="mesa-badge__logo-box">
+                      <img src={logoEjc} alt="Logo EJC" />
+                    </div>
 
-                  <div className="mesa-badge__logo-box">
-                    {encontro?.logo_url ? (
-                      <img src={encontro.logo_url} alt={`Logo ${encontro.nome}`} />
-                    ) : (
-                      <span>Logo encontro</span>
+                    <div className="mesa-badge__event">
+                      <strong>{encontro?.edicao ? `${encontro.edicao}º EJC` : encontro?.nome || 'EJC'}</strong>
+                      <span>{encontro?.tema ? `"${encontro.tema}"` : ''}</span>
+                    </div>
+
+                    <div className="mesa-badge__logo-box">
+                      {encontro?.logo_url ? (
+                        <img src={encontro.logo_url} alt={`Logo ${encontro.nome}`} />
+                      ) : (
+                        <span>Logo encontro</span>
+                      )}
+                    </div>
+                  </header>
+
+                  <div className="mesa-badge__person">
+                    {item.icone === 'infantil' && (
+                      <Baby className="mesa-badge__child-icon" aria-hidden="true" />
                     )}
+                    <strong>{item.nome}</strong>
+                    <span>{item.grupo}</span>
                   </div>
-                </header>
 
-                <div className="mesa-badge__person">
-                  {item.icone === 'infantil' && (
-                    <Baby className="mesa-badge__child-icon" aria-hidden="true" />
-                  )}
-                  <strong>{item.nome}</strong>
-                  <span>{item.grupo}</span>
-                </div>
-
-                <div className="mesa-badge__base">
-                  {item.detalhes?.map(detalhe => (
-                    <small key={detalhe}>{detalhe}</small>
-                  ))}
-                </div>
-              </article>
-            ))}
+                  <div className="mesa-badge__base">
+                    {item.detalhes?.map(detalhe => (
+                      <small key={detalhe}>{detalhe}</small>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ))
       )}
