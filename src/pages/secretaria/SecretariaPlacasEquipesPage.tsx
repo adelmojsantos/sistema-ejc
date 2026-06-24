@@ -397,54 +397,55 @@ export function SecretariaPlacasEquipesPage({ mode }: SecretariaPlacasEquipesPag
         </div>
       ) : (
         <>
-        <style>{`@media print { @page { size: ${activeTab === 'duplas' ? `${paperSize.toUpperCase()} portrait` : 'A4 landscape'}; margin: 0; } }`}</style>
-        <div className={`placas-print-area placas-print-area--${activeTab} ${activeTab === 'duplas' ? `placas-print-area--${paperSize}` : ''}`}>
-          {placasAtivas.map(({ id, nome, Icon, imageSrc, subtitle, isPhoto }) => {
-            return (
-            <div className="placa-preview-item" key={id}>
-              <article className={`placa-page ${subtitle ? 'placa-page--duo' : ''}`}>
-              <div className="placa-page__logos">
-                <div className="placa-page__logo">
-                  <img src={logoEjc} alt="Logo EJC" />
-                </div>
+          <style>{`@media print { @page { size: ${activeTab === 'duplas' ? `${paperSize.toUpperCase()} portrait` : 'A4 landscape'}; margin: 0; } }`}</style>
+          <div className={`placas-print-area placas-print-area--${activeTab} ${activeTab === 'duplas' ? `placas-print-area--${paperSize}` : ''}`}>
+            {placasAtivas.map(({ id, nome, Icon, imageSrc, subtitle, isPhoto }) => {
+              return (
+                <div className="placa-preview-item" key={id}>
+                  <article className={`placa-page ${subtitle ? 'placa-page--duo' : ''}`}>
+                    <div className="placa-page__logos">
+                      <div className="placa-page__logo">
+                        <img src={logoEjc} alt="Logo EJC" />
+                      </div>
 
-                <div className="placa-page__event-name">
-                  {selectedEncontro?.nome ?? 'EJC Capelinha'}
-                </div>
+                      <div className="placa-page__event-name">
+                        {selectedEncontro?.nome ?? 'EJC Capelinha'}
+                        <p>{selectedEncontro?.tema ?? ''}</p>
+                      </div>
 
-                <div className="placa-page__logo placa-page__logo--encontro">
-                  {selectedEncontro?.logo_url ? (
-                    <img src={selectedEncontro.logo_url} alt={`Logo ${selectedEncontro.nome}`} />
-                  ) : (
-                    <span className="placa-page__logo-placeholder">Logo do encontro</span>
-                  )}
-                </div>
-              </div>
+                      <div className="placa-page__logo placa-page__logo--encontro">
+                        {selectedEncontro?.logo_url ? (
+                          <img src={selectedEncontro.logo_url} alt={`Logo ${selectedEncontro.nome}`} />
+                        ) : (
+                          <span className="placa-page__logo-placeholder">Logo do encontro</span>
+                        )}
+                      </div>
+                    </div>
 
-              <div className="placa-page__body">
-                <div className={`placa-page__icon ${isPhoto ? 'placa-page__icon--photo' : ''}`}>
-                  {imageSrc ? (
-                    <img
-                      className="placa-page__icon-image"
-                      src={imageSrc}
-                      alt=""
-                    />
-                  ) : Icon ? (
-                    <Icon strokeWidth={1.7} />
-                  ) : null}
-                </div>
-                <h3 className={`placa-page__team ${subtitle ? 'placa-page__team--duo' : ''}`}>{nome}</h3>
-                {subtitle && <p className="placa-page__subtitle">{subtitle}</p>}
-              </div>
+                    <div className="placa-page__body">
+                      <div className={`placa-page__icon ${isPhoto ? 'placa-page__icon--photo' : ''}`}>
+                        {imageSrc ? (
+                          <img
+                            className="placa-page__icon-image"
+                            src={imageSrc}
+                            alt=""
+                          />
+                        ) : Icon ? (
+                          <Icon strokeWidth={1.7} />
+                        ) : null}
+                      </div>
+                      <h3 className={`placa-page__team ${subtitle ? 'placa-page__team--duo' : ''}`}>{nome}</h3>
+                      {subtitle && <p className="placa-page__subtitle">{subtitle}</p>}
+                    </div>
 
-              {/* <div className="placa-page__footer">
+                    {/* <div className="placa-page__footer">
                 {selectedEncontro?.nome ?? 'EJC Capelinha'}
               </div> */}
-              </article>
-            </div>
-            );
-          })}
-        </div>
+                  </article>
+                </div>
+              );
+            })}
+          </div>
         </>
       )}
     </section>
