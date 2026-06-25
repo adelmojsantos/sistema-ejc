@@ -59,5 +59,5 @@ export function LabelFieldRenderer({ field, item }: LabelFieldRendererProps) {
     );
   }
 
-  return <div className="label-field" style={style}>{value || field.label}</div>;
+  return <div className="label-field" style={style}>{value || (item.id === 'preview' ? field.label : '')}</div>;
 }

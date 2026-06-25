@@ -244,7 +244,7 @@ export function getFieldValue(field: LabelField, item: LabelDataItem): string {
   if (field.type === 'icone') return field.value || '★';
   if (field.type === 'logo') return field.value || 'EJC';
   if (field.type === 'imagem') return item.imagem;
-  if (field.type === 'qrcode') return item.qrCode || item.codigo;
+  if (field.type === 'qrcode') return item.tipo === 'manual' ? item.qrCode : item.qrCode || item.codigo;
   return item[field.type] || '';
 }
 

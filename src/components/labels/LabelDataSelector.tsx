@@ -1,5 +1,5 @@
-import { CheckSquare, ChevronDown, Loader, Plus, Search, Square, Trash2, Users, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { CheckSquare, ChevronDown, Loader, Search, Square, Trash2, Users, X } from 'lucide-react';
+import { useMemo } from 'react';
 import type { Equipe } from '../../types/equipe';
 import type { LabelDataFilters, LabelDataItem, LabelGrouping, LabelTeamColor } from '../../types/label';
 import { getLabelGroupValue, matchesLabelFilters, sortLabelItems } from '../../utils/labelLayout';
@@ -12,7 +12,6 @@ interface LabelDataSelectorProps {
   equipes: Equipe[];
   grouping: LabelGrouping;
   isLoading: boolean;
-  onAddManualItem: (item: Omit<LabelDataItem, 'id' | 'tipo' | 'status' | 'equipeId' | 'equipeCor' | 'visitaGrupoId'>) => void;
   onRemoveManualItem: (id: string) => void;
   onFiltersChange: (filters: LabelDataFilters) => void;
   onGroupingChange: (grouping: LabelGrouping) => void;
@@ -29,7 +28,6 @@ export function LabelDataSelector({
   equipes,
   grouping,
   isLoading,
-  onAddManualItem,
   onRemoveManualItem,
   onFiltersChange,
   onGroupingChange,
@@ -37,18 +35,6 @@ export function LabelDataSelector({
   onSelectAll,
   onClear,
 }: LabelDataSelectorProps) {
-  const [manualForm, setManualForm] = useState({
-    nome: '',
-    equipe: '',
-    visitaGrupo: '',
-    circulo: '',
-    funcao: '',
-    telefone: '',
-    observacao: '',
-    codigo: '',
-    qrCode: '',
-    imagem: '',
-  });
   const circles = useMemo(() => [...new Set(items.map((item) => item.circulo).filter(Boolean))].sort(), [items]);
   const visitGroups = useMemo(
     () => Array.from(
@@ -65,22 +51,6 @@ export function LabelDataSelector({
   }, [filters, grouping, items]);
 
   const setFilter = <K extends keyof LabelDataFilters>(key: K, value: LabelDataFilters[K]) => onFiltersChange({ ...filters, [key]: value });
-  const setManualField = (key: keyof typeof manualForm, value: string) => setManualForm((current) => ({ ...current, [key]: value }));
-  const addManual = () => {
-    onAddManualItem(manualForm);
-    setManualForm({
-      nome: '',
-      equipe: '',
-      visitaGrupo: '',
-      circulo: '',
-      funcao: '',
-      telefone: '',
-      observacao: '',
-      codigo: '',
-      qrCode: '',
-      imagem: '',
-    });
-  };
   const toggleEquipe = (id: string) => setFilter('equipeIds', filters.equipeIds.includes(id) ? filters.equipeIds.filter((item) => item !== id) : [...filters.equipeIds, id]);
   const groupLabel = (item: LabelDataItem) => getLabelGroupValue(item, grouping);
   const printableSelectedCount = useMemo(() => items.filter((item) => selectedIds.has(item.id) && matchesLabelFilters(item, filters)).length, [filters, items, selectedIds]);
@@ -123,29 +93,6 @@ export function LabelDataSelector({
             ))}
           </div>
         </details>
-      </div>
-
-      <div className="label-manual-entry">
-        <div className="label-manual-entry__heading">
-          <div>
-            <strong>Etiqueta avulsa manual</strong>
-            <span>Use para nomes ou dados que não estão cadastrados no sistema.</span>
-          </div>
-          <button type="button" className="btn-primary-sm" onClick={addManual}><Plus size={15} /> Adicionar</button>
-        </div>
-        <div className="label-manual-entry__grid">
-          <label className="standard-label-group"><span className="form-label standard-label">Nome</span><input className="form-input" value={manualForm.nome} onChange={(event) => setManualField('nome', event.target.value)} /></label>
-          <label className="standard-label-group"><span className="form-label standard-label">Equipe</span><input className="form-input" value={manualForm.equipe} onChange={(event) => setManualField('equipe', event.target.value)} /></label>
-          <label className="standard-label-group"><span className="form-label standard-label">Função</span><input className="form-input" value={manualForm.funcao} onChange={(event) => setManualField('funcao', event.target.value)} /></label>
-          <label className="standard-label-group"><span className="form-label standard-label">Telefone</span><input className="form-input" value={manualForm.telefone} onChange={(event) => setManualField('telefone', event.target.value)} /></label>
-          <label className="standard-label-group"><span className="form-label standard-label">Dupla</span><input className="form-input" value={manualForm.visitaGrupo} onChange={(event) => setManualField('visitaGrupo', event.target.value)} /></label>
-          <label className="standard-label-group"><span className="form-label standard-label">Círculo</span><input className="form-input" value={manualForm.circulo} onChange={(event) => setManualField('circulo', event.target.value)} /></label>
-          <label className="standard-label-group"><span className="form-label standard-label">Código</span><input className="form-input" value={manualForm.codigo} onChange={(event) => setManualField('codigo', event.target.value)} /></label>
-          <label className="standard-label-group"><span className="form-label standard-label">QR Code</span><input className="form-input" value={manualForm.qrCode} onChange={(event) => setManualField('qrCode', event.target.value)} /></label>
-          <label className="standard-label-group label-manual-entry__wide"><span className="form-label standard-label">Observação</span><input className="form-input" value={manualForm.observacao} onChange={(event) => setManualField('observacao', event.target.value)} /></label>
-          <label className="standard-label-group label-manual-entry__wide"><span className="form-label standard-label">Imagem URL</span><input className="form-input" value={manualForm.imagem} onChange={(event) => setManualField('imagem', event.target.value)} /></label>
-        </div>
-        {manualItems.length > 0 && <span className="label-manual-entry__count">{manualItems.length} manual(is) nesta impressão</span>}
       </div>
 
       <div className="label-selector-filters">

@@ -8,6 +8,7 @@ import londrina400Url from '@fontsource/londrina-solid/files/londrina-solid-lati
 import londrina900Url from '@fontsource/londrina-solid/files/londrina-solid-latin-900-normal.woff2?url';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LabelDataSelector } from '../../components/labels/LabelDataSelector';
+import { LabelManualSelector } from '../../components/labels/LabelManualSelector';
 import { LabelPreview } from '../../components/labels/LabelPreview';
 import { LabelPrintArea } from '../../components/labels/LabelPrintArea';
 import { LabelTemplateEditor } from '../../components/labels/LabelTemplateEditor';
@@ -25,7 +26,7 @@ import type { LabelDataFilters, LabelDataItem, LabelGrouping, LabelPrintItem, La
 import { cloneDefaultLabelTemplate, getLabelsPerPage, getOrientedSheetDimensions, matchesLabelFilters, sortLabelItems, validateLabelLayout } from '../../utils/labelLayout';
 import './LabelGeneratorPage.css';
 
-type GeneratorTab = 'modelo' | 'dados' | 'preview';
+type GeneratorTab = 'modelo' | 'dados' | 'avulsas' | 'preview';
 
 const initialFilters: LabelDataFilters = { search: '', equipeId: '', equipeCor: '', equipeIds: [], visitaGrupoId: '', circulo: '', status: '', tipo: '' };
 
@@ -144,7 +145,7 @@ export function LabelGeneratorPage() {
   const allItems = useMemo(() => [...items, ...equipeItems, ...circuloItems, ...manualItems], [circuloItems, equipeItems, items, manualItems]);
 
   const selectedItems = useMemo(
-    () => sortLabelItems(allItems.filter((item) => selectedIds.has(item.id) && matchesLabelFilters(item, filters)), grouping),
+    () => sortLabelItems(allItems.filter((item) => selectedIds.has(item.id) && (item.tipo === 'manual' || matchesLabelFilters(item, filters))), grouping),
     [allItems, filters, grouping, selectedIds],
   );
   const repeatedItems = useMemo(
@@ -329,9 +330,21 @@ export function LabelGeneratorPage() {
   }, []);
 
   const addManualItem = useCallback((manualData: Omit<LabelDataItem, 'id' | 'tipo' | 'status' | 'equipeId' | 'equipeCor' | 'visitaGrupoId'>) => {
-    const nome = manualData.nome.trim();
-    if (!nome) {
-      toast.error('Informe ao menos o nome do dado manual.');
+    const hasContent = [
+      manualData.nome,
+      manualData.equipe,
+      manualData.visitaGrupo,
+      manualData.circulo,
+      manualData.funcao,
+      manualData.telefone,
+      manualData.observacao,
+      manualData.codigo,
+      manualData.qrCode,
+      manualData.imagem,
+    ].some((value) => value.trim());
+
+    if (!hasContent) {
+      toast.error('Informe o conteúdo da etiqueta avulsa.');
       return;
     }
 
@@ -339,18 +352,18 @@ export function LabelGeneratorPage() {
     const nextItem: LabelDataItem = {
       ...manualData,
       id,
-      nome,
+      nome: manualData.nome.trim(),
       equipe: manualData.equipe.trim(),
       equipeId: null,
       equipeCor: null,
       visitaGrupoId: null,
       visitaGrupo: manualData.visitaGrupo.trim(),
       circulo: manualData.circulo.trim(),
-      funcao: manualData.funcao.trim() || 'Avulso',
+      funcao: manualData.funcao.trim(),
       telefone: manualData.telefone.trim(),
       observacao: manualData.observacao.trim(),
-      codigo: manualData.codigo.trim() || id.slice(-8).toUpperCase(),
-      qrCode: manualData.qrCode.trim() || manualData.codigo.trim() || nome,
+      codigo: manualData.codigo.trim(),
+      qrCode: manualData.qrCode.trim(),
       imagem: manualData.imagem.trim(),
       tipo: 'manual',
       status: 'confirmado',
@@ -414,7 +427,8 @@ export function LabelGeneratorPage() {
           <div className="label-steps">
             <button type="button" className={activeTab === 'modelo' ? 'is-active' : ''} onClick={() => setActiveTab('modelo')}><b>1</b><span><strong>Monte a etiqueta</strong><small>Conteúdo e aparência</small></span></button>
             <button type="button" className={activeTab === 'dados' ? 'is-active' : ''} onClick={() => setActiveTab('dados')}><b>2</b><span><strong>Escolha os dados</strong><small>{repeatedItems.length} serão geradas</small></span></button>
-            <button type="button" className={activeTab === 'preview' ? 'is-active' : ''} onClick={() => setActiveTab('preview')}><b>3</b><span><strong>Confira e gere</strong><small>{pages.length} página(s)</small></span></button>
+            <button type="button" className={activeTab === 'avulsas' ? 'is-active' : ''} onClick={() => setActiveTab('avulsas')}><b>3</b><span><strong>Avulsas</strong><small>{manualItems.length} criada(s)</small></span></button>
+            <button type="button" className={activeTab === 'preview' ? 'is-active' : ''} onClick={() => setActiveTab('preview')}><b>4</b><span><strong>Confira e gere</strong><small>{pages.length} página(s)</small></span></button>
           </div>
         )}
       />
@@ -450,7 +464,8 @@ export function LabelGeneratorPage() {
       {layoutErrors.length > 0 && <div className="label-layout-warning"><strong>A grade não cabe na folha:</strong> {layoutErrors.join(' ')}</div>}
 
       {activeTab === 'modelo' && <LabelTemplateEditor template={template} selectedFieldId={selectedFieldId} onSelectedFieldChange={setSelectedFieldId} onChange={setTemplate} />}
-      {activeTab === 'dados' && <LabelDataSelector items={allItems} manualItems={manualItems} selectedIds={selectedIds} filters={filters} equipes={equipes} grouping={grouping} isLoading={isLoadingData} onAddManualItem={addManualItem} onRemoveManualItem={removeManualItem} onFiltersChange={setFilters} onGroupingChange={setGrouping} onToggle={toggleSelection} onSelectAll={(ids) => setSelectedIds(new Set(ids))} onClear={() => setSelectedIds(new Set())} />}
+      {activeTab === 'dados' && <LabelDataSelector items={allItems} manualItems={manualItems} selectedIds={selectedIds} filters={filters} equipes={equipes} grouping={grouping} isLoading={isLoadingData} onRemoveManualItem={removeManualItem} onFiltersChange={setFilters} onGroupingChange={setGrouping} onToggle={toggleSelection} onSelectAll={(ids) => setSelectedIds(new Set(ids))} onClear={() => setSelectedIds(new Set())} />}
+      {activeTab === 'avulsas' && <LabelManualSelector manualItems={manualItems} selectedIds={selectedIds} onAddManualItem={addManualItem} onRemoveManualItem={removeManualItem} onToggle={toggleSelection} />}
       {activeTab === 'preview' && (
         <div className="label-preview-panel">
           <div className="label-print-guidance">
@@ -462,9 +477,10 @@ export function LabelGeneratorPage() {
       )}
 
       <div className="label-step-footer">
-        {activeTab !== 'modelo' ? <button type="button" className="btn-secondary" onClick={() => setActiveTab(activeTab === 'preview' ? 'dados' : 'modelo')}><ArrowLeft size={17} /> Voltar</button> : <span />}
-        {activeTab === 'modelo' && <button type="button" className="btn-primary" onClick={() => setActiveTab('dados')}>Escolher pessoas <ArrowRight size={17} /></button>}
+        {activeTab !== 'modelo' ? <button type="button" className="btn-secondary" onClick={() => setActiveTab(activeTab === 'preview' ? 'avulsas' : activeTab === 'avulsas' ? 'dados' : 'modelo')}><ArrowLeft size={17} /> Voltar</button> : <span />}
+        {activeTab === 'modelo' && <button type="button" className="btn-primary" onClick={() => setActiveTab('dados')}>Escolher dados <ArrowRight size={17} /></button>}
         {activeTab === 'dados' && <button type="button" className="btn-primary" onClick={() => setActiveTab('preview')} disabled={selectedItems.length === 0}>Conferir etiquetas <ArrowRight size={17} /></button>}
+        {activeTab === 'avulsas' && <button type="button" className="btn-primary" onClick={() => setActiveTab('preview')} disabled={selectedItems.length === 0}>Conferir etiquetas <ArrowRight size={17} /></button>}
         {activeTab === 'preview' && (
           <div className="label-final-actions">
             <button type="button" className="btn-secondary" onClick={print}><Printer size={17} /> Imprimir</button>
