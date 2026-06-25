@@ -68,6 +68,15 @@
 .label-selection-settings > div:first-child strong { font-size: .85rem; }
 .label-selection-settings > div:first-child span { color: var(--muted-text); font-size: .68rem; }
 .label-selection-settings .standard-label-group { margin: 0; }
+.label-manual-entry { background: var(--secondary-bg); border: 1px solid var(--border-color); border-radius: 10px; display: flex; flex-direction: column; gap: .75rem; margin-top: .8rem; padding: .85rem; }
+.label-manual-entry__heading { align-items: center; display: flex; gap: 1rem; justify-content: space-between; }
+.label-manual-entry__heading > div { display: flex; flex-direction: column; min-width: 0; }
+.label-manual-entry__heading strong { font-size: .85rem; }
+.label-manual-entry__heading span, .label-manual-entry__count { color: var(--muted-text); font-size: .68rem; }
+.label-manual-entry__grid { display: grid; gap: .6rem; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.label-manual-entry__grid .standard-label-group { margin: 0; min-width: 0; }
+.label-manual-entry__wide { grid-column: span 2; }
+.label-manual-remove { align-items: center; background: transparent; border: 1px solid var(--danger-border); color: var(--danger-text); display: inline-flex; justify-content: center; padding: .35rem; }
 .label-team-picker { position: relative; }
 .label-team-picker summary { align-items: center; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-color); cursor: pointer; display: flex; font-size: .78rem; gap: .5rem; justify-content: space-between; list-style: none; min-height: 40px; padding: .5rem .7rem; }
 .label-team-picker summary span { background: var(--primary-light); border-radius: 999px; color: var(--primary-color); font-size: .65rem; padding: .1rem .4rem; }
@@ -83,7 +92,7 @@
 .label-selector-toolbar { align-items: center; background: var(--secondary-bg); border-radius: 9px; display: flex; gap: 1rem; justify-content: space-between; margin: 1rem 0; padding: .65rem .8rem; }
 .label-selector-toolbar > div { display: flex; gap: .4rem; }
 .label-data-table-wrap { border: 1px solid var(--border-color); border-radius: 10px; overflow: auto; max-height: 60vh; }
-.label-data-table { border-collapse: collapse; width: 100%; min-width: 760px; }
+.label-data-table { border-collapse: collapse; width: 100%; min-width: 820px; }
 .label-data-table th, .label-data-table td { border-bottom: 1px solid var(--border-color); padding: .7rem .8rem; text-align: left; font-size: .82rem; }
 .label-data-table th { background: var(--secondary-bg); color: var(--muted-text); position: sticky; top: 0; z-index: 1; }
 .label-data-table tbody tr { cursor: pointer; }
@@ -130,6 +139,7 @@
   .label-fields-panel { grid-row: 2; }
   .label-selector-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .label-selection-settings { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .label-manual-entry__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .label-context-bar { grid-template-columns: 1fr 1fr; }
   .label-model-actions { grid-column: 1 / -1; }
 }
@@ -138,6 +148,9 @@
   .label-steps button:not(.is-active) small { display: none; }
   .label-context-bar, .label-form-grid, .label-selector-filters { grid-template-columns: 1fr; }
   .label-selection-settings { grid-template-columns: 1fr; }
+  .label-manual-entry__heading { align-items: stretch; flex-direction: column; }
+  .label-manual-entry__grid { grid-template-columns: 1fr; }
+  .label-manual-entry__wide { grid-column: auto; }
   .label-selector-toolbar, .label-print-guidance { align-items: stretch; flex-direction: column; }
   .label-selector-toolbar > div, .label-model-actions { flex-wrap: wrap; }
   .label-readable-preview { grid-template-columns: 1fr; }

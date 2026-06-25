@@ -101,6 +101,7 @@ export function LabelGeneratorPage() {
   const [template, setTemplate] = useState<LabelTemplate>(cloneDefaultLabelTemplate);
   const [items, setItems] = useState<LabelDataItem[]>([]);
   const [circuloItems, setCirculoItems] = useState<LabelDataItem[]>([]);
+  const [manualItems, setManualItems] = useState<LabelDataItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState<LabelDataFilters>(initialFilters);
   const [grouping, setGrouping] = useState<LabelGrouping>('none');
@@ -140,7 +141,7 @@ export function LabelGeneratorPage() {
     .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' })),
   [equipes]);
 
-  const allItems = useMemo(() => [...items, ...equipeItems, ...circuloItems], [circuloItems, equipeItems, items]);
+  const allItems = useMemo(() => [...items, ...equipeItems, ...circuloItems, ...manualItems], [circuloItems, equipeItems, items, manualItems]);
 
   const selectedItems = useMemo(
     () => sortLabelItems(allItems.filter((item) => selectedIds.has(item.id) && matchesLabelFilters(item, filters)), grouping),
@@ -327,6 +328,48 @@ export function LabelGeneratorPage() {
     });
   }, []);
 
+  const addManualItem = useCallback((manualData: Omit<LabelDataItem, 'id' | 'tipo' | 'status' | 'equipeId' | 'equipeCor' | 'visitaGrupoId'>) => {
+    const nome = manualData.nome.trim();
+    if (!nome) {
+      toast.error('Informe ao menos o nome do dado manual.');
+      return;
+    }
+
+    const id = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const nextItem: LabelDataItem = {
+      ...manualData,
+      id,
+      nome,
+      equipe: manualData.equipe.trim(),
+      equipeId: null,
+      equipeCor: null,
+      visitaGrupoId: null,
+      visitaGrupo: manualData.visitaGrupo.trim(),
+      circulo: manualData.circulo.trim(),
+      funcao: manualData.funcao.trim() || 'Avulso',
+      telefone: manualData.telefone.trim(),
+      observacao: manualData.observacao.trim(),
+      codigo: manualData.codigo.trim() || id.slice(-8).toUpperCase(),
+      qrCode: manualData.qrCode.trim() || manualData.codigo.trim() || nome,
+      imagem: manualData.imagem.trim(),
+      tipo: 'manual',
+      status: 'confirmado',
+    };
+
+    setManualItems((current) => [...current, nextItem]);
+    setSelectedIds((current) => new Set(current).add(id));
+    toast.success('Dado manual adicionado às etiquetas.');
+  }, []);
+
+  const removeManualItem = useCallback((id: string) => {
+    setManualItems((current) => current.filter((item) => item.id !== id));
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
   const print = () => {
     if (selectedItems.length === 0) return toast.error('Selecione ao menos um registro.');
     if (labelQuantity < 1) return toast.error('Informe ao menos 1 etiqueta por registro.');
@@ -407,7 +450,7 @@ export function LabelGeneratorPage() {
       {layoutErrors.length > 0 && <div className="label-layout-warning"><strong>A grade não cabe na folha:</strong> {layoutErrors.join(' ')}</div>}
 
       {activeTab === 'modelo' && <LabelTemplateEditor template={template} selectedFieldId={selectedFieldId} onSelectedFieldChange={setSelectedFieldId} onChange={setTemplate} />}
-      {activeTab === 'dados' && <LabelDataSelector items={allItems} selectedIds={selectedIds} filters={filters} equipes={equipes} grouping={grouping} isLoading={isLoadingData} onFiltersChange={setFilters} onGroupingChange={setGrouping} onToggle={toggleSelection} onSelectAll={(ids) => setSelectedIds(new Set(ids))} onClear={() => setSelectedIds(new Set())} />}
+      {activeTab === 'dados' && <LabelDataSelector items={allItems} manualItems={manualItems} selectedIds={selectedIds} filters={filters} equipes={equipes} grouping={grouping} isLoading={isLoadingData} onAddManualItem={addManualItem} onRemoveManualItem={removeManualItem} onFiltersChange={setFilters} onGroupingChange={setGrouping} onToggle={toggleSelection} onSelectAll={(ids) => setSelectedIds(new Set(ids))} onClear={() => setSelectedIds(new Set())} />}
       {activeTab === 'preview' && (
         <div className="label-preview-panel">
           <div className="label-print-guidance">
