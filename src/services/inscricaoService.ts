@@ -97,7 +97,7 @@ export const inscricaoService = {
     async listarParticipantesPorEncontro(encontroId: string): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('id, equipe_id, coordenador, participante, pessoa_id, origem, foto_url, foto_posicao_y, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome), recepcao_dados(*), visita_participacao(id, visitante, status, visita_grupos(nome)), circulo_participacao(id, circulos(nome))')
+            .select('id, equipe_id, coordenador, participante, pessoa_id, origem, foto_url, foto_posicao_y, pessoas(*), equipes(nome), recepcao_dados(*), visita_participacao(id, visitante, status, observacoes, taxa_paga, data_visita, foto_familia_url, visita_grupos(nome)), circulo_participacao(id, circulos(nome))')
             .eq('encontro_id', encontroId)
             .eq('participante', true);
 

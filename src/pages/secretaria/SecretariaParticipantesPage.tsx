@@ -3,9 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService, type ParticipacaoCancelada } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
+import { visitacaoService } from '../../services/visitacaoService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car, Camera, SlidersHorizontal, Image as ImageIcon, Upload, Settings2, Minus, Plus as PlusIcon, RotateCcw, Pencil } from 'lucide-react';
+import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car, Camera, SlidersHorizontal, Image as ImageIcon, Upload, Settings2, Minus, Plus as PlusIcon, RotateCcw, Pencil, Eye, Heart, Phone } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import { toast } from 'react-hot-toast';
@@ -19,6 +20,7 @@ import { geocodeWithFallback } from '../../utils/geocoding';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import JSZip from 'jszip';
 import { calculateAge } from '../../utils/dateUtils';
 import { formatTelefone } from '../../utils/cpfUtils';
 
@@ -46,6 +48,38 @@ function getVisitaStatusLabel(status: string | null | undefined) {
     cancelada: 'Visita cancelada',
   };
   return labels[status || ''] || 'Visita sem status';
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return '—';
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('pt-BR');
+}
+
+function detailValue(value: string | number | boolean | null | undefined) {
+  if (value === true) return 'Sim';
+  if (value === false) return 'Não';
+  if (value === null || value === undefined || value === '') return '—';
+  return String(value);
+}
+
+function sanitizeFileName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase() || 'arquivo';
+}
+
+function DetailItem({ label, value, wide = false }: { label: string; value: string | number | null | undefined; wide?: boolean }) {
+  return (
+    <div className={`secretaria-details-item ${wide ? 'is-wide' : ''}`}>
+      <span>{label}</span>
+      <strong>{detailValue(value)}</strong>
+    </div>
+  );
 }
 
 interface DesistentesTabProps {
@@ -163,7 +197,7 @@ export function SecretariaParticipantesPage() {
   const [isRestoringDesistencia, setIsRestoringDesistencia] = useState(false);
   const [isLoadingPessoaEdit, setIsLoadingPessoaEdit] = useState(false);
   const [isSavingPessoaEdit, setIsSavingPessoaEdit] = useState(false);
-  const [activeTab, setActiveTab] = useState<'participantes' | 'desistentes'>('participantes');
+  const [activeTab, setActiveTab] = useState<'participantes' | 'desistentes' | 'fotosFamilias'>('participantes');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterVeiculo, setFilterVeiculo] = useState(false);
   const [filterSemFoto, setFilterSemFoto] = useState(false);
@@ -175,9 +209,14 @@ export function SecretariaParticipantesPage() {
   const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; nome: string } | null>(null);
   const [photoActionsParticipant, setPhotoActionsParticipant] = useState<InscricaoEnriched | null>(null);
+  const [detailsParticipant, setDetailsParticipant] = useState<InscricaoEnriched | null>(null);
   const [adjustingPhotoId, setAdjustingPhotoId] = useState<string | null>(null);
   const [tempPhotoPosition, setTempPhotoPosition] = useState(50);
+  const [uploadingFamilyPhotoVisitId, setUploadingFamilyPhotoVisitId] = useState<string | null>(null);
+  const [isDownloadingFamilyPhotos, setIsDownloadingFamilyPhotos] = useState(false);
+  const [showMissingFamilyPhotos, setShowMissingFamilyPhotos] = useState(false);
   const photoActionsInputRef = useRef<HTMLInputElement>(null);
+  const familyPhotoInputRef = useRef<HTMLInputElement>(null);
   const progressListRef = useRef<HTMLDivElement>(null);
   const canRestoreDesistencia = hasPermission('modulo_admin') || hasPermission('modulo_secretaria');
 
@@ -476,11 +515,53 @@ export function SecretariaParticipantesPage() {
     }
   };
 
-  const handleTabChange = (tab: 'participantes' | 'desistentes') => {
+  const handleTabChange = (tab: 'participantes' | 'desistentes' | 'fotosFamilias') => {
     setActiveTab(tab);
     setSearchTerm('');
     setFilterVeiculo(false);
     setFilterSemFoto(false);
+  };
+
+  const updateFamilyPhotoState = (visitaId: string, fotoUrl: string) => {
+    const updateParticipant = (participante: InscricaoEnriched): InscricaoEnriched => ({
+      ...participante,
+      visita_participacao: participante.visita_participacao?.map((visita) => (
+        visita.id === visitaId ? { ...visita, foto_familia_url: fotoUrl } : visita
+      )),
+    });
+
+    setParticipantes((current) => current.map(updateParticipant));
+    setDetailsParticipant((current) => current ? updateParticipant(current) : current);
+  };
+
+  const handleFamilyPhotoUploadFromDetails = async (file: File) => {
+    if (!detailsParticipant) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Selecione um arquivo de imagem válido.');
+      return;
+    }
+
+    const visitaPrincipal = detailsParticipant.visita_participacao?.find((v) => !v.visitante);
+    if (!visitaPrincipal?.id) {
+      toast.error('Este participante ainda não possui visita principal vinculada.');
+      return;
+    }
+
+    setUploadingFamilyPhotoVisitId(visitaPrincipal.id);
+    const loadingToast = toast.loading('Enviando foto da família...');
+
+    try {
+      const fotoUrl = await visitacaoService.uploadFotoFamilia(visitaPrincipal.id, file);
+      await visitacaoService.atualizarVisita(visitaPrincipal.id, { foto_familia_url: fotoUrl });
+      updateFamilyPhotoState(visitaPrincipal.id, fotoUrl);
+      toast.success('Foto da família atualizada!', { id: loadingToast });
+    } catch (error) {
+      console.error('Erro ao enviar foto da família:', error);
+      toast.error('Erro ao enviar foto da família.', { id: loadingToast });
+    } finally {
+      setUploadingFamilyPhotoVisitId(null);
+    }
   };
 
   const handleStartPhotoAdjustment = (participante: InscricaoEnriched) => {
@@ -636,6 +717,95 @@ export function SecretariaParticipantesPage() {
     () => participantes.filter(p => !p.foto_url).length,
     [participantes]
   );
+
+  const familyPhotos = React.useMemo(() => participantes
+    .map((participante) => {
+      const visitaPrincipal = participante.visita_participacao?.find((v) => !v.visitante);
+      if (!visitaPrincipal?.foto_familia_url) return null;
+
+      return {
+        id: participante.id,
+        nome: participante.pessoas?.nome_completo || 'Nome não informado',
+        dupla: visitaPrincipal.visita_grupos?.nome || 'Sem dupla de visita',
+        url: visitaPrincipal.foto_familia_url,
+      };
+    })
+    .filter((item): item is { id: string; nome: string; dupla: string; url: string } => Boolean(item))
+    .sort((a, b) => a.nome.localeCompare(b.nome)),
+    [participantes]
+  );
+
+  const filteredFamilyPhotos = React.useMemo(() => {
+    const term = debouncedSearch.toLowerCase().trim();
+    if (!term) return familyPhotos;
+    return familyPhotos.filter((photo) => (
+      photo.nome.toLowerCase().includes(term) ||
+      photo.dupla.toLowerCase().includes(term)
+    ));
+  }, [familyPhotos, debouncedSearch]);
+
+  const missingFamilyPhotoGroups = React.useMemo(() => {
+    const groups = new Map<string, string[]>();
+
+    participantes.forEach((participante) => {
+      const visitaPrincipal = participante.visita_participacao?.find((v) => !v.visitante);
+      if (visitaPrincipal?.foto_familia_url) return;
+
+      const dupla = visitaPrincipal?.visita_grupos?.nome || 'Sem dupla de visita';
+      const nome = participante.pessoas?.nome_completo || 'Nome não informado';
+      groups.set(dupla, [...(groups.get(dupla) || []), nome]);
+    });
+
+    return Array.from(groups.entries())
+      .map(([dupla, nomes]) => ({
+        dupla,
+        nomes: nomes.sort((a, b) => a.localeCompare(b)),
+      }))
+      .sort((a, b) => a.dupla.localeCompare(b.dupla));
+  }, [participantes]);
+
+  const totalMissingFamilyPhotos = participantes.length - familyPhotos.length;
+
+  const handleDownloadAllFamilyPhotos = async () => {
+    if (filteredFamilyPhotos.length === 0) return;
+
+    setIsDownloadingFamilyPhotos(true);
+    const loadingToast = toast.loading('Gerando arquivo ZIP...');
+    try {
+      const zip = new JSZip();
+      const usedNames = new Map<string, number>();
+
+      for (const photo of filteredFamilyPhotos) {
+        const response = await fetch(photo.url);
+        if (!response.ok) throw new Error(`Falha ao baixar foto de ${photo.nome}`);
+
+        const blob = await response.blob();
+        const extension = blob.type.split('/')[1] || photo.url.split('.').pop()?.split('?')[0] || 'jpg';
+        const baseName = sanitizeFileName(`familia_${photo.nome}`);
+        const count = usedNames.get(baseName) || 0;
+        usedNames.set(baseName, count + 1);
+        const fileName = `${baseName}${count ? `_${count + 1}` : ''}.${extension}`;
+
+        zip.file(fileName, blob);
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const objectUrl = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `fotos_familias_${sanitizeFileName(selectedEncontro?.nome || 'encontro')}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(objectUrl);
+      toast.success('ZIP das fotos gerado.', { id: loadingToast });
+    } catch (error) {
+      console.error('Erro ao gerar ZIP das fotos:', error);
+      toast.error('Erro ao gerar ZIP das fotos.', { id: loadingToast });
+    } finally {
+      setIsDownloadingFamilyPhotos(false);
+    }
+  };
   const participantSummary = (
     <p className="secretaria-result-summary secretaria-result-summary--with-actions">
       <span>Mostrando <strong>{filteredParticipantes.length}</strong> de <strong>{participantes.length}</strong> {participantes.length === 1 ? 'participante encontrado' : 'participantes encontrados'}</span>
@@ -672,11 +842,10 @@ export function SecretariaParticipantesPage() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <div className="secretaria-header-actions">
               <button
                 onClick={() => navigate('/inscricao')}
-                className="btn-secondary flex items-center gap-2"
-                style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+                className="btn-secondary secretaria-header-action"
               >
                 <Plus size={16} /> <span className="hide-mobile">Nova Inscrição</span>
               </button>
@@ -684,8 +853,7 @@ export function SecretariaParticipantesPage() {
               <button
                 onClick={handleUpdateGeolocalizacao}
                 disabled={isUpdatingGeo || filteredParticipantes.length === 0}
-                className="btn-secondary flex items-center gap-2"
-                style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+                className="btn-secondary secretaria-header-action"
               >
                 {isUpdatingGeo ? <Loader size={16} className="animate-spin" /> : <MapPin size={16} />}
                 <span className="hide-mobile">{isUpdatingGeo ? 'Atualizando...' : 'Atualizar Geo'}</span>
@@ -694,8 +862,7 @@ export function SecretariaParticipantesPage() {
               <div style={{ position: 'relative' }}>
                 <button
                   onClick={() => setShowExportMenu(!showExportMenu)}
-                  className="btn-primary flex items-center gap-2"
-                  style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+                  className="btn-primary secretaria-header-action"
                   disabled={filteredParticipantes.length === 0}
                 >
                   <Download size={16} />
@@ -763,8 +930,8 @@ export function SecretariaParticipantesPage() {
               onClick={() => handleTabChange('participantes')}
             >
               <Users size={16} />
-              Participantes
-              <span>{participantes.length}</span>
+              <span className="secretaria-tab-label">Participantes</span>
+              <span className="secretaria-tab-count">{participantes.length}</span>
             </button>
             <button
               type="button"
@@ -774,8 +941,19 @@ export function SecretariaParticipantesPage() {
               onClick={() => handleTabChange('desistentes')}
             >
               <UserMinus size={16} />
-              Histórico de desistências
-              <span>{desistentes.length}</span>
+              <span className="secretaria-tab-label">Histórico de desistências</span>
+              <span className="secretaria-tab-count">{desistentes.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'fotosFamilias'}
+              className={activeTab === 'fotosFamilias' ? 'is-active' : ''}
+              onClick={() => handleTabChange('fotosFamilias')}
+            >
+              <ImageIcon size={16} />
+              <span className="secretaria-tab-label">Fotos das famílias</span>
+              <span className="secretaria-tab-count">{familyPhotos.length}</span>
             </button>
           </div>
 
@@ -796,7 +974,7 @@ export function SecretariaParticipantesPage() {
               </div>
 
               <div className="form-group" style={{ marginBottom: 0, flex: 2 }}>
-                <label className="form-label">{activeTab === 'desistentes' ? 'Buscar no histórico' : 'Buscar Participante'}</label>
+                <label className="form-label">{activeTab === 'desistentes' ? 'Buscar no histórico' : activeTab === 'fotosFamilias' ? 'Buscar foto da família' : 'Buscar Participante'}</label>
                 <div className="form-input-wrapper">
                   <div className="form-input-icon">
                     <Search size={16} />
@@ -804,7 +982,7 @@ export function SecretariaParticipantesPage() {
                   <input
                     type="text"
                     className="form-input form-input--with-icon"
-                    placeholder={activeTab === 'desistentes' ? 'Nome, e-mail, telefone, comunidade, dupla ou observação...' : 'Nome, e-mail, telefone, bairro ou cidade...'}
+                    placeholder={activeTab === 'desistentes' ? 'Nome, e-mail, telefone, comunidade, dupla ou observação...' : activeTab === 'fotosFamilias' ? 'Buscar encontrista ou dupla...' : 'Nome, e-mail, telefone, bairro ou cidade...'}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -872,6 +1050,103 @@ export function SecretariaParticipantesPage() {
               canRestore={canRestoreDesistencia}
               onRestore={setDesistenciaToRestore}
             />
+          ) : activeTab === 'fotosFamilias' ? (
+            <section className="card secretaria-family-gallery-page">
+              <div className="secretaria-family-gallery-header">
+                <div>
+                  <h2>Fotos das famílias</h2>
+                  <p>
+                    {participantes.length} {participantes.length === 1 ? 'encontrista' : 'encontristas'} · {familyPhotos.length} {familyPhotos.length === 1 ? 'foto cadastrada' : 'fotos cadastradas'} · {totalMissingFamilyPhotos} {totalMissingFamilyPhotos === 1 ? 'faltando' : 'faltando'}
+                  </p>
+                  {debouncedSearch.trim() && (
+                    <p>Mostrando {filteredFamilyPhotos.length} {filteredFamilyPhotos.length === 1 ? 'resultado filtrado' : 'resultados filtrados'}.</p>
+                  )}
+                </div>
+                <div className="secretaria-family-gallery-actions">
+                  <button
+                    type="button"
+                    className="btn-secondary secretaria-family-missing-toggle"
+                    onClick={() => setShowMissingFamilyPhotos((current) => !current)}
+                    disabled={totalMissingFamilyPhotos === 0}
+                  >
+                    <ImageIcon size={16} />
+                    {showMissingFamilyPhotos ? 'Ocultar faltantes' : 'Ver faltantes'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary secretaria-family-download-all"
+                    onClick={handleDownloadAllFamilyPhotos}
+                    disabled={filteredFamilyPhotos.length === 0 || isDownloadingFamilyPhotos}
+                  >
+                    {isDownloadingFamilyPhotos ? <Loader size={16} className="animate-spin" /> : <Download size={16} />}
+                    Baixar todas
+                  </button>
+                </div>
+              </div>
+
+              {showMissingFamilyPhotos && (
+                <div className="secretaria-family-missing-panel">
+                  <div className="secretaria-family-missing-header">
+                    <strong>Faltam {totalMissingFamilyPhotos} {totalMissingFamilyPhotos === 1 ? 'foto de família' : 'fotos de família'}</strong>
+                    <span>Agrupado por dupla de visita</span>
+                  </div>
+                  {missingFamilyPhotoGroups.length === 0 ? (
+                    <div className="secretaria-family-gallery-empty compact">
+                      <CheckCircle size={34} />
+                      <p>Todas as fotos de família foram cadastradas.</p>
+                    </div>
+                  ) : (
+                    <div className="secretaria-family-missing-groups">
+                      {missingFamilyPhotoGroups.map((group) => (
+                        <section key={group.dupla} className="secretaria-family-missing-group">
+                          <h3>{group.dupla} <span>{group.nomes.length}</span></h3>
+                          <ul>
+                            {group.nomes.map((nome) => (
+                              <li key={`${group.dupla}-${nome}`}>{nome}</li>
+                            ))}
+                          </ul>
+                        </section>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {filteredFamilyPhotos.length === 0 ? (
+                <div className="secretaria-family-gallery-empty">
+                  <ImageIcon size={42} />
+                  <p>{familyPhotos.length === 0 ? 'Nenhuma foto de família cadastrada para este encontro.' : 'Nenhuma foto encontrada para a busca.'}</p>
+                </div>
+              ) : (
+                <div className="secretaria-family-gallery-grid">
+                  {filteredFamilyPhotos.map((photo) => (
+                    <article key={photo.id} className="secretaria-family-gallery-card">
+                      <button
+                        type="button"
+                        className="secretaria-family-gallery-image"
+                        onClick={() => setPreviewPhoto({ url: photo.url, nome: `Foto da família - ${photo.nome}` })}
+                        aria-label={`Abrir foto da família de ${photo.nome}`}
+                      >
+                        <img src={photo.url} alt={`Foto da família de ${photo.nome}`} />
+                      </button>
+                      <div className="secretaria-family-gallery-info">
+                        <div>
+                          <strong>{photo.nome}</strong>
+                          <span>{photo.dupla}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => setPreviewPhoto({ url: photo.url, nome: `Foto da família - ${photo.nome}` })}
+                        >
+                          <Eye size={15} /> Abrir
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
           ) : isLoading ? (
             <div className="card text-center py-8">
               <Loader size={32} className="animate-spin" style={{ display: 'inline-block', marginBottom: '1rem' }} />
@@ -999,6 +1274,15 @@ export function SecretariaParticipantesPage() {
                       </div>
 
                       <div className="pessoa-row-actions secretaria-pessoa-actions">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDetailsParticipant(p); }}
+                          className="secretaria-details-button"
+                          title="Ver detalhes completos"
+                          aria-label={`Ver detalhes completos de ${nomeParticipante}`}
+                        >
+                          <Eye size={16} />
+                          <span>Detalhes</span>
+                        </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleOpenPessoaEdit(p); }}
                           className="secretaria-edit-button"
@@ -1204,6 +1488,139 @@ export function SecretariaParticipantesPage() {
       </Modal>
 
       <Modal
+        isOpen={!!detailsParticipant}
+        onClose={() => setDetailsParticipant(null)}
+        title={`Detalhes - ${detailsParticipant?.pessoas?.nome_completo || 'Participante'}`}
+        maxWidth="980px"
+      >
+        {detailsParticipant && (() => {
+          const pessoa = detailsParticipant.pessoas;
+          const visitaPrincipal = detailsParticipant.visita_participacao?.find((v) => !v.visitante);
+          const circulo = detailsParticipant.circulo_participacao?.[0]?.circulos?.nome;
+          const idade = pessoa?.data_nascimento ? calculateAge(pessoa.data_nascimento, selectedEncontro?.data_inicio) : null;
+          const enderecoCompleto = [
+            pessoa?.endereco,
+            pessoa?.numero,
+            pessoa?.complemento,
+          ].filter(Boolean).join(', ');
+
+          return (
+            <div className="secretaria-details-modal">
+              <section className="secretaria-details-section">
+                <h3><User size={17} /> Dados do encontrista</h3>
+                <div className="secretaria-details-grid">
+                  <DetailItem label="Nome" value={pessoa?.nome_completo} />
+                  <DetailItem label="CPF" value={pessoa?.cpf} />
+                  <DetailItem label="Nascimento" value={formatDate(pessoa?.data_nascimento)} />
+                  <DetailItem label="Idade no encontro" value={idade !== null ? `${idade} anos` : '—'} />
+                  <DetailItem label="Comunidade" value={pessoa?.comunidade} />
+                  <DetailItem label="Origem" value={pessoa?.origem || detailsParticipant.origem} />
+                </div>
+              </section>
+
+              <section className="secretaria-details-section">
+                <h3><Phone size={17} /> Contatos</h3>
+                <div className="secretaria-details-grid">
+                  <DetailItem label="Telefone" value={formatTelefone(pessoa?.telefone)} />
+                  <DetailItem label="E-mail" value={pessoa?.email} />
+                  <DetailItem label="Pai" value={pessoa?.nome_pai} />
+                  <DetailItem label="Telefone do pai" value={formatTelefone(pessoa?.telefone_pai)} />
+                  <DetailItem label="Mãe" value={pessoa?.nome_mae} />
+                  <DetailItem label="Telefone da mãe" value={formatTelefone(pessoa?.telefone_mae)} />
+                  <DetailItem label="Outros contatos" value={pessoa?.outros_contatos} wide />
+                </div>
+              </section>
+
+              <section className="secretaria-details-section">
+                <h3><MapPin size={17} /> Endereço</h3>
+                <div className="secretaria-details-grid">
+                  <DetailItem label="Endereço" value={enderecoCompleto} wide />
+                  <DetailItem label="Bairro" value={pessoa?.bairro} />
+                  <DetailItem label="Cidade" value={pessoa?.cidade} />
+                  <DetailItem label="Estado" value={pessoa?.estado} />
+                  <DetailItem label="CEP" value={pessoa?.cep} />
+                  <DetailItem label="Latitude" value={pessoa?.latitude} />
+                  <DetailItem label="Longitude" value={pessoa?.longitude} />
+                </div>
+              </section>
+
+              <section className="secretaria-details-section">
+                <h3><Heart size={17} /> Saúde e alimentação</h3>
+                <div className="secretaria-details-grid">
+                  <DetailItem label="Restrição alimentar?" value={detailValue(pessoa?.possui_restricao_alimentar)} />
+                  <DetailItem label="Restrição alimentar" value={pessoa?.restricao_alimentar} wide />
+                  <DetailItem label="Alergia?" value={detailValue(pessoa?.possui_alergia)} />
+                  <DetailItem label="Alergia" value={pessoa?.alergia} wide />
+                  <DetailItem label="Medicamento contínuo?" value={detailValue(pessoa?.usa_medicamento_continuo)} />
+                  <DetailItem label="Medicamento contínuo" value={pessoa?.medicamento_continuo} wide />
+                  <DetailItem label="Observação de saúde?" value={detailValue(pessoa?.possui_observacao_saude)} />
+                  <DetailItem label="Observações de saúde" value={pessoa?.observacoes_saude} wide />
+                </div>
+              </section>
+
+              <section className="secretaria-details-section">
+                <h3><FileText size={17} /> Encontro e visita</h3>
+                <div className="secretaria-details-grid">
+                  <DetailItem label="Círculo" value={circulo} />
+                  <DetailItem label="Dupla visitante" value={visitaPrincipal?.visita_grupos?.nome} />
+                  <DetailItem label="Status da visita" value={getVisitaStatusLabel(visitaPrincipal?.status)} />
+                  <DetailItem label="Taxa da visita" value={visitaPrincipal?.taxa_paga ? 'Paga' : 'Pendente'} />
+                  <DetailItem label="Data da visita" value={formatDateTime(visitaPrincipal?.data_visita)} />
+                  <DetailItem label="Observações da visita" value={visitaPrincipal?.observacoes} wide />
+                </div>
+                <div className="secretaria-details-family-photo">
+                  {visitaPrincipal?.foto_familia_url ? (
+                    <img src={visitaPrincipal.foto_familia_url} alt="Foto da família" />
+                  ) : (
+                    <div className="secretaria-details-family-photo-empty">
+                      <ImageIcon size={24} />
+                      <span>Sem foto cadastrada</span>
+                    </div>
+                  )}
+                  <div>
+                    <strong>Foto da família</strong>
+                    <div>
+                      {visitaPrincipal?.foto_familia_url && (
+                        <>
+                          <button type="button" className="btn-secondary" onClick={() => setPreviewPhoto({ url: visitaPrincipal.foto_familia_url!, nome: `Foto da família - ${pessoa?.nome_completo || 'Participante'}` })}>
+                            <Eye size={16} /> Abrir
+                          </button>
+                          <button type="button" className="btn-secondary" onClick={() => handleDownloadPhoto(visitaPrincipal.foto_familia_url!, `familia_${pessoa?.nome_completo || 'participante'}`)}>
+                            <Download size={16} /> Baixar
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => familyPhotoInputRef.current?.click()}
+                        disabled={!visitaPrincipal?.id || uploadingFamilyPhotoVisitId === visitaPrincipal?.id}
+                      >
+                        {uploadingFamilyPhotoVisitId === visitaPrincipal?.id ? <Loader size={16} className="animate-spin" /> : <Upload size={16} />}
+                        {visitaPrincipal?.foto_familia_url ? 'Alterar' : 'Adicionar foto'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {detailsParticipant.recepcao_dados && (
+                <section className="secretaria-details-section">
+                  <h3><Car size={17} /> Veículo</h3>
+                  <div className="secretaria-details-grid">
+                    <DetailItem label="Tipo" value={detailsParticipant.recepcao_dados.veiculo_tipo === 'moto' ? 'Moto' : 'Carro'} />
+                    <DetailItem label="Modelo" value={detailsParticipant.recepcao_dados.veiculo_modelo} />
+                    <DetailItem label="Cor" value={detailsParticipant.recepcao_dados.veiculo_cor} />
+                    <DetailItem label="Placa" value={detailsParticipant.recepcao_dados.veiculo_placa} />
+                  </div>
+                </section>
+              )}
+            </div>
+          );
+        })()}
+      </Modal>
+
+      <Modal
         isOpen={!!previewPhoto}
         onClose={() => setPreviewPhoto(null)}
         title={previewPhoto?.nome || 'Foto do participante'}
@@ -1223,6 +1640,18 @@ export function SecretariaParticipantesPage() {
           </div>
         )}
       </Modal>
+
+      <input
+        ref={familyPhotoInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) handleFamilyPhotoUploadFromDetails(file);
+          event.target.value = '';
+        }}
+      />
 
       <Modal
         isOpen={!!photoActionsParticipant}
@@ -1333,6 +1762,28 @@ export function SecretariaParticipantesPage() {
       </Modal>
 
       <style>{`
+        .secretaria-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          min-width: 0;
+        }
+        .secretaria-header-action {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+          font-size: 0.85rem;
+          padding: 0.5rem 1rem;
+          line-height: 1.15;
+          min-height: 42px;
+          white-space: normal;
+        }
+        .secretaria-header-action svg {
+          flex-shrink: 0;
+        }
         .secretaria-tabs {
           display: flex;
           gap: 0.65rem;
@@ -1350,8 +1801,20 @@ export function SecretariaParticipantesPage() {
           gap: 0.5rem;
           font-weight: 800;
           cursor: pointer;
+          line-height: 1.15;
+          min-width: 0;
+          max-width: 100%;
+          white-space: normal;
         }
-        .secretaria-tabs button span {
+        .secretaria-tabs button svg {
+          flex-shrink: 0;
+        }
+        .secretaria-tab-label {
+          min-width: 0;
+          overflow-wrap: anywhere;
+          text-align: left;
+        }
+        .secretaria-tab-count {
           min-width: 24px;
           height: 22px;
           border-radius: 999px;
@@ -1567,6 +2030,7 @@ export function SecretariaParticipantesPage() {
         .action-btn-hover:hover {
           background-color: rgba(239, 68, 68, 0.1);
         }
+        .secretaria-details-button,
         .secretaria-edit-button {
           width: 34px;
           height: 34px;
@@ -1581,10 +2045,15 @@ export function SecretariaParticipantesPage() {
           cursor: pointer;
           transition: opacity 0.2s ease, transform 0.2s ease;
         }
+        .secretaria-details-button {
+          border-color: rgba(37, 99, 235, 0.28);
+          background: rgba(37, 99, 235, 0.1);
+        }
         .secretaria-edit-button:disabled {
           opacity: 0.55;
           cursor: wait;
         }
+        .secretaria-details-button svg,
         .secretaria-edit-button svg {
           display: block;
           width: 16px;
@@ -1593,11 +2062,13 @@ export function SecretariaParticipantesPage() {
           stroke: var(--primary-color);
           flex-shrink: 0;
         }
+        .secretaria-details-button:hover,
         .secretaria-edit-button:hover:not(:disabled) {
           background: rgba(37, 99, 235, 0.12);
           border-color: var(--primary-color);
           transform: translateY(-1px);
         }
+        .secretaria-details-button span,
         .secretaria-edit-button span {
           display: none;
           font-size: 0.85rem;
@@ -1757,6 +2228,291 @@ export function SecretariaParticipantesPage() {
           justify-content: flex-end;
           gap: 0.75rem;
         }
+        .secretaria-family-gallery-page {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          padding: 1rem;
+        }
+        .secretaria-family-gallery-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          flex-wrap: wrap;
+        }
+        .secretaria-family-gallery-header h2 {
+          color: var(--text-color);
+          font-size: 1.05rem;
+          margin: 0 0 0.25rem;
+        }
+        .secretaria-family-gallery-header p {
+          color: var(--muted-text);
+          font-size: 0.85rem;
+          margin: 0.15rem 0 0;
+        }
+        .secretaria-family-gallery-actions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 0.65rem;
+          flex-wrap: wrap;
+        }
+        .secretaria-family-download-all,
+        .secretaria-family-missing-toggle {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.45rem;
+          line-height: 1.15;
+          min-height: 40px;
+          white-space: normal;
+        }
+        .secretaria-family-missing-panel {
+          background: var(--secondary-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          display: grid;
+          gap: 0.85rem;
+          padding: 1rem;
+        }
+        .secretaria-family-missing-header {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+        }
+        .secretaria-family-missing-header strong {
+          color: var(--text-color);
+          font-size: 0.95rem;
+        }
+        .secretaria-family-missing-header span {
+          color: var(--muted-text);
+          font-size: 0.78rem;
+          font-weight: 700;
+        }
+        .secretaria-family-missing-groups {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 0.75rem;
+        }
+        .secretaria-family-missing-group {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 10px;
+          padding: 0.8rem;
+          min-width: 0;
+        }
+        .secretaria-family-missing-group h3 {
+          align-items: center;
+          color: var(--text-color);
+          display: flex;
+          font-size: 0.9rem;
+          gap: 0.5rem;
+          justify-content: space-between;
+          margin: 0 0 0.55rem;
+        }
+        .secretaria-family-missing-group h3 span {
+          align-items: center;
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid rgba(239, 68, 68, 0.22);
+          border-radius: 999px;
+          color: #ef4444;
+          display: inline-flex;
+          font-size: 0.72rem;
+          height: 22px;
+          justify-content: center;
+          min-width: 24px;
+          padding: 0 0.35rem;
+        }
+        .secretaria-family-missing-group ul {
+          color: var(--muted-text);
+          display: grid;
+          gap: 0.35rem;
+          list-style: none;
+          margin: 0;
+          padding: 0;
+        }
+        .secretaria-family-missing-group li {
+          background: var(--secondary-bg);
+          border-radius: 7px;
+          font-size: 0.82rem;
+          font-weight: 700;
+          line-height: 1.35;
+          overflow-wrap: anywhere;
+          padding: 0.45rem 0.55rem;
+        }
+        .secretaria-family-gallery-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+          gap: 1rem;
+        }
+        .secretaria-family-gallery-card {
+          background: var(--secondary-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          overflow: hidden;
+          min-width: 0;
+        }
+        .secretaria-family-gallery-image {
+          width: 100%;
+          aspect-ratio: 4 / 3;
+          border: 0;
+          background: #111827;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0;
+          cursor: pointer;
+        }
+        .secretaria-family-gallery-image img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          display: block;
+        }
+        .secretaria-family-gallery-info {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.75rem;
+          padding: 0.75rem;
+        }
+        .secretaria-family-gallery-info > div {
+          display: grid;
+          gap: 0.2rem;
+          min-width: 0;
+        }
+        .secretaria-family-gallery-info strong {
+          color: var(--text-color);
+          font-size: 0.9rem;
+          line-height: 1.25;
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+        .secretaria-family-gallery-info span {
+          color: var(--muted-text);
+          font-size: 0.76rem;
+          font-weight: 800;
+          line-height: 1.25;
+          overflow-wrap: anywhere;
+        }
+        .secretaria-family-gallery-info button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.35rem;
+          flex-shrink: 0;
+          font-size: 0.8rem;
+          padding: 0.45rem 0.7rem;
+        }
+        .secretaria-family-gallery-empty {
+          min-height: 220px;
+          border: 1px dashed var(--border-color);
+          border-radius: 12px;
+          color: var(--muted-text);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-direction: column;
+          gap: 0.75rem;
+          text-align: center;
+        }
+        .secretaria-details-modal {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+        .secretaria-details-section {
+          background: var(--secondary-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          padding: 1rem;
+        }
+        .secretaria-details-section h3 {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.95rem;
+          margin: 0 0 0.85rem;
+          color: var(--text-color);
+        }
+        .secretaria-details-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 0.75rem;
+        }
+        .secretaria-details-item {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 9px;
+          padding: 0.7rem 0.8rem;
+          min-width: 0;
+        }
+        .secretaria-details-item.is-wide {
+          grid-column: 1 / -1;
+        }
+        .secretaria-details-item span {
+          color: var(--muted-text);
+          display: block;
+          font-size: 0.72rem;
+          font-weight: 800;
+          margin-bottom: 0.25rem;
+          text-transform: uppercase;
+        }
+        .secretaria-details-item strong {
+          color: var(--text-color);
+          display: block;
+          font-size: 0.9rem;
+          line-height: 1.4;
+          overflow-wrap: anywhere;
+          white-space: pre-wrap;
+        }
+        .secretaria-details-family-photo {
+          align-items: center;
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          display: flex;
+          gap: 1rem;
+          margin-top: 0.85rem;
+          padding: 0.75rem;
+        }
+        .secretaria-details-family-photo img {
+          background: #111827;
+          border-radius: 10px;
+          height: 110px;
+          object-fit: contain;
+          width: 150px;
+        }
+        .secretaria-details-family-photo-empty {
+          align-items: center;
+          background: #111827;
+          border-radius: 10px;
+          color: rgba(255, 255, 255, 0.75);
+          display: flex;
+          flex-direction: column;
+          font-size: 0.75rem;
+          font-weight: 800;
+          gap: 0.4rem;
+          height: 110px;
+          justify-content: center;
+          text-align: center;
+          width: 150px;
+        }
+        .secretaria-details-family-photo > div {
+          display: flex;
+          flex: 1;
+          flex-direction: column;
+          gap: 0.65rem;
+          min-width: 0;
+        }
+        .secretaria-details-family-photo > div > div {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
         .secretaria-photo-options-modal {
           display: flex;
           flex-direction: column;
@@ -1886,6 +2642,56 @@ export function SecretariaParticipantesPage() {
           accent-color: var(--primary-color);
         }
         @media (max-width: 640px) {
+          .secretaria-header-actions {
+            justify-content: flex-start;
+            width: 100%;
+          }
+          .secretaria-header-action {
+            flex: 1 1 56px;
+            min-width: 48px;
+            padding: 0.5rem 0.75rem;
+          }
+          .secretaria-tabs button {
+            flex: 1 1 170px;
+            justify-content: flex-start;
+          }
+          .secretaria-tab-label {
+            flex: 1;
+          }
+          .secretaria-family-gallery-grid {
+            grid-template-columns: 1fr;
+          }
+          .secretaria-family-download-all {
+            width: 100%;
+          }
+          .secretaria-family-gallery-actions {
+            width: 100%;
+          }
+          .secretaria-family-gallery-actions button {
+            flex: 1 1 150px;
+          }
+          .secretaria-family-gallery-info {
+            align-items: stretch;
+            flex-direction: column;
+          }
+          .secretaria-family-gallery-info button {
+            width: 100%;
+          }
+          .secretaria-details-grid {
+            grid-template-columns: 1fr;
+          }
+          .secretaria-details-family-photo {
+            align-items: stretch;
+            flex-direction: column;
+          }
+          .secretaria-details-family-photo img {
+            height: 180px;
+            width: 100%;
+          }
+          .secretaria-details-family-photo-empty {
+            height: 160px;
+            width: 100%;
+          }
           .secretaria-photo-options-frame {
             height: min(48vh, 360px);
           }
@@ -1936,7 +2742,7 @@ export function SecretariaParticipantesPage() {
           }
           .secretaria-tabs {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
           }
           .secretaria-tabs button {
             justify-content: center;
@@ -1995,11 +2801,13 @@ export function SecretariaParticipantesPage() {
             padding-top: 0.35rem;
             border-top: 1px solid var(--border-color);
           }
+          .secretaria-details-button,
           .secretaria-edit-button,
           .secretaria-unlink-button {
             width: 100%;
             height: 40px;
           }
+          .secretaria-details-button span,
           .secretaria-edit-button span,
           .secretaria-unlink-button span {
             display: inline;

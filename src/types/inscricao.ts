@@ -35,6 +35,10 @@ export interface InscricaoEnriched extends Inscricao {
     id: string;
     visitante: boolean;
     status?: VisitaStatus | null;
+    observacoes?: string | null;
+    taxa_paga?: boolean | null;
+    data_visita?: string | null;
+    foto_familia_url?: string | null;
     visita_grupos?: {
       nome: string | null;
     } | null;

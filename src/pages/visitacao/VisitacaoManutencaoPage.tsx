@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home, Heart, UtensilsCrossed, Pill, AlertTriangle, Upload, ImagePlus, Calendar, Shirt, Plus, Trash2, X, Car, Pencil, CheckCircle, FileText } from 'lucide-react';
+import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home, Heart, UtensilsCrossed, Pill, AlertTriangle, Upload, ImagePlus, Calendar, Shirt, Plus, Trash2, X, Car, Pencil, CheckCircle, FileText, Eye } from 'lucide-react';
 import { visitacaoService, type IntencaoCamisetaItem } from '../../services/visitacaoService';
 import { camisetaService } from '../../services/camisetaService';
 import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
@@ -253,6 +253,7 @@ export function VisitacaoManutencaoPage() {
     const familyCameraInputRef = useRef<HTMLInputElement>(null);
     const [isPhotoActionSheetOpen, setIsPhotoActionSheetOpen] = useState(false);
     const [isFamilyPhotoActionSheetOpen, setIsFamilyPhotoActionSheetOpen] = useState(false);
+    const [familyPhotoPreviewUrl, setFamilyPhotoPreviewUrl] = useState<string | null>(null);
 
     // ---- Intenção de camiseta ----
     const [intencoes, setIntencoes] = useState<IntencaoCamisetaItem[]>([]);
@@ -629,7 +630,12 @@ export function VisitacaoManutencaoPage() {
     };
 
     const handleFamilyPhotoAreaClick = () => {
-        if (uploadingFamilyPhoto || isHistory) return;
+        if (uploadingFamilyPhoto) return;
+        if (fotoFamiliaUrl) {
+            setFamilyPhotoPreviewUrl(fotoFamiliaUrl);
+            return;
+        }
+        if (isHistory) return;
         if (window.innerWidth <= 768) {
             setIsFamilyPhotoActionSheetOpen(true);
         } else {
@@ -1820,23 +1826,9 @@ export function VisitacaoManutencaoPage() {
 
                                     {fotoFamiliaUrl && !uploadingFamilyPhoto && !isHistory && (
                                         <div className="visita-family-photo-overlay">
-                                            <Camera size={22} />
-                                            <span>Alterar foto</span>
+                                            <Eye size={22} />
+                                            <span>Abrir foto</span>
                                         </div>
-                                    )}
-
-                                    {fotoFamiliaUrl && !uploadingFamilyPhoto && !isHistory && (
-                                        <button
-                                            type="button"
-                                            className="visita-family-photo-remove"
-                                            onClick={(event) => {
-                                                event.stopPropagation();
-                                                handleRemoveFamilyPhoto();
-                                            }}
-                                            title="Remover foto da família"
-                                        >
-                                            <Trash2 size={22} />
-                                        </button>
                                     )}
 
                                     {uploadingFamilyPhoto && (
@@ -1864,6 +1856,27 @@ export function VisitacaoManutencaoPage() {
                                         disabled={uploadingFamilyPhoto || isHistory}
                                     />
                                 </div>
+                                {fotoFamiliaUrl && !isHistory && (
+                                    <div className="visita-family-photo-actions">
+                                        <button
+                                            type="button"
+                                            className="btn-secondary"
+                                            onClick={() => {
+                                                if (window.innerWidth <= 768) setIsFamilyPhotoActionSheetOpen(true);
+                                                else familyFileInputRef.current?.click();
+                                            }}
+                                        >
+                                            <Camera size={16} /> Alterar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn-secondary visita-family-photo-delete-btn"
+                                            onClick={handleRemoveFamilyPhoto}
+                                        >
+                                            <Trash2 size={16} /> Remover
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </FormSection>
                     </div>
@@ -2016,8 +2029,9 @@ export function VisitacaoManutencaoPage() {
                         width: 100%;
                         height: 100%;
                         min-height: inherit;
-                        object-fit: cover;
+                        object-fit: contain;
                         display: block;
+                        background: #111827;
                     }
                     .visita-family-photo-placeholder {
                         display: flex;
@@ -2064,25 +2078,54 @@ export function VisitacaoManutencaoPage() {
                     .visita-family-photo-loading {
                         background: rgba(0,0,0,0.5);
                     }
-                    .visita-family-photo-remove {
-                        position: absolute;
-                        top: 12px;
-                        right: 12px;
-                        width: 46px;
-                        height: 46px;
-                        border: 0;
-                        border-radius: 50%;
-                        background: rgba(239, 68, 68, 0.92);
-                        color: #fff;
+                    .visita-family-photo-actions {
+                        display: flex;
+                        flex-wrap: wrap;
+                        gap: 0.65rem;
+                        margin-top: 0.75rem;
+                    }
+                    .visita-family-photo-actions button {
                         display: inline-flex;
                         align-items: center;
                         justify-content: center;
-                        cursor: pointer;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.22);
-                        z-index: 2;
+                        gap: 0.4rem;
                     }
-                    .visita-family-photo-remove:hover {
-                        background: #ef4444;
+                    .visita-family-photo-delete-btn {
+                        border-color: rgba(239, 68, 68, 0.35) !important;
+                        color: #ef4444 !important;
+                    }
+                    .visita-family-photo-delete-btn:hover {
+                        background: rgba(239, 68, 68, 0.1) !important;
+                        border-color: rgba(239, 68, 68, 0.65) !important;
+                    }
+                    .visit-family-photo-preview-modal {
+                        width: min(920px, calc(100vw - 2rem));
+                        max-height: calc(100vh - 2rem);
+                        background: var(--card-bg);
+                        border: 1px solid var(--border-color);
+                        border-radius: 18px;
+                        box-shadow: var(--shadow-lg);
+                        padding: 1rem;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 1rem;
+                    }
+                    .visit-family-photo-preview-frame {
+                        background: #111827;
+                        border-radius: 14px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        overflow: hidden;
+                        min-height: 260px;
+                        max-height: 68vh;
+                    }
+                    .visit-family-photo-preview-frame img {
+                        width: 100%;
+                        height: 100%;
+                        max-height: 68vh;
+                        object-fit: contain;
+                        display: block;
                     }
                     @media (max-width: 639px) {
                         .visita-family-photo-area {
@@ -2096,9 +2139,15 @@ export function VisitacaoManutencaoPage() {
                             padding: 1rem;
                             font-size: 0.9rem;
                         }
-                        .visita-family-photo-remove {
-                            width: 50px;
-                            height: 50px;
+                        .visita-family-photo-actions button {
+                            flex: 1 1 140px;
+                        }
+                        .visit-family-photo-preview-modal {
+                            width: calc(100vw - 1rem);
+                            padding: 0.75rem;
+                        }
+                        .visit-family-photo-preview-frame {
+                            min-height: 220px;
                         }
                     }
                     .visita-hero-info {
@@ -2496,6 +2545,23 @@ export function VisitacaoManutencaoPage() {
                 isLoading={uploading}
                 isDestructive={true}
             />
+
+            {familyPhotoPreviewUrl && (
+                <div className="photo-actions-modal-overlay" onClick={() => setFamilyPhotoPreviewUrl(null)}>
+                    <div className="visit-family-photo-preview-modal" onClick={e => e.stopPropagation()}>
+                        <div className="photo-actions-header">
+                            <h3>Foto da família</h3>
+                            <p>{nomeCompleto || 'Registro da visita'}</p>
+                        </div>
+                        <div className="visit-family-photo-preview-frame">
+                            <img src={familyPhotoPreviewUrl} alt="Foto da família completa" />
+                        </div>
+                        <button className="photo-actions-cancel" onClick={() => setFamilyPhotoPreviewUrl(null)}>
+                            Fechar
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {isPhotoActionSheetOpen && (
                 <div className="photo-actions-modal-overlay">
