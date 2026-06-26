@@ -43,7 +43,8 @@ import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { camisetaService } from '../../services/camisetaService';
-import { avaliacaoEncontroService, type AvaliacaoEnvioStatus } from '../../services/avaliacaoEncontroService';
+import { pesquisaSatisfacaoService } from '../../services/pesquisaSatisfacaoService';
+import type { PesquisaSatisfacaoStatus } from '../../types/pesquisaSatisfacao';
 import { exportConfigService } from '../../services/exportConfigService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
@@ -99,19 +100,6 @@ function formatTelefone(tel: string | null | undefined) {
 
 function isPixTipo(value: string | null | undefined): value is PixTipo {
   return value === 'cpf' || value === 'cnpj' || value === 'email' || value === 'telefone' || value === 'aleatoria';
-}
-
-function dateKey(value: string | null | undefined) {
-  if (!value) return '';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  return new Date(value).toISOString().slice(0, 10);
-}
-
-function todayKey() {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${now.getFullYear()}-${month}-${day}`;
 }
 
 export function CoordenadorMinhaEquipePage() {
@@ -197,10 +185,11 @@ export function CoordenadorMinhaEquipePage() {
   const [recreacaoParticipanteNome, setRecreacaoParticipanteNome] = useState('');
   const [avaliacaoResumo, setAvaliacaoResumo] = useState<{
     totalPerguntas: number;
-    status: AvaliacaoEnvioStatus | 'pendente';
+    status: PesquisaSatisfacaoStatus;
     enviadoEm: string | null;
-    dataFim: string | null;
     liberada: boolean;
+    totalParticipantes: number;
+    totalEnviados: number;
   } | null>(null);
   const [isLoadingAvaliacao, setIsLoadingAvaliacao] = useState(false);
 
@@ -221,27 +210,22 @@ export function CoordenadorMinhaEquipePage() {
 
     setIsLoadingAvaliacao(true);
     try {
-      const [estado, encontroResult] = await Promise.all([
-        avaliacaoEncontroService.obterEstado(userParticipacao.encontro_id, userParticipacao.equipe_id),
-        supabase
-          .from('encontros')
-          .select('data_fim')
-          .eq('id', userParticipacao.encontro_id)
-          .maybeSingle(),
+      const [envio, resumoEquipe, perguntas, config] = await Promise.all([
+        pesquisaSatisfacaoService.obterEnvioPorParticipacao(userParticipacao.encontro_id, userParticipacao.id),
+        pesquisaSatisfacaoService.listarResumoEquipe(userParticipacao.encontro_id, userParticipacao.equipe_id),
+        pesquisaSatisfacaoService.listarPerguntas(userParticipacao.encontro_id),
+        pesquisaSatisfacaoService.obterConfig(userParticipacao.encontro_id),
       ]);
 
-      if (encontroResult.error) throw encontroResult.error;
-
-      const dataFim = encontroResult.data?.data_fim ?? null;
-      const hoje = todayKey();
-      const liberada = isAdmin || (!!dataFim && dateKey(dataFim) <= hoje);
+      const liberada = isAdmin || config.publicada;
 
       setAvaliacaoResumo({
-        totalPerguntas: estado.perguntas.length,
-        status: estado.envio?.status ?? 'pendente',
-        enviadoEm: estado.envio?.enviado_em ?? null,
-        dataFim,
+        totalPerguntas: perguntas.length,
+        status: envio?.status ?? 'pendente',
+        enviadoEm: envio?.enviado_em ?? null,
         liberada,
+        totalParticipantes: resumoEquipe.totalParticipantes,
+        totalEnviados: resumoEquipe.totalEnviados,
       });
     } catch (error) {
       console.error('Erro ao carregar avaliação:', error);
@@ -249,7 +233,7 @@ export function CoordenadorMinhaEquipePage() {
     } finally {
       setIsLoadingAvaliacao(false);
     }
-  }, [isAdmin, userParticipacao?.coordenador, userParticipacao?.encontro_id, userParticipacao?.equipe_id]);
+  }, [isAdmin, userParticipacao?.coordenador, userParticipacao?.encontro_id, userParticipacao?.equipe_id, userParticipacao?.id]);
 
   const loadPedidos = useCallback(async () => {
     if (!userParticipacao?.encontro_id) return;
@@ -1046,12 +1030,12 @@ export function CoordenadorMinhaEquipePage() {
               </div>
               <div>
                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>
-                  Avaliação do Encontro
+                  Pesquisa de Satisfação
                 </h3>
                 <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', opacity: 0.68, lineHeight: 1.45 }}>
                   {avaliacaoResumo.status === 'enviado'
                     ? `Enviada em ${avaliacaoResumo.enviadoEm ? new Date(avaliacaoResumo.enviadoEm).toLocaleString('pt-BR') : 'data não informada'}.`
-                    : 'A avaliação está liberada para sua equipe. Responda pergunta por pergunta em uma tela focada.'}
+                    : `Liberada para sua equipe. ${avaliacaoResumo.totalEnviados} de ${avaliacaoResumo.totalParticipantes} respostas enviadas.`}
                 </p>
               </div>
             </div>
@@ -1085,10 +1069,10 @@ export function CoordenadorMinhaEquipePage() {
               >
                 {avaliacaoResumo.status === 'enviado' ? <Eye size={16} /> : <ArrowRight size={16} />}
                 {avaliacaoResumo.status === 'enviado'
-                  ? 'Ver avaliação'
+                  ? 'Ver pesquisa'
                   : avaliacaoResumo.status === 'rascunho'
-                    ? 'Continuar avaliação'
-                    : 'Iniciar avaliação'}
+                    ? 'Continuar pesquisa'
+                    : 'Iniciar pesquisa'}
               </button>
             </div>
           </div>

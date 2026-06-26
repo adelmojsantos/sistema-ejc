@@ -79,6 +79,7 @@ import FormPage from './pages/Public/FormPage';
 import FormRecreacaoPage from './pages/Public/FormRecreacaoPage';
 import FormCirculoAccessPage from './pages/Public/FormCirculoAccessPage';
 import FormCirculoFichaPage from './pages/Public/FormCirculoFichaPage';
+import PesquisaSatisfacaoPublicPage from './pages/Public/PesquisaSatisfacaoPublicPage';
 import { CirculoSessionProvider } from './contexts/CirculoSessionContext';
 import { EncontroQuadranteConfigPage } from './pages/cadastros/EncontroQuadranteConfigPage';
 import { QuadranteAuthPage } from './pages/Public/QuadranteAuthPage';
@@ -125,6 +126,7 @@ function AnimatedRoutes() {
         {/* Rotas públicas — Ficha Pós-Encontro por Círculo */}
         <Route path="/pos-encontro/circulo/:circulo_id" element={<PageTransition><FormCirculoAccessPage /></PageTransition>} />
         <Route path="/pos-encontro/ficha" element={<PageTransition><FormCirculoFichaPage /></PageTransition>} />
+        <Route path="/pesquisa-satisfacao/equipe/:equipeId" element={<PageTransition><PesquisaSatisfacaoPublicPage /></PageTransition>} />
 
         <Route path="/alterar-senha" element={
           <ProtectedRoute allowTemporaryPassword={true}>
