@@ -19,7 +19,8 @@ import {
   UsersRound,
   Crown,
   HeartPulse,
-  Mail
+  Mail,
+  ChefHat
 } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
@@ -39,6 +40,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setMobileOpen
 }) => {
   const { profile, userParticipacao, hasPermission } = useAuth();
+  const equipeNome = userParticipacao?.equipes?.nome ?? '';
+  const isCozinhaCoordinator = Boolean(
+    userParticipacao?.coordenador &&
+    equipeNome
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .includes('cozinha')
+  );
 
   const navLinks = [
     { to: '/dashboard', label: 'Início', icon: Home },
@@ -96,6 +106,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   if (hasPermission('modulo_coordenador') || userParticipacao?.coordenador) {
     menuItems.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe', icon: Users2 });
+  }
+
+  if (hasPermission('modulo_admin') || isCozinhaCoordinator) {
+    menuItems.push({ to: '/coordenador/cozinha', label: 'Cozinha', icon: ChefHat });
   }
 
   const hasVisitacaoAccess = hasPermission('modulo_visitacao_coordenar') || hasPermission('modulo_visitacao_duplas') || hasPermission('modulo_admin');

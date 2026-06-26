@@ -1,0 +1,258 @@
+.cozinha-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.cozinha-days {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.7rem;
+}
+
+.cozinha-days button {
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  min-height: 40px;
+  padding: 0.55rem 0.85rem;
+}
+
+.cozinha-days button.is-active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: #fff;
+}
+
+.cozinha-summary-grid,
+.cozinha-meals-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cozinha-meals-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.cozinha-quantity-card,
+.cozinha-meal-card,
+.cozinha-access-card,
+.cozinha-loading {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.cozinha-quantity-card {
+  align-items: center;
+  display: flex;
+  gap: 0.8rem;
+  min-width: 0;
+  padding: 1rem;
+}
+
+.cozinha-quantity-card__icon {
+  align-items: center;
+  background: var(--primary-light);
+  border-radius: 12px;
+  color: var(--primary-color);
+  display: inline-flex;
+  flex: 0 0 46px;
+  height: 46px;
+  justify-content: center;
+}
+
+.cozinha-quantity-card div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cozinha-quantity-card span,
+.cozinha-meal-card header span,
+.cozinha-quantity-card small {
+  color: var(--muted-text);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.cozinha-quantity-card strong {
+  color: var(--text-color);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.cozinha-meal-card {
+  overflow: hidden;
+}
+
+.cozinha-meal-card header {
+  align-items: center;
+  background: var(--secondary-bg);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem;
+}
+
+.cozinha-meal-card h2,
+.cozinha-access-card h2 {
+  color: var(--text-color);
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.cozinha-meal-card header > strong {
+  color: var(--primary-color);
+  font-size: 2.3rem;
+  line-height: 1;
+}
+
+.cozinha-meal-card--hidden header > strong {
+  color: #ef4444;
+}
+
+.cozinha-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+
+.cozinha-breakdown-row,
+.cozinha-accordion summary,
+.cozinha-team-row {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.cozinha-breakdown-row,
+.cozinha-accordion {
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.cozinha-breakdown-row {
+  padding: 0.8rem 0.9rem;
+}
+
+.cozinha-breakdown-row span,
+.cozinha-accordion summary strong,
+.cozinha-team-row span {
+  color: var(--text-color);
+  font-weight: 800;
+}
+
+.cozinha-breakdown-row strong,
+.cozinha-accordion__total,
+.cozinha-team-row strong {
+  color: var(--text-color);
+  font-size: 1.05rem;
+}
+
+.cozinha-breakdown-row--featured strong {
+  color: var(--primary-color);
+}
+
+.cozinha-accordion {
+  overflow: hidden;
+}
+
+.cozinha-accordion summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 0.8rem 0.9rem;
+}
+
+.cozinha-accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.cozinha-accordion summary > span:first-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.cozinha-accordion summary small {
+  color: var(--muted-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.cozinha-accordion[open] summary svg {
+  transform: rotate(180deg);
+}
+
+.cozinha-team-list {
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  padding: 0.35rem 0.9rem 0.75rem;
+}
+
+.cozinha-team-row {
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.6rem 0;
+}
+
+.cozinha-team-row:last-child {
+  border-bottom: 0;
+}
+
+.cozinha-empty {
+  color: var(--muted-text);
+  margin: 0;
+  padding: 0.8rem 0;
+}
+
+.cozinha-loading,
+.cozinha-access-card {
+  align-items: center;
+  color: var(--muted-text);
+  display: flex;
+  gap: 0.8rem;
+  padding: 1.25rem;
+}
+
+.cozinha-access-card p {
+  margin: 0.25rem 0 0;
+}
+
+@media (max-width: 1000px) {
+  .cozinha-summary-grid,
+  .cozinha-meals-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .cozinha-days button {
+    flex: 1 1 130px;
+  }
+
+  .cozinha-meal-card header,
+  .cozinha-breakdown-row,
+  .cozinha-accordion summary,
+  .cozinha-team-row {
+    align-items: flex-start;
+  }
+
+  .cozinha-breakdown-row,
+  .cozinha-team-row {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+}

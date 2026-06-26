@@ -37,6 +37,7 @@ import { PosEncontroFormPage } from './pages/cadastros/PosEncontroFormPage';
 import { PalestrasModulePage } from './pages/atividades/PalestrasModulePage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { CoordenadorAvaliacaoPage } from './pages/coordenador/CoordenadorAvaliacaoPage';
+import { CoordenadorCozinhaPage } from './pages/coordenador/CoordenadorCozinhaPage';
 import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
 import { CuidadosPage } from './pages/cuidados/CuidadosPage';
 import { LigacaoPage } from './pages/ligacao/LigacaoPage';
@@ -364,6 +365,12 @@ function AnimatedRoutes() {
           <Route path="/coordenador/minha-equipe/avaliacao" element={
             <ProtectedRoute requiredPermissions={['modulo_coordenador', 'modulo_admin']}>
               <CoordenadorAvaliacaoPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/coordenador/cozinha" element={
+            <ProtectedRoute requiredPermissions={['modulo_coordenador', 'modulo_admin']}>
+              <CoordenadorCozinhaPage />
             </ProtectedRoute>
           } />
 

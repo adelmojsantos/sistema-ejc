@@ -64,6 +64,15 @@ export function Header() {
   const navLinks = [
     { to: '/dashboard', label: 'Início' },
   ];
+  const equipeNome = userParticipacao?.equipes?.nome ?? '';
+  const isCozinhaCoordinator = Boolean(
+    userParticipacao?.coordenador &&
+    equipeNome
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .includes('cozinha')
+  );
 
   if (hasPermission('modulo_secretaria') || hasPermission('modulo_admin')) {
     navLinks.push(
@@ -81,6 +90,10 @@ export function Header() {
     if (!navLinks.some(link => link.to === '/coordenador/minha-equipe')) {
       navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });
     }
+  }
+
+  if (hasPermission('modulo_admin') || isCozinhaCoordinator) {
+    navLinks.push({ to: '/coordenador/cozinha', label: 'Cozinha' });
   }
 
   if (hasPermission('modulo_ligacao') || hasPermission('modulo_admin')) {
