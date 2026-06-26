@@ -22,7 +22,6 @@ interface LabelDataSelectorProps {
 
 export function LabelDataSelector({
   items,
-  manualItems,
   selectedIds,
   filters,
   equipes,

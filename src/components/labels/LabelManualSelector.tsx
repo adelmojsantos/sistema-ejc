@@ -20,6 +20,7 @@ const emptyManualItem: Omit<LabelDataItem, 'id' | 'tipo' | 'status' | 'equipeId'
   codigo: '',
   qrCode: '',
   imagem: '',
+  backgroundColor: '#ffffff',
 };
 
 interface LabelManualSelectorProps {
@@ -42,16 +43,24 @@ function getManualFieldLabel(item: LabelDataItem) {
   return filledField?.label || 'Dado';
 }
 
+function normalizeHexColor(value: string) {
+  const trimmed = value.trim();
+  const normalized = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  return /^#[0-9a-fA-F]{6}$/.test(normalized) ? normalized.toLowerCase() : '';
+}
+
 export function LabelManualSelector({ manualItems, selectedIds, onAddManualItem, onRemoveManualItem, onToggle }: LabelManualSelectorProps) {
   const [field, setField] = useState<ManualLabelField>('nome');
   const [value, setValue] = useState('');
+  const [backgroundColor, setBackgroundColor] = useState('#ffffff');
   const selectedManualCount = useMemo(() => manualItems.filter((item) => selectedIds.has(item.id)).length, [manualItems, selectedIds]);
+  const normalizedColor = normalizeHexColor(backgroundColor);
 
   const addManual = () => {
     const trimmed = value.trim();
-    if (!trimmed) return;
+    if (!trimmed || !normalizedColor) return;
 
-    const nextItem = { ...emptyManualItem };
+    const nextItem = { ...emptyManualItem, backgroundColor: normalizedColor };
     if (field === 'qrcode') nextItem.qrCode = trimmed;
     else nextItem[field] = trimmed;
 
@@ -90,7 +99,28 @@ export function LabelManualSelector({ manualItems, selectedIds, onAddManualItem,
               }}
             />
           </label>
-          <button type="button" className="btn-primary" onClick={addManual} disabled={!value.trim()}>
+          <div className="label-manual-color-row">
+            <label className="standard-label-group">
+              <span className="form-label standard-label">Cor</span>
+              <input
+                className="form-input label-color-input"
+                type="color"
+                value={normalizedColor || '#ffffff'}
+                onChange={(event) => setBackgroundColor(event.target.value)}
+              />
+            </label>
+            <label className="standard-label-group">
+              <span className="form-label standard-label">Hash</span>
+              <input
+                className="form-input"
+                value={backgroundColor}
+                onChange={(event) => setBackgroundColor(event.target.value)}
+                placeholder="#ffffff"
+                spellCheck={false}
+              />
+            </label>
+          </div>
+          <button type="button" className="btn-primary" onClick={addManual} disabled={!value.trim() || !normalizedColor}>
             <Plus size={16} /> Adicionar
           </button>
         </div>
@@ -108,12 +138,13 @@ export function LabelManualSelector({ manualItems, selectedIds, onAddManualItem,
           <div className="label-data-table-wrap">
             <table className="label-data-table label-data-table--manual">
               <thead>
-                <tr><th></th><th>Dado</th><th>Conteúdo</th><th></th></tr>
+                <tr><th></th><th>Cor</th><th>Dado</th><th>Conteúdo</th><th></th></tr>
               </thead>
               <tbody>
                 {manualItems.map((item) => (
                   <tr key={item.id} className={selectedIds.has(item.id) ? 'is-selected' : ''} onClick={() => onToggle(item.id)}>
                     <td>{selectedIds.has(item.id) ? <CheckSquare size={18} /> : <Square size={18} />}</td>
+                    <td><span className="label-manual-color-swatch" style={{ backgroundColor: item.backgroundColor || '#ffffff' }} title={item.backgroundColor || '#ffffff'} /></td>
                     <td>{getManualFieldLabel(item)}</td>
                     <td><strong>{getManualDisplayValue(item)}</strong></td>
                     <td>

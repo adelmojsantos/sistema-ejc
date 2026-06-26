@@ -17,6 +17,10 @@ export const LabelCanvas = memo(function LabelCanvas({
   selectedFieldId,
   onSelectField,
 }: LabelCanvasProps) {
+  const backgroundColor = item.tipo === 'manual' && item.backgroundColor
+    ? item.backgroundColor
+    : template.backgroundColor;
+
   return (
     <div
       className={`label-canvas ${editor ? 'label-canvas--editor' : ''}`}
@@ -26,7 +30,7 @@ export const LabelCanvas = memo(function LabelCanvas({
         padding: `${template.padding}mm`,
         border: `${template.borderWidth}mm solid ${template.borderColor}`,
         borderRadius: `${template.borderRadius}mm`,
-        backgroundColor: template.backgroundColor,
+        backgroundColor,
         backgroundImage: template.backgroundImage ? `url(${template.backgroundImage})` : undefined,
       }}
     >

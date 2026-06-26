@@ -86,10 +86,12 @@
 .label-manual-builder__form { display: grid; gap: .75rem; }
 .label-manual-builder__form .standard-label-group { margin: 0; }
 .label-manual-builder__form button { justify-content: center; width: 100%; }
+.label-manual-color-row { display: grid; gap: .6rem; grid-template-columns: 80px minmax(0, 1fr); }
+.label-manual-color-swatch { border: 1px solid var(--border-color); border-radius: 999px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.45); display: inline-block; height: 18px; vertical-align: middle; width: 18px; }
 .label-manual-list { min-width: 0; }
 .label-manual-list .label-selector-toolbar { margin-top: 0; }
 .label-manual-list .label-selector-toolbar span { color: var(--muted-text); font-size: .72rem; font-weight: 700; }
-.label-data-table--manual { min-width: 520px; }
+.label-data-table--manual { min-width: 580px; }
 .label-team-picker { position: relative; }
 .label-team-picker summary { align-items: center; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-color); cursor: pointer; display: flex; font-size: .78rem; gap: .5rem; justify-content: space-between; list-style: none; min-height: 40px; padding: .5rem .7rem; }
 .label-team-picker summary span { background: var(--primary-light); border-radius: 999px; color: var(--primary-color); font-size: .65rem; padding: .1rem .4rem; }

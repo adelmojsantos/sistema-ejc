@@ -131,7 +131,7 @@ export const labelPdfService = {
         const originY = template.printSettings.marginTop + row * (template.height + template.printSettings.verticalGap);
         if (!item) continue;
 
-        doc.setFillColor(template.backgroundColor);
+        doc.setFillColor(item.tipo === 'manual' && item.backgroundColor ? item.backgroundColor : template.backgroundColor);
         if (template.borderRadius > 0) doc.roundedRect(originX, originY, template.width, template.height, template.borderRadius, template.borderRadius, 'F');
         else doc.rect(originX, originY, template.width, template.height, 'F');
 
