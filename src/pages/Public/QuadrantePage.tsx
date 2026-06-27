@@ -864,7 +864,11 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                                                         <span className="name">{crianca.nome_crianca}</span>
                                                                         {responsaveis.length > 0 && (
                                                                             <span className="child-responsibles">
-                                                                                {responsaveis.join('  •  ')}
+                                                                                {responsaveis.map((responsavel, responsavelIndex) => (
+                                                                                    <span key={`${responsavelIndex}-${responsavel}`} className="child-responsible">
+                                                                                        {responsavel}
+                                                                                    </span>
+                                                                                ))}
                                                                             </span>
                                                                         )}
                                                                     </span>
@@ -2084,8 +2088,17 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     align-items: flex-start;
                 }
 
+                .child-member-item .number {
+                    box-sizing: border-box;
+                    height: auto;
+                    min-width: 2.35rem;
+                    padding: 0.45rem 0.55rem;
+                    width: auto;
+                }
+
                 .child-member-content {
                     display: flex;
+                    flex: 1;
                     min-width: 0;
                     flex-direction: column;
                     gap: 0.3rem;
@@ -2093,10 +2106,18 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
 
                 .child-responsibles {
                     color: var(--text-color);
+                    display: grid;
                     font-size: 0.72rem;
                     font-weight: 400;
+                    gap: 0.18rem;
                     line-height: 1.35;
                     opacity: 0.56;
+                    width: 100%;
+                }
+
+                .child-responsible {
+                    display: block;
+                    width: 100%;
                 }
 
                 .spa-footer {
@@ -3101,16 +3122,32 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
 
                     .child-member-content {
                         display: flex !important;
+                        flex: 1 !important;
                         flex-direction: column !important;
                         gap: 2px !important;
                     }
 
+                    .child-member-item .number {
+                        height: auto !important;
+                        min-width: 32px !important;
+                        padding: 6px 8px !important;
+                        width: auto !important;
+                    }
+
                     .child-responsibles {
                         color: #64748b !important;
+                        display: grid !important;
                         font-size: 6.5pt !important;
                         font-weight: 400 !important;
+                        gap: 1px !important;
                         line-height: 1.25 !important;
                         opacity: 0.8 !important;
+                        width: 100% !important;
+                    }
+
+                    .child-responsible {
+                        display: block !important;
+                        width: 100% !important;
                     }
 
                     /* ── PALESTRAS: layout inline-block de 2 colunas ── */
