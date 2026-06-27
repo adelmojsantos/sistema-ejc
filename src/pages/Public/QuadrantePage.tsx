@@ -3174,7 +3174,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     }
 
                     #criancas-recreacao .list-header {
-                        margin-bottom: 8px !important;
+                        margin-bottom: 12px !important;
                     }
 
                     #criancas-recreacao .children-numbered-list {
