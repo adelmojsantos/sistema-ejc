@@ -3163,46 +3163,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         width: 100% !important;
                     }
 
-                    /* Crianças: composição compacta para caber em uma única A4 */
-                    #criancas-recreacao .section-print-wrapper {
-                        padding: 10mm 12mm !important;
-                    }
-
-                    #criancas-recreacao .team-visual {
-                        aspect-ratio: auto !important;
-                        height: 44mm !important;
-                        max-height: 44mm !important;
-                    }
-
-                    #criancas-recreacao .team-members-list {
-                        padding: 12px 16px !important;
-                    }
-
-                    #criancas-recreacao .list-header {
-                        margin-bottom: 8px !important;
-                    }
-
-                    #criancas-recreacao .list-header h3 {
-                        font-size: 14pt !important;
-                    }
-
-                    #criancas-recreacao .children-numbered-list {
-                        gap: 5px !important;
-                        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-                    }
-
-                    #criancas-recreacao .child-member-item {
-                        column-gap: 6px !important;
-                        padding: 5px 7px !important;
-                        row-gap: 2px !important;
-                    }
-
-                    #criancas-recreacao .child-member-item .number {
-                        font-size: 7pt !important;
-                        min-width: 26px !important;
-                        padding: 4px 5px !important;
-                    }
-
+                    /* Crianças: somente os nomes são reduzidos na impressão */
                     #criancas-recreacao .child-member-item .name {
                         font-size: 8pt !important;
                         line-height: 1.15 !important;
