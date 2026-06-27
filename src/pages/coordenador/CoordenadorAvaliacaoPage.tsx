@@ -312,18 +312,23 @@ export function CoordenadorAvaliacaoPage() {
         .pesquisa-summary-grid {
           display: grid;
           gap: 0.85rem;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
           margin-bottom: 1rem;
         }
 
         .pesquisa-stat {
+          display: block;
+          min-width: 0;
           padding: 1rem;
         }
 
         .pesquisa-stat-button {
+          align-items: stretch;
           cursor: pointer;
+          justify-content: initial;
           text-align: left;
           transition: border-color 0.2s ease, transform 0.2s ease;
+          white-space: normal;
           width: 100%;
         }
 
@@ -487,20 +492,12 @@ export function CoordenadorAvaliacaoPage() {
             grid-template-columns: 1fr;
           }
 
-          .pesquisa-summary-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-
           .pesquisa-public-link__qr {
             justify-self: start;
           }
         }
 
         @media (max-width: 520px) {
-          .pesquisa-summary-grid {
-            grid-template-columns: 1fr;
-          }
-
           .pesquisa-public-link__actions a,
           .pesquisa-public-link__actions button,
           .pesquisa-hero .btn-secondary,
