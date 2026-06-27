@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, Image as ImageIcon, Trash2, Users, LayoutGrid, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { equipeService } from '../../services/equipeService';
 import { supabase } from '../../lib/supabase';
@@ -17,6 +18,14 @@ interface TeamConfirmationWithEquipe {
     };
 }
 
+interface TeamMember {
+    id: string;
+    equipe_id: string;
+    pessoas: {
+        nome_completo: string;
+    } | null;
+}
+
 export function SecretariaFotosPage() {
     const { encontros } = useEncontros();
     const [selectedEncontro, setSelectedEncontro] = useState<string>('');
@@ -30,6 +39,8 @@ export function SecretariaFotosPage() {
     const [isRemoving, setIsRemoving] = useState(false);
     const [selectedUploadTeamId, setSelectedUploadTeamId] = useState<string | null>(null);
     const [isPhotoActionSheetOpen, setIsPhotoActionSheetOpen] = useState(false);
+    const [membersByTeam, setMembersByTeam] = useState<Record<string, TeamMember[]>>({});
+    const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,19 +57,51 @@ export function SecretariaFotosPage() {
         async function loadTeams() {
             setLoadingTeams(true);
             try {
-                const { data, error } = await supabase
-                    .from('equipe_confirmacoes')
-                    .select('id, equipe_id, foto_url, foto_posicao_y, equipes(nome)')
-                    .eq('encontro_id', selectedEncontro);
+                const [teamsResult, membersResult] = await Promise.all([
+                    supabase
+                        .from('equipe_confirmacoes')
+                        .select('id, equipe_id, foto_url, foto_posicao_y, equipes(nome)')
+                        .eq('encontro_id', selectedEncontro),
+                    supabase
+                        .from('participacoes')
+                        .select('id, equipe_id, pessoas(nome_completo)')
+                        .eq('encontro_id', selectedEncontro)
+                        .eq('participante', false)
+                        .not('equipe_id', 'is', null)
+                ]);
 
-                if (error) throw error;
+                if (teamsResult.error) throw teamsResult.error;
+                if (membersResult.error) throw membersResult.error;
                 
                 // Ordenar alfabeticamente pelo nome da equipe
-                const sortedData = (data || []).sort((a: any, b: any) => 
-                    (a.equipes?.nome || '').localeCompare(b.equipes?.nome || '')
-                );
+                const sortedData = [
+                    ...((teamsResult.data || []) as unknown as TeamConfirmationWithEquipe[])
+                ].sort((a, b) => a.equipes.nome.localeCompare(
+                    b.equipes.nome,
+                    'pt-BR',
+                    { sensitivity: 'base' }
+                ));
 
-                setTeams(sortedData as unknown as TeamConfirmationWithEquipe[]);
+                const groupedMembers = ((membersResult.data || []) as unknown as TeamMember[])
+                    .reduce<Record<string, TeamMember[]>>((groups, member) => {
+                        if (!groups[member.equipe_id]) groups[member.equipe_id] = [];
+                        groups[member.equipe_id].push(member);
+                        return groups;
+                    }, {});
+
+                Object.values(groupedMembers).forEach((members) => {
+                    members.sort((a, b) =>
+                        (a.pessoas?.nome_completo || '').localeCompare(
+                            b.pessoas?.nome_completo || '',
+                            'pt-BR',
+                            { sensitivity: 'base' }
+                        )
+                    );
+                });
+
+                setTeams(sortedData);
+                setMembersByTeam(groupedMembers);
+                setSelectedTeamId(null);
             } catch (error) {
                 console.error('Erro ao carregar equipes:', error);
                 toast.error('Erro ao carregar equipes do encontro');
@@ -150,7 +193,7 @@ export function SecretariaFotosPage() {
             setTeams(prev => prev.map(t => t.id === id ? { ...t, foto_posicao_y: tempPos } : t));
             setAdjustingId(null);
             toast.success('Enquadramento salvo!');
-        } catch (error) {
+        } catch {
             toast.error('Erro ao salvar ajuste');
         }
     };
@@ -165,7 +208,7 @@ export function SecretariaFotosPage() {
             ));
             toast.success('Foto removida');
             setDeleteTarget(null);
-        } catch (error) {
+        } catch {
             toast.error('Erro ao remover');
         } finally {
             setIsRemoving(false);
@@ -213,7 +256,14 @@ export function SecretariaFotosPage() {
                         >
                             <div className="card-header">
                                 <Users size={14} />
-                                <span>{team.equipes.nome}</span>
+                                <button
+                                    type="button"
+                                    className="team-name-button"
+                                    onClick={() => setSelectedTeamId(team.equipe_id)}
+                                    aria-label={`Ver integrantes da equipe ${team.equipes.nome}`}
+                                >
+                                    {team.equipes.nome}
+                                </button>
                             </div>
 
                             <div
@@ -302,6 +352,62 @@ export function SecretariaFotosPage() {
 
                 .foto-card { padding: 0.75rem; transition: 0.2s; border: 1px solid var(--border-color); }
                 .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; font-weight: 600; font-size: 0.85rem; }
+                .team-name-button {
+                    border: 0;
+                    padding: 0;
+                    background: transparent;
+                    color: inherit;
+                    font: inherit;
+                    text-align: left;
+                    cursor: pointer;
+                    text-decoration: underline;
+                    text-decoration-color: transparent;
+                    text-underline-offset: 3px;
+                    transition: color 0.2s, text-decoration-color 0.2s;
+                }
+                .team-name-button:hover,
+                .team-name-button:focus-visible {
+                    color: var(--primary-color);
+                    text-decoration-color: currentColor;
+                }
+                .team-name-button:focus-visible {
+                    outline: 2px solid var(--primary-color);
+                    outline-offset: 3px;
+                }
+                .team-members-list {
+                    margin: 0;
+                    padding: 0;
+                    list-style: none;
+                    display: grid;
+                    gap: 0.5rem;
+                }
+                .team-member-item {
+                    display: grid;
+                    grid-template-columns: 2.25rem minmax(0, 1fr);
+                    align-items: center;
+                    gap: 0.75rem;
+                    min-height: 2.5rem;
+                    padding: 0.45rem 0;
+                    border-bottom: 1px solid var(--border-color);
+                }
+                .team-member-item:last-child { border-bottom: 0; }
+                .team-member-number {
+                    color: var(--primary-color);
+                    font-variant-numeric: tabular-nums;
+                    font-weight: 700;
+                    text-align: right;
+                }
+                .team-member-name {
+                    min-width: 0;
+                    overflow-wrap: anywhere;
+                    font-weight: 500;
+                }
+                .team-members-empty {
+                    margin: 0;
+                    padding: 1.5rem 0;
+                    text-align: center;
+                    opacity: 0.65;
+                }
                 .photo-frame { position: relative; background: var(--secondary-bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
                 .photo-frame.landscape { aspect-ratio: 21 / 9; }
                 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; opacity: 0.3; font-size: 0.7rem; gap: 0.4rem; }
@@ -458,6 +564,30 @@ export function SecretariaFotosPage() {
                 isLoading={isRemoving}
                 isDestructive={true}
             />
+
+            <Modal
+                isOpen={!!selectedTeamId}
+                onClose={() => setSelectedTeamId(null)}
+                title={teams.find((team) => team.equipe_id === selectedTeamId)?.equipes.nome || 'Equipe'}
+                maxWidth="560px"
+            >
+                {(selectedTeamId && membersByTeam[selectedTeamId]?.length) ? (
+                    <ol className="team-members-list">
+                        {membersByTeam[selectedTeamId].map((member, index) => (
+                            <li key={member.id} className="team-member-item">
+                                <span className="team-member-number">
+                                    {(index + 1).toString().padStart(2, '0')}
+                                </span>
+                                <span className="team-member-name">
+                                    {member.pessoas?.nome_completo || 'Nome não informado'}
+                                </span>
+                            </li>
+                        ))}
+                    </ol>
+                ) : (
+                    <p className="team-members-empty">Nenhum integrante vinculado a esta equipe.</p>
+                )}
+            </Modal>
 
             {isPhotoActionSheetOpen && (
                 <div className="photo-actions-modal-overlay" onClick={() => setIsPhotoActionSheetOpen(false)}>
