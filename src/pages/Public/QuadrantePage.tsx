@@ -78,10 +78,10 @@ function ParticipantCard({ item }: { item: QuadranteData }) {
         <div className={`participant-card ${theme === 'dark' ? 'dark' : ''}`}>
             <div className="card-photo-wrapper">
                 {item.foto_url ? (
-                    <img 
-                        src={optimizedUrl} 
-                        alt={item.pessoas?.nome_completo} 
-                        loading="eager" 
+                    <img
+                        src={optimizedUrl}
+                        alt={item.pessoas?.nome_completo}
+                        loading="eager"
                         onError={(e) => {
                             if (e.currentTarget.src !== originalUrl) {
                                 e.currentTarget.src = originalUrl;
@@ -105,12 +105,12 @@ function ParticipantCard({ item }: { item: QuadranteData }) {
 
 function formatarDatasEncontro(inicioStr?: string | null, fimStr?: string | null) {
     if (!inicioStr || !fimStr) return '';
-    
+
     const meses = [
         'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
         'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
     ];
-    
+
     const parseDate = (str: string) => {
         const parts = str.split('-');
         return {
@@ -119,18 +119,18 @@ function formatarDatasEncontro(inicioStr?: string | null, fimStr?: string | null
             dia: parseInt(parts[2], 10)
         };
     };
-    
+
     try {
         const inicio = parseDate(inicioStr);
         const fim = parseDate(fimStr);
-        
+
         if (inicio.mes === fim.mes && inicio.ano === fim.ano) {
             if (fim.dia - inicio.dia === 2) {
                 return `${inicio.dia}, ${inicio.dia + 1} e ${fim.dia} de ${meses[inicio.mes]} de ${inicio.ano}`;
             }
             return `${inicio.dia} a ${fim.dia} de ${meses[inicio.mes]} de ${inicio.ano}`;
         }
-        
+
         return `${inicio.dia} de ${meses[inicio.mes]} a ${fim.dia} de ${meses[fim.mes]} de ${inicio.ano}`;
     } catch (e) {
         console.error('Erro ao formatar datas:', e);
@@ -551,9 +551,9 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         {/* Imagem Centralizada Grande da Arte do Tema */}
                         {encontro?.logo_url && (
                             <div className="capa-central-logo">
-                                <img 
-                                    src={getOptimizedImageUrl(encontro.logo_url, 600, 600)} 
-                                    alt="Arte do Tema" 
+                                <img
+                                    src={getOptimizedImageUrl(encontro.logo_url, 600, 600)}
+                                    alt="Arte do Tema"
                                     onError={(e) => {
                                         const orig = encontro.logo_url;
                                         if (orig && e.currentTarget.src !== orig) {
@@ -605,10 +605,10 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                             <div className="editorial-container">
                                 <div className="editorial-visual">
                                     {encontro?.logo_url ? (
-                                        <img 
-                                            src={getOptimizedImageUrl(encontro.logo_url, 600, 600)} 
-                                            alt="Logo Tema" 
-                                            className="theme-logo" 
+                                        <img
+                                            src={getOptimizedImageUrl(encontro.logo_url, 600, 600)}
+                                            alt="Logo Tema"
+                                            className="theme-logo"
                                             onError={(e) => {
                                                 const orig = encontro.logo_url;
                                                 if (orig && e.currentTarget.src !== orig) {
@@ -693,11 +693,11 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                     <div className="circulo-banner">
                                         {circuloImagemUrl && (
                                             <div className="circulo-banner-logo">
-                                                <img 
-                                                    src={getOptimizedImageUrl(circuloImagemUrl, 250, 250)} 
-                                                    alt={`Logo ${circle}`} 
-                                                    loading="eager" 
-                                                    decoding="async" 
+                                                <img
+                                                    src={getOptimizedImageUrl(circuloImagemUrl, 250, 250)}
+                                                    alt={`Logo ${circle}`}
+                                                    loading="eager"
+                                                    decoding="async"
                                                     onError={(e) => {
                                                         if (e.currentTarget.src !== circuloImagemUrl) {
                                                             e.currentTarget.src = circuloImagemUrl;
@@ -712,9 +712,9 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                         </div>
                                         {visibility.fotosMediadores && mediadoresFotoUrl && (
                                             <div className="circulo-banner-mediadores">
-                                                <img 
-                                                    src={getOptimizedImageUrl(mediadoresFotoUrl, 500, 350)} 
-                                                    alt={`Mediadores de ${circle}`} 
+                                                <img
+                                                    src={getOptimizedImageUrl(mediadoresFotoUrl, 500, 350)}
+                                                    alt={`Mediadores de ${circle}`}
                                                     loading="eager"
                                                     decoding="async"
                                                     onError={(e) => {
@@ -722,7 +722,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                                             e.currentTarget.src = mediadoresFotoUrl;
                                                         }
                                                     }}
-                                                    style={{ objectPosition: `center ${mediadoresFotoPosY}%` }} 
+                                                    style={{ objectPosition: `center ${mediadoresFotoPosY}%` }}
                                                 />
                                             </div>
                                         )}
@@ -903,9 +903,9 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                     <div className="palestra-speaker">
                                         <div className="speaker-avatar">
                                             {p.palestrante_foto_url ? (
-                                                <img 
-                                                    src={getOptimizedImageUrl(p.palestrante_foto_url, 150, 150)} 
-                                                    alt={p.palestrante_nome || ''} 
+                                                <img
+                                                    src={getOptimizedImageUrl(p.palestrante_foto_url, 150, 150)}
+                                                    alt={p.palestrante_nome || ''}
                                                     onError={(e) => {
                                                         const orig = p.palestrante_foto_url;
                                                         if (orig && e.currentTarget.src !== orig) {
@@ -3174,7 +3174,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     }
 
                     #criancas-recreacao .list-header {
-                        margin-bottom: 12px !important;
+                        margin-bottom: 24px !important;
                     }
 
                     #criancas-recreacao .children-numbered-list {
