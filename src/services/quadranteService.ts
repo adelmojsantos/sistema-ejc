@@ -24,6 +24,10 @@ export interface QuadranteData {
         foto_url: string | null;
         foto_posicao_y: number | null;
     } | null;
+    recreacao_criancas_foto?: {
+        foto_url: string | null;
+        foto_posicao_y: number | null;
+    } | null;
 }
 
 export interface QuadrantePublicInfo {
@@ -122,11 +126,16 @@ export const quadranteService = {
         // Buscamos as fotos específicas por encontro da tabela equipe_confirmacoes
         const { data: fotosEquipe } = await supabase
             .from('equipe_confirmacoes')
-            .select('equipe_id, foto_url, foto_posicao_y')
+            .select('equipe_id, foto_url, foto_posicao_y, criancas_recreacao_foto_url, criancas_recreacao_foto_posicao_y')
             .eq('encontro_id', encontro.id);
 
         const mapaFotos = new Map(
-            (fotosEquipe || []).map(f => [f.equipe_id, { url: f.foto_url, pos: f.foto_posicao_y }])
+            (fotosEquipe || []).map(f => [f.equipe_id, {
+                url: f.foto_url,
+                pos: f.foto_posicao_y,
+                criancasUrl: f.criancas_recreacao_foto_url,
+                criancasPos: f.criancas_recreacao_foto_posicao_y
+            }])
         );
 
         const { data: fotosMediadores } = await supabase
@@ -153,6 +162,12 @@ export const quadranteService = {
                         item.equipes.foto_url = fotoBannerData.url;
                         item.equipes.foto_posicao_y = fotoBannerData.pos ?? undefined;
                     }
+                }
+                if (fotoBannerData?.criancasUrl) {
+                    item.recreacao_criancas_foto = {
+                        foto_url: fotoBannerData.criancasUrl,
+                        foto_posicao_y: fotoBannerData.criancasPos
+                    };
                 }
             }
 

@@ -23,6 +23,7 @@ export const recreacaoService = {
         )
       `)
       .or(`participacao_id.eq.${participacaoId},outro_responsavel_id.eq.${participacaoId}`)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
     if (error) throw error;
@@ -36,6 +37,7 @@ export const recreacaoService = {
         .from(TABLE)
         .update(formData)
         .eq('id', id)
+        .is('deleted_at', null)
         .select()
         .single();
 
@@ -57,8 +59,11 @@ export const recreacaoService = {
   async excluir(id: string): Promise<void> {
     const { error } = await supabase
       .from(TABLE)
-      .delete()
-      .eq('id', id);
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('id')
+      .single();
 
     if (error) throw error;
   },
@@ -82,6 +87,7 @@ export const recreacaoService = {
         )
       `)
       .eq('participacoes.encontro_id', encontroId)
+      .is('deleted_at', null)
       .order('nome_crianca', { ascending: true });
 
     if (error) throw error;
@@ -105,6 +111,7 @@ export const recreacaoService = {
         )
       `)
       .eq('participacoes.encontro_id', encontroId)
+      .is('deleted_at', null)
       .order('nome_crianca', { ascending: true });
 
     if (error) throw error;

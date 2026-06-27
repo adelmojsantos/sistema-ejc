@@ -275,6 +275,25 @@ export const equipeService = {
 
         if (error) throw error;
     },
+    async atualizarFotoCriancasRecreacao(confirmacaoId: string, fotoUrl: string): Promise<void> {
+        const { error } = await supabase
+            .from('equipe_confirmacoes')
+            .update({
+                criancas_recreacao_foto_url: fotoUrl || null,
+                criancas_recreacao_foto_posicao_y: 50
+            })
+            .eq('id', confirmacaoId);
+
+        if (error) throw error;
+    },
+    async atualizarPosicaoFotoCriancasRecreacao(confirmacaoId: string, posicaoY: number): Promise<void> {
+        const { error } = await supabase
+            .from('equipe_confirmacoes')
+            .update({ criancas_recreacao_foto_posicao_y: posicaoY })
+            .eq('id', confirmacaoId);
+
+        if (error) throw error;
+    },
     normalizeComprovantes,
 
     async uploadComprovante(equipeId: string, encontroId: string, file: File, tipo: ComprovanteTipo): Promise<string> {

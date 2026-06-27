@@ -5,14 +5,20 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { equipeService } from '../../services/equipeService';
+import { recreacaoService } from '../../services/recreacaoService';
 import { supabase } from '../../lib/supabase';
 import { useEncontros } from '../../contexts/EncontroContext';
+import type { RecreacaoDados } from '../../types/recreacao';
 
 interface TeamConfirmationWithEquipe {
     id: string;
+    confirmacao_id: string;
     equipe_id: string;
     foto_url: string | null;
     foto_posicao_y: number;
+    criancas_recreacao_foto_url?: string | null;
+    criancas_recreacao_foto_posicao_y?: number;
+    isChildrenPhoto?: boolean;
     equipes: {
         nome: string;
     };
@@ -24,6 +30,27 @@ interface TeamMember {
     pessoas: {
         nome_completo: string;
     } | null;
+}
+
+function isEquipeRecreacaoInfantil(nome: string) {
+    const normalized = nome
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\./g, '')
+        .trim();
+
+    return normalized === 'recreacao infantil' || normalized === 'recreacao inf';
+}
+
+function formatarResponsavel(
+    responsavel?: { pessoas?: { nome_completo?: string | null }; equipes?: { nome?: string | null } } | null
+) {
+    const nome = responsavel?.pessoas?.nome_completo?.trim();
+    if (!nome) return null;
+
+    const equipe = responsavel?.equipes?.nome?.trim();
+    return equipe ? `${nome} · ${equipe}` : nome;
 }
 
 export function SecretariaFotosPage() {
@@ -41,6 +68,8 @@ export function SecretariaFotosPage() {
     const [isPhotoActionSheetOpen, setIsPhotoActionSheetOpen] = useState(false);
     const [membersByTeam, setMembersByTeam] = useState<Record<string, TeamMember[]>>({});
     const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+    const [children, setChildren] = useState<RecreacaoDados[]>([]);
+    const [isChildrenModalOpen, setIsChildrenModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -57,30 +86,52 @@ export function SecretariaFotosPage() {
         async function loadTeams() {
             setLoadingTeams(true);
             try {
-                const [teamsResult, membersResult] = await Promise.all([
+                const [teamsResult, membersResult, childrenResult] = await Promise.all([
                     supabase
                         .from('equipe_confirmacoes')
-                        .select('id, equipe_id, foto_url, foto_posicao_y, equipes(nome)')
+                        .select('id, equipe_id, foto_url, foto_posicao_y, criancas_recreacao_foto_url, criancas_recreacao_foto_posicao_y, equipes(nome)')
                         .eq('encontro_id', selectedEncontro),
                     supabase
                         .from('participacoes')
                         .select('id, equipe_id, pessoas(nome_completo)')
                         .eq('encontro_id', selectedEncontro)
                         .eq('participante', false)
-                        .not('equipe_id', 'is', null)
+                        .not('equipe_id', 'is', null),
+                    recreacaoService.listarTodosPorEncontro(selectedEncontro)
                 ]);
 
                 if (teamsResult.error) throw teamsResult.error;
                 if (membersResult.error) throw membersResult.error;
                 
                 // Ordenar alfabeticamente pelo nome da equipe
-                const sortedData = [
+                const sortedConfirmations = [
                     ...((teamsResult.data || []) as unknown as TeamConfirmationWithEquipe[])
                 ].sort((a, b) => a.equipes.nome.localeCompare(
                     b.equipes.nome,
                     'pt-BR',
                     { sensitivity: 'base' }
                 ));
+                const sortedData = sortedConfirmations.flatMap((team) => {
+                    const teamEntry: TeamConfirmationWithEquipe = {
+                        ...team,
+                        confirmacao_id: team.id
+                    };
+
+                    if (!isEquipeRecreacaoInfantil(team.equipes.nome)) return [teamEntry];
+
+                    return [
+                        teamEntry,
+                        {
+                            ...team,
+                            id: `criancas-recreacao:${team.id}`,
+                            confirmacao_id: team.id,
+                            foto_url: team.criancas_recreacao_foto_url || null,
+                            foto_posicao_y: team.criancas_recreacao_foto_posicao_y ?? 50,
+                            isChildrenPhoto: true,
+                            equipes: { nome: 'Crianças da Recreação' }
+                        }
+                    ];
+                });
 
                 const groupedMembers = ((membersResult.data || []) as unknown as TeamMember[])
                     .reduce<Record<string, TeamMember[]>>((groups, member) => {
@@ -101,7 +152,9 @@ export function SecretariaFotosPage() {
 
                 setTeams(sortedData);
                 setMembersByTeam(groupedMembers);
+                setChildren(childrenResult);
                 setSelectedTeamId(null);
+                setIsChildrenModalOpen(false);
             } catch (error) {
                 console.error('Erro ao carregar equipes:', error);
                 toast.error('Erro ao carregar equipes do encontro');
@@ -112,21 +165,31 @@ export function SecretariaFotosPage() {
         loadTeams();
     }, [selectedEncontro]);
 
-    const handleUpload = async (confirmacaoId: string, file: File) => {
+    const handleUpload = async (entryId: string, file: File) => {
         if (!file.type.startsWith('image/')) {
             toast.error('Por favor, selecione um arquivo de imagem válido.');
             return;
         }
 
-        setUploading(confirmacaoId);
+        const entry = teams.find((team) => team.id === entryId);
+        if (!entry) return;
+
+        setUploading(entryId);
         const loadingToast = toast.loading('Enviando foto...');
 
         try {
-            const publicUrl = await equipeService.uploadFoto(confirmacaoId, file);
-            await equipeService.atualizarFotoConfirmacao(confirmacaoId, publicUrl);
+            const uploadKey = entry.isChildrenPhoto
+                ? `${entry.confirmacao_id}_criancas`
+                : entry.confirmacao_id;
+            const publicUrl = await equipeService.uploadFoto(uploadKey, file);
+            if (entry.isChildrenPhoto) {
+                await equipeService.atualizarFotoCriancasRecreacao(entry.confirmacao_id, publicUrl);
+            } else {
+                await equipeService.atualizarFotoConfirmacao(entry.confirmacao_id, publicUrl);
+            }
 
             setTeams((prev) => prev.map((t) =>
-                t.id === confirmacaoId ? { ...t, foto_url: publicUrl, foto_posicao_y: 50 } : t
+                t.id === entryId ? { ...t, foto_url: publicUrl, foto_posicao_y: 50 } : t
             ));
 
             toast.success('Foto atualizada com sucesso!', { id: loadingToast });
@@ -188,8 +251,15 @@ export function SecretariaFotosPage() {
     };
 
     const handleSaveAdjustment = async (id: string) => {
+        const entry = teams.find((team) => team.id === id);
+        if (!entry) return;
+
         try {
-            await equipeService.atualizarPosicaoFoto(id, tempPos);
+            if (entry.isChildrenPhoto) {
+                await equipeService.atualizarPosicaoFotoCriancasRecreacao(entry.confirmacao_id, tempPos);
+            } else {
+                await equipeService.atualizarPosicaoFoto(entry.confirmacao_id, tempPos);
+            }
             setTeams(prev => prev.map(t => t.id === id ? { ...t, foto_posicao_y: tempPos } : t));
             setAdjustingId(null);
             toast.success('Enquadramento salvo!');
@@ -200,9 +270,16 @@ export function SecretariaFotosPage() {
 
     const handleRemoveFoto = async () => {
         if (!deleteTarget) return;
+        const entry = teams.find((team) => team.id === deleteTarget);
+        if (!entry) return;
+
         setIsRemoving(true);
         try {
-            await equipeService.atualizarFotoConfirmacao(deleteTarget, '');
+            if (entry.isChildrenPhoto) {
+                await equipeService.atualizarFotoCriancasRecreacao(entry.confirmacao_id, '');
+            } else {
+                await equipeService.atualizarFotoConfirmacao(entry.confirmacao_id, '');
+            }
             setTeams((prev) => prev.map((t) => 
                 t.id === deleteTarget ? { ...t, foto_url: null } : t
             ));
@@ -256,14 +333,25 @@ export function SecretariaFotosPage() {
                         >
                             <div className="card-header">
                                 <Users size={14} />
-                                <button
-                                    type="button"
-                                    className="team-name-button"
-                                    onClick={() => setSelectedTeamId(team.equipe_id)}
-                                    aria-label={`Ver integrantes da equipe ${team.equipes.nome}`}
-                                >
-                                    {team.equipes.nome}
-                                </button>
+                                {team.isChildrenPhoto ? (
+                                    <button
+                                        type="button"
+                                        className="team-name-button"
+                                        onClick={() => setIsChildrenModalOpen(true)}
+                                        aria-label="Ver crianças da recreação"
+                                    >
+                                        {team.equipes.nome}
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="team-name-button"
+                                        onClick={() => setSelectedTeamId(team.equipe_id)}
+                                        aria-label={`Ver integrantes da equipe ${team.equipes.nome}`}
+                                    >
+                                        {team.equipes.nome}
+                                    </button>
+                                )}
                             </div>
 
                             <div
@@ -407,6 +495,21 @@ export function SecretariaFotosPage() {
                     padding: 1.5rem 0;
                     text-align: center;
                     opacity: 0.65;
+                }
+                .children-modal-list .team-member-item {
+                    align-items: flex-start;
+                }
+                .child-modal-info {
+                    display: grid;
+                    gap: 0.25rem;
+                    min-width: 0;
+                }
+                .child-modal-responsibles {
+                    color: var(--muted-text);
+                    display: grid;
+                    font-size: 0.78rem;
+                    gap: 0.15rem;
+                    line-height: 1.35;
                 }
                 .photo-frame { position: relative; background: var(--secondary-bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); }
                 .photo-frame.landscape { aspect-ratio: 21 / 9; }
@@ -586,6 +689,50 @@ export function SecretariaFotosPage() {
                     </ol>
                 ) : (
                     <p className="team-members-empty">Nenhum integrante vinculado a esta equipe.</p>
+                )}
+            </Modal>
+
+            <Modal
+                isOpen={isChildrenModalOpen}
+                onClose={() => setIsChildrenModalOpen(false)}
+                title="Crianças da Recreação"
+                maxWidth="640px"
+            >
+                {children.length > 0 ? (
+                    <ol className="team-members-list children-modal-list">
+                        {[...children]
+                            .sort((a, b) => a.nome_crianca.localeCompare(
+                                b.nome_crianca,
+                                'pt-BR',
+                                { sensitivity: 'base' }
+                            ))
+                            .map((child, index) => {
+                                const responsaveis = [
+                                    formatarResponsavel(child.participacoes),
+                                    formatarResponsavel(child.outro_responsavel)
+                                ].filter((responsavel): responsavel is string => Boolean(responsavel));
+
+                                return (
+                                    <li key={child.id} className="team-member-item">
+                                        <span className="team-member-number">
+                                            {(index + 1).toString().padStart(2, '0')}
+                                        </span>
+                                        <div className="child-modal-info">
+                                            <span className="team-member-name">{child.nome_crianca}</span>
+                                            {responsaveis.length > 0 && (
+                                                <div className="child-modal-responsibles">
+                                                    {responsaveis.map((responsavel, responsavelIndex) => (
+                                                        <span key={`${responsavelIndex}-${responsavel}`}>{responsavel}</span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </li>
+                                );
+                            })}
+                    </ol>
+                ) : (
+                    <p className="team-members-empty">Nenhuma criança cadastrada para este encontro.</p>
                 )}
             </Modal>
 

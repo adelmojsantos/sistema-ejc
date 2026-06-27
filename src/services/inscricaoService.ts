@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { Inscricao, InscricaoFormData, InscricaoEnriched } from '../types/inscricao';
 import type { Pessoa } from '../types/pessoa';
+import type { RecreacaoDados } from '../types/recreacao';
 
 const TABLE = 'participacoes';
 
@@ -132,7 +133,11 @@ export const inscricaoService = {
             .eq('equipe_id', equipeId);
 
         if (error) throw error;
-        return data as unknown as InscricaoEnriched[];
+        return (data ?? []).map((participacao) => ({
+            ...participacao,
+            recreacao_dados: participacao.recreacao_dados?.filter((crianca: RecreacaoDados) => !crianca.deleted_at) ?? [],
+            recreacao_dados_secundario: participacao.recreacao_dados_secundario?.filter((crianca: RecreacaoDados) => !crianca.deleted_at) ?? [],
+        })) as unknown as InscricaoEnriched[];
     },
 
     async criar(formData: InscricaoFormData): Promise<Inscricao> {

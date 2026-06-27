@@ -766,6 +766,8 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     const effectiveSectionIndex = sectionIndex + secoesExtrasAnteriores;
                     const fotoEquipe = members[0]?.equipes?.foto_url;
                     const fotoPosicaoY = members[0]?.equipes?.foto_posicao_y ?? 50;
+                    const fotoCriancas = members[0]?.recreacao_criancas_foto?.foto_url || fotoEquipe;
+                    const fotoCriancasPosicaoY = members[0]?.recreacao_criancas_foto?.foto_posicao_y ?? fotoPosicaoY;
 
                     return (
                         <Fragment key={team}>
@@ -822,17 +824,17 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                         <div className="team-layout">
                                             <div className="team-visual">
                                                 <div className="team-photo-container">
-                                                    {fotoEquipe ? (
+                                                    {fotoCriancas ? (
                                                         <img
-                                                            src={getOptimizedImageUrl(fotoEquipe, 800, 450)}
+                                                            src={getOptimizedImageUrl(fotoCriancas, 800, 450)}
                                                             alt="Crianças da Recreação"
                                                             loading="eager"
                                                             onError={(e) => {
-                                                                if (e.currentTarget.src !== fotoEquipe) {
-                                                                    e.currentTarget.src = fotoEquipe;
+                                                                if (e.currentTarget.src !== fotoCriancas) {
+                                                                    e.currentTarget.src = fotoCriancas;
                                                                 }
                                                             }}
-                                                            style={{ objectPosition: `center ${fotoPosicaoY}%` }}
+                                                            style={{ objectPosition: `center ${fotoCriancasPosicaoY}%` }}
                                                         />
                                                     ) : (
                                                         <div className="team-photo-stub">
@@ -904,7 +906,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                         <div className="speaker-avatar">
                                             {p.palestrante_foto_url ? (
                                                 <img
-                                                    src={getOptimizedImageUrl(p.palestrante_foto_url, 150, 150)}
+                                                    src={getOptimizedImageUrl(p.palestrante_foto_url, 600, 450)}
                                                     alt={p.palestrante_nome || ''}
                                                     onError={(e) => {
                                                         const orig = p.palestrante_foto_url;
@@ -1711,15 +1713,17 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                 }
 
                 .palestra-speaker {
-                    display: flex;
-                    align-items: center;
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    align-items: stretch;
                     gap: 1.25rem;
                     margin-bottom: 1rem;
                 }
 
                 .speaker-avatar {
-                    width: 58px;
-                    height: 58px;
+                    width: 100%;
+                    height: auto;
+                    aspect-ratio: 4 / 3;
                     border-radius: 20px;
                     overflow: hidden;
                     background: var(--primary-color)10;
@@ -1730,6 +1734,15 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     border: 1px solid var(--border-color);
                 }
 
+                .speaker-info {
+                    align-items: flex-start;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: center;
+                    min-width: 0;
+                    text-align: left;
+                }
+
                 .speaker-avatar img {
                     width: 100%;
                     height: 100%;
@@ -1737,14 +1750,17 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                 }
 
                 .speaker-info h3 {
-                    font-size: 1.05rem;
+                    font-size: clamp(1.25rem, 2vw, 1.55rem);
+                    line-height: 1.2;
                     margin: 0;
                 }
 
                 .speaker-info .p-nome {
-                    font-size: 0.9rem;
+                    font-size: 1.05rem;
+                    line-height: 1.35;
+                    margin-top: 0.35rem;
                     opacity: 0.6;
-                    font-weight: 500;
+                    font-weight: 600;
                 }
 
                 .palestra-body p,
@@ -2373,7 +2389,10 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         margin-bottom: 0.65rem;
                     }
 
-                    .speaker-info h3,
+                    .speaker-info h3 {
+                        font-size: 1.2rem;
+                    }
+
                     .list-header h3 {
                         font-size: 1.08rem;
                     }
@@ -2436,8 +2455,8 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     }
 
                     .speaker-avatar {
-                        width: 48px;
-                        height: 48px;
+                        width: 100%;
+                        height: auto;
                         border-radius: 14px;
                     }
 
@@ -2818,7 +2837,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         margin-bottom: 20px !important;
                         width: 100% !important;
                         box-sizing: border-box !important;
-                        break-inside: avoid !important;
+                        break-inside: avoid-page !important;
                         page-break-inside: avoid !important;
                     }
 
@@ -3239,22 +3258,39 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         box-shadow: none !important;
                     }
 
+                    .palestra-speaker,
+                    .palestra-body {
+                        break-inside: avoid-page !important;
+                        page-break-inside: avoid !important;
+                    }
+
                     .speaker-avatar {
-                        width: 48px !important;
-                        height: 48px !important;
+                        width: 100% !important;
+                        height: auto !important;
+                        aspect-ratio: 4 / 3 !important;
                         border-radius: 12px !important;
                         overflow: hidden !important;
-                        flex-shrink: 0 !important;
+                    }
+
+                    .speaker-info {
+                        align-items: flex-start !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        justify-content: center !important;
+                        text-align: left !important;
                     }
 
                     .speaker-info h3 {
-                        font-size: 11pt !important;
+                        font-size: 13pt !important;
                         font-weight: 700 !important;
+                        line-height: 1.2 !important;
                         color: #0f172a !important;
                     }
 
                     .speaker-info .p-nome {
-                        font-size: 9pt !important;
+                        font-size: 10.5pt !important;
+                        font-weight: 600 !important;
+                        line-height: 1.3 !important;
                         color: #64748b !important;
                     }
 

@@ -8,6 +8,7 @@ export interface RecreacaoDados {
   observacoes?: string | null;
   created_at?: string;
   updated_at?: string;
+  deleted_at?: string | null;
   
   // Enriched data
   participacoes?: {
@@ -34,7 +35,7 @@ export interface RecreacaoDados {
   };
 }
 
-export type RecreacaoDadosFormData = Omit<RecreacaoDados, 'id' | 'participacao_id' | 'created_at' | 'updated_at' | 'outro_responsavel'>;
+export type RecreacaoDadosFormData = Omit<RecreacaoDados, 'id' | 'participacao_id' | 'created_at' | 'updated_at' | 'deleted_at' | 'outro_responsavel'>;
 
 interface RecreacaoQuadranteResponsavel {
   pessoas?: {

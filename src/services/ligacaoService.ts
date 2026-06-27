@@ -152,7 +152,8 @@ export const ligacaoService = {
           )
         )
       `)
-      .eq('participacoes.encontro_id', encontroId);
+      .eq('participacoes.encontro_id', encontroId)
+      .is('deleted_at', null);
 
     if (recreacaoError) throw recreacaoError;
 
