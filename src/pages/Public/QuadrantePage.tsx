@@ -1207,17 +1207,10 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
                 }
 
-                /* Desktop: sidebar visible by default, push content */
+                /* Desktop: a barra inicia aberta, mas continua controlada pelo usuário */
                 @media (min-width: 1025px) {
-                    .spa-sidebar {
-                        transform: translateX(0) !important;
-                    }
                     .spa-main-content {
-                        margin-left: 280px;
                         padding-top: 0;
-                    }
-                    .mobile-header {
-                        left: 280px;
                     }
                 }
 
