@@ -862,16 +862,16 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                                                     <span className="number">{(childIndex + 1).toString().padStart(2, '0')}</span>
                                                                     <span className="child-member-content">
                                                                         <span className="name">{crianca.nome_crianca}</span>
-                                                                        {responsaveis.length > 0 && (
-                                                                            <span className="child-responsibles">
-                                                                                {responsaveis.map((responsavel, responsavelIndex) => (
-                                                                                    <span key={`${responsavelIndex}-${responsavel}`} className="child-responsible">
-                                                                                        {responsavel}
-                                                                                    </span>
-                                                                                ))}
-                                                                            </span>
-                                                                        )}
                                                                     </span>
+                                                                    {responsaveis.length > 0 && (
+                                                                        <span className="child-responsibles">
+                                                                            {responsaveis.map((responsavel, responsavelIndex) => (
+                                                                                <span key={`${responsavelIndex}-${responsavel}`} className="child-responsible">
+                                                                                    {responsavel}
+                                                                                </span>
+                                                                            ))}
+                                                                        </span>
+                                                                    )}
                                                                 </li>
                                                             );
                                                         })}
@@ -2086,6 +2086,8 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
 
                 .child-member-item {
                     align-items: flex-start;
+                    display: grid;
+                    grid-template-columns: auto minmax(0, 1fr);
                 }
 
                 .child-member-item .number {
@@ -2110,6 +2112,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     font-size: 0.72rem;
                     font-weight: 400;
                     gap: 0.18rem;
+                    grid-column: 1 / -1;
                     line-height: 1.35;
                     opacity: 0.56;
                     width: 100%;
@@ -3127,6 +3130,11 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         gap: 2px !important;
                     }
 
+                    .child-member-item {
+                        display: grid !important;
+                        grid-template-columns: auto minmax(0, 1fr) !important;
+                    }
+
                     .child-member-item .number {
                         height: auto !important;
                         min-width: 32px !important;
@@ -3140,6 +3148,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         font-size: 6.5pt !important;
                         font-weight: 400 !important;
                         gap: 1px !important;
+                        grid-column: 1 / -1 !important;
                         line-height: 1.25 !important;
                         opacity: 0.8 !important;
                         width: 100% !important;
