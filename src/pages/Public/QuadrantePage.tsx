@@ -13,7 +13,7 @@ import {
     Music,
     ExternalLink
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useReactToPrint } from 'react-to-print';
 import { toast } from 'react-hot-toast';
@@ -23,7 +23,9 @@ import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
 import { quadranteService, type QuadranteData } from '../../services/quadranteService';
 import { palestraService } from '../../services/palestraService';
+import { recreacaoService } from '../../services/recreacaoService';
 import type { Palestra } from '../../types/palestra';
+import type { RecreacaoQuadranteDados } from '../../types/recreacao';
 import { quadranteVisibilityDefault, type QuadranteVisibilityConfig } from '../../types/encontro';
 import logoCapelinha from '../../assets/logo_capelinha.png';
 
@@ -136,6 +138,27 @@ function formatarDatasEncontro(inicioStr?: string | null, fimStr?: string | null
     }
 }
 
+function isEquipeRecreacaoInfantil(nome: string) {
+    const normalized = nome
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\./g, '')
+        .trim();
+
+    return normalized === 'recreacao infantil' || normalized === 'recreacao inf';
+}
+
+function formatarResponsavelQuadrante(
+    responsavel?: { pessoas?: { nome_completo?: string | null }; equipes?: { nome?: string | null } } | null
+) {
+    const nome = responsavel?.pessoas?.nome_completo?.trim();
+    if (!nome) return null;
+
+    const equipe = responsavel?.equipes?.nome?.trim();
+    return equipe ? `${nome} · ${equipe}` : nome;
+}
+
 
 export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }) {
     const { token } = useParams<{ token: string }>();
@@ -145,6 +168,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<QuadranteData[]>([]);
+    const [criancasRecreacao, setCriancasRecreacao] = useState<RecreacaoQuadranteDados[]>([]);
     const [search] = useState('');
     const [encontro, setEncontro] = useState<EncontroInfo | null>(null);
     const [palestras, setPalestras] = useState<Palestra[]>([]);
@@ -269,13 +293,15 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     }
                 });
 
-                const [quadranteData, palestrasData] = await Promise.all([
+                const [quadranteData, palestrasData, criancasData] = await Promise.all([
                     quadranteService.obterDados(token, isAdmin),
-                    palestraService.listarPorEncontro(eData.id)
+                    palestraService.listarPorEncontro(eData.id),
+                    recreacaoService.listarQuadrantePorEncontro(eData.id)
                 ]);
 
                 setData(quadranteData);
                 setPalestras(palestrasData);
+                setCriancasRecreacao(criancasData);
             } catch (error) {
                 console.error('Erro ao carregar quadrante:', error);
                 toast.error('Não foi possível carregar os dados.');
@@ -730,55 +756,130 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         </div>
                     </section>
                 )}
-                {visibility.encontreiros && encontreirosPorEquipe.map(([team, members], sectionIndex) => (
-                    <section key={team} id={`equipe-${slugify(team)}`} className={`content-team-section section-band ${sectionIndex % 2 === 0 ? 'section-band-alt' : 'section-band-base'}`} data-section-name={team}>
-                        <div className="section-print-wrapper">
-                            <div className="team-layout">
-                                <div className="team-visual">
-                                    <div className="team-photo-container">
-                                        {members[0]?.equipes?.foto_url ? (
-                                            <img
-                                                src={getOptimizedImageUrl(members[0].equipes.foto_url, 800, 450)}
-                                                alt={team}
-                                                loading="eager"
-                                                onError={(e) => {
-                                                    const orig = members[0]?.equipes?.foto_url;
-                                                    if (orig && e.currentTarget.src !== orig) {
-                                                        e.currentTarget.src = orig;
-                                                    }
-                                                }}
-                                                style={{ objectPosition: `center ${members[0].equipes.foto_posicao_y ?? 50}%` }}
-                                            />
-                                        ) : (
-                                            <div className="team-photo-stub">
-                                                <Users size={60} />
-                                                <span>Foto da Equipe</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                {visibility.encontreiros && encontreirosPorEquipe.map(([team, members], sectionIndex) => {
+                    const isRecreacao = isEquipeRecreacaoInfantil(team);
+                    const hasCriancas = isRecreacao && criancasRecreacao.length > 0;
+                    const secoesExtrasAnteriores = criancasRecreacao.length > 0
+                        && encontreirosPorEquipe.slice(0, sectionIndex).some(([nome]) => isEquipeRecreacaoInfantil(nome))
+                        ? 1
+                        : 0;
+                    const effectiveSectionIndex = sectionIndex + secoesExtrasAnteriores;
+                    const fotoEquipe = members[0]?.equipes?.foto_url;
+                    const fotoPosicaoY = members[0]?.equipes?.foto_posicao_y ?? 50;
 
-                                <div className="team-members-list">
-                                    <div className="list-header">
-                                        <h3>{team}</h3>
-                                        <div className="line"></div>
+                    return (
+                        <Fragment key={team}>
+                            <section id={`equipe-${slugify(team)}`} className={`content-team-section section-band ${effectiveSectionIndex % 2 === 0 ? 'section-band-alt' : 'section-band-base'}`} data-section-name={team}>
+                                <div className="section-print-wrapper">
+                                    <div className="team-layout">
+                                        <div className="team-visual">
+                                            <div className="team-photo-container">
+                                                {fotoEquipe ? (
+                                                    <img
+                                                        src={getOptimizedImageUrl(fotoEquipe, 800, 450)}
+                                                        alt={team}
+                                                        loading="eager"
+                                                        onError={(e) => {
+                                                            if (e.currentTarget.src !== fotoEquipe) {
+                                                                e.currentTarget.src = fotoEquipe;
+                                                            }
+                                                        }}
+                                                        style={{ objectPosition: `center ${fotoPosicaoY}%` }}
+                                                    />
+                                                ) : (
+                                                    <div className="team-photo-stub">
+                                                        <Users size={60} />
+                                                        <span>Foto da Equipe</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="team-members-list">
+                                            <div className="list-header">
+                                                <h3>{team}</h3>
+                                                <div className="line"></div>
+                                            </div>
+                                            <ol className="numbered-list">
+                                                {[...members]
+                                                    .sort((a, b) => a.pessoas.nome_completo.localeCompare(b.pessoas.nome_completo, 'pt-BR'))
+                                                    .map((member, mIdx) => (
+                                                        <li key={member.id} className="member-item">
+                                                            <span className="number">{(mIdx + 1).toString().padStart(2, '0')}</span>
+                                                            <span className="name">{member.pessoas.nome_completo}</span>
+                                                        </li>
+                                                    ))
+                                                }
+                                            </ol>
+                                        </div>
                                     </div>
-                                    <ol className="numbered-list">
-                                        {members
-                                            .sort((a, b) => a.pessoas.nome_completo.localeCompare(b.pessoas.nome_completo))
-                                            .map((member, mIdx) => (
-                                                <li key={member.id} className="member-item">
-                                                    <span className="number">{(mIdx + 1).toString().padStart(2, '0')}</span>
-                                                    <span className="name">{member.pessoas.nome_completo}</span>
-                                                </li>
-                                            ))
-                                        }
-                                    </ol>
                                 </div>
-                            </div>
-                        </div>
-                    </section>
-                ))}
+                            </section>
+
+                            {hasCriancas && (
+                                <section id="criancas-recreacao" className={`content-team-section section-band ${(effectiveSectionIndex + 1) % 2 === 0 ? 'section-band-alt' : 'section-band-base'}`} data-section-name="Crianças da Recreação">
+                                    <div className="section-print-wrapper">
+                                        <div className="team-layout">
+                                            <div className="team-visual">
+                                                <div className="team-photo-container">
+                                                    {fotoEquipe ? (
+                                                        <img
+                                                            src={getOptimizedImageUrl(fotoEquipe, 800, 450)}
+                                                            alt="Crianças da Recreação"
+                                                            loading="eager"
+                                                            onError={(e) => {
+                                                                if (e.currentTarget.src !== fotoEquipe) {
+                                                                    e.currentTarget.src = fotoEquipe;
+                                                                }
+                                                            }}
+                                                            style={{ objectPosition: `center ${fotoPosicaoY}%` }}
+                                                        />
+                                                    ) : (
+                                                        <div className="team-photo-stub">
+                                                            <Users size={60} />
+                                                            <span>Foto da Recreação</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="team-members-list">
+                                                <div className="list-header">
+                                                    <h3>Crianças da Recreação</h3>
+                                                    <div className="line"></div>
+                                                </div>
+                                                <ol className="numbered-list children-numbered-list">
+                                                    {[...criancasRecreacao]
+                                                        .sort((a, b) => a.nome_crianca.localeCompare(b.nome_crianca, 'pt-BR'))
+                                                        .map((crianca, childIndex) => {
+                                                            const responsaveis = [
+                                                                formatarResponsavelQuadrante(crianca.participacoes),
+                                                                formatarResponsavelQuadrante(crianca.outro_responsavel)
+                                                            ].filter((responsavel): responsavel is string => Boolean(responsavel));
+
+                                                            return (
+                                                                <li key={crianca.id} className="member-item child-member-item">
+                                                                    <span className="number">{(childIndex + 1).toString().padStart(2, '0')}</span>
+                                                                    <span className="child-member-content">
+                                                                        <span className="name">{crianca.nome_crianca}</span>
+                                                                        {responsaveis.length > 0 && (
+                                                                            <span className="child-responsibles">
+                                                                                {responsaveis.join('  •  ')}
+                                                                            </span>
+                                                                        )}
+                                                                    </span>
+                                                                </li>
+                                                            );
+                                                        })}
+                                                </ol>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+                            )}
+                        </Fragment>
+                    );
+                })}
 
                 {/* Palestras Section — MOVED INSIDE main */}
                 {visibility.palestras && <section id="palestras" className="content-palestras-section section-band section-band-base" data-section-name="Palestras">
@@ -1974,6 +2075,37 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     letter-spacing: -0.01em;
                 }
 
+                .children-numbered-list {
+                    grid-template-columns: repeat(3, 1fr);
+                }
+
+                @media (max-width: 900px) {
+                    .children-numbered-list { grid-template-columns: repeat(2, 1fr); }
+                }
+
+                @media (max-width: 600px) {
+                    .children-numbered-list { grid-template-columns: 1fr; }
+                }
+
+                .child-member-item {
+                    align-items: flex-start;
+                }
+
+                .child-member-content {
+                    display: flex;
+                    min-width: 0;
+                    flex-direction: column;
+                    gap: 0.3rem;
+                }
+
+                .child-responsibles {
+                    color: var(--text-color);
+                    font-size: 0.72rem;
+                    font-weight: 400;
+                    line-height: 1.35;
+                    opacity: 0.56;
+                }
+
                 .spa-footer {
                     padding: 4rem 2rem;
                     text-align: center;
@@ -2972,6 +3104,20 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         font-size: 9pt !important;
                         font-weight: 600 !important;
                         color: #0f172a !important;
+                    }
+
+                    .child-member-content {
+                        display: flex !important;
+                        flex-direction: column !important;
+                        gap: 2px !important;
+                    }
+
+                    .child-responsibles {
+                        color: #64748b !important;
+                        font-size: 6.5pt !important;
+                        font-weight: 400 !important;
+                        line-height: 1.25 !important;
+                        opacity: 0.8 !important;
                     }
 
                     /* ── PALESTRAS: layout inline-block de 2 colunas ── */

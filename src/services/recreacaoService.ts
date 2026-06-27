@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { RecreacaoDados, RecreacaoDadosFormData } from '../types/recreacao';
+import type { RecreacaoDados, RecreacaoDadosFormData, RecreacaoQuadranteDados } from '../types/recreacao';
 
 const TABLE = 'recreacao_dados';
 
@@ -86,5 +86,28 @@ export const recreacaoService = {
 
     if (error) throw error;
     return (data as unknown as RecreacaoDados[]) || [];
+  },
+
+  async listarQuadrantePorEncontro(encontroId: string): Promise<RecreacaoQuadranteDados[]> {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select(`
+        id,
+        nome_crianca,
+        participacoes:participacao_id!inner (
+          encontro_id,
+          pessoas (nome_completo),
+          equipes (nome)
+        ),
+        outro_responsavel:outro_responsavel_id (
+          pessoas (nome_completo),
+          equipes (nome)
+        )
+      `)
+      .eq('participacoes.encontro_id', encontroId)
+      .order('nome_crianca', { ascending: true });
+
+    if (error) throw error;
+    return (data as unknown as RecreacaoQuadranteDados[]) || [];
   }
 };

@@ -35,3 +35,19 @@ export interface RecreacaoDados {
 }
 
 export type RecreacaoDadosFormData = Omit<RecreacaoDados, 'id' | 'participacao_id' | 'created_at' | 'updated_at' | 'outro_responsavel'>;
+
+interface RecreacaoQuadranteResponsavel {
+  pessoas?: {
+    nome_completo: string;
+  };
+  equipes?: {
+    nome: string;
+  };
+}
+
+export interface RecreacaoQuadranteDados {
+  id: string;
+  nome_crianca: string;
+  participacoes?: RecreacaoQuadranteResponsavel;
+  outro_responsavel?: RecreacaoQuadranteResponsavel;
+}
