@@ -20,7 +20,7 @@ const CATEGORIES: CadastroCategory[] = [
     id: 'pessoas',
     path: '/cadastros/pessoas',
     label: 'Pessoas',
-    description: 'Cadastro de jovens, tios e membros das equipes do EJC.',
+    description: 'Cadastro de encontristas e encontreiros do EJC.',
     icon: <Users size={34} />,
     color: 'var(--primary-color)',
     available: true,
@@ -30,7 +30,7 @@ const CATEGORIES: CadastroCategory[] = [
     id: 'encontros',
     path: '/cadastros/encontros',
     label: 'Encontros',
-    description: 'Gerenciamento dos finais de semana do EJC.',
+    description: 'Gerenciamento dos encontros do EJC.',
     icon: <Calendar size={34} />,
     color: '#10b981',
     available: true,
@@ -122,7 +122,7 @@ export function Cadastros() {
   const navigate = useNavigate();
   const location = useLocation();
   const { hasPermission } = useAuth();
-  
+
   const isHub = location.pathname === '/cadastros' || location.pathname === '/cadastros/';
 
   const allowedCategories = CATEGORIES.sort((a, b) =>
