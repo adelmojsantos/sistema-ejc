@@ -2086,8 +2086,10 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
 
                 .child-member-item {
                     align-items: flex-start;
+                    column-gap: 1rem;
                     display: grid;
                     grid-template-columns: auto minmax(0, 1fr);
+                    row-gap: 0.4rem;
                 }
 
                 .child-member-item .number {
@@ -3131,8 +3133,10 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     }
 
                     .child-member-item {
+                        column-gap: 8px !important;
                         display: grid !important;
                         grid-template-columns: auto minmax(0, 1fr) !important;
+                        row-gap: 3px !important;
                     }
 
                     .child-member-item .number {
