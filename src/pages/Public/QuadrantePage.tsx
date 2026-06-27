@@ -3163,7 +3163,29 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         width: 100% !important;
                     }
 
-                    /* Crianças: somente os nomes são reduzidos na impressão */
+                    /* Crianças: foto padrão, lista compacta e indivisível na impressão */
+                    #criancas-recreacao .team-layout {
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                    }
+
+                    #criancas-recreacao .team-members-list {
+                        padding: 14px 20px !important;
+                    }
+
+                    #criancas-recreacao .list-header {
+                        margin-bottom: 8px !important;
+                    }
+
+                    #criancas-recreacao .children-numbered-list {
+                        gap: 5px !important;
+                        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+                    }
+
+                    #criancas-recreacao .child-member-item {
+                        padding: 5px 7px !important;
+                    }
+
                     #criancas-recreacao .child-member-item .name {
                         font-size: 8pt !important;
                         line-height: 1.15 !important;
