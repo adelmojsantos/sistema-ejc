@@ -280,14 +280,10 @@ export const pesquisaSatisfacaoService = {
     const enviosPorParticipacao = new Map(
       (enviosResult.data ?? []).map((item) => [item.participacao_id, item.status as PesquisaSatisfacaoStatus])
     );
-    const participacoes = (participacoesResult.data ?? []) as Array<{
-      id: string;
-      pessoas: { nome_completo: string } | null;
-    }>;
-    const integrantes = participacoes
+    const integrantes = (participacoesResult.data ?? [])
       .map((participacao) => ({
         participacaoId: participacao.id,
-        nome: participacao.pessoas?.nome_completo ?? 'Integrante sem nome',
+        nome: participacao.pessoas?.[0]?.nome_completo ?? 'Integrante sem nome',
         status: enviosPorParticipacao.get(participacao.id) ?? 'pendente',
       }))
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
@@ -326,19 +322,14 @@ export const pesquisaSatisfacaoService = {
       (enviosResult.data ?? []).map((envio) => [envio.participacao_id, envio])
     );
 
-    const respondentes = ((participacoesResult.data ?? []) as Array<{
-      id: string;
-      equipe_id: string;
-      pessoas: { nome_completo: string } | null;
-      equipes: { nome: string } | null;
-    }>)
+    const respondentes = (participacoesResult.data ?? [])
       .map((participacao) => {
         const envio = enviosMap.get(participacao.id);
         return {
           participacaoId: participacao.id,
-          nome: participacao.pessoas?.nome_completo ?? 'Integrante sem nome',
+          nome: participacao.pessoas?.[0]?.nome_completo ?? 'Integrante sem nome',
           equipeId: participacao.equipe_id,
-          equipeNome: participacao.equipes?.nome ?? 'Sem equipe',
+          equipeNome: participacao.equipes?.[0]?.nome ?? 'Sem equipe',
           status: (envio?.status as PesquisaSatisfacaoStatus | undefined) ?? 'pendente',
           respostas: normalizeRespostas(envio?.respostas),
           enviadoEm: envio?.enviado_em ?? null,

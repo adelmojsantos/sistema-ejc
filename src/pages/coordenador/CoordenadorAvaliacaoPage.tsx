@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, Copy, Loader, Lock, QrCode, Share2, X } from 'lucide-react';
+import { ArrowLeft, Copy, Loader, Lock, QrCode, Share2, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { PesquisaSatisfacaoForm, pesquisaSatisfacaoCompleta } from '../../components/pesquisa-satisfacao/PesquisaSatisfacaoForm';
 import { useAuth } from '../../hooks/useAuth';

@@ -170,7 +170,7 @@ export function PesquisaSatisfacaoForm({
             {submitLabel}
           </button>
         ) : (
-          <button type="button" className="btn-primary" disabled={saving || !sectionComplete(currentSectionIndex, respostas)} onClick={goNext}>
+          <button type="button" className="btn-primary" disabled={saving || !sectionComplete(currentSection, respostas)} onClick={goNext}>
             Avançar
             <ChevronRight size={16} />
           </button>
