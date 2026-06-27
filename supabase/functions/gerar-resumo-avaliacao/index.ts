@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const LIMITE_RESUMOS_POR_ENCONTRO = 5;
-const PROMPT_VERSION = 'avaliacao-geral-v2';
+const PROMPT_VERSION = 'pesquisa-satisfacao-v1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -97,6 +97,38 @@ function formatAverage(value: number | null) {
   });
 }
 
+function formatPesquisaResposta(tipo: string, value: unknown) {
+  const resposta = getJsonObject(value);
+  if (!resposta) return '';
+
+  if (tipo === 'nota') {
+    return typeof resposta.nota === 'number' ? `Nota: ${resposta.nota}` : '';
+  }
+
+  if (tipo === 'sim_nao') {
+    return resposta.simNao === 'sim' ? 'Sim' : resposta.simNao === 'nao' ? 'Não' : '';
+  }
+
+  if (tipo === 'sim_nao_partes') {
+    const opcao = resposta.opcao === 'sim'
+      ? 'Sim'
+      : resposta.opcao === 'nao'
+        ? 'Não'
+        : resposta.opcao === 'em_partes'
+          ? 'Em partes'
+          : '';
+    const observacao = stripHtml(resposta.observacao);
+    return [opcao, observacao ? `Observação: ${observacao}` : ''].filter(Boolean).join(' | ');
+  }
+
+  return stripHtml(resposta.texto);
+}
+
+function getPesquisaNota(value: unknown) {
+  const resposta = getJsonObject(value);
+  return typeof resposta?.nota === 'number' ? resposta.nota : null;
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -166,36 +198,32 @@ Deno.serve(async (request) => {
       return jsonResponse(403, { error: 'Limite de 5 resumos atingido para este encontro.' });
     }
 
-    const [encontroResult, perguntasResult, respostasResult, enviosResult, participacoesResult] = await Promise.all([
+    const [encontroResult, perguntasResult, enviosResult, participacoesResult] = await Promise.all([
       adminClient
         .from('encontros')
         .select('id, nome')
         .eq('id', encontroId)
         .maybeSingle(),
       adminClient
-        .from('avaliacao_perguntas')
-        .select('id, ordem, titulo, tipo, ativa')
+        .from('pesquisa_satisfacao_perguntas')
+        .select('id, ordem, title, type, active')
         .eq('encontro_id', encontroId)
-        .eq('ativa', true)
+        .eq('active', true)
         .order('ordem', { ascending: true }),
       adminClient
-        .from('avaliacao_respostas')
-        .select('equipe_id, pergunta_id, resposta_texto, resposta_numero, resposta_json')
-        .eq('encontro_id', encontroId),
-      adminClient
-        .from('avaliacao_envios')
-        .select('equipe_id, status')
-        .eq('encontro_id', encontroId),
+        .from('pesquisa_satisfacao_envios')
+        .select('equipe_id, participacao_id, respostas, status')
+        .eq('encontro_id', encontroId)
+        .eq('status', 'enviado'),
       adminClient
         .from('participacoes')
-        .select('equipe_id, equipes(nome)')
+        .select('id, equipe_id, pessoas(nome_completo), equipes(nome)')
         .eq('encontro_id', encontroId)
         .not('equipe_id', 'is', null),
     ]);
 
     if (encontroResult.error) throw encontroResult.error;
     if (perguntasResult.error) throw perguntasResult.error;
-    if (respostasResult.error) throw respostasResult.error;
     if (enviosResult.error) throw enviosResult.error;
     if (participacoesResult.error) throw participacoesResult.error;
 
@@ -205,83 +233,75 @@ Deno.serve(async (request) => {
     }
 
     const perguntas = perguntasResult.data ?? [];
-    const respostas = respostasResult.data ?? [];
     const envios = enviosResult.data ?? [];
 
-    if (perguntas.length === 0 || respostas.length === 0) {
+    if (perguntas.length === 0 || envios.length === 0) {
       return jsonResponse(400, { error: 'Não há perguntas ou respostas suficientes para gerar resumo.' });
     }
 
+    const participacoesMap = new Map<string, { nome: string; equipeNome: string }>();
     const equipesMap = new Map<string, string>();
     for (const participacao of participacoesResult.data ?? []) {
       const equipe = Array.isArray(participacao.equipes) ? participacao.equipes[0] : participacao.equipes;
+      const pessoa = Array.isArray(participacao.pessoas) ? participacao.pessoas[0] : participacao.pessoas;
       if (participacao.equipe_id && equipe?.nome) {
         equipesMap.set(participacao.equipe_id, equipe.nome);
       }
-    }
-
-    const statusMap = new Map(envios.map((envio) => [envio.equipe_id, envio.status]));
-    const perguntaMap = new Map(perguntas.map((pergunta) => [pergunta.id, pergunta]));
-    const respostasPorPergunta = new Map<string, typeof respostas>();
-    for (const resposta of respostas) {
-      if (!respostasPorPergunta.has(resposta.pergunta_id)) {
-        respostasPorPergunta.set(resposta.pergunta_id, []);
-      }
-      respostasPorPergunta.get(resposta.pergunta_id)!.push(resposta);
+      participacoesMap.set(participacao.id, {
+        nome: pessoa?.nome_completo ?? 'Integrante não identificado',
+        equipeNome: equipe?.nome ?? 'Equipe não identificada',
+      });
     }
 
     const dadosPorPergunta = perguntas.map((pergunta) => {
-      const respostasDaPergunta = respostasPorPergunta.get(pergunta.id) ?? [];
-      const notas = pergunta.tipo === 'nota' || pergunta.tipo === 'nota_justificativa'
+      const respostasDaPergunta = envios
+        .map((envio) => {
+          const respostas = getJsonObject(envio.respostas);
+          const value = respostas?.[pergunta.id];
+          const texto = formatPesquisaResposta(pergunta.type, value);
+          const participacao = participacoesMap.get(envio.participacao_id);
+          return texto ? {
+            texto,
+            nota: getPesquisaNota(value),
+            nome: participacao?.nome ?? 'Integrante não identificado',
+            equipeNome: participacao?.equipeNome ?? equipesMap.get(envio.equipe_id) ?? 'Equipe não identificada',
+          } : null;
+        })
+        .filter((resposta): resposta is { texto: string; nota: number | null; nome: string; equipeNome: string } => !!resposta);
+      const notas = pergunta.type === 'nota'
         ? respostasDaPergunta
-            .map((resposta) => getNotaResposta(resposta))
+            .map((resposta) => resposta.nota)
             .filter((nota): nota is number => nota !== null && Number.isFinite(nota))
         : [];
       const media = average(notas);
       const linhas = respostasDaPergunta
         .map((resposta) => {
-          const texto = formatResposta(pergunta, resposta);
-          if (!texto) return null;
-          const equipeNome = equipesMap.get(resposta.equipe_id) ?? 'Equipe não identificada';
-          const status = statusMap.get(resposta.equipe_id) ?? 'pendente';
-          return `- ${equipeNome} (${status}): ${texto}`;
+          return `- ${resposta.nome} · ${resposta.equipeNome}: ${resposta.texto}`;
         })
-        .filter((linha): linha is string => !!linha);
+        .filter(Boolean);
 
       return [
-        `Pergunta #${pergunta.ordem}: ${pergunta.titulo}`,
-        `Tipo: ${pergunta.tipo}`,
+        `Pergunta #${pergunta.ordem}: ${pergunta.title}`,
+        `Tipo: ${pergunta.type}`,
         `Total de respostas: ${respostasDaPergunta.length}`,
-        pergunta.tipo === 'nota' || pergunta.tipo === 'nota_justificativa'
+        pergunta.type === 'nota'
           ? `Média das notas: ${formatAverage(media)}`
           : null,
-        `Respostas por equipe:`,
+        `Respostas por integrante e equipe:`,
         linhas.length > 0 ? linhas.join('\n') : '- Sem respostas',
       ].filter(Boolean).join('\n');
     });
 
-    const linhasRespostas = respostas
-      .map((resposta) => {
-        const pergunta = perguntaMap.get(resposta.pergunta_id);
-        if (!pergunta) return null;
-        const texto = formatResposta(pergunta, resposta);
-        if (!texto) return null;
-        const equipeNome = equipesMap.get(resposta.equipe_id) ?? 'Equipe não identificada';
-        const status = statusMap.get(resposta.equipe_id) ?? 'pendente';
-        return `Equipe: ${equipeNome} (${status})\nPergunta #${pergunta.ordem}: ${pergunta.titulo}\nResposta: ${texto}`;
-      })
-      .filter((linha): linha is string => !!linha);
-
     const totalEquipes = equipesMap.size;
-    const totalEquipesEnviadas = envios.filter((envio) => envio.status === 'enviado').length;
+    const totalEquipesEnviadas = new Set(envios.map((envio) => envio.equipe_id)).size;
 
     const prompt = [
-      'Você é um assistente de análise de avaliações de um encontro religioso/comunitário.',
+      'Você é um assistente de análise de pesquisas de satisfação de um encontro religioso/comunitário.',
       'Gere um resumo geral em português do Brasil, objetivo e útil para dirigentes.',
       'Não invente informações. Use apenas o conteúdo fornecido.',
       'Agrupe termos e ideias semelhantes, como comunicação, organização, espiritualidade, alimentação, estrutura, horários e trabalho em equipe.',
       'Inclua um resumo por pergunta. Para perguntas de nota, mostre a média informada nos dados e interprete brevemente o que ela sugere.',
-      'Para perguntas de participante destaque, liste os destaques indicados pelas equipes e sintetize as justificativas sem contar citações agregadas.',
+      'Considere diferenças entre equipes quando houver padrões relevantes, sem expor nomes individuais no texto final.',
       '',
       'Formato obrigatório:',
       '# Resumo executivo',
@@ -295,12 +315,10 @@ Deno.serve(async (request) => {
       '',
       `Encontro: ${encontro.nome}`,
       `Equipes vinculadas: ${totalEquipes}`,
-      `Equipes enviadas: ${totalEquipesEnviadas}`,
-      `Respostas consideradas: ${linhasRespostas.length}`,
+      `Equipes com respostas enviadas: ${totalEquipesEnviadas}`,
+      `Integrantes com respostas enviadas: ${envios.length}`,
       '',
       `Dados por pergunta:\n${dadosPorPergunta.join('\n\n---\n\n')}`,
-      '',
-      `Respostas:\n${linhasRespostas.join('\n\n---\n\n')}`,
     ].join('\n');
 
     const geminiResponse = await fetch(
@@ -350,7 +368,7 @@ Deno.serve(async (request) => {
         prompt_version: PROMPT_VERSION,
         total_equipes: totalEquipes,
         total_equipes_enviadas: totalEquipesEnviadas,
-        total_respostas: respostas.length,
+        total_respostas: envios.length,
         gerado_por: requesterId,
       })
       .select('id, encontro_id, conteudo, provider, model, prompt_version, total_equipes, total_equipes_enviadas, total_respostas, gerado_por, created_at')
