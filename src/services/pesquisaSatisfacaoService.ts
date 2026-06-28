@@ -10,6 +10,7 @@ import type {
   PesquisaSatisfacaoRespostas,
   PesquisaSatisfacaoStatus,
 } from '../types/pesquisaSatisfacao';
+import { PESQUISA_SATISFACAO_QUESTIONS } from '../types/pesquisaSatisfacao';
 
 interface PerguntaRow {
   id: string;
@@ -123,6 +124,31 @@ function formatOpcao(value: string) {
 }
 
 export const pesquisaSatisfacaoService = {
+  async garantirPerguntasPadrao(encontroId: string): Promise<PesquisaSatisfacaoQuestion[]> {
+    const existentes = await this.listarPerguntas(encontroId, true);
+    if (existentes.length > 0) return existentes;
+
+    const perguntas = PESQUISA_SATISFACAO_QUESTIONS.map((pergunta, index) => ({
+      encontro_id: encontroId,
+      ordem: index + 1,
+      section_id: pergunta.sectionId,
+      section_title: pergunta.sectionTitle,
+      title: pergunta.title,
+      type: pergunta.type,
+      required: pergunta.required ?? true,
+      active: true,
+    }));
+    const { data, error } = await supabase
+      .from('pesquisa_satisfacao_perguntas')
+      .insert(perguntas)
+      .select('id, encontro_id, ordem, section_id, section_title, title, type, required, active');
+
+    if (error) throw error;
+    return ((data ?? []) as PerguntaRow[])
+      .map(mapPergunta)
+      .sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+  },
+
   async obterConfig(encontroId: string): Promise<PesquisaSatisfacaoConfig> {
     const { data, error } = await supabase
       .from('pesquisa_satisfacao_config')
@@ -139,6 +165,10 @@ export const pesquisaSatisfacaoService = {
   },
 
   async atualizarPublicacao(encontroId: string, publicada: boolean): Promise<PesquisaSatisfacaoConfig> {
+    if (publicada) {
+      await this.garantirPerguntasPadrao(encontroId);
+    }
+
     const { data, error } = await supabase
       .from('pesquisa_satisfacao_config')
       .upsert({

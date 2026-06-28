@@ -115,6 +115,7 @@ export function AvaliacaoEncontroPage() {
     if (!selectedEncontroId) return;
     setLoading(true);
     try {
+      await pesquisaSatisfacaoService.garantirPerguntasPadrao(selectedEncontroId);
       const [configData, perguntasData, painelGeralData, resumosIAData, painelFiltradoData] = await Promise.all([
         pesquisaSatisfacaoService.obterConfig(selectedEncontroId),
         pesquisaSatisfacaoService.listarPerguntas(selectedEncontroId, true),
