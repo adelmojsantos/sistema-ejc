@@ -289,6 +289,11 @@ export function AvaliacaoEncontroPage() {
 
   const togglePublicacao = async () => {
     if (!selectedEncontroId) return;
+    if (!publicada && activeQuestions.length === 0) {
+      toast.error('Cadastre ou ative ao menos uma pergunta antes de publicar.');
+      setTab('perguntas');
+      return;
+    }
     setSaving(true);
     try {
       const next = await pesquisaSatisfacaoService.atualizarPublicacao(selectedEncontroId, !publicada);

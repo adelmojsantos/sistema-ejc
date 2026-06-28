@@ -91,6 +91,11 @@ function normalizeRespostas(value: unknown): PesquisaSatisfacaoRespostas {
   return value as PesquisaSatisfacaoRespostas;
 }
 
+function getRelated<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
 function mapPergunta(row: PerguntaRow): PesquisaSatisfacaoQuestion {
   return {
     id: row.id,
@@ -281,11 +286,14 @@ export const pesquisaSatisfacaoService = {
       (enviosResult.data ?? []).map((item) => [item.participacao_id, item.status as PesquisaSatisfacaoStatus])
     );
     const integrantes = (participacoesResult.data ?? [])
-      .map((participacao) => ({
-        participacaoId: participacao.id,
-        nome: participacao.pessoas?.[0]?.nome_completo ?? 'Integrante sem nome',
-        status: enviosPorParticipacao.get(participacao.id) ?? 'pendente',
-      }))
+      .map((participacao) => {
+        const pessoa = getRelated(participacao.pessoas);
+        return {
+          participacaoId: participacao.id,
+          nome: pessoa?.nome_completo ?? 'Integrante sem nome',
+          status: enviosPorParticipacao.get(participacao.id) ?? 'pendente',
+        };
+      })
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 
     const totalParticipantes = integrantes.length;
@@ -325,11 +333,13 @@ export const pesquisaSatisfacaoService = {
     const respondentes = (participacoesResult.data ?? [])
       .map((participacao) => {
         const envio = enviosMap.get(participacao.id);
+        const pessoa = getRelated(participacao.pessoas);
+        const equipe = getRelated(participacao.equipes);
         return {
           participacaoId: participacao.id,
-          nome: participacao.pessoas?.[0]?.nome_completo ?? 'Integrante sem nome',
+          nome: pessoa?.nome_completo ?? 'Integrante sem nome',
           equipeId: participacao.equipe_id,
-          equipeNome: participacao.equipes?.[0]?.nome ?? 'Sem equipe',
+          equipeNome: equipe?.nome?.trim() || 'Equipe sem nome',
           status: (envio?.status as PesquisaSatisfacaoStatus | undefined) ?? 'pendente',
           respostas: normalizeRespostas(envio?.respostas),
           enviadoEm: envio?.enviado_em ?? null,
