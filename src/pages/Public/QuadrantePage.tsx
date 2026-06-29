@@ -54,7 +54,10 @@ interface EncontroInfo {
     quadrante_visibilidade: QuadranteVisibilityConfig | null;
 }
 
-function getOptimizedImageUrl(url: string | null | undefined, width: number, height?: number): string {
+const PRINT_IMAGE_QUALITY = 72;
+const DEFAULT_IMAGE_QUALITY = 80;
+
+function getOptimizedImageUrl(url: string | null | undefined, width: number, height?: number, quality = DEFAULT_IMAGE_QUALITY): string {
     if (!url) return '';
     if (url.includes('/storage/v1/object/public/')) {
         const baseUrl = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
@@ -62,7 +65,7 @@ function getOptimizedImageUrl(url: string | null | undefined, width: number, hei
         params.set('width', width.toString());
         if (height) params.set('height', height.toString());
         params.set('resize', 'cover');
-        params.set('quality', '80');
+        params.set('quality', quality.toString());
         return `${baseUrl}?${params.toString()}`;
     }
     return url;
@@ -103,14 +106,19 @@ function ParticipantCard({ item }: { item: QuadranteData }) {
     );
 }
 
-function PalestraCard({ palestra }: { palestra: Palestra }) {
+function PalestraCard({ palestra, printOptimized = false }: { palestra: Palestra; printOptimized?: boolean }) {
     return (
         <div className="palestra-card">
             <div className="palestra-speaker">
                 <div className="speaker-avatar">
                     {palestra.palestrante_foto_url ? (
                         <img
-                            src={getOptimizedImageUrl(palestra.palestrante_foto_url, 600)}
+                            src={getOptimizedImageUrl(
+                                palestra.palestrante_foto_url,
+                                printOptimized ? 520 : 600,
+                                undefined,
+                                printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
+                            )}
                             alt={palestra.palestrante_nome || ''}
                             onError={(e) => {
                                 const originalUrl = palestra.palestrante_foto_url;
@@ -585,7 +593,12 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         {encontro?.logo_url && (
                             <div className="capa-central-logo">
                                 <img
-                                    src={getOptimizedImageUrl(encontro.logo_url, 600, 600)}
+                                    src={getOptimizedImageUrl(
+                                        encontro.logo_url,
+                                        600,
+                                        600,
+                                        printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
+                                    )}
                                     alt="Arte do Tema"
                                     onError={(e) => {
                                         const orig = encontro.logo_url;
@@ -639,7 +652,12 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                 <div className="editorial-visual">
                                     {encontro?.logo_url ? (
                                         <img
-                                            src={getOptimizedImageUrl(encontro.logo_url, 600, 600)}
+                                            src={getOptimizedImageUrl(
+                                                encontro.logo_url,
+                                                600,
+                                                600,
+                                                printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
+                                            )}
                                             alt="Logo Tema"
                                             className="theme-logo"
                                             onError={(e) => {
@@ -735,7 +753,12 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                         {circuloImagemUrl && (
                                             <div className="circulo-banner-logo">
                                                 <img
-                                                    src={getOptimizedImageUrl(circuloImagemUrl, 250, 250)}
+                                                    src={getOptimizedImageUrl(
+                                                        circuloImagemUrl,
+                                                        250,
+                                                        250,
+                                                        printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
+                                                    )}
                                                     alt={`Logo ${circle}`}
                                                     loading="eager"
                                                     decoding="async"
@@ -754,7 +777,12 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                         {visibility.fotosMediadores && mediadoresFotoUrl && (
                                             <div className="circulo-banner-mediadores">
                                                 <img
-                                                    src={getOptimizedImageUrl(mediadoresFotoUrl, 500, 350)}
+                                                    src={getOptimizedImageUrl(
+                                                        mediadoresFotoUrl,
+                                                        printOptimized ? 420 : 500,
+                                                        printOptimized ? 300 : 350,
+                                                        printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
+                                                    )}
                                                     alt={`Mediadores de ${circle}`}
                                                     loading="eager"
                                                     decoding="async"
@@ -827,7 +855,12 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                             <div className="team-photo-container">
                                                 {fotoEquipe ? (
                                                     <img
-                                                        src={getOptimizedImageUrl(fotoEquipe, 800)}
+                                                        src={getOptimizedImageUrl(
+                                                            fotoEquipe,
+                                                            printOptimized ? 720 : 800,
+                                                            undefined,
+                                                            printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
+                                                        )}
                                                         alt={team}
                                                         loading="eager"
                                                         onError={(e) => {
@@ -875,7 +908,12 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                                 <div className="team-photo-container">
                                                     {fotoCriancas ? (
                                                         <img
-                                                            src={getOptimizedImageUrl(fotoCriancas, 800)}
+                                                            src={getOptimizedImageUrl(
+                                                                fotoCriancas,
+                                                                printOptimized ? 720 : 800,
+                                                                undefined,
+                                                                printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
+                                                            )}
                                                             alt="Crianças da Recreação"
                                                             loading="eager"
                                                             onError={(e) => {
@@ -968,7 +1006,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                 {visibility.palestras && palestras.map((p) => (
                     <section key={`print-${p.id}`} className="content-palestra-print-section print-only">
                         <div className="section-print-wrapper">
-                            <PalestraCard palestra={p} />
+                            <PalestraCard palestra={p} printOptimized={printOptimized} />
                         </div>
                     </section>
                 ))}
@@ -977,7 +1015,9 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     <div className="section-print-wrapper">
                         <div className="final-print-content">
                             <img
-                                src={encontro?.logo_url || logoCapelinha}
+                                src={encontro?.logo_url
+                                    ? getOptimizedImageUrl(encontro.logo_url, 500, 500, PRINT_IMAGE_QUALITY)
+                                    : logoCapelinha}
                                 alt={encontro?.nome || 'EJC'}
                                 className="final-print-logo"
                             />
