@@ -35,12 +35,6 @@ const typeLabels: Record<PesquisaSatisfacaoQuestionType, string> = {
   sim_nao: 'Sim ou Não',
 };
 
-const statusLabels: Record<PesquisaSatisfacaoStatus, string> = {
-  enviado: 'Respondida',
-  rascunho: 'Rascunho',
-  pendente: 'Pendente',
-};
-
 function emptyForm(encontroId = '', ordem = 1): PesquisaSatisfacaoPerguntaFormData {
   return {
     encontro_id: encontroId,
@@ -67,18 +61,6 @@ function formatPercent(value: number) {
   return `${Math.round(value)}%`;
 }
 
-function getRespostaPreview(respondente: PesquisaSatisfacaoRespondente, pergunta: PesquisaSatisfacaoQuestion) {
-  const resposta = respondente.respostas[pergunta.id];
-  if (!resposta) return 'Sem resposta';
-  if (pergunta.type === 'nota') return resposta.nota ? `Nota ${resposta.nota}` : 'Sem resposta';
-  if (pergunta.type === 'sim_nao') return resposta.simNao === 'sim' ? 'Sim' : resposta.simNao === 'nao' ? 'Não' : 'Sem resposta';
-  if (pergunta.type === 'sim_nao_partes') {
-    const base = resposta.opcao === 'sim' ? 'Sim' : resposta.opcao === 'nao' ? 'Não' : resposta.opcao === 'em_partes' ? 'Em partes' : 'Sem resposta';
-    return resposta.observacao ? `${base}: ${resposta.observacao}` : base;
-  }
-  return resposta.texto?.trim() || 'Sem resposta';
-}
-
 export function AvaliacaoEncontroPage() {
   const navigate = useNavigate();
   const { encontros, encontroAtivo } = useEncontros();
@@ -95,6 +77,7 @@ export function AvaliacaoEncontroPage() {
   const [generatingResumoIA, setGeneratingResumoIA] = useState(false);
   const [questionModalOpen, setQuestionModalOpen] = useState(false);
   const [linksModalOpen, setLinksModalOpen] = useState(false);
+  const [responsesModalSummary, setResponsesModalSummary] = useState<PesquisaSatisfacaoPerguntaResumo | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<PesquisaSatisfacaoQuestion | null>(null);
   const [formData, setFormData] = useState<PesquisaSatisfacaoPerguntaFormData>(emptyForm());
   const [deleteTarget, setDeleteTarget] = useState<PesquisaSatisfacaoQuestion | null>(null);
@@ -164,7 +147,7 @@ export function AvaliacaoEncontroPage() {
   const filteredRespondentes = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (painel?.respondentes ?? []).filter((respondente) => {
-      if (term && !`${respondente.nome} ${respondente.equipeNome}`.toLowerCase().includes(term)) return false;
+      if (term && !respondente.equipeNome.toLowerCase().includes(term)) return false;
       return true;
     });
   }, [painel, search]);
@@ -514,7 +497,7 @@ export function AvaliacaoEncontroPage() {
                 <span>Buscar</span>
                 <div className="pesquisa-search">
                   <Search size={16} />
-                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome ou equipe" />
+                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Equipe" />
                 </div>
               </label>
             </div>
@@ -573,7 +556,11 @@ export function AvaliacaoEncontroPage() {
                 {questionSummaries.length === 0 ? (
                   <div className="empty-state">Nenhuma pergunta encontrada.</div>
                 ) : questionSummaries.map((summary) => (
-                  <QuestionSummaryCard key={summary.pergunta.id} summary={summary} />
+                  <QuestionSummaryCard
+                    key={summary.pergunta.id}
+                    summary={summary}
+                    onViewAll={() => setResponsesModalSummary(summary)}
+                  />
                 ))}
               </div>
             </section>
@@ -582,50 +569,24 @@ export function AvaliacaoEncontroPage() {
               <div className="pesquisa-admin-section-header">
                 <div>
                   <h2>Respostas por equipe</h2>
-                  <p>Quantidade respondida e a responder; abra a equipe para ver os integrantes.</p>
+                  <p>Quantidade respondida e a responder, sem identificar individualmente os integrantes.</p>
                 </div>
               </div>
               <div className="pesquisa-respondentes-list">
                 {equipesRespondentes.length === 0 ? (
                   <div className="empty-state">Nenhuma equipe encontrada para os filtros.</div>
                 ) : equipesRespondentes.map((equipe) => (
-                  <details key={equipe.equipeId} className="pesquisa-respondente pesquisa-team-response">
-                    <summary>
-                      <div>
-                        <strong>{equipe.equipeNome}</strong>
-                        <span>{equipe.respondidas} respondidas · {equipe.aResponder} a responder</span>
-                      </div>
-                      <div className="pesquisa-team-response-badges">
-                        <Badge tone="success">{equipe.respondidas} respondidas</Badge>
-                        <Badge tone={equipe.aResponder > 0 ? 'warning' : 'success'}>{equipe.aResponder} a responder</Badge>
-                      </div>
-                    </summary>
-                    <div className="pesquisa-team-members">
-                      {equipe.integrantes
-                        .filter((integrante) => statusFilter === 'todos' || integrante.status === statusFilter)
-                        .map((integrante) => (
-                          <details key={integrante.participacaoId} className="pesquisa-team-member">
-                            <summary>
-                              <div>
-                                <strong>{integrante.nome}</strong>
-                                <span>{integrante.enviadoEm ? new Date(integrante.enviadoEm).toLocaleString('pt-BR') : 'Sem envio final'}</span>
-                              </div>
-                              <Badge tone={integrante.status === 'enviado' ? 'success' : integrante.status === 'rascunho' ? 'warning' : 'muted'}>
-                                {statusLabels[integrante.status]}
-                              </Badge>
-                            </summary>
-                            <div className="pesquisa-respondente-answers">
-                              {activeQuestions.map((pergunta) => (
-                                <article key={pergunta.id}>
-                                  <span>{pergunta.title}</span>
-                                  <p>{getRespostaPreview(integrante, pergunta)}</p>
-                                </article>
-                              ))}
-                            </div>
-                          </details>
-                        ))}
+                  <article key={equipe.equipeId} className="pesquisa-respondente pesquisa-team-response">
+                    <div>
+                      <strong>{equipe.equipeNome}</strong>
+                      <span>{equipe.respondidas} respondidas · {equipe.aResponder} a responder</span>
                     </div>
-                  </details>
+                    <div className="pesquisa-team-response-badges">
+                      <Badge tone="success">{equipe.respondidas} respondidas</Badge>
+                      {equipe.rascunhos > 0 && <Badge tone="warning">{equipe.rascunhos} rascunhos</Badge>}
+                      <Badge tone={equipe.aResponder > 0 ? 'warning' : 'success'}>{equipe.aResponder} a responder</Badge>
+                    </div>
+                  </article>
                 ))}
               </div>
             </section>
@@ -749,6 +710,31 @@ export function AvaliacaoEncontroPage() {
             })}
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!responsesModalSummary}
+        onClose={() => setResponsesModalSummary(null)}
+        title="Todas as respostas"
+        maxWidth="760px"
+      >
+        {responsesModalSummary && (
+          <div className="pesquisa-all-responses">
+            <header>
+              <Badge tone="muted">{responsesModalSummary.pergunta.sectionTitle}</Badge>
+              <h3>{responsesModalSummary.pergunta.title}</h3>
+              <p>{responsesModalSummary.textos?.length ?? 0} respostas textuais, exibidas anonimamente por equipe.</p>
+            </header>
+            <div className="pesquisa-all-responses-list">
+              {(responsesModalSummary.textos ?? []).map((item, index) => (
+                <article key={`${item.equipeNome}-${index}`}>
+                  <strong>{item.equipeNome}</strong>
+                  <p>{item.texto}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
       </Modal>
 
       <ConfirmDialog
@@ -938,8 +924,7 @@ export function AvaliacaoEncontroPage() {
         .pesquisa-question-admin-list,
         .pesquisa-question-analysis-list,
         .pesquisa-team-links,
-        .pesquisa-respondentes-list,
-        .pesquisa-respondente-answers {
+        .pesquisa-respondentes-list {
           display: grid;
           gap: 0.75rem;
         }
@@ -1087,6 +1072,7 @@ export function AvaliacaoEncontroPage() {
           color: var(--text-color);
           line-height: 1.55;
           margin-top: 1rem;
+          overflow-x: auto;
         }
 
         .pesquisa-ai-markdown :is(h1, h2, h3) {
@@ -1102,9 +1088,42 @@ export function AvaliacaoEncontroPage() {
           font-size: 1rem;
         }
 
+        .pesquisa-ai-markdown h3 {
+          font-size: 0.94rem;
+        }
+
         .pesquisa-ai-markdown p,
-        .pesquisa-ai-markdown ul {
+        .pesquisa-ai-markdown ul,
+        .pesquisa-ai-markdown ol {
           margin: 0.45rem 0;
+        }
+
+        .pesquisa-ai-markdown :is(ul, ol) {
+          padding-left: 1.3rem;
+        }
+
+        .pesquisa-ai-markdown li + li {
+          margin-top: 0.3rem;
+        }
+
+        .pesquisa-ai-markdown table {
+          border-collapse: collapse;
+          font-size: 0.86rem;
+          margin: 0.75rem 0;
+          min-width: 560px;
+          width: 100%;
+        }
+
+        .pesquisa-ai-markdown :is(th, td) {
+          border: 1px solid var(--border-color);
+          padding: 0.6rem;
+          text-align: left;
+          vertical-align: top;
+        }
+
+        .pesquisa-ai-markdown th {
+          background: rgba(var(--primary-rgb), 0.08);
+          font-weight: 900;
         }
 
         .pesquisa-dashboard-grid {
@@ -1284,30 +1303,18 @@ export function AvaliacaoEncontroPage() {
           margin: 0.18rem 0 0;
         }
 
-        .pesquisa-respondente summary {
+        .pesquisa-team-response {
           align-items: center;
-          cursor: pointer;
           display: flex;
           gap: 1rem;
           justify-content: space-between;
-          list-style: none;
         }
 
-        .pesquisa-respondente summary::-webkit-details-marker {
-          display: none;
-        }
-
-        .pesquisa-respondente summary span {
+        .pesquisa-team-response > div > span {
           color: var(--muted-text);
           display: block;
           font-size: 0.82rem;
           margin-top: 0.15rem;
-        }
-
-        .pesquisa-respondente-answers {
-          border-top: 1px solid var(--border-color);
-          margin-top: 0.75rem;
-          padding-top: 0.75rem;
         }
 
         .pesquisa-team-response-badges {
@@ -1318,39 +1325,43 @@ export function AvaliacaoEncontroPage() {
           justify-content: flex-end;
         }
 
-        .pesquisa-team-members {
-          border-top: 1px solid var(--border-color);
-          display: grid;
-          gap: 0.55rem;
-          margin-top: 0.75rem;
-          padding-top: 0.75rem;
-        }
-
-        .pesquisa-team-member {
-          background: var(--card-bg);
-          border: 1px solid var(--border-color);
-          border-radius: 8px;
-          padding: 0.7rem;
-        }
-
-        .pesquisa-team-member summary {
-          align-items: center;
+        .pesquisa-more-responses {
+          background: transparent;
+          border: 0;
           cursor: pointer;
-          display: flex;
+          justify-self: start;
+          padding: 0;
+        }
+
+        .pesquisa-all-responses,
+        .pesquisa-all-responses-list {
+          display: grid;
           gap: 0.75rem;
-          justify-content: space-between;
-          list-style: none;
         }
 
-        .pesquisa-team-member summary::-webkit-details-marker {
-          display: none;
-        }
-
-        .pesquisa-respondente-answers article span {
+        .pesquisa-all-responses header h3 {
           color: var(--text-color);
-          display: block;
-          font-size: 0.82rem;
-          font-weight: 900;
+          margin: 0.55rem 0 0.25rem;
+        }
+
+        .pesquisa-all-responses header p,
+        .pesquisa-all-responses-list p {
+          color: var(--muted-text);
+          line-height: 1.5;
+          margin: 0.2rem 0 0;
+        }
+
+        .pesquisa-all-responses-list {
+          max-height: 60vh;
+          overflow-y: auto;
+          padding-right: 0.25rem;
+        }
+
+        .pesquisa-all-responses-list article {
+          background: var(--secondary-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 10px;
+          padding: 0.85rem;
         }
 
         .pesquisa-question-form,
@@ -1474,7 +1485,13 @@ function Badge({ children, tone = 'primary' }: { children: React.ReactNode; tone
   return <span className={`pesquisa-badge pesquisa-badge--${tone}`}>{children}</span>;
 }
 
-function QuestionSummaryCard({ summary }: { summary: PesquisaSatisfacaoPerguntaResumo }) {
+function QuestionSummaryCard({
+  summary,
+  onViewAll,
+}: {
+  summary: PesquisaSatisfacaoPerguntaResumo;
+  onViewAll: () => void;
+}) {
   const maxCount = Math.max(...(summary.opcoes?.map((item) => item.count) ?? [0]), 1);
 
   return (
@@ -1499,12 +1516,16 @@ function QuestionSummaryCard({ summary }: { summary: PesquisaSatisfacaoPerguntaR
       {summary.textos && summary.textos.length > 0 && (
         <div className="pesquisa-text-samples">
           {summary.textos.slice(0, 6).map((item, index) => (
-            <article key={`${item.nome}-${index}`}>
-              <strong>{item.nome} · {item.equipeNome}</strong>
+            <article key={`${item.equipeNome}-${index}`}>
+              <strong>{item.equipeNome}</strong>
               <p>{item.texto}</p>
             </article>
           ))}
-          {summary.textos.length > 6 && <Badge tone="muted">+{summary.textos.length - 6} respostas textuais</Badge>}
+          {summary.textos.length > 6 && (
+            <button type="button" className="pesquisa-more-responses" onClick={onViewAll}>
+              <Badge tone="muted">+{summary.textos.length - 6} respostas</Badge>
+            </button>
+          )}
         </div>
       )}
     </article>

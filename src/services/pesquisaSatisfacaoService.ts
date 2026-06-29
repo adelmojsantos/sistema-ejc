@@ -26,7 +26,6 @@ interface PerguntaRow {
 
 export interface PesquisaSatisfacaoRespondente {
   participacaoId: string;
-  nome: string;
   equipeId: string;
   equipeNome: string;
   status: PesquisaSatisfacaoStatus;
@@ -45,7 +44,6 @@ export interface PesquisaSatisfacaoPerguntaResumo {
   media?: number;
   opcoes?: PesquisaSatisfacaoOpcaoResumo[];
   textos?: Array<{
-    nome: string;
     equipeNome: string;
     texto: string;
   }>;
@@ -344,7 +342,7 @@ export const pesquisaSatisfacaoService = {
       this.listarPerguntas(encontroId, true),
       supabase
         .from('participacoes')
-        .select('id, equipe_id, pessoas(nome_completo), equipes(nome)')
+        .select('id, equipe_id, equipes(nome)')
         .eq('encontro_id', encontroId)
         .not('equipe_id', 'is', null),
       supabase
@@ -363,11 +361,9 @@ export const pesquisaSatisfacaoService = {
     const respondentes = (participacoesResult.data ?? [])
       .map((participacao) => {
         const envio = enviosMap.get(participacao.id);
-        const pessoa = getRelated(participacao.pessoas);
         const equipe = getRelated(participacao.equipes);
         return {
           participacaoId: participacao.id,
-          nome: pessoa?.nome_completo ?? 'Integrante sem nome',
           equipeId: participacao.equipe_id,
           equipeNome: equipe?.nome?.trim() || 'Equipe sem nome',
           status: (envio?.status as PesquisaSatisfacaoStatus | undefined) ?? 'pendente',
@@ -376,7 +372,7 @@ export const pesquisaSatisfacaoService = {
         };
       })
       .filter((respondente) => !equipeId || respondente.equipeId === equipeId)
-      .sort((a, b) => a.equipeNome.localeCompare(b.equipeNome, 'pt-BR') || a.nome.localeCompare(b.nome, 'pt-BR'));
+      .sort((a, b) => a.equipeNome.localeCompare(b.equipeNome, 'pt-BR'));
 
     const enviados = respondentes.filter((item) => item.status === 'enviado');
     const perguntaResumos = perguntas.map((pergunta) => {
@@ -410,7 +406,6 @@ export const pesquisaSatisfacaoService = {
       if (pergunta.type === 'texto' || pergunta.type === 'sim_nao_partes') {
         resumo.textos = respostas
           .map(({ respondente, resposta }) => ({
-            nome: respondente.nome,
             equipeNome: respondente.equipeNome,
             texto: respostaTexto(resposta),
           }))
