@@ -404,7 +404,7 @@ export const quadrantePdfService = {
 
         if (visibility.encontreiros && sortedTeams.length > 0) {
             doc.addPage();
-            this.renderSubCover(doc, 'Equipes de Trabalho');
+            this.renderSubCover(doc, 'Equipes');
 
             for (const [teamName, members] of sortedTeams) {
                 doc.addPage();

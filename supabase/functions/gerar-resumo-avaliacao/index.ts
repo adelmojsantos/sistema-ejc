@@ -2,6 +2,12 @@ import { createClient } from '@supabase/supabase-js';
 
 const LIMITE_RESUMOS_POR_ENCONTRO = 5;
 const PROMPT_VERSION = 'pesquisa-satisfacao-v2-anonimo';
+const MAX_ALIASES_PESSOAS = 120;
+const MAX_CARACTERES_ALIAS = 80;
+const MAX_RESPOSTAS_POR_PERGUNTA = 12;
+const MAX_CARACTERES_RESPOSTA = 280;
+const MAX_CARACTERES_DADOS_PROMPT = 18000;
+const GEMINI_MODELOS_FALLBACK = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,6 +31,11 @@ function stripHtml(value: unknown) {
     .replace(/&nbsp;/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function truncateText(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength).trimEnd()}…`;
 }
 
 function getJsonObject(value: unknown): Record<string, unknown> | null {
@@ -86,7 +97,8 @@ function escapeRegExp(value: string) {
 function buildPersonAliases(names: string[]) {
   const normalizedNames = names
     .map((name) => stripHtml(name))
-    .filter((name) => name.length >= 3);
+    .filter((name) => name.length >= 3)
+    .map((name) => truncateText(name, MAX_CARACTERES_ALIAS));
   const firstNameCounts = new Map<string, number>();
 
   for (const name of normalizedNames) {
@@ -108,10 +120,13 @@ function buildPersonAliases(names: string[]) {
     }
   }
 
-  return Array.from(aliases).sort((a, b) => b.length - a.length);
+  return Array.from(aliases)
+    .sort((a, b) => b.length - a.length)
+    .slice(0, MAX_ALIASES_PESSOAS);
 }
 
 function redactKnownPersonNames(value: string, aliases: string[]) {
+  if (!value || aliases.length === 0) return value;
   return aliases.reduce((text, alias) => {
     const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(alias)}(?![\\p{L}\\p{N}])`, 'giu');
     return text.replace(pattern, '[nome omitido]');
@@ -140,6 +155,71 @@ function sanitizeMarkdown(value: string) {
   return markdown;
 }
 
+async function gerarConteudoGemini(params: {
+  apiKey: string;
+  model: string;
+  systemPrompt: string;
+  dataPrompt: string;
+}) {
+  const modelos = Array.from(new Set([
+    params.model,
+    ...GEMINI_MODELOS_FALLBACK,
+  ].filter(Boolean)));
+  const erros: Array<{ model: string; status: number; details: string }> = [];
+
+  for (const model of modelos) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${params.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: params.systemPrompt }],
+          },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: params.dataPrompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            topP: 0.8,
+            maxOutputTokens: 2500,
+          },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const details = await response.text();
+      erros.push({ model, status: response.status, details: truncateText(details, 1200) });
+      console.error('[gerar-resumo-avaliacao] Gemini error:', {
+        model,
+        status: response.status,
+        details,
+      });
+      continue;
+    }
+
+    const data = await response.json();
+    const conteudo = data?.candidates?.[0]?.content?.parts
+      ?.map((part: { text?: string }) => part.text)
+      .filter(Boolean)
+      .join('\n')
+      .trim();
+
+    if (conteudo) {
+      return { conteudo, model };
+    }
+
+    erros.push({ model, status: 502, details: 'Gemini não retornou conteúdo para o resumo.' });
+  }
+
+  return { conteudo: '', model: modelos[0], erros };
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -153,7 +233,7 @@ Deno.serve(async (request) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-    const geminiModel = Deno.env.get('GEMINI_MODEL') || 'gemini-3.1-flash-lite';
+    const geminiModel = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash-lite';
 
     if (!supabaseUrl || !serviceRoleKey || !geminiApiKey) {
       return jsonResponse(500, { error: 'Variáveis de ambiente ausentes para gerar o resumo.' });
@@ -269,10 +349,7 @@ Deno.serve(async (request) => {
         .map((envio) => {
           const respostas = getJsonObject(envio.respostas);
           const value = respostas?.[pergunta.id];
-          const texto = redactKnownPersonNames(
-            formatPesquisaResposta(pergunta.type, value),
-            personAliases,
-          );
+          const texto = formatPesquisaResposta(pergunta.type, value);
           return texto ? {
             texto,
             nota: getPesquisaNota(value),
@@ -288,8 +365,13 @@ Deno.serve(async (request) => {
             .filter((nota): nota is number => nota !== null && Number.isFinite(nota))
         : [];
       const media = average(notas);
-      const linhas = respostasDaPergunta
-        .map((resposta) => `- Equipe ${resposta.equipeNome}: ${resposta.texto}`)
+      const respostasAmostra = respostasDaPergunta.slice(0, MAX_RESPOSTAS_POR_PERGUNTA);
+      const respostasOmitidas = Math.max(0, respostasDaPergunta.length - respostasAmostra.length);
+      const linhas = respostasAmostra
+        .map((resposta) => {
+          const textoCompacto = truncateText(resposta.texto, MAX_CARACTERES_RESPOSTA);
+          return `- Equipe ${resposta.equipeNome}: ${redactKnownPersonNames(textoCompacto, personAliases)}`;
+        })
         .filter(Boolean);
 
       return [
@@ -300,6 +382,9 @@ Deno.serve(async (request) => {
         pergunta.type === 'nota'
           ? `Média das notas: ${formatAverage(media)}`
           : null,
+        respostasOmitidas > 0
+          ? `Amostra textual enviada: ${respostasAmostra.length} de ${respostasDaPergunta.length} respostas (${respostasOmitidas} respostas omitidas para respeitar limite de processamento).`
+          : `Amostra textual enviada: ${respostasAmostra.length} de ${respostasDaPergunta.length} respostas.`,
         `Respostas anônimas identificadas somente pela equipe:`,
         linhas.length > 0 ? linhas.join('\n') : '- Sem respostas',
       ].filter(Boolean).join('\n');
@@ -343,56 +428,40 @@ Deno.serve(async (request) => {
       '- Preserve corretamente acentos e caracteres em português.',
     ].join('\n');
 
+    const dadosPesquisa = dadosPorPergunta.join('\n\n---\n\n');
+    const dadosPesquisaLimitados = truncateText(dadosPesquisa, MAX_CARACTERES_DADOS_PROMPT);
     const dataPrompt = [
       `Encontro: ${encontro.nome}`,
       `Equipes vinculadas: ${totalEquipes}`,
       `Equipes com respostas enviadas: ${totalEquipesEnviadas}`,
       `Integrantes com respostas enviadas: ${envios.length}`,
+      dadosPesquisa.length > MAX_CARACTERES_DADOS_PROMPT
+        ? `Observação técnica: os dados textuais foram compactados para ${MAX_CARACTERES_DADOS_PROMPT} caracteres por limite de processamento; contagens e médias acima permanecem calculadas a partir dos dados carregados.`
+        : '',
       '',
       '<dados_pesquisa>',
-      dadosPorPergunta.join('\n\n---\n\n'),
+      dadosPesquisaLimitados,
       '</dados_pesquisa>',
-    ].join('\n');
+    ].filter((line) => line !== '').join('\n');
 
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: systemPrompt }],
-          },
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: dataPrompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            topP: 0.8,
-            maxOutputTokens: 5000,
-          },
-        }),
-      },
-    );
+    const geminiResult = await gerarConteudoGemini({
+      apiKey: geminiApiKey,
+      model: geminiModel,
+      systemPrompt,
+      dataPrompt,
+    });
 
-    if (!geminiResponse.ok) {
-      const details = await geminiResponse.text();
-      console.error('[gerar-resumo-avaliacao] Gemini error:', details);
-      return jsonResponse(502, { error: 'Erro ao chamar Gemini para gerar resumo.' });
-    }
-
-    const geminiData = await geminiResponse.json();
-    const rawConteudo = geminiData?.candidates?.[0]?.content?.parts
-      ?.map((part: { text?: string }) => part.text)
-      .filter(Boolean)
-      .join('\n')
-      .trim();
+    const rawConteudo = geminiResult.conteudo;
 
     if (!rawConteudo) {
-      return jsonResponse(502, { error: 'Gemini não retornou conteúdo para o resumo.' });
+      return jsonResponse(502, {
+        error: 'Erro ao chamar Gemini para gerar resumo.',
+        detalhes: geminiResult.erros?.map((erro) => ({
+          model: erro.model,
+          status: erro.status,
+          details: erro.details,
+        })),
+      });
     }
     const conteudo = sanitizeMarkdown(redactKnownPersonNames(rawConteudo, personAliases));
 
@@ -402,7 +471,7 @@ Deno.serve(async (request) => {
         encontro_id: encontroId,
         conteudo,
         provider: 'gemini',
-        model: geminiModel,
+        model: geminiResult.model,
         prompt_version: PROMPT_VERSION,
         total_equipes: totalEquipes,
         total_equipes_enviadas: totalEquipesEnviadas,

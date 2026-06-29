@@ -103,6 +103,39 @@ function ParticipantCard({ item }: { item: QuadranteData }) {
     );
 }
 
+function PalestraCard({ palestra }: { palestra: Palestra }) {
+    return (
+        <div className="palestra-card">
+            <div className="palestra-speaker">
+                <div className="speaker-avatar">
+                    {palestra.palestrante_foto_url ? (
+                        <img
+                            src={getOptimizedImageUrl(palestra.palestrante_foto_url, 600)}
+                            alt={palestra.palestrante_nome || ''}
+                            onError={(e) => {
+                                const originalUrl = palestra.palestrante_foto_url;
+                                if (originalUrl && e.currentTarget.src !== originalUrl) {
+                                    e.currentTarget.src = originalUrl;
+                                }
+                            }}
+                        />
+                    ) : (
+                        <User size={40} />
+                    )}
+                </div>
+                <div className="speaker-info">
+                    <h3>{palestra.titulo}</h3>
+                    <span className="p-nome">{palestra.palestrante_nome}</span>
+                </div>
+            </div>
+            <div
+                className="palestra-body rich-editorial-output"
+                dangerouslySetInnerHTML={{ __html: palestra.resumo || '<p>Resumo não disponível para esta palestra.</p>' }}
+            />
+        </div>
+    );
+}
+
 function formatarDatasEncontro(inicioStr?: string | null, fimStr?: string | null) {
     if (!inicioStr || !fimStr) return '';
 
@@ -466,7 +499,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                 className="nav-item"
                                 onClick={() => scrollToSection('encontreiros')}
                             >
-                                <ScrollText size={20} style={{ minWidth: '20px' }} /> Encontreiros
+                                <ScrollText size={20} style={{ minWidth: '20px' }} /> Equipes
                             </button>
                         </div>
                     )}
@@ -477,7 +510,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                 className="nav-item"
                                 onClick={() => scrollToSection('palestras')}
                             >
-                                <Mic2 size={20} style={{ minWidth: '20px' }} /> Palestras
+                                <Mic2 size={20} style={{ minWidth: '20px' }} /> Palestras e Momentos
                             </button>
                         </div>
                     )}
@@ -669,7 +702,15 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                 )}
 
                 {/* Encontristas Sections grouped by Circle */}
-                {visibility.encontristas && <div id="encontristas" className="no-print" style={{ paddingBottom: '1px' }}></div>}
+                {visibility.encontristas && (
+                    <section id="encontristas" className="quadrante-category-header section-band section-band-base no-print" data-section-name="Encontristas">
+                        <div className="section-header center">
+                            <Users size={32} />
+                            <h2>Encontristas</h2>
+                            <div className="divider mx-auto"></div>
+                        </div>
+                    </section>
+                )}
                 {visibility.encontristas && (
                     <section className="section-sub-cover print-only">
                         <div className="section-print-wrapper">
@@ -745,12 +786,20 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                 })}
 
                 {/* Encontreiros Sections (Team Layout 50/50) */}
-                {visibility.encontreiros && <div id="encontreiros" className="no-print" style={{ paddingBottom: '1px' }}></div>}
+                {visibility.encontreiros && (
+                    <section id="encontreiros" className="quadrante-category-header section-band section-band-alt no-print" data-section-name="Encontreiros">
+                        <div className="section-header center">
+                            <ScrollText size={32} />
+                            <h2>Equipes</h2>
+                            <div className="divider mx-auto"></div>
+                        </div>
+                    </section>
+                )}
                 {visibility.encontreiros && (
                     <section className="section-sub-cover print-only">
                         <div className="section-print-wrapper">
                             <div className="sub-cover-content">
-                                <h1 className="sub-cover-title">Equipes de Trabalho</h1>
+                                <h1 className="sub-cover-title">Equipes</h1>
                                 <div className="sub-cover-divider"></div>
                             </div>
                         </div>
@@ -778,7 +827,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                             <div className="team-photo-container">
                                                 {fotoEquipe ? (
                                                     <img
-                                                        src={getOptimizedImageUrl(fotoEquipe, 800, 450)}
+                                                        src={getOptimizedImageUrl(fotoEquipe, 800)}
                                                         alt={team}
                                                         loading="eager"
                                                         onError={(e) => {
@@ -826,7 +875,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                                 <div className="team-photo-container">
                                                     {fotoCriancas ? (
                                                         <img
-                                                            src={getOptimizedImageUrl(fotoCriancas, 800, 450)}
+                                                            src={getOptimizedImageUrl(fotoCriancas, 800)}
                                                             alt="Crianças da Recreação"
                                                             loading="eager"
                                                             onError={(e) => {
@@ -888,47 +937,27 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                 })}
 
                 {/* Palestras Section — MOVED INSIDE main */}
-                {visibility.palestras && <section id="palestras" className="content-palestras-section section-band section-band-base" data-section-name="Palestras">
+                {visibility.palestras && (
+                    <section className="section-sub-cover print-only">
+                        <div className="section-print-wrapper">
+                            <div className="sub-cover-content">
+                                <h1 className="sub-cover-title">Palestras e Momentos</h1>
+                                <div className="sub-cover-divider"></div>
+                            </div>
+                        </div>
+                    </section>
+                )}
+                {visibility.palestras && <section id="palestras" className="content-palestras-section section-band section-band-base no-print" data-section-name="Palestras">
                     <div className="section-print-wrapper">
                         <div className="section-header center">
                             <Mic2 size={32} />
-                            <h2>Palestras do Encontro</h2>
+                            <h2>Palestras e Momentos</h2>
                             <div className="divider mx-auto"></div>
                         </div>
 
                         <div className={`palestras-grid ${palestras.length === 1 ? 'single-item' : ''}`}>
                             {palestras.map((p) => (
-                                <div
-                                    key={p.id}
-                                    className="palestra-card"
-                                >
-                                    <div className="palestra-speaker">
-                                        <div className="speaker-avatar">
-                                            {p.palestrante_foto_url ? (
-                                                <img
-                                                    src={getOptimizedImageUrl(p.palestrante_foto_url, 600, 450)}
-                                                    alt={p.palestrante_nome || ''}
-                                                    onError={(e) => {
-                                                        const orig = p.palestrante_foto_url;
-                                                        if (orig && e.currentTarget.src !== orig) {
-                                                            e.currentTarget.src = orig;
-                                                        }
-                                                    }}
-                                                />
-                                            ) : (
-                                                <User size={40} />
-                                            )}
-                                        </div>
-                                        <div className="speaker-info">
-                                            <h3>{p.titulo}</h3>
-                                            <span className="p-nome">{p.palestrante_nome}</span>
-                                        </div>
-                                    </div>
-                                    <div
-                                        className="palestra-body rich-editorial-output"
-                                        dangerouslySetInnerHTML={{ __html: p.resumo || '<p>Resumo não disponível para esta palestra.</p>' }}
-                                    />
-                                </div>
+                                <PalestraCard key={p.id} palestra={p} />
                             ))}
                         </div>
                         {palestras.length === 0 && (
@@ -936,6 +965,41 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         )}
                     </div>
                 </section>}
+                {visibility.palestras && palestras.map((p) => (
+                    <section key={`print-${p.id}`} className="content-palestra-print-section print-only">
+                        <div className="section-print-wrapper">
+                            <PalestraCard palestra={p} />
+                        </div>
+                    </section>
+                ))}
+
+                <section className="quadrante-final-print-page print-only">
+                    <div className="section-print-wrapper">
+                        <div className="final-print-content">
+                            <img
+                                src={encontro?.logo_url || logoCapelinha}
+                                alt={encontro?.nome || 'EJC'}
+                                className="final-print-logo"
+                            />
+                            <div className="final-print-kicker">Quadrante do Encontro</div>
+                            <h1>{encontro?.edicao ? `${encontro.edicao}° E.J.C` : encontro?.nome || 'E.J.C'}</h1>
+                            {encontro?.tema && <p className="final-print-theme">“{encontro.tema}”</p>}
+                            <div className="final-print-divider"></div>
+                            <p className="final-print-message">
+                                Que cada nome, equipe, palestra e momento registrado aqui seja memória viva daquilo que Deus realizou neste encontro.
+                            </p>
+                            <div className="final-print-meta">
+                                {formatarDatasEncontro(encontro?.data_inicio, encontro?.data_fim)}
+                                {encontro?.local && (
+                                    <>
+                                        <span>•</span>
+                                        {encontro.local}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </section>
 
                 <footer className="spa-footer">
                     <p>© {new Date().getFullYear()} EJC • Capelinha</p>
@@ -1675,6 +1739,14 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     margin: 0 auto;
                 }
 
+                .quadrante-category-header {
+                    padding: 4.25rem 8% 1.25rem;
+                }
+
+                .quadrante-category-header .section-header {
+                    margin-bottom: 0;
+                }
+
                 .palestras-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -1690,6 +1762,15 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                 .palestras-grid.single-item .palestra-card {
                     max-width: 500px;
                     width: 100%;
+                }
+
+                @media (min-width: 1025px) {
+                    .palestras-grid:not(.single-item) .palestra-card:last-child:nth-child(odd) {
+                        grid-column: 1 / -1;
+                        justify-self: center;
+                        max-width: 500px;
+                        width: 100%;
+                    }
                 }
 
                 .capa-titulos {
@@ -1948,6 +2029,27 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     width: 100%;
                     height: 100%;
                     object-fit: cover;
+                }
+
+                @media (max-width: 900px) {
+                    .team-visual {
+                        aspect-ratio: auto;
+                        max-height: none;
+                    }
+
+                    .team-photo-container {
+                        height: auto;
+                    }
+
+                    .team-photo-container img {
+                        display: block;
+                        height: auto;
+                        object-fit: contain;
+                    }
+
+                    .speaker-avatar img {
+                        object-fit: contain;
+                    }
                 }
 
                 .team-photo-stub {
@@ -2411,6 +2513,10 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     .content-palestras-section {
                         padding-top: 2rem;
                         padding-bottom: 2rem;
+                    }
+
+                    .quadrante-category-header {
+                        padding: 2rem 1rem 0.75rem;
                     }
 
                     .editorial-container {
@@ -3038,9 +3144,16 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     /* ── EQUIPES: foto widescreen + lista 3 colunas  */
                     .content-team-section {
                         padding: 0 !important;
-                        display: table !important;
+                        display: block !important;
+                        height: auto !important;
+                        min-height: 297mm !important;
                         break-inside: auto !important;
                         page-break-inside: auto !important;
+                    }
+
+                    .content-team-section > .section-print-wrapper {
+                        display: block !important;
+                        width: 100% !important;
                     }
 
                     .team-layout {
@@ -3215,47 +3328,51 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         line-height: 1.15 !important;
                     }
 
-                    /* ── PALESTRAS: layout inline-block de 2 colunas ── */
-                    .content-palestras-section {
-                        max-width: 100% !important;
+                    /* ── PALESTRAS: uma página de largura total por bloco ── */
+                    .content-palestras-section.no-print {
+                        display: none !important;
+                    }
+
+                    .content-palestra-print-section.print-only {
+                        display: table !important;
+                        break-before: page !important;
+                        page-break-before: always !important;
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                        width: 100% !important;
+                        height: 297mm !important;
+                        min-height: 297mm !important;
                         margin: 0 !important;
                         padding: 0 !important;
-                        display: table !important;
+                        box-sizing: border-box !important;
+                        background: #ffffff !important;
                     }
 
-                    .palestras-grid {
-                        display: block !important;
+                    .content-palestra-print-section > .section-print-wrapper {
+                        display: table-cell !important;
+                        vertical-align: top !important;
                         width: 100% !important;
-                        margin: 24px 0 0 0 !important;
-                        padding: 0 !important;
-                        text-align: left !important;
-                    }
-
-                    .palestras-grid.single-item {
-                        text-align: center !important;
-                        display: block !important;
-                    }
-
-                    .palestras-grid.single-item .palestra-card {
-                        display: inline-block !important;
-                        width: 100% !important;
-                        max-width: 500px !important;
-                        margin: 0 auto !important;
-                        text-align: left !important;
+                        padding: 28mm 15mm 20mm !important;
+                        box-sizing: border-box !important;
                     }
 
                     .palestra-card {
-                        display: inline-block !important;
-                        width: calc(50% - 18px) !important; /* 2 colunas */
-                        margin: 9px !important;
-                        vertical-align: top !important;
+                        display: block !important;
+                        width: 100% !important;
+                        max-width: none !important;
+                        margin: 0 !important;
+                        text-align: left !important;
                         break-inside: avoid !important;
                         page-break-inside: avoid !important;
-                        border-radius: 14px !important;
-                        padding: 18px !important;
+                        border-radius: 20px !important;
+                        padding: 22px !important;
                         border: 1px solid #e2e8f0 !important;
                         background: white !important;
-                        box-shadow: none !important;
+                        box-shadow: 0 4px 20px rgba(0,0,0,0.06) !important;
+                    }
+
+                    .palestra-card:last-child {
+                        margin-bottom: 0 !important;
                     }
 
                     .palestra-speaker,
@@ -3299,6 +3416,107 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         font-size: 9pt !important;
                         line-height: 1.55 !important;
                         color: #475569 !important;
+                    }
+
+                    /* ── CONTRACAPA: fechamento do PDF ───────────── */
+                    .quadrante-final-print-page.print-only {
+                        display: table !important;
+                        break-before: page !important;
+                        page-break-before: always !important;
+                        break-inside: avoid !important;
+                        page-break-inside: avoid !important;
+                        width: 100% !important;
+                        height: 297mm !important;
+                        min-height: 297mm !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        box-sizing: border-box !important;
+                        background:
+                            radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 34%),
+                            radial-gradient(circle at bottom right, rgba(245, 158, 11, 0.14), transparent 34%),
+                            #ffffff !important;
+                    }
+
+                    .quadrante-final-print-page > .section-print-wrapper {
+                        display: table-cell !important;
+                        vertical-align: middle !important;
+                        width: 100% !important;
+                        padding: 25mm 18mm !important;
+                        box-sizing: border-box !important;
+                    }
+
+                    .final-print-content {
+                        width: 100% !important;
+                        max-width: 150mm !important;
+                        margin: 0 auto !important;
+                        text-align: center !important;
+                        color: #0f172a !important;
+                    }
+
+                    .final-print-logo {
+                        width: 34mm !important;
+                        height: 34mm !important;
+                        object-fit: contain !important;
+                        margin: 0 auto 12mm !important;
+                        display: block !important;
+                    }
+
+                    .final-print-kicker {
+                        color: #2563eb !important;
+                        font-size: 10pt !important;
+                        font-weight: 800 !important;
+                        letter-spacing: 0.22em !important;
+                        margin-bottom: 8mm !important;
+                        text-transform: uppercase !important;
+                    }
+
+                    .final-print-content h1 {
+                        color: #0f172a !important;
+                        font-size: 34pt !important;
+                        font-weight: 900 !important;
+                        letter-spacing: 0.04em !important;
+                        line-height: 1.05 !important;
+                        margin: 0 !important;
+                        text-transform: uppercase !important;
+                    }
+
+                    .final-print-theme {
+                        color: #334155 !important;
+                        font-size: 16pt !important;
+                        font-weight: 600 !important;
+                        line-height: 1.35 !important;
+                        margin: 9mm 0 0 !important;
+                    }
+
+                    .final-print-divider {
+                        width: 34mm !important;
+                        height: 1.6mm !important;
+                        background: #f59e0b !important;
+                        border-radius: 999px !important;
+                        margin: 13mm auto !important;
+                    }
+
+                    .final-print-message {
+                        color: #1e293b !important;
+                        font-size: 14pt !important;
+                        font-weight: 500 !important;
+                        line-height: 1.55 !important;
+                        margin: 0 auto !important;
+                        max-width: 125mm !important;
+                    }
+
+                    .final-print-meta {
+                        align-items: center !important;
+                        color: #64748b !important;
+                        display: flex !important;
+                        flex-wrap: wrap !important;
+                        font-size: 10pt !important;
+                        font-weight: 700 !important;
+                        gap: 3mm !important;
+                        justify-content: center !important;
+                        letter-spacing: 0.05em !important;
+                        margin-top: 15mm !important;
+                        text-transform: uppercase !important;
                     }
 
                     /* ── Rodapé ──────────────────────────────────── */
