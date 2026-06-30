@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { Equipe, EquipeFormData } from '../types/equipe';
 import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
+import { createPrivateStorageReference, removeStorageReference } from './privateStorageService';
 
 const TABLE = 'equipes';
 type ComprovanteTipo = 'taxas' | 'camisetas';
@@ -304,11 +305,10 @@ export const equipeService = {
         }
         const fileExt = file.name.split('.').pop();
         const fileName = `comprovante_${tipo}_${equipeId}_${encontroId}_${Date.now()}.${fileExt}`;
-        const filePath = `comprovantes/${tipo}/${fileName}`;
+        const filePath = `equipes/${encontroId}/${equipeId}/${tipo}/${fileName}`;
 
-        // Upload para o bucket 'galeria'
         const { error: uploadError } = await supabase.storage
-            .from('galeria')
+            .from('comprovantes')
             .upload(filePath, file, {
                 cacheControl: '31536000',
                 upsert: false,
@@ -316,11 +316,10 @@ export const equipeService = {
 
         if (uploadError) throw uploadError;
 
-        const { data } = supabase.storage
-            .from('galeria')
-            .getPublicUrl(filePath);
-
-        return data.publicUrl;
+        return createPrivateStorageReference('comprovantes', filePath);
+    },
+    async removerArquivoComprovante(reference: string): Promise<void> {
+        await removeStorageReference(reference);
     },
     async atualizarComprovante(equipeId: string, encontroId: string, url: string, usuarioId: string, tipo: ComprovanteTipo): Promise<string[]> {
         const field = tipo === 'taxas' ? 'comprovante_taxas_url' : 'comprovante_camisetas_url';
@@ -385,14 +384,9 @@ export const equipeService = {
         if (updateError) throw updateError;
 
         try {
-            const marker = '/storage/v1/object/public/galeria/';
-            const storagePath = decodeURIComponent(new URL(url).pathname.split(marker)[1] || '');
-            if (storagePath) {
-                const { error: storageError } = await supabase.storage.from('galeria').remove([storagePath]);
-                if (storageError) console.error('Erro ao remover arquivo do comprovante:', storageError);
-            }
+            await removeStorageReference(url);
         } catch (error) {
-            console.error('Erro ao identificar arquivo do comprovante:', error);
+            console.error('Erro ao remover arquivo do comprovante:', error);
         }
 
         return nextUrls;

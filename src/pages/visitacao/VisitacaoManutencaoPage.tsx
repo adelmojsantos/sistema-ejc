@@ -15,6 +15,7 @@ import { FormRow } from '../../components/ui/FormRow';
 import { FormField } from '../../components/ui/FormField';
 import { RadioGroup } from '../../components/ui/RadioGroup';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { StorageLink } from '../../components/storage/StorageLink';
 import { formatTelefone, formatCpf } from '../../utils/cpfUtils';
 import { cleanPlate, formatPlate } from '../../utils/plateUtils';
 
@@ -1453,14 +1454,14 @@ export function VisitacaoManutencaoPage() {
                                                     </button>
                                                     {item.comprovante_url && (
                                                         <>
-                                                            <a
-                                                                href={item.comprovante_url}
+                                                            <StorageLink
+                                                                reference={item.comprovante_url}
                                                                 target="_blank"
                                                                 rel="noreferrer"
                                                                 style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600 }}
                                                             >
                                                                 <FileText size={14} /> Ver comprovante
-                                                            </a>
+                                                            </StorageLink>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleRemoveIntencaoProof(item)}

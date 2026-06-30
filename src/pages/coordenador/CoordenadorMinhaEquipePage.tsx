@@ -371,9 +371,12 @@ export function CoordenadorMinhaEquipePage() {
     }
 
     setIsUploadingProof(tipo);
+    let uploadedReference: string | null = null;
     try {
       const url = await equipeService.uploadComprovante(userParticipacao.equipe_id, userParticipacao.encontro_id, file, tipo);
+      uploadedReference = url;
       const urls = await equipeService.atualizarComprovante(userParticipacao.equipe_id, userParticipacao.encontro_id, url, user.id, tipo);
+      uploadedReference = null;
 
       if (tipo === 'taxas') {
         setComprovantesTaxasUrls(urls);
@@ -389,6 +392,11 @@ export function CoordenadorMinhaEquipePage() {
       const conf = await equipeService.obterConfirmacao(userParticipacao.equipe_id, userParticipacao.encontro_id);
       if (conf) setTeamConfirmation(conf);
     } catch (error) {
+      if (uploadedReference) {
+        await equipeService.removerArquivoComprovante(uploadedReference).catch((storageError) => {
+          console.error('Erro ao desfazer upload do comprovante:', storageError);
+        });
+      }
       console.error('Erro ao enviar comprovante:', error);
       toast.error('Erro ao enviar comprovante');
     } finally {

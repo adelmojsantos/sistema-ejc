@@ -1,6 +1,7 @@
 import { Download, ExternalLink, FileText, Loader, Trash2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { resolveStorageReference } from '../../services/privateStorageService';
 
 interface PaymentProofGalleryModalProps {
   title: string;
@@ -53,6 +54,13 @@ export function PaymentProofGalleryModal({
 }: PaymentProofGalleryModalProps) {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [deletingUrl, setDeletingUrl] = useState<string | null>(null);
+  const [resolvedProofs, setResolvedProofs] = useState<Array<{
+    source: string;
+    url: string;
+    error: boolean;
+  }>>([]);
+  const [loadingProofs, setLoadingProofs] = useState(true);
+
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -62,9 +70,36 @@ export function PaymentProofGalleryModal({
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    setLoadingProofs(true);
+
+    Promise.all(urls.map(async (source) => {
+      try {
+        return {
+          source,
+          url: await resolveStorageReference(source),
+          error: false,
+        };
+      } catch (error) {
+        console.error('Erro ao gerar acesso temporário ao comprovante:', error);
+        return { source, url: '', error: true };
+      }
+    })).then((proofs) => {
+      if (active) {
+        setResolvedProofs(proofs);
+        setLoadingProofs(false);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [urls]);
+
   const handleDownloadAll = async () => {
-    for (const [index, url] of urls.entries()) {
-      await downloadProof(url, index);
+    for (const [index, proof] of resolvedProofs.entries()) {
+      if (proof.url) await downloadProof(proof.url, index);
     }
   };
 
@@ -111,18 +146,29 @@ export function PaymentProofGalleryModal({
           </div>
         </div>
         <div className={`modal-body compras-proof-gallery__body ${urls.length === 1 ? 'compras-proof-gallery__body--single' : ''}`}>
+          {loadingProofs && (
+            <div className="compras-proof-gallery__file-placeholder">
+              <Loader className="animate-spin" size={32} />
+              <span>Gerando acesso seguro aos comprovantes...</span>
+            </div>
+          )}
           <div className={`compras-proof-gallery__grid ${urls.length === 1 ? 'compras-proof-gallery__grid--single' : ''}`}>
-            {urls.map((url, index) => {
-              const proofType = getProofType(url);
-              const proofName = getProofName(url, index);
+            {!loadingProofs && resolvedProofs.map((proof, index) => {
+              const proofType = getProofType(proof.source);
+              const proofName = getProofName(proof.source, index);
 
               return (
-                <article key={`${url}-${index}`} className="compras-proof-gallery__item">
+                <article key={`${proof.source}-${index}`} className="compras-proof-gallery__item">
                   <div className="compras-proof-gallery__preview">
-                    {proofType === 'image' ? (
-                      <img src={url} alt={`Prévia do comprovante ${index + 1}`} />
+                    {proof.error ? (
+                      <div className="compras-proof-gallery__file-placeholder">
+                        <FileText size={38} />
+                        <span>Não foi possível liberar o acesso a este comprovante</span>
+                      </div>
+                    ) : proofType === 'image' ? (
+                      <img src={proof.url} alt={`Prévia do comprovante ${index + 1}`} />
                     ) : proofType === 'pdf' ? (
-                      <a href={url} target="_blank" rel="noreferrer" className="compras-proof-gallery__file-placeholder">
+                      <a href={proof.url} target="_blank" rel="noreferrer" className="compras-proof-gallery__file-placeholder">
                         <FileText size={38} />
                         <span>PDF disponível para abrir em nova aba</span>
                         <strong><ExternalLink size={14} /> Abrir PDF</strong>
@@ -140,20 +186,20 @@ export function PaymentProofGalleryModal({
                       <span>{proofName}</span>
                     </div>
                     <div className="compras-proof-gallery__actions">
-                      <a href={url} target="_blank" rel="noreferrer" className="btn-secondary">
+                      <a href={proof.url || undefined} target="_blank" rel="noreferrer" className="btn-secondary" aria-disabled={!proof.url}>
                         <FileText size={15} /> Ver
                       </a>
-                      <button type="button" className="btn-secondary" onClick={() => downloadProof(url, index)}>
+                      <button type="button" className="btn-secondary" onClick={() => downloadProof(proof.url, index)} disabled={!proof.url}>
                         <Download size={15} /> Baixar
                       </button>
                       {onDelete && (
                         <button
                           type="button"
                           className="btn-secondary compras-proof-gallery__delete"
-                          onClick={() => setDeleteTarget(url)}
-                          disabled={deletingUrl === url}
+                          onClick={() => setDeleteTarget(proof.source)}
+                          disabled={deletingUrl === proof.source}
                         >
-                          {deletingUrl === url ? <Loader className="animate-spin" size={15} /> : <Trash2 size={15} />}
+                          {deletingUrl === proof.source ? <Loader className="animate-spin" size={15} /> : <Trash2 size={15} />}
                           Excluir
                         </button>
                       )}

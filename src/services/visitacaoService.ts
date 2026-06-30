@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { VisitaGrupo, VisitaGrupoFormData, VisitaParticipacao, VisitaParticipacaoFormData, VisitaParticipacaoEnriched } from '../types/visitacao';
 import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
+import { createPrivateStorageReference, removeStorageReference } from './privateStorageService';
 
 export interface IntencaoCamisetaItem {
     id?: string;
@@ -308,34 +309,52 @@ export const visitacaoService = {
             throw new Error('O comprovante deve ter no máximo 10 MB.');
         }
         const fileExt = file.name.split('.').pop() || 'arquivo';
-        const filePath = `comprovantes/camisetas-intencoes/${id}_${Date.now()}.${fileExt}`;
+        const filePath = `visitacao/camisetas-intencoes/${id}_${Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
-            .from('galeria')
+            .from('comprovantes')
             .upload(filePath, file, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
 
         if (uploadError) throw uploadError;
 
-        const { data } = supabase.storage
-            .from('galeria')
-            .getPublicUrl(filePath);
+        const reference = createPrivateStorageReference('comprovantes', filePath);
 
         const { error: updateError } = await supabase
             .from('visita_intencao_camiseta')
-            .update({ comprovante_url: data.publicUrl })
+            .update({ comprovante_url: reference })
             .eq('id', id);
 
-        if (updateError) throw updateError;
-        return data.publicUrl;
+        if (updateError) {
+            await removeStorageReference(reference).catch((storageError) => {
+                console.error('Erro ao desfazer upload do comprovante:', storageError);
+            });
+            throw updateError;
+        }
+        return reference;
     },
 
     async removerComprovanteIntencao(id: string): Promise<void> {
+        const { data: intention, error: selectError } = await supabase
+            .from('visita_intencao_camiseta')
+            .select('comprovante_url')
+            .eq('id', id)
+            .maybeSingle();
+        if (selectError) throw selectError;
+
         const { error } = await supabase
             .from('visita_intencao_camiseta')
             .update({ comprovante_url: null })
             .eq('id', id);
 
         if (error) throw error;
+
+        if (intention?.comprovante_url) {
+            try {
+                await removeStorageReference(intention.comprovante_url);
+            } catch (storageError) {
+                console.error('Erro ao remover arquivo do comprovante:', storageError);
+            }
+        }
     }
 };
 
