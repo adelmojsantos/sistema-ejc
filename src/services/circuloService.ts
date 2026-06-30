@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
 import type { Circulo, CirculoFormData } from '../types/circulo';
 
 const TABLE = 'circulos';
@@ -48,16 +49,14 @@ export const circuloService = {
     },
 
     async uploadImagem(file: File): Promise<string> {
-        const extension = file.name.split('.').pop() || 'jpg';
+        const optimizedFile = await optimizeImageForUpload(file, { maxDimension: 1200, quality: 0.88 });
+        const extension = getFileExtension(optimizedFile, 'webp');
         const randomId = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
         const filePath = `fotos/circulos/circulo_${randomId}_${Date.now()}.${extension}`;
 
         const { error: uploadError } = await supabase.storage
             .from('galeria')
-            .upload(filePath, file, {
-                cacheControl: '3600',
-                upsert: false,
-            });
+            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
 
         if (uploadError) throw uploadError;
 

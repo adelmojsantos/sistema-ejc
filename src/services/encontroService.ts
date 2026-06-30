@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
 import type { Encontro, EncontroFormData, QuadranteVisibilityConfig } from '../types/encontro';
 
 const TABLE = 'encontros';
@@ -115,12 +116,13 @@ export const encontroService = {
             throw new Error('Sessão expirada. Faça login novamente para enviar a logo.');
         }
 
-        const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
+        const optimizedFile = await optimizeImageForUpload(file, { maxDimension: 1200, quality: 0.9 });
+        const extension = getFileExtension(optimizedFile, 'webp');
         const filePath = `fotos/quadrante/${encontroId}-${Date.now()}.${extension}`;
 
         const { error: uploadError } = await supabase.storage
             .from('galeria')
-            .upload(filePath, file);
+            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
 
         if (uploadError) {
             throw new Error(uploadError.message || 'Erro ao enviar a logo.');

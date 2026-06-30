@@ -1213,6 +1213,8 @@ export function SecretariaParticipantesPage() {
                               <img
                                 src={p.foto_url}
                                 alt={nomeParticipante}
+                                loading="lazy"
+                                decoding="async"
                                 style={{ objectPosition: `center ${photoPosition}%` }}
                               />
                             ) : (

@@ -498,6 +498,8 @@ export function VisitacaoMeusParticipantesPage() {
                                                                 <img
                                                                     src={p.participacoes.foto_url}
                                                                     alt={pessoa?.nome_completo || 'Participante'}
+                                                                    loading="lazy"
+                                                                    decoding="async"
                                                                     style={{ objectPosition: `center ${p.participacoes.foto_posicao_y ?? 50}%` }}
                                                                 />
                                                             ) : (

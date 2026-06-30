@@ -135,6 +135,9 @@ export const bibliotecaService = {
     },
 
     async uploadArquivo(file: File, pastaId: string | null = null, onProgress?: (percent: number) => void): Promise<BibliotecaArquivo> {
+        if (file.size > 25 * 1024 * 1024) {
+            throw new Error('O arquivo deve ter no máximo 25 MB.');
+        }
         // Gerar caminho seguro no storage
         const timestamp = new Date().getTime();
         const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');

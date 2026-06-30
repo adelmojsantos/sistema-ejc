@@ -57,22 +57,17 @@ interface EncontroInfo {
 const PRINT_IMAGE_QUALITY = 72;
 const DEFAULT_IMAGE_QUALITY = 80;
 
-function getOptimizedImageUrl(url: string | null | undefined, width: number, height?: number, quality = DEFAULT_IMAGE_QUALITY): string {
-    if (!url) return '';
-    if (url.includes('/storage/v1/object/public/')) {
-        const baseUrl = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
-        const params = new URLSearchParams();
-        params.set('width', width.toString());
-        if (height) params.set('height', height.toString());
-        params.set('resize', 'cover');
-        params.set('quality', quality.toString());
-        return `${baseUrl}?${params.toString()}`;
-    }
-    return url;
+function getOptimizedImageUrl(url: string | null | undefined, _width: number, _height?: number, _quality = DEFAULT_IMAGE_QUALITY): string {
+    // Transformações do Storage são exclusivas dos planos pagos. No Free, as
+    // imagens já são reduzidas e convertidas para WebP antes do upload.
+    void _width;
+    void _height;
+    void _quality;
+    return url ?? '';
 }
 
 // --- Sub-componente para Cartões de Participantes ---
-function ParticipantCard({ item }: { item: QuadranteData }) {
+function ParticipantCard({ item, eager = false }: { item: QuadranteData; eager?: boolean }) {
     const { theme } = useTheme();
     const originalUrl = item.foto_url || '';
     const optimizedUrl = getOptimizedImageUrl(originalUrl, 200, 250);
@@ -84,7 +79,8 @@ function ParticipantCard({ item }: { item: QuadranteData }) {
                     <img
                         src={optimizedUrl}
                         alt={item.pessoas?.nome_completo}
-                        loading="eager"
+                        loading={eager ? 'eager' : 'lazy'}
+                        decoding="async"
                         onError={(e) => {
                             if (e.currentTarget.src !== originalUrl) {
                                 e.currentTarget.src = originalUrl;
@@ -120,6 +116,8 @@ function PalestraCard({ palestra, printOptimized = false }: { palestra: Palestra
                                 printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
                             )}
                             alt={palestra.palestrante_nome || ''}
+                            loading={printOptimized ? 'eager' : 'lazy'}
+                            decoding="async"
                             onError={(e) => {
                                 const originalUrl = palestra.palestrante_foto_url;
                                 if (originalUrl && e.currentTarget.src !== originalUrl) {
@@ -600,6 +598,8 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                         printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
                                     )}
                                     alt="Arte do Tema"
+                                    loading={printOptimized ? 'eager' : 'lazy'}
+                                    decoding="async"
                                     onError={(e) => {
                                         const orig = encontro.logo_url;
                                         if (orig && e.currentTarget.src !== orig) {
@@ -660,6 +660,8 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                             )}
                                             alt="Logo Tema"
                                             className="theme-logo"
+                                            loading={printOptimized ? 'eager' : 'lazy'}
+                                            decoding="async"
                                             onError={(e) => {
                                                 const orig = encontro.logo_url;
                                                 if (orig && e.currentTarget.src !== orig) {
@@ -760,7 +762,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                                         printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
                                                     )}
                                                     alt={`Logo ${circle}`}
-                                                    loading="eager"
+                                                    loading={printOptimized ? 'eager' : 'lazy'}
                                                     decoding="async"
                                                     onError={(e) => {
                                                         if (e.currentTarget.src !== circuloImagemUrl) {
@@ -784,7 +786,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                                         printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
                                                     )}
                                                     alt={`Mediadores de ${circle}`}
-                                                    loading="eager"
+                                                    loading={printOptimized ? 'eager' : 'lazy'}
                                                     decoding="async"
                                                     onError={(e) => {
                                                         if (e.currentTarget.src !== mediadoresFotoUrl) {
@@ -805,7 +807,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
 
                                 <div className="quadrante-grid">
                                     {members.map((item) => (
-                                        <ParticipantCard key={item.id} item={item} />
+                                        <ParticipantCard key={item.id} item={item} eager={printOptimized} />
                                     ))}
                                 </div>
                             </div>
@@ -862,7 +864,8 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                                             printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
                                                         )}
                                                         alt={team}
-                                                        loading="eager"
+                                                        loading={printOptimized ? 'eager' : 'lazy'}
+                                                        decoding="async"
                                                         onError={(e) => {
                                                             if (e.currentTarget.src !== fotoEquipe) {
                                                                 e.currentTarget.src = fotoEquipe;
@@ -915,7 +918,8 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                                                 printOptimized ? PRINT_IMAGE_QUALITY : DEFAULT_IMAGE_QUALITY
                                                             )}
                                                             alt="Crianças da Recreação"
-                                                            loading="eager"
+                                                            loading={printOptimized ? 'eager' : 'lazy'}
+                                                            decoding="async"
                                                             onError={(e) => {
                                                                 if (e.currentTarget.src !== fotoCriancas) {
                                                                     e.currentTarget.src = fotoCriancas;

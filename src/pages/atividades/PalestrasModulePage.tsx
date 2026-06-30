@@ -425,6 +425,8 @@ export function PalestrasModulePage() {
                       <img
                         src={palestra.palestrante_foto_url}
                         alt={palestra.palestrante_nome ?? ''}
+                        loading="lazy"
+                        decoding="async"
                         style={{ objectPosition: `center ${palestra.palestrante_foto_posicao_y ?? 50}%` }}
                       />
                     ) : (

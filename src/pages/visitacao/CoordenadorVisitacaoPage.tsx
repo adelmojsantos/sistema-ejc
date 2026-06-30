@@ -708,7 +708,7 @@ export function CoordenadorVisitacaoPage() {
                           {uploadingGroupId === g.id ? (
                             <Loader size={18} className="animate-spin" />
                           ) : g.foto_url ? (
-                            <img src={g.foto_url} alt={`Foto ${g.nome}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={g.foto_url} alt={`Foto ${g.nome}`} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <Camera size={18} />
                           )}

@@ -130,6 +130,9 @@ export const posEncontroService = {
     arquivo_tipo: string;
     arquivo_tamanho: number;
   }> {
+    if (file.size > 20 * 1024 * 1024) {
+      throw new Error('O roteiro deve ter no máximo 20 MB.');
+    }
     const randomId = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
     const storagePath = `${encontroId}/${Date.now()}_${randomId}_${sanitizeFileName(file.name)}`;
 
