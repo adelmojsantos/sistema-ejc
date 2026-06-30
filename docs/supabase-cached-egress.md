@@ -201,3 +201,42 @@ linha falha.
 - Mover imagens públicas para R2.
 - Manter documentos sensíveis privados e entregar por URLs curtas.
 - Definir alertas em 60%, 80% e 90% da franquia mensal.
+
+## Fase 3: imagens legadas
+
+O inventário dos 100 maiores objetos encontrou aproximadamente 310 MB:
+
+- 69 imagens ainda referenciadas pelo banco, somando cerca de 194 MB;
+- 31 objetos órfãos, somando cerca de 116 MB.
+
+O migrador `migrate-legacy-images.mjs` converte somente imagens referenciadas. Ele cria
+WebP de no máximo 1600 px, grava em caminho versionado, atualiza todas as referências
+por uma função SQL transacional e preserva o original.
+
+Ordem de implantação:
+
+1. Aplicar `20260630200000_legacy_image_optimization.sql`.
+2. Executar a simulação:
+
+   ```powershell
+   pnpm migrate:legacy-images
+   ```
+
+3. Processar inicialmente dez imagens:
+
+   ```powershell
+   pnpm migrate:legacy-images -- --apply --limit=10
+   ```
+
+4. Validar Quadrante, fotos da Secretaria, Visitação, círculos e palestras.
+5. Executar novos lotes. O padrão é no máximo 25 imagens e somente arquivos com pelo
+   menos 1 MB.
+6. Depois de sete dias, os originais já migrados podem ser removidos:
+
+   ```powershell
+   pnpm migrate:legacy-images -- --apply --delete-source --delete-only
+   ```
+
+As opções `--min-bytes`, `--limit`, `--max-dimension`, `--quality` e
+`--delete-age-days` permitem ajustar a execução. O script não remove objetos órfãos;
+eles exigem inventário e quarentena próprios.
