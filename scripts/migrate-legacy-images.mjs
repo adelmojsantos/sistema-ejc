@@ -71,6 +71,75 @@ let referencesUpdated = 0;
 let originalBytes = 0;
 let optimizedBytes = 0;
 
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function formatError(error) {
+  if (!error) return 'Erro desconhecido.';
+  if (typeof error === 'string') return error;
+
+  const details = {
+    name: error.name,
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+    code: error.code,
+    status: error.status,
+    statusCode: error.statusCode,
+    cause: error.cause instanceof Error ? error.cause.message : error.cause,
+  };
+  const usefulDetails = Object.fromEntries(
+    Object.entries(details).filter(([, value]) => value !== undefined && value !== ''),
+  );
+  if (Object.keys(usefulDetails).length > 0) return JSON.stringify(usefulDetails);
+
+  try {
+    const serialized = JSON.stringify(error);
+    return serialized && serialized !== '{}' ? serialized : String(error);
+  } catch {
+    return String(error);
+  }
+}
+
+function isRetryableError(error) {
+  const details = formatError(error).toLowerCase();
+  return details === '[object object]'
+    || details === '{}'
+    || details.includes('"message":{}')
+    || details.includes('"message":"{}"')
+    || details.includes('too many connections')
+    || details.includes('connection')
+    || details.includes('timeout')
+    || details.includes('timed out')
+    || details.includes('fetch failed')
+    || details.includes('network')
+    || details.includes('rate limit')
+    || details.includes('"status":429')
+    || /"status(code)?":50[0-4]/.test(details);
+}
+
+async function supabaseRequestWithRetry(label, operation, acceptError = () => false) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      const result = await operation();
+      if (!result.error || acceptError(result.error)) return result;
+      lastError = result.error;
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (attempt >= 4 || !isRetryableError(lastError)) break;
+    const delay = 1_500 * (2 ** (attempt - 1));
+    console.warn(`${label}: tentativa ${attempt} falhou; nova tentativa em ${delay} ms.`);
+    await wait(delay);
+  }
+
+  throw new Error(`${label}: ${formatError(lastError)}`);
+}
+
 function getPublicStoragePath(value) {
   if (typeof value !== 'string') return null;
   try {
@@ -89,12 +158,14 @@ async function listAll(table, columns, orderColumn = 'id') {
   const pageSize = 500;
 
   for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from(table)
-      .select(columns)
-      .range(from, from + pageSize - 1)
-      .order(orderColumn);
-    if (error) throw error;
+    const { data } = await supabaseRequestWithRetry(
+      `Consulta ${table} (${from}-${from + pageSize - 1})`,
+      () => supabase
+        .from(table)
+        .select(columns)
+        .range(from, from + pageSize - 1)
+        .order(orderColumn),
+    );
     rows.push(...(data ?? []));
     if (!data || data.length < pageSize) return rows;
   }
@@ -173,10 +244,10 @@ async function migrateFile(file) {
     throw new Error('O mesmo objeto possui URLs divergentes; migração manual necessária.');
   }
 
-  const { data: blob, error: downloadError } = await supabase.storage
-    .from(SOURCE_BUCKET)
-    .download(file.path);
-  if (downloadError) throw downloadError;
+  const { data: blob } = await supabaseRequestWithRetry(
+    `Download ${file.path}`,
+    () => supabase.storage.from(SOURCE_BUCKET).download(file.path),
+  );
 
   const sourceBuffer = Buffer.from(await blob.arrayBuffer());
   const targetBuffer = await sharp(sourceBuffer, { animated: false })
@@ -195,13 +266,17 @@ async function migrateFile(file) {
   }
 
   const targetPath = targetPathFor(file.path);
-  const { error: uploadError } = await supabase.storage
-    .from(TARGET_BUCKET)
-    .upload(targetPath, targetBuffer, {
-      cacheControl: '31536000',
-      contentType: 'image/webp',
-      upsert: false,
-    });
+  const { error: uploadError } = await supabaseRequestWithRetry(
+    `Upload ${targetPath}`,
+    () => supabase.storage
+      .from(TARGET_BUCKET)
+      .upload(targetPath, targetBuffer, {
+        cacheControl: '31536000',
+        contentType: 'image/webp',
+        upsert: false,
+      }),
+    isAlreadyExistsError,
+  );
   const targetAlreadyExisted = Boolean(uploadError && isAlreadyExistsError(uploadError));
   if (uploadError && !targetAlreadyExisted) throw uploadError;
 
@@ -210,22 +285,59 @@ async function migrateFile(file) {
     .getPublicUrl(targetPath);
   const targetUrl = publicUrlData.publicUrl;
   const [sourceUrl, refs] = file.urls.entries().next().value;
-  const { data: updated, error: completionError } = await supabase.rpc(
-    'complete_storage_image_migration',
-    {
-      p_source_url: sourceUrl,
-      p_target_url: targetUrl,
-      p_source_path: file.path,
-      p_target_path: targetPath,
-      p_original_bytes: sourceBuffer.length,
-      p_optimized_bytes: targetBuffer.length,
-      p_expected_references: refs.length,
-    },
-  );
+  const rpcParams = {
+    p_source_url: sourceUrl,
+    p_target_url: targetUrl,
+    p_source_path: file.path,
+    p_target_path: targetPath,
+    p_original_bytes: sourceBuffer.length,
+    p_optimized_bytes: targetBuffer.length,
+    p_expected_references: refs.length,
+  };
+  let updated = null;
+  let completionError = null;
+
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      const result = await supabase.rpc('complete_storage_image_migration', rpcParams);
+      if (!result.error) {
+        updated = result.data;
+        completionError = null;
+        break;
+      }
+      completionError = result.error;
+    } catch (error) {
+      completionError = error;
+    }
+
+    try {
+      const { data: audit } = await supabaseRequestWithRetry(
+        `Reconciliação ${file.path}`,
+        () => supabase
+          .from('imagem_storage_migracoes')
+          .select('target_path, references_updated')
+          .eq('source_path', file.path)
+          .maybeSingle(),
+      );
+      if (audit?.target_path === targetPath) {
+        updated = audit.references_updated;
+        completionError = null;
+        break;
+      }
+    } catch {
+      // O retry do RPC continua sendo seguro por usar origem e destino determinísticos.
+    }
+
+    if (attempt >= 4 || !isRetryableError(completionError)) break;
+    const delay = 1_500 * (2 ** (attempt - 1));
+    console.warn(`Conclusão ${file.path}: tentativa ${attempt} falhou; nova tentativa em ${delay} ms.`);
+    await wait(delay);
+  }
+
   if (completionError) {
     // Mantém o destino: uma falha de rede pode ocorrer depois do commit do RPC.
     // O caminho determinístico permite que uma nova execução reconcilie o estado.
-    throw completionError;
+    throw new Error(`Conclusão ${file.path}: ${formatError(completionError)}`);
   }
 
   return {
@@ -322,7 +434,9 @@ if (applyChanges) {
       });
     } catch (error) {
       failures += 1;
-      console.error(`Falha ao migrar ${file.path}:`, error.message);
+      console.error(`Falha ao migrar ${file.path}: ${formatError(error)}`);
+    } finally {
+      await wait(1_000);
     }
   }
 }
