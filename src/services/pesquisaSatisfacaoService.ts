@@ -12,6 +12,8 @@ import type {
 } from '../types/pesquisaSatisfacao';
 import { PESQUISA_SATISFACAO_QUESTIONS } from '../types/pesquisaSatisfacao';
 
+const AI_PROCESS_INTERVAL_MS = 3_200;
+
 interface PerguntaRow {
   id: string;
   encontro_id: string;
@@ -68,7 +70,7 @@ export interface PesquisaSatisfacaoConfig {
 export interface PesquisaSatisfacaoResumoIA {
   id: string;
   encontro_id: string;
-  conteudo: string;
+  conteudo: string | null;
   provider: string;
   model: string;
   prompt_version: string;
@@ -77,12 +79,69 @@ export interface PesquisaSatisfacaoResumoIA {
   total_respostas: number;
   gerado_por: string | null;
   created_at: string;
+  status: 'pending' | 'generating' | 'completed' | 'error';
+  resultado: PesquisaSatisfacaoRelatorioIAResultado | null;
+  erro_mensagem: string | null;
+  iniciado_em: string | null;
+  finalizado_em: string | null;
+  updated_at: string;
+  versao: number;
+  total_perguntas: number;
+  perguntas_concluidas: number;
 }
 
-export interface GerarPesquisaSatisfacaoResumoIAResponse {
-  resumo: PesquisaSatisfacaoResumoIA;
-  totalResumos: number;
-  limite: number;
+export interface PesquisaSatisfacaoPontoNegativoIA {
+  ponto: string;
+  descricao: string;
+  equipesOrigem: Array<{
+    nome: string;
+    ocorrenciasAproximadas: number;
+  }>;
+  ocorrenciasAproximadas: number;
+  recorrencia: 'pontual' | 'recorrente';
+}
+
+export interface PesquisaSatisfacaoPerguntaAnaliseIA {
+  questionId: string | null;
+  pergunta: string;
+  secao: string;
+  tipo: PesquisaSatisfacaoQuestion['type'];
+  quantidadeRespostas: number;
+  resumo: string;
+  pontosPositivos: string[];
+  pontosNegativos: PesquisaSatisfacaoPontoNegativoIA[];
+  sugestoesMencionadas: string[];
+}
+
+export interface PesquisaSatisfacaoRelatorioIAResultado {
+  metadata: {
+    encontroId: string;
+    generatedAt: string;
+    totalQuestions: number;
+    totalAnswers: number;
+    totalRespondents: number;
+    reportVersion: number;
+    promptVersion: string;
+  };
+  resumoGeral: {
+    sintese: string;
+    pontosFortes: string[];
+    principaisProblemas: Array<{
+      tema: string;
+      resumo: string;
+      equipesOrigem: Array<{
+        nome: string;
+        ocorrenciasAproximadas: number;
+      }>;
+      ocorrenciasAproximadas: number;
+    }>;
+    equipesMaisCitadas: Array<{
+      equipe: string;
+      ocorrenciasAproximadas: number;
+      contexto: string;
+    }>;
+  };
+  perguntas: PesquisaSatisfacaoPerguntaAnaliseIA[];
 }
 
 function normalizeRespostas(value: unknown): PesquisaSatisfacaoRespostas {
@@ -184,7 +243,7 @@ export const pesquisaSatisfacaoService = {
   async listarResumosIA(encontroId: string): Promise<PesquisaSatisfacaoResumoIA[]> {
     const { data, error } = await supabase
       .from('avaliacao_resumos_ia')
-      .select('id, encontro_id, conteudo, provider, model, prompt_version, total_equipes, total_equipes_enviadas, total_respostas, gerado_por, created_at')
+      .select('id, encontro_id, conteudo, provider, model, prompt_version, total_equipes, total_equipes_enviadas, total_respostas, gerado_por, created_at, status, resultado, erro_mensagem, iniciado_em, finalizado_em, updated_at, versao, total_perguntas, perguntas_concluidas')
       .eq('encontro_id', encontroId)
       .order('created_at', { ascending: false });
 
@@ -192,14 +251,80 @@ export const pesquisaSatisfacaoService = {
     return (data ?? []) as PesquisaSatisfacaoResumoIA[];
   },
 
-  async gerarResumoIA(encontroId: string): Promise<GerarPesquisaSatisfacaoResumoIAResponse> {
-    const { data, error } = await supabase.functions.invoke('gerar-resumo-avaliacao', {
-      body: { encontroId },
-    });
-
-    if (error) throw error;
+  async executarEtapaRelatorioIA(body: Record<string, unknown>) {
+    const { data, error } = await supabase.functions.invoke('gerar-resumo-avaliacao', { body });
+    if (error) {
+      const context = (error as { context?: Response }).context;
+      let apiMessage = '';
+      if (context) {
+        try {
+          const payload = await context.clone().json() as { error?: string };
+          apiMessage = payload.error ?? '';
+        } catch {
+          // Algumas respostas de infraestrutura não têm corpo JSON.
+        }
+      }
+      throw new Error(apiMessage || error.message);
+    }
     if (data?.error) throw new Error(data.error);
-    return data as GerarPesquisaSatisfacaoResumoIAResponse;
+    return data as {
+      report: PesquisaSatisfacaoResumoIA;
+      done?: boolean;
+      resumed?: boolean;
+      retryAfterMs?: number;
+    };
+  },
+
+  async gerarResumoIA(
+    encontroId: string,
+    onProgress?: (report: PesquisaSatisfacaoResumoIA) => void,
+  ): Promise<PesquisaSatisfacaoResumoIA> {
+    const started = await this.executarEtapaRelatorioIA({ action: 'start', encontroId });
+    let report = started.report;
+    onProgress?.(report);
+
+    // Uma invocação processa somente um lote, uma pergunta ou a consolidação.
+    // Isso mantém cada requisição curta e permite retomar o relatório.
+    for (let step = 0; step < 500 && (report.status === 'pending' || report.status === 'generating'); step += 1) {
+      const next = await this.executarEtapaRelatorioIA({ action: 'process', reportId: report.id });
+      report = next.report;
+      onProgress?.(report);
+      if (next.done || report.status === 'completed' || report.status === 'error') break;
+      const waitMs = next.retryAfterMs
+        ? next.retryAfterMs + 1_000
+        : AI_PROCESS_INTERVAL_MS;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+
+    if (report.status === 'error') {
+      throw new Error(report.erro_mensagem || 'Não foi possível gerar o relatório.');
+    }
+    if (report.status !== 'completed') {
+      throw new Error('O processamento foi pausado. Use “Continuar relatório” para retomar.');
+    }
+    return report;
+  },
+
+  async tentarNovamenteResumoIA(
+    reportId: string,
+    onProgress?: (report: PesquisaSatisfacaoResumoIA) => void,
+  ): Promise<PesquisaSatisfacaoResumoIA> {
+    const retried = await this.executarEtapaRelatorioIA({ action: 'retry', reportId });
+    let report = retried.report;
+    onProgress?.(report);
+
+    for (let step = 0; step < 500 && (report.status === 'pending' || report.status === 'generating'); step += 1) {
+      const next = await this.executarEtapaRelatorioIA({ action: 'process', reportId });
+      report = next.report;
+      onProgress?.(report);
+      if (next.done || report.status === 'completed' || report.status === 'error') break;
+      const waitMs = next.retryAfterMs
+        ? next.retryAfterMs + 1_000
+        : AI_PROCESS_INTERVAL_MS;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+    if (report.status === 'error') throw new Error(report.erro_mensagem || 'Falha ao retomar relatório.');
+    return report;
   },
 
   async listarPerguntas(encontroId: string, includeInactive = false): Promise<PesquisaSatisfacaoQuestion[]> {

@@ -12,6 +12,7 @@ import {
   pesquisaSatisfacaoService,
   type PesquisaSatisfacaoPainel,
   type PesquisaSatisfacaoPerguntaResumo,
+  type PesquisaSatisfacaoRelatorioIAResultado,
   type PesquisaSatisfacaoRespondente,
   type PesquisaSatisfacaoResumoIA,
 } from '../../services/pesquisaSatisfacaoService';
@@ -192,9 +193,14 @@ export function AvaliacaoEncontroPage() {
     : 0;
   const notaGeral = painel?.perguntaResumos.find((summary) => summary.pergunta.title.toLowerCase().includes('nota geral'));
   const serviria = painel?.perguntaResumos.find((summary) => summary.pergunta.title.toLowerCase().includes('serviria novamente'));
-  const ultimoResumoIA = resumosIA[0] ?? null;
+  const relatorioAtual = resumosIA[0] ?? null;
+  const relatorioEmAndamento = resumosIA.find((item) => item.status === 'pending' || item.status === 'generating') ?? null;
+  const ultimoResumoIA = resumosIA.find((item) => item.status === 'completed') ?? null;
   const resumosRestantes = Math.max(RESUMOS_IA_LIMITE - resumosIA.length, 0);
-  const podeGerarResumoIA = !!selectedEncontroId && (painel?.totalEnviados ?? 0) > 0 && resumosRestantes > 0 && !generatingResumoIA;
+  const podeGerarResumoIA = !!selectedEncontroId
+    && (painel?.totalEnviados ?? 0) > 0
+    && (resumosRestantes > 0 || !!relatorioEmAndamento || relatorioAtual?.status === 'error')
+    && !generatingResumoIA;
 
   const openCreateModal = () => {
     const nextOrder = perguntas.length > 0 ? Math.max(...perguntas.map((item) => item.ordem ?? 0)) + 1 : 1;
@@ -306,14 +312,26 @@ export function AvaliacaoEncontroPage() {
   const gerarResumoIA = async () => {
     if (!selectedEncontroId || !podeGerarResumoIA) return;
     setGeneratingResumoIA(true);
+    const updateProgress = (report: PesquisaSatisfacaoResumoIA) => {
+      setResumosIA((current) => [
+        report,
+        ...current.filter((item) => item.id !== report.id),
+      ]);
+    };
     try {
-      await pesquisaSatisfacaoService.gerarResumoIA(selectedEncontroId);
-      toast.success('Resumo geral gerado.');
+      if (relatorioAtual?.status === 'error') {
+        await pesquisaSatisfacaoService.tentarNovamenteResumoIA(relatorioAtual.id, updateProgress);
+      } else {
+        await pesquisaSatisfacaoService.gerarResumoIA(selectedEncontroId, updateProgress);
+      }
+      toast.success('Relatório detalhado concluído.');
       const next = await pesquisaSatisfacaoService.listarResumosIA(selectedEncontroId);
       setResumosIA(next);
     } catch (error) {
-      console.error('Erro ao gerar resumo IA:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao gerar resumo geral.');
+      console.error('Erro ao gerar relatório IA:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao gerar relatório.');
+      const next = await pesquisaSatisfacaoService.listarResumosIA(selectedEncontroId);
+      setResumosIA(next);
     } finally {
       setGeneratingResumoIA(false);
     }
@@ -509,38 +527,79 @@ export function AvaliacaoEncontroPage() {
                 <span><Sparkles size={18} /></span>
                 <div>
                   <h2>Resumo geral com IA</h2>
-                  <p>Consolida respostas, padrões por pergunta, pontos fortes e pontos de atenção.</p>
+                  <p>Analisa todas as respostas em lotes, detalha cada pergunta e consolida ações prioritárias.</p>
                 </div>
               </div>
               <button type="button" className="btn-primary" onClick={gerarResumoIA} disabled={!podeGerarResumoIA}>
                 {generatingResumoIA ? <Loader className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                {ultimoResumoIA ? 'Gerar novo resumo' : 'Gerar resumo geral'}
+                {relatorioAtual?.status === 'error'
+                  ? 'Tentar novamente'
+                  : relatorioEmAndamento
+                    ? 'Continuar relatório'
+                    : ultimoResumoIA
+                      ? 'Gerar novo relatório'
+                      : 'Gerar relatório com IA'}
               </button>
             </div>
             <div className="pesquisa-ai-meta">
               <Badge tone={resumosRestantes > 0 ? 'primary' : 'muted'}>
-                {resumosIA.length}/{RESUMOS_IA_LIMITE} resumos gerados
+                {resumosIA.length}/{RESUMOS_IA_LIMITE} relatórios iniciados
               </Badge>
               <span>
-                {resumosRestantes > 0
+                {relatorioEmAndamento
+                  ? `${relatorioEmAndamento.perguntas_concluidas} de ${relatorioEmAndamento.total_perguntas} perguntas concluídas.`
+                  : resumosRestantes > 0
                   ? `${resumosRestantes} ${resumosRestantes === 1 ? 'geração restante' : 'gerações restantes'} neste encontro.`
-                  : 'Limite de resumos atingido para este encontro.'}
+                  : 'Limite de relatórios atingido para este encontro.'}
               </span>
             </div>
+            {relatorioEmAndamento && (
+              <div className="pesquisa-ai-progress" role="status">
+                <div>
+                  <Loader className="animate-spin" size={16} />
+                  <strong>Relatório em processamento</strong>
+                  <span>
+                    {relatorioEmAndamento.erro_mensagem
+                      || 'O trabalho salvo pode ser retomado se esta página for fechada.'}
+                  </span>
+                </div>
+                <div className="pesquisa-progress-bar">
+                  <span
+                    style={{
+                      width: `${relatorioEmAndamento.total_perguntas > 0
+                        ? (relatorioEmAndamento.perguntas_concluidas / relatorioEmAndamento.total_perguntas) * 100
+                        : 0}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+            {relatorioAtual?.status === 'error' && (
+              <div className="pesquisa-ai-error" role="alert">
+                <strong>O processamento foi interrompido.</strong>
+                <span>{relatorioAtual.erro_mensagem || 'Tente novamente para continuar das etapas já salvas.'}</span>
+              </div>
+            )}
             {ultimoResumoIA ? (
               <article className="pesquisa-ai-content">
                 <div>
-                  <strong>Último resumo</strong>
+                  <strong>Último relatório concluído</strong>
                   <span>
                     Gerado em {new Date(ultimoResumoIA.created_at).toLocaleString('pt-BR')} · {ultimoResumoIA.total_respostas} respostas consideradas
                   </span>
                 </div>
-                <div className="pesquisa-ai-markdown">
-                  <ReactMarkdown>{ultimoResumoIA.conteudo}</ReactMarkdown>
-                </div>
+                {ultimoResumoIA.resultado
+                  ? <StructuredAiReport result={ultimoResumoIA.resultado} />
+                  : (
+                    <div className="pesquisa-ai-markdown">
+                      <ReactMarkdown>{ultimoResumoIA.conteudo ?? ''}</ReactMarkdown>
+                    </div>
+                  )}
               </article>
             ) : (
-              <div className="empty-state">Nenhum resumo geral gerado para este encontro.</div>
+              !relatorioEmAndamento
+              && relatorioAtual?.status !== 'error'
+              && <div className="empty-state">Nenhum relatório gerado para este encontro.</div>
             )}
           </section>
 
@@ -1046,11 +1105,114 @@ export function AvaliacaoEncontroPage() {
           margin-bottom: 1rem;
         }
 
+        .pesquisa-ai-progress,
+        .pesquisa-ai-error {
+          border: 1px solid var(--border-color);
+          border-radius: 10px;
+          display: grid;
+          gap: 0.75rem;
+          margin-bottom: 1rem;
+          padding: 0.85rem;
+        }
+
+        .pesquisa-ai-progress > div:first-child {
+          align-items: center;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .pesquisa-ai-progress span,
+        .pesquisa-ai-error span {
+          color: var(--muted-text);
+          font-size: 0.82rem;
+        }
+
+        .pesquisa-ai-error {
+          background: rgba(239, 68, 68, 0.08);
+          border-color: rgba(239, 68, 68, 0.28);
+        }
+
+        .pesquisa-ai-error :is(strong, span) {
+          display: block;
+        }
+
         .pesquisa-ai-content {
           background: var(--secondary-bg);
           border: 1px solid var(--border-color);
           border-radius: 10px;
           padding: 1rem;
+        }
+
+        .pesquisa-ai-structured {
+          display: grid;
+          gap: 1rem;
+          margin-top: 1rem;
+        }
+
+        .pesquisa-ai-structured section,
+        .pesquisa-ai-question,
+        .pesquisa-ai-complaint {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 9px;
+          padding: 0.9rem;
+        }
+
+        .pesquisa-ai-structured h3,
+        .pesquisa-ai-structured h4,
+        .pesquisa-ai-structured p {
+          margin: 0;
+        }
+
+        .pesquisa-ai-structured h3 {
+          font-size: 1rem;
+          margin-bottom: 0.65rem;
+        }
+
+        .pesquisa-ai-structured h4 {
+          font-size: 0.9rem;
+        }
+
+        .pesquisa-ai-list {
+          display: grid;
+          gap: 0.5rem;
+          margin: 0.65rem 0 0;
+          padding-left: 1.2rem;
+        }
+
+        .pesquisa-ai-question {
+          margin-top: 0.65rem;
+        }
+
+        .pesquisa-ai-question summary {
+          cursor: pointer;
+          font-weight: 800;
+        }
+
+        .pesquisa-ai-question-body,
+        .pesquisa-ai-complaints {
+          display: grid;
+          gap: 0.75rem;
+          margin-top: 0.8rem;
+        }
+
+        .pesquisa-ai-question-meta,
+        .pesquisa-ai-complaint-meta,
+        .pesquisa-ai-teams {
+          align-items: center;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.4rem;
+        }
+
+        .pesquisa-ai-complaint {
+          background: var(--secondary-bg);
+        }
+
+        .pesquisa-ai-complaint p {
+          line-height: 1.5;
+          margin-top: 0.45rem;
         }
 
         .pesquisa-ai-content > div:first-child strong,
@@ -1455,6 +1617,245 @@ export function AvaliacaoEncontroPage() {
         }
       `}</style>
     </main>
+  );
+}
+
+function StructuredAiReport({ result }: { result: PesquisaSatisfacaoRelatorioIAResultado }) {
+  const normalizedResult = normalizeAiReportForDisplay(result);
+  const general = normalizedResult.resumoGeral;
+
+  return (
+    <div className="pesquisa-ai-structured">
+      <section>
+        <h3>Visão executiva</h3>
+        <p>{general.sintese}</p>
+      </section>
+
+      <section>
+        <h3>Pontos fortes</h3>
+        <TextList items={general.pontosFortes} empty="Nenhum ponto forte sustentado pelas respostas." />
+      </section>
+
+      <section>
+        <h3>Principais problemas</h3>
+        <div className="pesquisa-ai-complaints">
+          {general.principaisProblemas.length === 0
+            ? <p>Nenhum ponto negativo recorrente identificado nas respostas.</p>
+            : general.principaisProblemas.map((problem, index) => (
+              <article className="pesquisa-ai-complaint" key={`${problem.tema}-${index}`}>
+                <div className="pesquisa-ai-complaint-meta">
+                  <h4>{problem.tema}</h4>
+                  <Badge tone="muted">~{problem.ocorrenciasAproximadas} relatos</Badge>
+                </div>
+                <p>{problem.resumo}</p>
+                <OriginTeamBadges teams={problem.equipesOrigem} />
+              </article>
+            ))}
+        </div>
+      </section>
+
+      <section>
+        <h3>Equipes de origem mais presentes nos pontos negativos</h3>
+        {general.equipesMaisCitadas.length === 0
+          ? <p>Nenhuma equipe de origem foi identificada nos pontos negativos.</p>
+          : (
+            <ul className="pesquisa-ai-list">
+              {general.equipesMaisCitadas.map((team) => (
+                <li key={team.equipe}>
+                  <strong>{team.equipe}</strong> — cerca de {team.ocorrenciasAproximadas} ocorrências. {team.contexto}
+                </li>
+              ))}
+            </ul>
+          )}
+      </section>
+
+      <section>
+        <h3>Análise por pergunta</h3>
+        {normalizedResult.perguntas.map((question) => (
+          <details className="pesquisa-ai-question" key={question.questionId ?? question.pergunta}>
+            <summary>{question.pergunta}</summary>
+            <div className="pesquisa-ai-question-body">
+              <div className="pesquisa-ai-question-meta">
+                <Badge tone="muted">{question.secao}</Badge>
+                <Badge>{question.quantidadeRespostas} respostas</Badge>
+              </div>
+              <p>{question.resumo}</p>
+              <div>
+                <h4>Pontos positivos</h4>
+                <TextList items={question.pontosPositivos} empty="Nenhum ponto positivo identificado." />
+              </div>
+              <div>
+                <h4>Pontos negativos</h4>
+                {question.pontosNegativos.length === 0
+                  ? <p>Nenhum ponto negativo identificado.</p>
+                  : (
+                    <div className="pesquisa-ai-complaints">
+                      {question.pontosNegativos.map((point, index) => (
+                        <article className="pesquisa-ai-complaint" key={`${point.ponto}-${index}`}>
+                          <div className="pesquisa-ai-complaint-meta">
+                            <strong>{point.ponto}</strong>
+                            <Badge tone="muted">~{point.ocorrenciasAproximadas} relatos</Badge>
+                            <Badge tone={point.recorrencia === 'recorrente' ? 'warning' : 'muted'}>
+                              {point.recorrencia}
+                            </Badge>
+                          </div>
+                          <p>{point.descricao}</p>
+                          <OriginTeamBadges teams={point.equipesOrigem} />
+                        </article>
+                      ))}
+                    </div>
+                  )}
+              </div>
+              <div>
+                <h4>Sugestões mencionadas nas respostas</h4>
+                <TextList
+                  items={question.sugestoesMencionadas}
+                  empty="Nenhuma sugestão de melhoria identificada nas respostas."
+                />
+              </div>
+            </div>
+          </details>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function asAiObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function asAiArray(value: unknown) {
+  return Array.isArray(value) ? value : [];
+}
+
+function asAiStringArray(value: unknown) {
+  return asAiArray(value).filter((item): item is string => typeof item === 'string' && !!item.trim());
+}
+
+function normalizeAiOriginTeams(value: unknown) {
+  return asAiArray(value)
+    .map((item) => {
+      const team = asAiObject(item);
+      const nome = typeof team.nome === 'string' ? team.nome : '';
+      const count = Number(team.ocorrenciasAproximadas);
+      return nome ? {
+        nome,
+        ocorrenciasAproximadas: Number.isFinite(count) ? count : 1,
+      } : null;
+    })
+    .filter((item): item is { nome: string; ocorrenciasAproximadas: number } => Boolean(item));
+}
+
+function normalizeAiReportForDisplay(value: unknown): PesquisaSatisfacaoRelatorioIAResultado {
+  const report = asAiObject(value);
+  const metadata = asAiObject(report.metadata);
+  const general = asAiObject(report.resumoGeral);
+  const questions = asAiArray(report.perguntas).map((item) => {
+    const question = asAiObject(item);
+    const negativePoints: PesquisaSatisfacaoRelatorioIAResultado['perguntas'][number]['pontosNegativos'] = [];
+    const seen = new Set<string>();
+    const addNegativePoint = (candidate: unknown, recurring = false) => {
+      const point = asAiObject(candidate);
+      const title = typeof point.ponto === 'string'
+        ? point.ponto
+        : typeof point.tema === 'string'
+          ? point.tema
+          : typeof candidate === 'string'
+            ? candidate
+            : '';
+      const key = title.trim().toLocaleLowerCase('pt-BR');
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      const count = Number(point.ocorrenciasAproximadas);
+      negativePoints.push({
+        ponto: title,
+        descricao: typeof point.descricao === 'string' ? point.descricao : title,
+        equipesOrigem: normalizeAiOriginTeams(point.equipesOrigem),
+        ocorrenciasAproximadas: Number.isFinite(count) ? count : 1,
+        recorrencia: point.recorrencia === 'recorrente' || recurring ? 'recorrente' : 'pontual',
+      });
+    };
+
+    // Compatibilidade com relatórios v5: reclamações continham as equipes de origem.
+    asAiArray(question.reclamacoes).forEach((point) => addNegativePoint(point));
+    asAiArray(question.pontosNegativos).forEach((point) => addNegativePoint(point));
+    asAiArray(question.pontosAtencaoRecorrentes).forEach((point) => addNegativePoint(point, true));
+
+    return {
+      questionId: typeof question.questionId === 'string' ? question.questionId : null,
+      pergunta: typeof question.pergunta === 'string' ? question.pergunta : 'Pergunta sem título',
+      secao: typeof question.secao === 'string' ? question.secao : 'Sem seção',
+      tipo: question.tipo as PesquisaSatisfacaoQuestion['type'],
+      quantidadeRespostas: Number(question.quantidadeRespostas) || 0,
+      resumo: typeof question.resumo === 'string' ? question.resumo : '',
+      pontosPositivos: asAiStringArray(question.pontosPositivos),
+      pontosNegativos: negativePoints,
+      sugestoesMencionadas: asAiStringArray(
+        question.sugestoesMencionadas ?? question.sugestoesDeMelhoria,
+      ),
+    };
+  });
+
+  return {
+    metadata: {
+      encontroId: String(metadata.encontroId ?? ''),
+      generatedAt: String(metadata.generatedAt ?? ''),
+      totalQuestions: Number(metadata.totalQuestions) || questions.length,
+      totalAnswers: Number(metadata.totalAnswers) || 0,
+      totalRespondents: Number(metadata.totalRespondents) || 0,
+      reportVersion: Number(metadata.reportVersion) || 1,
+      promptVersion: String(metadata.promptVersion ?? ''),
+    },
+    resumoGeral: {
+      sintese: typeof general.sintese === 'string' ? general.sintese : '',
+      pontosFortes: asAiStringArray(general.pontosFortes),
+      principaisProblemas: asAiArray(general.principaisProblemas).map((item) => {
+        const problem = asAiObject(item);
+        const count = Number(problem.ocorrenciasAproximadas);
+        return {
+          tema: typeof problem.tema === 'string' ? problem.tema : 'Ponto negativo',
+          resumo: typeof problem.resumo === 'string'
+            ? problem.resumo
+            : typeof problem.descricao === 'string'
+              ? problem.descricao
+              : '',
+          equipesOrigem: normalizeAiOriginTeams(problem.equipesOrigem),
+          ocorrenciasAproximadas: Number.isFinite(count) ? count : 1,
+        };
+      }),
+      equipesMaisCitadas: asAiArray(general.equipesMaisCitadas).map((item) => {
+        const team = asAiObject(item);
+        return {
+          equipe: typeof team.equipe === 'string' ? team.equipe : 'Equipe não identificada',
+          ocorrenciasAproximadas: Number(team.ocorrenciasAproximadas) || 1,
+          contexto: typeof team.contexto === 'string' ? team.contexto : '',
+        };
+      }),
+    },
+    perguntas: questions,
+  };
+}
+
+function TextList({ items = [], empty }: { items?: string[]; empty?: string }) {
+  if (items.length === 0) return empty ? <p>{empty}</p> : null;
+  return <ul className="pesquisa-ai-list">{items.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}</ul>;
+}
+
+function OriginTeamBadges({ teams = [] }: {
+  teams?: Array<{ nome: string; ocorrenciasAproximadas: number }>;
+}) {
+  if (teams.length === 0) return null;
+  return (
+    <div className="pesquisa-ai-teams">
+      {teams.map((team) => (
+        <Badge key={team.nome} tone="muted">
+          {team.nome}: ~{team.ocorrenciasAproximadas}
+        </Badge>
+      ))}
+    </div>
   );
 }
 
