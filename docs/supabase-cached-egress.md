@@ -163,9 +163,41 @@ Referências de custo: [Cloudflare R2](https://developers.cloudflare.com/r2/pric
 - Paginar as maiores listagens administrativas e substituir `select('*')` por colunas
   necessárias.
 
+#### Migração dos comprovantes
+
+A fase 2 adiciona o bucket privado `comprovantes` e passa a persistir referências no
+formato `private-storage://comprovantes/caminho`. A interface converte essas referências
+em URLs assinadas de 15 minutos somente quando o arquivo é exibido.
+
+Ordem segura de implantação:
+
+1. Aplicar a migration `20260630170000_private_comprovantes_bucket.sql`.
+2. Publicar o frontend que grava e entende referências privadas.
+3. Executar primeiro a simulação:
+
+   ```powershell
+   pnpm migrate:private-proofs
+   ```
+
+4. Conferir as quantidades e executar a cópia com atualização do banco:
+
+   ```powershell
+   pnpm migrate:private-proofs -- --apply
+   ```
+
+5. Validar leitura, download e exclusão em Compras, Minha Equipe e Visitação.
+6. Manter os objetos públicos por 7 a 14 dias. Somente depois, remover as origens:
+
+   ```powershell
+   pnpm migrate:private-proofs -- --apply --delete-source
+   ```
+
+O script exige `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`. O modo padrão é somente
+leitura. Ele é retomável, tolera objetos já copiados e não remove origens quando alguma
+linha falha.
+
 ### Se ainda exceder a franquia
 
 - Mover imagens públicas para R2.
 - Manter documentos sensíveis privados e entregar por URLs curtas.
 - Definir alertas em 60%, 80% e 90% da franquia mensal.
-

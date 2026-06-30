@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
+import { StorageLink } from '../../components/storage/StorageLink';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useDebounce } from '../../hooks/useDebounce';
 import { supabase } from '../../lib/supabase';
@@ -1222,14 +1223,14 @@ export function PedidosCamisetasPage() {
                           {item.modelo_nome} · Tamanho {item.tamanho}
                         </div>
                         {item.comprovante_url && (
-                          <a
-                            href={item.comprovante_url}
+                          <StorageLink
+                            reference={item.comprovante_url}
                             target="_blank"
                             rel="noreferrer"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.4rem', fontSize: '0.75rem', fontWeight: 600 }}
                           >
                             <FileText size={14} /> Ver recibo
-                          </a>
+                          </StorageLink>
                         )}
                       </div>
                       <span className="badge badge-primary" style={{ flexShrink: 0 }}>
@@ -1308,14 +1309,14 @@ export function PedidosCamisetasPage() {
                                 {item.pago ? 'Pago' : 'Pagamento pendente'}
                               </span>
                               {item.comprovante_url && (
-                                <a
-                                  href={item.comprovante_url}
+                                <StorageLink
+                                  reference={item.comprovante_url}
                                   target="_blank"
                                   rel="noreferrer"
                                   style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 600 }}
                                 >
                                   <FileText size={13} /> Ver comprovante
-                                </a>
+                                </StorageLink>
                               )}
                             </div>
                           )}
