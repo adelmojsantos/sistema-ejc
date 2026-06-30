@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
 import type { Palestra, PalestraFormData } from '../types/palestra';
 
 const TABLE = 'palestras';
@@ -70,13 +71,14 @@ export const palestraService = {
     },
 
     async uploadFoto(file: File): Promise<string> {
-        const fileExt = file.name.split('.').pop();
+        const optimizedFile = await optimizeImageForUpload(file);
+        const fileExt = getFileExtension(optimizedFile, 'webp');
         const fileName = `palestrante_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
         const filePath = `fotos/palestrantes/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
             .from('galeria')
-            .upload(filePath, file);
+            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
 
         if (uploadError) throw uploadError;
 

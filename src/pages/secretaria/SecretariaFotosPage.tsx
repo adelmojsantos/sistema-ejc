@@ -373,6 +373,8 @@ export function SecretariaFotosPage() {
                                         <img
                                             src={team.foto_url}
                                             alt=""
+                                            loading="lazy"
+                                            decoding="async"
                                             style={{
                                                 width: '100%',
                                                 height: '100%',

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { Equipe, EquipeFormData } from '../types/equipe';
+import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
 
 const TABLE = 'equipes';
 type ComprovanteTipo = 'taxas' | 'camisetas';
@@ -243,13 +244,14 @@ export const equipeService = {
     },
 
     async uploadFoto(equipeId: string, file: File): Promise<string> {
-        const fileExt = file.name.split('.').pop();
+        const optimizedFile = await optimizeImageForUpload(file);
+        const fileExt = getFileExtension(optimizedFile, 'webp');
         const fileName = `equipe_${equipeId}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `fotos/equipes/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
             .from('galeria')
-            .upload(filePath, file);
+            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
 
         if (uploadError) throw uploadError;
 
@@ -297,6 +299,9 @@ export const equipeService = {
     normalizeComprovantes,
 
     async uploadComprovante(equipeId: string, encontroId: string, file: File, tipo: ComprovanteTipo): Promise<string> {
+        if (file.size > 10 * 1024 * 1024) {
+            throw new Error('O comprovante deve ter no máximo 10 MB.');
+        }
         const fileExt = file.name.split('.').pop();
         const fileName = `comprovante_${tipo}_${equipeId}_${encontroId}_${Date.now()}.${fileExt}`;
         const filePath = `comprovantes/${tipo}/${fileName}`;
@@ -304,7 +309,10 @@ export const equipeService = {
         // Upload para o bucket 'galeria'
         const { error: uploadError } = await supabase.storage
             .from('galeria')
-            .upload(filePath, file, { upsert: true });
+            .upload(filePath, file, {
+                cacheControl: '31536000',
+                upsert: false,
+            });
 
         if (uploadError) throw uploadError;
 

@@ -333,7 +333,7 @@ export function VisitacaoPresencasPage() {
                     title={participante.foto_url ? 'Visualizar ou substituir foto' : 'Adicionar foto'}
                   >
                     {participante.foto_url
-                      ? <img src={participante.foto_url} alt={participante.nome} />
+                      ? <img src={participante.foto_url} alt={participante.nome} loading="lazy" decoding="async" />
                       : participante.nome.charAt(0).toUpperCase()}
                   </button>
                   <div>

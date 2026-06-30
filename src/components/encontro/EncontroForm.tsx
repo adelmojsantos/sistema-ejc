@@ -416,7 +416,10 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                                                 try {
                                                     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
                                                     const filePath = `taxas_${Date.now()}_${sanitizedName}`;
-                                                    const { error } = await supabase.storage.from('financeiro').upload(filePath, file);
+                                                    const { error } = await supabase.storage.from('financeiro').upload(filePath, file, {
+                                                        cacheControl: '31536000',
+                                                        upsert: false,
+                                                    });
                                                     if (error) throw error;
                                                     handleChange('pix_taxa_qrcode_url', filePath);
                                                     toast.success('QR Code de Taxas enviado!');
@@ -527,7 +530,10 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                                                 try {
                                                     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
                                                     const filePath = `camisetas_${Date.now()}_${sanitizedName}`;
-                                                    const { error } = await supabase.storage.from('financeiro').upload(filePath, file);
+                                                    const { error } = await supabase.storage.from('financeiro').upload(filePath, file, {
+                                                        cacheControl: '31536000',
+                                                        upsert: false,
+                                                    });
                                                     if (error) throw error;
                                                     handleChange('pix_camisetas_qrcode_url', filePath);
                                                     toast.success('QR Code de Camisetas enviado!');

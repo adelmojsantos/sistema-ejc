@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { VisitaGrupo, VisitaGrupoFormData, VisitaParticipacao, VisitaParticipacaoFormData, VisitaParticipacaoEnriched } from '../types/visitacao';
+import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
 
 export interface IntencaoCamisetaItem {
     id?: string;
@@ -52,11 +53,12 @@ export const visitacaoService = {
     },
 
     async uploadFotoGrupo(id: string, file: File): Promise<string> {
-        const fileExt = file.name.split('.').pop() || 'jpg';
+        const optimizedFile = await optimizeImageForUpload(file);
+        const fileExt = getFileExtension(optimizedFile, 'webp');
         const filePath = `fotos/duplas/${id}_${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
             .from('galeria')
-            .upload(filePath, file);
+            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
 
         if (uploadError) throw uploadError;
 
@@ -158,13 +160,14 @@ export const visitacaoService = {
     },
 
     async uploadFoto(participacaoId: string, file: File): Promise<string> {
-        const fileExt = file.name.split('.').pop();
+        const optimizedFile = await optimizeImageForUpload(file);
+        const fileExt = getFileExtension(optimizedFile, 'webp');
         const fileName = `${participacaoId}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `fotos/equipes/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
             .from('galeria')
-            .upload(filePath, file);
+            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
 
         if (uploadError) throw uploadError;
 
@@ -176,13 +179,14 @@ export const visitacaoService = {
     },
 
     async uploadFotoFamilia(visitaId: string, file: File): Promise<string> {
-        const fileExt = file.name.split('.').pop() || 'jpg';
+        const optimizedFile = await optimizeImageForUpload(file);
+        const fileExt = getFileExtension(optimizedFile, 'webp');
         const fileName = `${visitaId}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `fotos/visitacao/familias/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
             .from('galeria')
-            .upload(filePath, file);
+            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
 
         if (uploadError) throw uploadError;
 
@@ -300,12 +304,15 @@ export const visitacaoService = {
     },
 
     async uploadComprovanteIntencao(id: string, file: File): Promise<string> {
+        if (file.size > 10 * 1024 * 1024) {
+            throw new Error('O comprovante deve ter no máximo 10 MB.');
+        }
         const fileExt = file.name.split('.').pop() || 'arquivo';
         const filePath = `comprovantes/camisetas-intencoes/${id}_${Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
             .from('galeria')
-            .upload(filePath, file);
+            .upload(filePath, file, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
 
         if (uploadError) throw uploadError;
 
