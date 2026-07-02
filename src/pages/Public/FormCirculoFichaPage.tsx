@@ -13,24 +13,31 @@ import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import logoEjc from '../../assets/logo-ejc.svg';
+import { PesquisaSatisfacaoForm, pesquisaSatisfacaoCompleta } from '../../components/pesquisa-satisfacao/PesquisaSatisfacaoForm';
 import { ActionStepper, type ActionStep } from '../../components/ui/ActionStepper';
 import { GroupedDropdown } from '../../components/ui/GroupedDropdown';
 import { useCirculoAccess } from '../../hooks/useCirculoAccess';
 import { equipeService } from '../../services/equipeService';
 import { posEncontroService } from '../../services/posEncontroService';
+import { pesquisaEncontristaService } from '../../services/pesquisaEncontristaService';
 import type { Equipe } from '../../types/equipe';
 import type { PosEncontroFicha } from '../../types/posEncontro';
+import type { PesquisaEncontristaFluxo } from '../../types/pesquisaEncontrista';
+import type { PesquisaSatisfacaoRespostas } from '../../types/pesquisaSatisfacao';
 
 
 export default function FormCirculoFichaPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading, meta, logout } = useCirculoAccess();
+  const { isAuthenticated, isLoading, meta, token, logout } = useCirculoAccess();
 
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [fichaExistente, setFichaExistente] = useState<PosEncontroFicha | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [pesquisa, setPesquisa] = useState<PesquisaEncontristaFluxo | null>(null);
+  const [respostasPesquisa, setRespostasPesquisa] = useState<PesquisaSatisfacaoRespostas>({});
+  const [isSavingPesquisa, setIsSavingPesquisa] = useState(false);
 
   // Stepper state
   const [stepperStep, setStepperStep] = useState(1);
@@ -54,14 +61,17 @@ export default function FormCirculoFichaPage() {
   // Carrega equipes e ficha existente
   useEffect(() => {
     async function load() {
-      if (!meta) return;
+      if (!meta || !token) return;
       try {
-        const [eqs, participantes] = await Promise.all([
+        const [eqs, participantes, fluxoPesquisa] = await Promise.all([
           equipeService.listar(),
           posEncontroService.listarParticipantesCirculo(meta.encontro_id, meta.circulo_id),
+          pesquisaEncontristaService.obterFluxo(token),
         ]);
 
         setEquipes(eqs.filter(eq => eq.aparece_pos_encontro !== false));
+        setPesquisa(fluxoPesquisa);
+        setRespostasPesquisa(fluxoPesquisa.respostas ?? {});
 
         const meu = participantes.find(p => p.participacao.id === meta.participacao_id);
         if (meu?.ficha) {
@@ -92,7 +102,35 @@ export default function FormCirculoFichaPage() {
       }
     }
     load();
-  }, [meta]);
+  }, [meta, token]);
+
+  const handleSavePesquisa = async (status: 'rascunho' | 'enviado') => {
+    if (!token || !pesquisa) return;
+    if (status === 'enviado' && !pesquisaSatisfacaoCompleta(respostasPesquisa, pesquisa.perguntas)) {
+      toast.error('Preencha todas as respostas obrigatórias antes de continuar.');
+      return;
+    }
+
+    setIsSavingPesquisa(true);
+    try {
+      const result = await pesquisaEncontristaService.salvarPublico(token, respostasPesquisa, status);
+      setPesquisa(current => current ? {
+        ...current,
+        status: result.status,
+        respostas: result.respostas,
+        enviado_em: result.enviado_em,
+      } : current);
+      setRespostasPesquisa(result.respostas);
+      toast.success(status === 'enviado'
+        ? 'Pesquisa enviada! Agora preencha sua ficha pós-encontro.'
+        : 'Rascunho salvo.');
+    } catch (error) {
+      console.error('Erro ao salvar pesquisa do encontrista:', error);
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a pesquisa.');
+    } finally {
+      setIsSavingPesquisa(false);
+    }
+  };
 
   const handleSelectTeamDropdown = (teamId: string, index: number) => {
     const newPrefs = [...fichaDraft.preferencias];
@@ -201,6 +239,51 @@ export default function FormCirculoFichaPage() {
     );
   }
 
+  if (pesquisa?.publicada && pesquisa.status !== 'enviado') {
+    return (
+      <div className="pesquisa-public-shell fade-in">
+        <main className="pesquisa-public-main">
+          <header className="card pesquisa-public-header" style={{ padding: '1.25rem', textAlign: 'center' }}>
+            <img src={logoEjc} alt="Logo EJC" className="public-logo-img" style={{ height: 56, width: 'auto' }} />
+            <span style={{ display: 'block', color: 'var(--primary-color)', fontSize: '0.75rem', fontWeight: 900, marginTop: '0.75rem', textTransform: 'uppercase' }}>
+              Etapa 1 de 2 · Avaliação do encontro
+            </span>
+            <h1 style={{ fontSize: '1.45rem', margin: '0.3rem 0' }}>{pesquisa.encontro_nome}</h1>
+            <p style={{ color: 'var(--muted-text)', margin: 0 }}>
+              Olá, {meta?.nome_encontrista}. Depois da pesquisa, você escolherá as equipes em que deseja trabalhar.
+            </p>
+          </header>
+          <PesquisaSatisfacaoForm
+            respostas={respostasPesquisa}
+            questions={pesquisa.perguntas}
+            saving={isSavingPesquisa}
+            submitLabel="Enviar e continuar para a ficha"
+            onChange={setRespostasPesquisa}
+            onSaveDraft={() => handleSavePesquisa('rascunho')}
+            onSubmit={() => handleSavePesquisa('enviado')}
+          />
+        </main>
+        <style>{`
+          .pesquisa-public-shell {
+            background: var(--bg-color);
+            min-height: 100vh;
+            padding: 1.25rem;
+          }
+          .pesquisa-public-main {
+            display: grid;
+            gap: 1rem;
+            margin: 0 auto;
+            max-width: 920px;
+            width: 100%;
+          }
+          @media (max-width: 560px) {
+            .pesquisa-public-shell { padding: 0.75rem; }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   if (isSuccess) {
     return (
       <div className="fade-in" style={{ minHeight: '100vh', background: 'var(--bg-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
@@ -241,7 +324,7 @@ export default function FormCirculoFichaPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <img src={logoEjc} alt="Logo" className="public-logo-img" style={{ height: '32px', width: 'auto' }} />
           <div>
-            <h2 style={{ fontSize: '1rem', margin: 0 }}>Ficha Pós-Encontro</h2>
+            <h2 style={{ fontSize: '1rem', margin: 0 }}>Etapa 2 de 2 · Ficha Pós-Encontro</h2>
             <p style={{ fontSize: '0.75rem', opacity: 0.5, margin: 0 }}>{meta?.nome_encontrista}</p>
           </div>
         </div>

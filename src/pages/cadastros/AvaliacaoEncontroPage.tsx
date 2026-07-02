@@ -34,6 +34,7 @@ const typeLabels: Record<PesquisaSatisfacaoQuestionType, string> = {
   texto: 'Texto livre',
   nota: 'Nota 1 a 10',
   sim_nao: 'Sim ou Não',
+  sim_nao_texto: 'Sim ou Não + detalhe',
 };
 
 function emptyForm(encontroId = '', ordem = 1): PesquisaSatisfacaoPerguntaFormData {
@@ -702,7 +703,7 @@ export function AvaliacaoEncontroPage() {
                 value={formData.type}
                 onChange={(event) => setFormData((current) => ({ ...current, type: event.target.value as PesquisaSatisfacaoQuestionType }))}
               >
-                {Object.entries(typeLabels).map(([value, label]) => (
+                {Object.entries(typeLabels).filter(([value]) => value !== 'sim_nao_texto').map(([value, label]) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
               </select>

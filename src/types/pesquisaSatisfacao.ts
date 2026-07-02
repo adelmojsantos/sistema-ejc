@@ -1,6 +1,6 @@
 export type PesquisaSatisfacaoStatus = 'rascunho' | 'enviado' | 'pendente';
 export type PesquisaSatisfacaoOpcao = 'sim' | 'nao' | 'em_partes';
-export type PesquisaSatisfacaoQuestionType = 'sim_nao_partes' | 'texto' | 'nota' | 'sim_nao';
+export type PesquisaSatisfacaoQuestionType = 'sim_nao_partes' | 'texto' | 'nota' | 'sim_nao' | 'sim_nao_texto';
 
 export interface PesquisaSatisfacaoQuestion {
   id: string;

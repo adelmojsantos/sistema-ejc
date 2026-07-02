@@ -30,6 +30,10 @@ function questionAnswered(question: PesquisaSatisfacaoQuestion, resposta: Pesqui
   if (question.type === 'texto') return !!resposta?.texto?.trim();
   if (question.type === 'nota') return !!resposta?.nota;
   if (question.type === 'sim_nao') return !!resposta?.simNao;
+  if (question.type === 'sim_nao_texto') {
+    if (!resposta?.simNao) return false;
+    return resposta.simNao === 'nao' || !!resposta.texto?.trim();
+  }
   return false;
 }
 
@@ -54,6 +58,7 @@ function sectionComplete(section: { questions: PesquisaSatisfacaoQuestion[] }, r
   return section.questions.every((question) => questionAnswered(question, respostas[question.id]));
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function pesquisaSatisfacaoCompleta(
   respostas: PesquisaSatisfacaoRespostas,
   questions: PesquisaSatisfacaoQuestion[] = PESQUISA_SATISFACAO_QUESTIONS
@@ -489,6 +494,36 @@ function QuestionField({
             </button>
           ))}
         </div>
+      )}
+
+      {question.type === 'sim_nao_texto' && (
+        <>
+          <div className="pesquisa-options">
+            {([
+              ['sim', 'Sim'],
+              ['nao', 'Não'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`pesquisa-option ${resposta?.simNao === value ? 'is-selected' : ''}`}
+                disabled={disabled}
+                onClick={() => onChange({ simNao: value, ...(value === 'nao' ? { texto: '' } : {}) })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {resposta?.simNao === 'sim' && (
+            <textarea
+              className="form-input"
+              disabled={disabled}
+              value={resposta?.texto ?? ''}
+              onChange={(event) => onChange({ texto: event.target.value })}
+              placeholder="Conte um pouco mais..."
+            />
+          )}
+        </>
       )}
     </article>
   );

@@ -97,6 +97,16 @@ const CATEGORIES: CadastroCategory[] = [
     permission: ['modulo_cadastros', 'modulo_admin']
   },
   {
+    id: 'avaliacao-encontristas',
+    path: '/cadastros/avaliacao-encontristas',
+    label: 'Avaliação dos encontristas',
+    description: 'Perguntas respondidas pelos encontristas antes da ficha pós-encontro.',
+    icon: <ClipboardCheck size={34} />,
+    color: '#14b8a6',
+    available: true,
+    permission: ['modulo_cadastros', 'modulo_admin']
+  },
+  {
     id: 'cronograma',
     path: '/cadastros/cronograma',
     label: 'Cronograma',

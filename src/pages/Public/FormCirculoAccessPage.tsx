@@ -47,7 +47,7 @@ export default function FormCirculoAccessPage() {
         setCirculoNome(info.circulo_nome);
         setMediadores(info.mediadores);
         setParticipantes(info.participantes);
-      } catch (err) {
+      } catch {
         setInvalid(true);
       } finally {
         setIsLoadingInfo(false);
@@ -129,7 +129,7 @@ export default function FormCirculoAccessPage() {
             {circuloNome}
           </div>
 
-          <h1 style={{ fontSize: '1.5rem', marginBottom: '0.4rem' }}>Ficha Pós-Encontro</h1>
+          <h1 style={{ fontSize: '1.5rem', marginBottom: '0.4rem' }}>Avaliação e Ficha Pós-Encontro</h1>
 
           {mediadores.length > 0 && (
             <p style={{ opacity: 0.55, fontSize: '0.85rem' }}>
@@ -153,7 +153,7 @@ export default function FormCirculoAccessPage() {
             gap: '0.5rem',
           }}>
             <ShieldCheck size={16} />
-            Selecione seu nome e confirme sua identidade para acessar sua ficha.
+            Selecione seu nome e confirme sua identidade para responder à avaliação e acessar sua ficha.
           </div>
 
           {/* Seleção do participante */}
@@ -213,7 +213,7 @@ export default function FormCirculoAccessPage() {
                 <span>Verificando...</span>
               </div>
             ) : (
-              'Acessar minha Ficha'
+              'Acessar avaliação e ficha'
             )}
           </button>
         </form>
