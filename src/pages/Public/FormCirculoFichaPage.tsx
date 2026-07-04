@@ -63,9 +63,9 @@ export default function FormCirculoFichaPage() {
     async function load() {
       if (!meta || !token) return;
       try {
-        const [eqs, participantes, fluxoPesquisa] = await Promise.all([
+        const [eqs, ficha, fluxoPesquisa] = await Promise.all([
           equipeService.listar(),
-          posEncontroService.listarParticipantesCirculo(meta.encontro_id, meta.circulo_id),
+          posEncontroService.obterFichaPublica(token),
           pesquisaEncontristaService.obterFluxo(token),
         ]);
 
@@ -73,9 +73,7 @@ export default function FormCirculoFichaPage() {
         setPesquisa(fluxoPesquisa);
         setRespostasPesquisa(fluxoPesquisa.respostas ?? {});
 
-        const meu = participantes.find(p => p.participacao.id === meta.participacao_id);
-        if (meu?.ficha) {
-          const ficha = meu.ficha;
+        if (ficha) {
           const prefs = [...(ficha.pos_encontro_ficha_equipes ?? [])].sort(
             (a, b) => a.ordem_preferencia - b.ordem_preferencia
           );
@@ -185,7 +183,7 @@ export default function FormCirculoFichaPage() {
   });
 
   const handleSave = async () => {
-    if (!meta) return;
+    if (!token) return;
 
     const activePrefs = fichaDraft.preferencias.filter(Boolean);
     if (activePrefs.length !== 3) {
@@ -200,19 +198,13 @@ export default function FormCirculoFichaPage() {
     setIsSaving(true);
     try {
       const payload = {
-        encontro_id: meta.encontro_id,
-        participacao_id: meta.participacao_id,
         toca_instrumento: !!fichaDraft.toca_instrumento,
         instrumentos: fichaDraft.toca_instrumento ? (fichaDraft.instrumentos.trim() || null) : null,
         tem_carro: fichaDraft.tem_carro,
         tem_moto: fichaDraft.tem_moto,
         observacoes: fichaDraft.observacoes.trim() || null,
       };
-      const preferenciasPayload = fichaDraft.preferencias
-        .map((equipe_id, index) => ({ equipe_id, ordem_preferencia: index + 1 }))
-        .filter(p => p.equipe_id);
-
-      await posEncontroService.salvarFicha(payload, preferenciasPayload);
+      await posEncontroService.salvarFichaPublica(token, payload, activePrefs);
       toast.success('Ficha salva com sucesso!');
       setIsSuccess(true);
     } catch (err) {
