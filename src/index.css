@@ -1613,6 +1613,34 @@ input:checked+.theme-toggle-slider:before {
   overflow: hidden;
 }
 
+@media (max-width: 1100px) and (min-width: 641px) {
+  .pessoa-row {
+    grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.8fr) auto;
+    grid-template-areas:
+      "main contact actions"
+      "address address actions";
+    row-gap: 0.75rem;
+  }
+
+  .pessoa-row-main {
+    grid-area: main;
+  }
+
+  .pessoa-row-contact {
+    grid-area: contact;
+  }
+
+  .pessoa-row-address {
+    grid-area: address;
+  }
+
+  .pessoa-row-actions {
+    grid-area: actions;
+    align-self: stretch;
+    align-items: center;
+  }
+}
+
 .pessoa-row:hover {
   border-color: var(--primary-color);
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
@@ -1635,6 +1663,11 @@ input:checked+.theme-toggle-slider:before {
 
   .pessoa-row {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "main"
+      "contact"
+      "address"
+      "actions";
     align-items: stretch;
     border-radius: 8px;
     border: 1px solid var(--border-color);
@@ -1652,7 +1685,20 @@ input:checked+.theme-toggle-slider:before {
     border-color: var(--border-color);
   }
 
+  .pessoa-row-main {
+    grid-area: main;
+  }
+
+  .pessoa-row-contact {
+    grid-area: contact;
+  }
+
+  .pessoa-row-address {
+    grid-area: address;
+  }
+
   .pessoa-row-actions {
+    grid-area: actions;
     grid-column: auto;
     justify-content: flex-start;
   }

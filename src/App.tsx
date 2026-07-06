@@ -21,6 +21,7 @@ import { CirculosPage } from './pages/circulos/CirculosPage';
 import { CirculosPortalPage } from './pages/circulos/CirculosPortalPage';
 import { EncontroParticipantesPage } from './pages/cadastros/EncontroParticipantesPage';
 import { AvaliacaoEncontroPage } from './pages/cadastros/AvaliacaoEncontroPage';
+import { AvaliacaoEncontristasPage } from './pages/cadastros/AvaliacaoEncontristasPage';
 import { CronogramaEncontroPage } from './pages/cadastros/CronogramaEncontroPage';
 import { EncontrosPage } from './pages/cadastros/EncontrosPage';
 import { EquipesPage } from './pages/cadastros/EquipesPage';
@@ -444,6 +445,7 @@ function AnimatedRoutes() {
             <Route path="equipes" element={<EquipesPage />} />
             <Route path="montagem" element={<MontagemPage />} />
             <Route path="avaliacao" element={<AvaliacaoEncontroPage />} />
+            <Route path="avaliacao-encontristas" element={<AvaliacaoEncontristasPage />} />
             <Route path="cronograma" element={<CronogramaEncontroPage />} />
             <Route path="pos-encontros" element={
               <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_secretaria', 'modulo_admin']}>

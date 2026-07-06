@@ -372,6 +372,34 @@ export const posEncontroService = {
     return fichaCompleta as PosEncontroFicha;
   },
 
+  async obterFichaPublica(token: string): Promise<PosEncontroFicha | null> {
+    const { data, error } = await supabase.rpc('get_pos_encontro_ficha_publica', {
+      p_token: token,
+    });
+
+    if (error) throw error;
+    return data as PosEncontroFicha | null;
+  },
+
+  async salvarFichaPublica(
+    token: string,
+    payload: Omit<PosEncontroFichaFormData, 'encontro_id' | 'participacao_id'>,
+    equipeIds: string[]
+  ): Promise<PosEncontroFicha> {
+    const { data, error } = await supabase.rpc('salvar_pos_encontro_ficha_publica', {
+      p_token: token,
+      p_toca_instrumento: payload.toca_instrumento,
+      p_instrumentos: payload.instrumentos,
+      p_tem_carro: payload.tem_carro,
+      p_tem_moto: payload.tem_moto,
+      p_observacoes: payload.observacoes,
+      p_equipe_ids: equipeIds,
+    });
+
+    if (error) throw error;
+    return data as PosEncontroFicha;
+  },
+
   async processarFotoFicha(base64Image: string): Promise<{
     toca_instrumento: boolean;
     instrumentos: string | null;

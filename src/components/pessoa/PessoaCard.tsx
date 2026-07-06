@@ -71,7 +71,7 @@ export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardPr
             </div>
 
             {/* Contact Column */}
-            <div className="pessoa-row-col">
+            <div className="pessoa-row-col pessoa-row-contact">
                 <span className="pessoa-row-label">Contato</span>
                 <div className="pessoa-row-value-group">
                     <span className="pessoa-row-value">{formatTelefone(pessoa.telefone)}</span>
@@ -89,7 +89,7 @@ export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardPr
                     href={mapsUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="pessoa-row-col"
+                    className="pessoa-row-col pessoa-row-address"
                     style={{ textDecoration: 'none', color: 'var(--primary-color)' }}
                     title={fullAddress}
                 >
@@ -102,7 +102,7 @@ export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardPr
                     </span>
                 </a>
             ) : (
-                <div className="pessoa-row-col">
+                <div className="pessoa-row-col pessoa-row-address">
                     <span className="pessoa-row-label">Endereço</span>
                     <span className="pessoa-row-value">{fullAddress}</span>
                 </div>
