@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
+import { getFileExtension, optimizeImageForUpload } from '../utils/imageOptimization';
+import { uploadPublicImage } from './publicImageStorageService';
 import type { Inscricao, InscricaoFormData, InscricaoEnriched } from '../types/inscricao';
 import type { Pessoa } from '../types/pessoa';
 import type { RecreacaoDados } from '../types/recreacao';
@@ -238,17 +239,7 @@ export const inscricaoService = {
         const fileName = `${participacaoId}_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
         const filePath = `fotos/participantes/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-            .from('galeria')
-            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage
-            .from('galeria')
-            .getPublicUrl(filePath);
-
-        return data.publicUrl;
+        return uploadPublicImage(filePath, optimizedFile);
     },
 
     async atualizarFotoParticipante(participacaoId: string, fotoUrl: string | null): Promise<void> {

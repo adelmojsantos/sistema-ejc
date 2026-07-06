@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
+import { getFileExtension, optimizeImageForUpload } from '../utils/imageOptimization';
+import { uploadPublicImage } from './publicImageStorageService';
 import type { Palestra, PalestraFormData } from '../types/palestra';
 
 const TABLE = 'palestras';
@@ -76,16 +77,6 @@ export const palestraService = {
         const fileName = `palestrante_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
         const filePath = `fotos/palestrantes/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-            .from('galeria')
-            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage
-            .from('galeria')
-            .getPublicUrl(filePath);
-
-        return data.publicUrl;
+        return uploadPublicImage(filePath, optimizedFile);
     }
 };

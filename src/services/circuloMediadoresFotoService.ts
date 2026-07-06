@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
+import { getFileExtension, optimizeImageForUpload } from '../utils/imageOptimization';
+import { uploadPublicImage } from './publicImageStorageService';
 
 const TABLE = 'circulo_mediadores_fotos';
 
@@ -56,16 +57,6 @@ export const circuloMediadoresFotoService = {
         const randomId = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
         const filePath = `fotos/circulos-mediadores/mediadores_${randomId}_${Date.now()}.${extension}`;
 
-        const { error: uploadError } = await supabase.storage
-            .from('galeria')
-            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage
-            .from('galeria')
-            .getPublicUrl(filePath);
-
-        return data.publicUrl;
+        return uploadPublicImage(filePath, optimizedFile);
     }
 };

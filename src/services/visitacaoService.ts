@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import type { VisitaGrupo, VisitaGrupoFormData, VisitaParticipacao, VisitaParticipacaoFormData, VisitaParticipacaoEnriched } from '../types/visitacao';
 import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
 import { createPrivateStorageReference, removeStorageReference } from './privateStorageService';
+import { removePublicImage, uploadPublicImage } from './publicImageStorageService';
 
 export interface IntencaoCamisetaItem {
     id?: string;
@@ -57,14 +58,7 @@ export const visitacaoService = {
         const optimizedFile = await optimizeImageForUpload(file);
         const fileExt = getFileExtension(optimizedFile, 'webp');
         const filePath = `fotos/duplas/${id}_${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-            .from('galeria')
-            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage.from('galeria').getPublicUrl(filePath);
-        return data.publicUrl;
+        return uploadPublicImage(filePath, optimizedFile);
     },
 
     async atualizarFotoGrupo(id: string, fotoUrl: string | null): Promise<void> {
@@ -79,16 +73,9 @@ export const visitacaoService = {
     async removerFotoGrupo(id: string, fotoUrl: string): Promise<void> {
         await this.atualizarFotoGrupo(id, null);
 
-        try {
-            const marker = '/storage/v1/object/public/galeria/';
-            const storagePath = decodeURIComponent(new URL(fotoUrl).pathname.split(marker)[1] || '');
-            if (storagePath) {
-                const { error } = await supabase.storage.from('galeria').remove([storagePath]);
-                if (error) console.error('Erro ao remover foto da dupla:', error);
-            }
-        } catch (error) {
-            console.error('Erro ao identificar foto da dupla:', error);
-        }
+        await removePublicImage(fotoUrl).catch((error) => {
+            console.error('Erro ao remover foto da dupla:', error);
+        });
     },
 
     async excluirGrupo(id: string): Promise<void> {
@@ -166,17 +153,7 @@ export const visitacaoService = {
         const fileName = `${participacaoId}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `fotos/equipes/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-            .from('galeria')
-            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage
-            .from('galeria')
-            .getPublicUrl(filePath);
-
-        return data.publicUrl;
+        return uploadPublicImage(filePath, optimizedFile);
     },
 
     async uploadFotoFamilia(visitaId: string, file: File): Promise<string> {
@@ -185,17 +162,7 @@ export const visitacaoService = {
         const fileName = `${visitaId}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `fotos/visitacao/familias/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-            .from('galeria')
-            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage
-            .from('galeria')
-            .getPublicUrl(filePath);
-
-        return data.publicUrl;
+        return uploadPublicImage(filePath, optimizedFile);
     },
 
     async atualizarPessoa(id: string, updates: Record<string, unknown>): Promise<void> {

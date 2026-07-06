@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
+import { getFileExtension, optimizeImageForUpload } from '../utils/imageOptimization';
+import { uploadPublicImage } from './publicImageStorageService';
 import type { Encontro, EncontroFormData, QuadranteVisibilityConfig } from '../types/encontro';
 
 const TABLE = 'encontros';
@@ -120,19 +121,7 @@ export const encontroService = {
         const extension = getFileExtension(optimizedFile, 'webp');
         const filePath = `fotos/quadrante/${encontroId}-${Date.now()}.${extension}`;
 
-        const { error: uploadError } = await supabase.storage
-            .from('galeria')
-            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
-
-        if (uploadError) {
-            throw new Error(uploadError.message || 'Erro ao enviar a logo.');
-        }
-
-        const { data } = supabase.storage
-            .from('galeria')
-            .getPublicUrl(filePath);
-
-        return data.publicUrl;
+        return uploadPublicImage(filePath, optimizedFile);
     },
 
     async rotacionarTokenQuadrante(id: string): Promise<string> {

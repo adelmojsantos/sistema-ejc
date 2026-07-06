@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { Equipe, EquipeFormData } from '../types/equipe';
-import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
+import { getFileExtension, optimizeImageForUpload } from '../utils/imageOptimization';
+import { uploadPublicImage } from './publicImageStorageService';
 import { createPrivateStorageReference, removeStorageReference } from './privateStorageService';
 
 const TABLE = 'equipes';
@@ -250,17 +251,7 @@ export const equipeService = {
         const fileName = `equipe_${equipeId}_${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `fotos/equipes/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-            .from('galeria')
-            .upload(filePath, optimizedFile, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS);
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage
-            .from('galeria')
-            .getPublicUrl(filePath);
-
-        return data.publicUrl;
+        return uploadPublicImage(filePath, optimizedFile);
     },
     async atualizarFotoConfirmacao(confirmacaoId: string, fotoUrl: string): Promise<void> {
         const { error } = await supabase
