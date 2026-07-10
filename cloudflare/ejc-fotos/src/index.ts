@@ -3,6 +3,7 @@ interface Env {
   SUPABASE_URL: string;
   SUPABASE_PUBLISHABLE_KEY: string;
   ALLOWED_ORIGINS: string;
+  MIGRATION_TOKEN?: string;
 }
 
 interface SupabaseUser {
@@ -43,6 +44,11 @@ function mutationCorsHeaders(request: Request, env: Env): Headers {
 function isAllowedMutationOrigin(request: Request, env: Env): boolean {
   const origin = request.headers.get('origin');
   return origin !== null && allowedOrigins(env).has(origin);
+}
+
+function isMigrationRequest(request: Request, env: Env): boolean {
+  const token = request.headers.get('x-migration-token');
+  return Boolean(env.MIGRATION_TOKEN && token && token === env.MIGRATION_TOKEN);
 }
 
 function objectKey(url: URL): string | null {
@@ -231,11 +237,12 @@ export default {
     }
 
     const corsHeaders = mutationCorsHeaders(request, env);
-    if (!isAllowedMutationOrigin(request, env)) {
+    const migrationRequest = isMigrationRequest(request, env);
+    if (!migrationRequest && !isAllowedMutationOrigin(request, env)) {
       return json({ error: 'Origem não permitida.' }, 403, corsHeaders);
     }
 
-    const user = await authenticate(request, env);
+    const user = migrationRequest ? { id: 'migration' } : await authenticate(request, env);
     if (!user) {
       return json({ error: 'Sessão inválida ou expirada.' }, 401, corsHeaders);
     }

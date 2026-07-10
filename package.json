@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "worker:check": "wrangler deploy --dry-run --config cloudflare/ejc-fotos/wrangler.jsonc",
     "worker:deploy": "wrangler deploy --config cloudflare/ejc-fotos/wrangler.jsonc",
+    "migrate:public-images-r2": "node scripts/migrate-public-images-to-r2.mjs",
     "migrate:legacy-images": "node scripts/migrate-legacy-images.mjs",
     "migrate:private-proofs": "node scripts/migrate-private-comprovantes.mjs",
     "preview": "vite preview"
