@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingBag, CreditCard, Shirt, Settings, Warehouse } from 'lucide-react';
+import { ShoppingBag, CreditCard, Shirt, Settings, Warehouse, CircleDollarSign } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { HubCard } from '../../components/ui/HubCard';
 import { useAuth } from '../../hooks/useAuth';
@@ -26,6 +26,16 @@ const CATEGORIES: ComprasCategory[] = [
     color: '#f59e0b',
     available: true,
     permissions: ['modulo_compras', 'modulo_almoxarifado', 'almoxarifado_consultar', 'almoxarifado_gerenciar', 'almoxarifado_movimentar', 'modulo_coordenador']
+  },
+  {
+    id: 'financeiro',
+    path: '/compras/financeiro',
+    label: 'Financeiro',
+    description: 'Livro-caixa consolidado de receitas e despesas do encontro.',
+    icon: <CircleDollarSign size={34} />,
+    color: '#22c55e',
+    available: true,
+    permissions: ['modulo_compras', 'modulo_financeiro', 'financeiro_gerenciar']
   },
   {
     id: 'taxas',
@@ -65,7 +75,11 @@ export function ComprasPage() {
   const { hasPermission } = useAuth();
 
   const isHub = location.pathname === '/compras' || location.pathname === '/compras/';
-  const canAccessCompras = hasPermission('modulo_compras') || hasPermission('modulo_admin');
+  const canAccessCompras =
+    hasPermission('modulo_compras') ||
+    hasPermission('modulo_financeiro') ||
+    hasPermission('financeiro_gerenciar') ||
+    hasPermission('modulo_admin');
   const canAccessAlmoxarifado =
     hasPermission('modulo_almoxarifado') ||
     hasPermission('almoxarifado_consultar') ||

@@ -63,6 +63,35 @@
   line-height: 1.2;
 }
 
+.almox-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.almox-status-pill {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  padding: 0.35rem 0.6rem;
+}
+
+.almox-status-pill.success {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #34d399;
+}
+
+.almox-status-pill.warning {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fbbf24;
+}
+
 .almox-table-card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
@@ -175,6 +204,7 @@
   display: inline-flex;
   gap: 0.55rem;
   justify-content: center;
+  padding-inline: 0.75rem;
 }
 
 .almox-proof-button svg {
@@ -479,6 +509,59 @@
 
 .almox-form-grid .span-2 {
   grid-column: 1 / -1;
+}
+
+.almox-form-full {
+  grid-column: 1 / -1;
+}
+
+.financeiro-floating-dropdown {
+  overflow: visible;
+}
+
+.financeiro-floating-dropdown .form-input-wrapper {
+  width: 100%;
+}
+
+.financeiro-floating-dropdown .grouped-dropdown-trigger {
+  min-height: 56px;
+  padding: 1.4rem 1rem 0.45rem;
+}
+
+.financeiro-floating-dropdown .floating-label {
+  top: 0.7rem;
+  transform: translateY(-50%) scale(0.73);
+  color: var(--primary-color);
+}
+
+.financeiro-color-group {
+  overflow: visible;
+}
+
+.financeiro-color-group .form-input-wrapper {
+  background: var(--input-bg, rgba(15, 23, 42, 0.55));
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  gap: 0.65rem;
+  min-height: 56px;
+  padding: 0.45rem 0.65rem;
+}
+
+.financeiro-color-group .floating-input {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 1.2rem 0.3rem 0.2rem;
+}
+
+.financeiro-color-group .floating-label {
+  left: 6.9rem;
+}
+
+.almox-attachment-row {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
 }
 
 .almox-modal-actions {

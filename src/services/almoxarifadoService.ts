@@ -601,6 +601,23 @@ export const almoxarifadoService = {
     return normalizeCompra(compra as AlmoxarifadoCompra);
   },
 
+  async lancarFinanceiroCompra(compraId: string): Promise<AlmoxarifadoCompra> {
+    const { data, error } = await supabase.rpc('lancar_financeiro_almoxarifado_compra', {
+      p_compra_id: compraId,
+    });
+
+    if (error) throw error;
+
+    const { data: compra, error: fetchError } = await supabase
+      .from('almoxarifado_compras')
+      .select(compraSelect)
+      .eq('id', (data as AlmoxarifadoCompra).id)
+      .single();
+
+    if (fetchError) throw fetchError;
+    return normalizeCompra(compra as AlmoxarifadoCompra);
+  },
+
   async uploadComprovanteCompra(compraId: string, file: File): Promise<string> {
     if (file.size > MAX_COMPROVANTE_BYTES) {
       throw new Error('O comprovante deve ter no máximo 10 MB.');
@@ -628,9 +645,15 @@ export const almoxarifadoService = {
       }
 
       const comprovantes = [...normalizeComprovantes(compra.comprovantes_urls), ...uploadedReferences];
-      return await this.atualizarCompra(compra.id, {
+      const updatedCompra = await this.atualizarCompra(compra.id, {
         comprovantes_urls: comprovantes,
       });
+
+      if (updatedCompra.financeiro_lancado_em) {
+        return await this.lancarFinanceiroCompra(updatedCompra.id);
+      }
+
+      return updatedCompra;
     } catch (error) {
       await Promise.all(uploadedReferences.map((reference) => this.removerComprovanteCompra(reference).catch(() => undefined)));
       throw error;
@@ -648,6 +671,10 @@ export const almoxarifadoService = {
     await this.removerComprovanteCompra(reference).catch((error) => {
       console.error('Erro ao remover arquivo do comprovante:', error);
     });
+
+    if (updatedCompra.financeiro_lancado_em) {
+      return await this.lancarFinanceiroCompra(updatedCompra.id);
+    }
 
     return updatedCompra;
   },

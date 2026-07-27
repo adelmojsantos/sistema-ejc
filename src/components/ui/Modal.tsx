@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from 'react';
+import { type MouseEvent, type ReactNode, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -10,6 +10,8 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children, maxWidth = '500px' }: ModalProps) {
+    const overlayMouseDownRef = useRef(false);
+
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
@@ -26,11 +28,21 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = '500px' }: 
 
     if (!isOpen) return null;
 
+    const handleOverlayMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+        overlayMouseDownRef.current = event.target === event.currentTarget;
+    };
+
+    const handleOverlayClick = (event: MouseEvent<HTMLDivElement>) => {
+        if (overlayMouseDownRef.current && event.target === event.currentTarget) {
+            onClose();
+        }
+        overlayMouseDownRef.current = false;
+    };
+
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
             <div 
                 className="modal-content" 
-                onClick={(e) => e.stopPropagation()} 
                 style={{ maxWidth }}
             >
                 <div className="modal-header">

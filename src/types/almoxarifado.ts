@@ -156,6 +156,8 @@ export interface AlmoxarifadoCompra {
   valor_total_informado: number | null;
   comprovantes_urls: string[];
   estoque_lancado_em: string | null;
+  financeiro_lancamento_id: string | null;
+  financeiro_lancado_em: string | null;
   observacoes: string | null;
   criado_por_usuario_id: string | null;
   created_at: string;

@@ -241,7 +241,7 @@ export function GroupedDropdown<TValue extends string = string>({
           transform: rotate(180deg);
         }
         .grouped-dropdown-menu {
-          z-index: 4000;
+          z-index: 10001;
           overflow: auto;
           padding: 0.35rem;
           border: 1px solid var(--border-color);

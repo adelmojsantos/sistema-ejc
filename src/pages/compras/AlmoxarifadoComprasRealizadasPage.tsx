@@ -84,6 +84,9 @@ export function AlmoxarifadoComprasRealizadasPage() {
                     <strong>{new Date(`${compra.data_compra}T00:00:00`).toLocaleDateString('pt-BR')}</strong>
                     <span>{compra.itens?.length || 0} item(ns)</span>
                     <span>{money(compra.valor_total_calculado)}</span>
+                    <span className={compra.financeiro_lancado_em ? 'almox-status-pill success' : 'almox-status-pill warning'}>
+                      Financeiro {compra.financeiro_lancado_em ? 'lançado' : 'pendente'}
+                    </span>
                     <span><Receipt size={14} /> {compra.comprovantes_urls?.length || 0} comprovante(s)</span>
                   </div>
                 </div>

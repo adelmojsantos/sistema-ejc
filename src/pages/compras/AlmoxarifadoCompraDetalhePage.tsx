@@ -1,8 +1,9 @@
-import { ChevronLeft, FileText, Loader, PackagePlus, Trash2, Upload } from 'lucide-react';
+import { ChevronLeft, CircleDollarSign, FileText, Loader, PackagePlus, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
 import { StorageLink } from '../../components/storage/StorageLink';
+import { MobileFileUploadButton } from '../../components/ui/MobileFileUploadButton';
 import { almoxarifadoService } from '../../services/almoxarifadoService';
 import type { AlmoxarifadoCompra } from '../../types/almoxarifado';
 import './AlmoxarifadoPage.css';
@@ -25,6 +26,7 @@ export function AlmoxarifadoCompraDetalhePage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [launchingStock, setLaunchingStock] = useState(false);
+  const [launchingFinance, setLaunchingFinance] = useState(false);
   const [removingProof, setRemovingProof] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
@@ -60,8 +62,7 @@ export function AlmoxarifadoCompraDetalhePage() {
     );
   }, [compra, search]);
 
-  const handleUploadProofs = async (files: FileList | null) => {
-    const selectedFiles = Array.from(files || []);
+  const handleUploadProofs = async (selectedFiles: File[]) => {
     if (!compra || !selectedFiles.length || uploading) return;
 
     setUploading(true);
@@ -111,12 +112,28 @@ export function AlmoxarifadoCompraDetalhePage() {
         compra.comprovantes_urls || [],
       );
       setCompra(updatedCompra);
-      toast.success('Estoque atualizado.');
+      toast.success('Estoque e financeiro atualizados.');
     } catch (error) {
       console.error('Erro ao lançar estoque da compra:', error);
       toast.error('Não foi possível lançar os itens no estoque.');
     } finally {
       setLaunchingStock(false);
+    }
+  };
+
+  const handleLaunchFinance = async () => {
+    if (!compra || launchingFinance) return;
+
+    setLaunchingFinance(true);
+    try {
+      const updatedCompra = await almoxarifadoService.lancarFinanceiroCompra(compra.id);
+      setCompra(updatedCompra);
+      toast.success('Financeiro lançado.');
+    } catch (error) {
+      console.error('Erro ao lançar financeiro da compra:', error);
+      toast.error('Não foi possível lançar a compra no financeiro.');
+    } finally {
+      setLaunchingFinance(false);
     }
   };
 
@@ -145,6 +162,14 @@ export function AlmoxarifadoCompraDetalhePage() {
             <p className="text-muted" style={{ margin: '0.2rem 0 0' }}>
               {compra.itens?.length || 0} item(ns) · {money(compra.valor_total_calculado)}
             </p>
+            <div className="almox-status-row">
+              <span className={compra.estoque_lancado_em ? 'almox-status-pill success' : 'almox-status-pill warning'}>
+                Estoque {compra.estoque_lancado_em ? 'lançado' : 'pendente'}
+              </span>
+              <span className={compra.financeiro_lancado_em ? 'almox-status-pill success' : 'almox-status-pill warning'}>
+                Financeiro {compra.financeiro_lancado_em ? 'lançado' : 'pendente'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -168,17 +193,22 @@ export function AlmoxarifadoCompraDetalhePage() {
                 Lançar estoque
               </button>
             )}
-            <label className="btn-secondary btn-sm almox-proof-button" style={{ paddingInline: '0.5rem' }}>
-              {uploading ? <Loader className="animate-spin" size={16} /> : <Upload size={16} />}
-              Anexar comprovantes
-              <input
-                type="file"
-                multiple
-                accept="image/*,application/pdf"
-                disabled={uploading}
-                onChange={(event) => handleUploadProofs(event.target.files)}
-              />
-            </label>
+            {compra.estoque_lancado_em && !compra.financeiro_lancado_em && (
+              <button
+                type="button"
+                className="btn-primary btn-sm"
+                disabled={launchingFinance}
+                onClick={handleLaunchFinance}
+              >
+                {launchingFinance ? <Loader className="animate-spin" size={16} /> : <CircleDollarSign size={16} />}
+                Lançar financeiro
+              </button>
+            )}
+            <MobileFileUploadButton
+              label={uploading ? 'Anexando...' : 'Anexar comprovantes'}
+              disabled={uploading}
+              onFiles={handleUploadProofs}
+            />
           </div>
         </div>
         <div className="almox-history-proof-list">

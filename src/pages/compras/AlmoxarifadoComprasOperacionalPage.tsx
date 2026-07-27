@@ -1,10 +1,11 @@
-import { CheckSquare, ChevronLeft, FileText, Loader, Plus, Receipt, RefreshCw, ShoppingCart, Square, Upload, X } from 'lucide-react';
+import { CheckSquare, ChevronLeft, FileText, Loader, Plus, Receipt, RefreshCw, ShoppingCart, Square, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { CurrencyFormField } from '../../components/ui/CurrencyFormField';
 import { FormField } from '../../components/ui/FormField';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import { MobileFileUploadButton } from '../../components/ui/MobileFileUploadButton';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { almoxarifadoService } from '../../services/almoxarifadoService';
 import { encontroService } from '../../services/encontroService';
@@ -176,7 +177,7 @@ export function AlmoxarifadoComprasOperacionalPage() {
       );
       setItemDrafts({});
       setProofFiles([]);
-      toast.success('Compra finalizada.');
+      toast.success('Compra finalizada e lançada no financeiro.');
       await loadCompras();
     } catch (error) {
       await Promise.all(uploadedProofReferences.map((reference) =>
@@ -243,16 +244,12 @@ export function AlmoxarifadoComprasOperacionalPage() {
             {loading ? <Loader className="animate-spin" size={17} /> : <RefreshCw size={17} />} Atualizar
           </button>
           {compraAtual && (
-            <label className="btn-secondary almox-proof-button" style={{ paddingInline: '0.5rem' }}>
-              <Upload size={17} /> Comprovantes
-              <input
-                type="file"
-                multiple
-                accept="image/*,application/pdf"
-                disabled={saving}
-                onChange={(event) => setProofFiles(Array.from(event.target.files || []))}
-              />
-            </label>
+            <MobileFileUploadButton
+              label="Comprovantes"
+              className="btn-secondary almox-proof-button"
+              disabled={saving}
+              onFiles={(files) => setProofFiles((current) => [...current, ...files])}
+            />
           )}
           <button type="button" className="btn-primary" onClick={handleCreateCompra} disabled={saving || Boolean(compraAtual)}>
             <Plus size={17} /> Gerar lista

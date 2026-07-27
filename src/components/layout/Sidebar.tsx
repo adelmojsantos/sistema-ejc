@@ -94,6 +94,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     hasPermission('almoxarifado_consultar') ||
     hasPermission('almoxarifado_gerenciar') ||
     hasPermission('almoxarifado_movimentar') ||
+    hasPermission('modulo_financeiro') ||
+    hasPermission('financeiro_gerenciar') ||
     hasPermission('modulo_admin') ||
     hasPermission('modulo_coordenador');
 

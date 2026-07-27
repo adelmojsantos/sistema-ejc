@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useRef } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 
 interface ConfirmDialogProps {
     isOpen: boolean;
@@ -28,13 +29,25 @@ export function ConfirmDialog({
     isConfirmDisabled = false,
     maxWidth = '440px'
 }: ConfirmDialogProps) {
+    const overlayMouseDownRef = useRef(false);
+
     if (!isOpen) return null;
 
+    const handleOverlayMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+        overlayMouseDownRef.current = event.target === event.currentTarget;
+    };
+
+    const handleOverlayClick = (event: MouseEvent<HTMLDivElement>) => {
+        if (overlayMouseDownRef.current && event.target === event.currentTarget) {
+            onCancel();
+        }
+        overlayMouseDownRef.current = false;
+    };
+
     return (
-        <div className="modal-overlay" onClick={onCancel}>
+        <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
             <div
                 className="modal-content card"
-                onClick={(e) => e.stopPropagation()}
                 style={{
                     maxWidth,
                     width: 'calc(100% - 2rem)',
