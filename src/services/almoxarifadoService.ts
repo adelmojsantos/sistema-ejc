@@ -1,7 +1,10 @@
 import { supabase } from '../lib/supabase';
+import { getFileExtension, optimizeImageForUpload } from '../utils/imageOptimization';
+import { removePublicImage, uploadPublicImage } from './publicImageStorageService';
 import type {
   AlmoxarifadoCategoria,
   AlmoxarifadoCompra,
+  AlmoxarifadoCompraFinalizarItemInput,
   AlmoxarifadoCompraItem,
   AlmoxarifadoCompraItemUpdate,
   AlmoxarifadoItem,
@@ -22,6 +25,15 @@ const emptyToNull = (value: string) => {
 };
 
 const normalizeNumber = (value: unknown) => Number(value ?? 0);
+const MAX_COMPROVANTE_BYTES = 10 * 1024 * 1024;
+
+const normalizeComprovantes = (urls?: unknown): string[] => {
+  const list = Array.isArray(urls)
+    ? urls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    : [];
+
+  return list;
+};
 
 const saldoSelect = `
   *,
@@ -116,6 +128,7 @@ function normalizeCompra(row: AlmoxarifadoCompra): AlmoxarifadoCompra {
     ...row,
     valor_total_calculado: normalizeNumber(row.valor_total_calculado),
     valor_total_informado: row.valor_total_informado === null ? null : normalizeNumber(row.valor_total_informado),
+    comprovantes_urls: normalizeComprovantes(row.comprovantes_urls),
     itens: row.itens?.map(normalizeCompraItem) || [],
   };
 }
@@ -521,10 +534,16 @@ export const almoxarifadoService = {
       .single();
 
     if (fetchError) throw fetchError;
-    return normalizeCompra(compra as AlmoxarifadoCompra);
+    const normalizedCompra = normalizeCompra(compra as AlmoxarifadoCompra);
+
+    if (!normalizedCompra.itens?.length) {
+      return await this.atualizarCompra(compraId, { status: 'cancelada' });
+    }
+
+    return normalizedCompra;
   },
 
-  async atualizarCompra(id: string, payload: Partial<Pick<AlmoxarifadoCompra, 'mercado_fornecedor' | 'data_compra' | 'valor_total_informado' | 'observacoes' | 'status'>>): Promise<AlmoxarifadoCompra> {
+  async atualizarCompra(id: string, payload: Partial<Pick<AlmoxarifadoCompra, 'mercado_fornecedor' | 'data_compra' | 'valor_total_informado' | 'comprovantes_urls' | 'observacoes' | 'status'>>): Promise<AlmoxarifadoCompra> {
     const { data, error } = await supabase
       .from('almoxarifado_compras')
       .update(payload)
@@ -561,6 +580,76 @@ export const almoxarifadoService = {
     const item = normalizeCompraItem(data as unknown as AlmoxarifadoCompraItem);
     await this.atualizarTotalCompra(item.compra_id);
     return item;
+  },
+
+  async finalizarCompra(compraId: string, itens: AlmoxarifadoCompraFinalizarItemInput[], comprovantesUrls: string[] = []): Promise<AlmoxarifadoCompra> {
+    const { data, error } = await supabase.rpc('finalizar_compra_almoxarifado', {
+      p_compra_id: compraId,
+      p_itens: itens,
+      p_comprovantes_urls: comprovantesUrls,
+    });
+
+    if (error) throw error;
+
+    const { data: compra, error: fetchError } = await supabase
+      .from('almoxarifado_compras')
+      .select(compraSelect)
+      .eq('id', (data as AlmoxarifadoCompra).id)
+      .single();
+
+    if (fetchError) throw fetchError;
+    return normalizeCompra(compra as AlmoxarifadoCompra);
+  },
+
+  async uploadComprovanteCompra(compraId: string, file: File): Promise<string> {
+    if (file.size > MAX_COMPROVANTE_BYTES) {
+      throw new Error('O comprovante deve ter no máximo 10 MB.');
+    }
+
+    const uploadFile = file.type.startsWith('image/')
+      ? await optimizeImageForUpload(file, { maxDimension: 1600, quality: 0.82 })
+      : file;
+    const extension = getFileExtension(uploadFile, 'arquivo');
+    const filePath = `fotos/comprovantes/almoxarifado/compras/${compraId}/comprovante_${Date.now()}.${extension}`;
+
+    return uploadPublicImage(filePath, uploadFile);
+  },
+
+  async removerComprovanteCompra(reference: string): Promise<void> {
+    await removePublicImage(reference);
+  },
+
+  async anexarComprovantesCompra(compra: AlmoxarifadoCompra, files: File[]): Promise<AlmoxarifadoCompra> {
+    const uploadedReferences: string[] = [];
+
+    try {
+      for (const file of files) {
+        uploadedReferences.push(await this.uploadComprovanteCompra(compra.id, file));
+      }
+
+      const comprovantes = [...normalizeComprovantes(compra.comprovantes_urls), ...uploadedReferences];
+      return await this.atualizarCompra(compra.id, {
+        comprovantes_urls: comprovantes,
+      });
+    } catch (error) {
+      await Promise.all(uploadedReferences.map((reference) => this.removerComprovanteCompra(reference).catch(() => undefined)));
+      throw error;
+    }
+  },
+
+  async removerComprovanteAnexadoCompra(compra: AlmoxarifadoCompra, reference: string): Promise<AlmoxarifadoCompra> {
+    const comprovantes = normalizeComprovantes(compra.comprovantes_urls)
+      .filter((url) => url !== reference);
+
+    const updatedCompra = await this.atualizarCompra(compra.id, {
+      comprovantes_urls: comprovantes,
+    });
+
+    await this.removerComprovanteCompra(reference).catch((error) => {
+      console.error('Erro ao remover arquivo do comprovante:', error);
+    });
+
+    return updatedCompra;
   },
 
   async atualizarTotalCompra(compraId: string): Promise<void> {

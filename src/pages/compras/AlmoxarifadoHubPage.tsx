@@ -1,4 +1,4 @@
-import { ChevronLeft, ClipboardList, Package, ShoppingCart, Warehouse } from 'lucide-react';
+import { ChevronLeft, ClipboardList, Package, Receipt, ShoppingCart, Warehouse } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { HubCard } from '../../components/ui/HubCard';
 
@@ -54,6 +54,14 @@ export function AlmoxarifadoHubPage() {
           color="#ec4899"
           available
           onClick={() => navigate('/compras/almoxarifado/compras')}
+        />
+        <HubCard
+          label="Compras Realizadas"
+          description="Confira compras finalizadas, itens comprados e comprovantes anexados."
+          icon={<Receipt size={34} />}
+          color="#8b5cf6"
+          available
+          onClick={() => navigate('/compras/almoxarifado/compras-realizadas')}
         />
       </div>
     </section>

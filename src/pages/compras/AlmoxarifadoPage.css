@@ -150,6 +150,266 @@
   justify-content: flex-end;
 }
 
+.almox-purchase-toolbar {
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: auto;
+  padding: 1rem 1.15rem;
+}
+
+.almox-purchase-toolbar strong {
+  font-size: 1rem;
+}
+
+.almox-purchase-toolbar .text-muted {
+  font-size: 0.9rem;
+}
+
+.almox-purchase-toolbar .almox-actions {
+  justify-content: flex-end;
+}
+
+.almox-proof-button {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  gap: 0.55rem;
+  justify-content: center;
+}
+
+.almox-proof-button svg {
+  margin-right: 1px;
+}
+
+.almox-proof-button input {
+  display: none;
+}
+
+.almox-proof-chip {
+  align-items: center;
+  background: rgba(var(--primary-rgb), 0.08);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  color: var(--text-color);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-self: start;
+  margin-top: -0.65rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.almox-proof-chip span {
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.almox-proof-chip small {
+  color: var(--muted-text);
+  font-size: 0.75rem;
+}
+
+.almox-proof-chip button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted-text);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 0.1rem;
+}
+
+.almox-proof-chip button:hover:not(:disabled) {
+  color: var(--danger-color, #ef4444);
+}
+
+.almox-history-card {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.almox-section-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.almox-section-header h3 {
+  margin: 0;
+}
+
+.almox-section-header p {
+  margin: 0.2rem 0 0;
+}
+
+.almox-history-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.almox-history-item {
+  align-items: center;
+  background: rgba(var(--primary-rgb), 0.035);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  display: grid;
+  gap: 0.55rem 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.7rem 0.8rem;
+}
+
+.almox-history-item--stacked {
+  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.almox-history-summary {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.almox-history-toggle {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted-text);
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  width: 32px;
+}
+
+.almox-history-toggle:hover {
+  color: var(--primary-color);
+}
+
+.almox-history-title {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+}
+
+.almox-history-title strong {
+  font-size: 1rem;
+}
+
+.almox-history-title span {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.almox-history-item span,
+.almox-proof-status {
+  color: var(--muted-text);
+  font-size: 0.82rem;
+}
+
+.almox-proof-status {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+  font-weight: 800;
+}
+
+.almox-history-details {
+  border-top: 1px solid var(--border-color);
+  display: grid;
+  gap: 0.65rem;
+  grid-column: 1 / -1;
+  padding-top: 0.65rem;
+}
+
+.almox-history-proof-list {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.almox-proof-link {
+  align-items: center;
+  color: var(--primary-color);
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 800;
+  gap: 0.35rem;
+  text-decoration: none;
+}
+
+.almox-proof-pill {
+  align-items: center;
+  background: rgba(var(--primary-rgb), 0.08);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 0.45rem;
+  padding: 0.4rem 0.55rem 0.4rem 0.65rem;
+}
+
+.almox-proof-pill button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--muted-text);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 0.1rem;
+}
+
+.almox-proof-pill button:hover:not(:disabled) {
+  color: var(--danger-color, #ef4444);
+}
+
+.almox-history-items {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.almox-history-detail-row {
+  align-items: center;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: minmax(220px, 1fr) minmax(70px, 0.3fr) minmax(90px, 0.35fr) minmax(90px, 0.35fr);
+  padding: 0.55rem 0.65rem;
+}
+
+.almox-history-item-info {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.almox-history-detail-row > div:not(.almox-history-item-info) {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.almox-history-detail-row span {
+  color: var(--muted-text);
+  display: block;
+  font-size: 0.76rem;
+}
+
+.almox-history-detail-row strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.almox-history-search {
+  max-width: 320px;
+  min-height: 42px;
+}
+
 .almox-table .almox-actions {
   flex-wrap: nowrap;
   justify-content: flex-start;
@@ -434,23 +694,49 @@
 }
 
 .almox-purchase-item {
-  grid-template-columns: minmax(170px, 1.2fr) minmax(90px, 0.6fr) minmax(105px, 0.55fr) minmax(125px, 0.65fr) minmax(95px, 0.55fr) minmax(140px, 0.75fr) minmax(150px, 0.8fr) minmax(100px, 0.55fr) auto;
+  grid-template-columns: 44px minmax(170px, 1.2fr) minmax(90px, 0.6fr) minmax(105px, 0.55fr) minmax(150px, 0.75fr) minmax(200px, 0.95fr) minmax(110px, 0.55fr) auto;
 }
 
-.almox-check-option {
+.almox-row-checkbox {
   align-items: center;
-  color: var(--text-color);
+  align-self: center;
+  cursor: pointer;
   display: inline-flex;
-  font-size: 0.82rem;
-  font-weight: 800;
-  gap: 0.45rem;
-  white-space: nowrap;
+  height: 44px;
+  justify-content: center;
+  position: relative;
+  width: 44px;
 }
 
-.almox-check-option input {
-  accent-color: var(--primary-color);
-  height: 18px;
-  width: 18px;
+.almox-row-checkbox input[type="checkbox"] {
+  height: 0;
+  opacity: 0;
+  position: absolute;
+  width: 0;
+}
+
+.almox-row-checkbox .card-checkbox-indicator {
+  align-items: center;
+  color: var(--muted-text);
+  display: inline-flex;
+  height: 42px;
+  justify-content: center;
+  position: static;
+  transition: all 0.2s ease;
+  width: 42px;
+}
+
+.almox-row-checkbox:hover .card-checkbox-indicator {
+  color: var(--primary-color);
+}
+
+.almox-row-checkbox input[type="checkbox"]:checked + .card-checkbox-indicator {
+  color: var(--primary-color);
+}
+
+.almox-row-checkbox--disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .almox-inline-field {
@@ -458,10 +744,24 @@
   gap: 0.3rem;
 }
 
+.almox-inline-field .form-group {
+  margin-bottom: 0;
+}
+
+.almox-inline-field .form-input-wrapper {
+  width: 100%;
+}
+
 .almox-inline-field .form-input {
   font-size: 0.86rem;
-  min-height: 40px;
-  padding: 0.45rem 0.65rem;
+  min-height: 52px;
+  padding: 1.35rem 0.75rem 0.35rem;
+}
+
+.almox-inline-field .floating-label {
+  font-size: 0.68rem;
+  left: 0.75rem;
+  top: 0.42rem;
 }
 
 @media (max-width: 1100px) {
@@ -499,6 +799,20 @@
 
   .almox-toolbar {
     align-items: stretch;
+  }
+
+  .almox-purchase-toolbar {
+    grid-template-columns: 1fr;
+    padding: 0.9rem;
+  }
+
+  .almox-history-item {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .almox-history-detail-row {
+    grid-template-columns: 1fr;
   }
 
   .almox-actions,

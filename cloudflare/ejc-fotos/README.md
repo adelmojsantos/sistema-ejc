@@ -9,11 +9,13 @@ remoções a usuários autenticados no Supabase.
 - `GET|HEAD /fotos/*`: entrega pública das imagens.
 - `PUT /fotos/*`: envia uma imagem com sessão autenticada.
 - `DELETE /fotos/*`: remove uma imagem com sessão autenticada.
+- `GET|HEAD /comprovantes/*`: entrega comprovantes armazenados no R2.
+- `PUT /comprovantes/*`: envia imagem ou PDF de comprovante com sessão autenticada.
+- `DELETE /comprovantes/*`: remove comprovante com sessão autenticada.
 - `PUT /fotos/*` com `X-Migration-Token`: permite cópia controlada pelo
   script de migração.
 
-O Worker rejeita gravações fora de `fotos/`, impedindo que comprovantes ou
-outros documentos privados sejam armazenados no bucket público.
+O Worker rejeita gravações fora de `fotos/` e `comprovantes/`.
 
 ## Configuração
 

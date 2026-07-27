@@ -154,7 +154,8 @@ export interface AlmoxarifadoCompra {
   status: AlmoxarifadoCompraStatus;
   valor_total_calculado: number;
   valor_total_informado: number | null;
-  comprovante_url: string | null;
+  comprovantes_urls: string[];
+  estoque_lancado_em: string | null;
   observacoes: string | null;
   criado_por_usuario_id: string | null;
   created_at: string;
@@ -186,4 +187,8 @@ export interface AlmoxarifadoCompraItemUpdate {
   valor_unitario: number;
   mercado_fornecedor: string;
   observacoes: string;
+}
+
+export interface AlmoxarifadoCompraFinalizarItemInput extends AlmoxarifadoCompraItemUpdate {
+  id: string;
 }

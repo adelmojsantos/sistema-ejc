@@ -1,13 +1,14 @@
-import { ChevronLeft, Loader, Plus, Receipt, RefreshCw, ShoppingCart } from 'lucide-react';
+import { CheckSquare, ChevronLeft, FileText, Loader, Plus, Receipt, RefreshCw, ShoppingCart, Square, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import { CurrencyFormField } from '../../components/ui/CurrencyFormField';
+import { FormField } from '../../components/ui/FormField';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { almoxarifadoService } from '../../services/almoxarifadoService';
 import { encontroService } from '../../services/encontroService';
 import type { AlmoxarifadoCompra, AlmoxarifadoCompraItem, AlmoxarifadoCompraItemStatus } from '../../types/almoxarifado';
-import { formatFinancialWithSymbol, parseCurrency, parseToDigits, toCentString } from '../../utils/currencyUtils';
 import './AlmoxarifadoPage.css';
 
 const money = (value: number | null | undefined) =>
@@ -28,11 +29,14 @@ const statusLabels: Record<AlmoxarifadoCompraItemStatus, string> = {
 };
 
 interface CompraItemDraft {
+  status: AlmoxarifadoCompraItemStatus;
   quantidade_comprada: string;
-  valor_unitario: string;
+  valor_unitario: number;
   mercado_fornecedor: string;
   observacoes: string;
 }
+
+const parseQuantity = (value: string) => Number(value.replace(',', '.') || 0);
 
 export function AlmoxarifadoComprasOperacionalPage() {
   const navigate = useNavigate();
@@ -45,6 +49,7 @@ export function AlmoxarifadoComprasOperacionalPage() {
   const [saving, setSaving] = useState(false);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [itemDrafts, setItemDrafts] = useState<Record<string, CompraItemDraft>>({});
+  const [proofFiles, setProofFiles] = useState<File[]>([]);
 
   const loadCompras = useCallback(async () => {
     setLoading(true);
@@ -63,15 +68,25 @@ export function AlmoxarifadoComprasOperacionalPage() {
   }, [loadCompras]);
 
   const resumo = useMemo(() => {
-    const aberta = compras.find((compra) => compra.status === 'aberta') || compras[0] || null;
+    const aberta = compras.find((compra) => compra.status === 'aberta') || null;
     const itens = aberta?.itens || [];
+    const total = itens.reduce((sum, item) => {
+      const draft = itemDrafts[item.id];
+      const quantidadeComprada = draft ? parseQuantity(draft.quantidade_comprada) : item.quantidade_comprada;
+      const valorUnitario = draft ? draft.valor_unitario : item.valor_unitario;
+      const status = draft ? draft.status : item.status;
+      const shouldCount = status === 'comprou';
+
+      return shouldCount ? sum + quantidadeComprada * valorUnitario : sum;
+    }, 0);
+
     return {
       compraAberta: aberta,
-      pendentes: itens.filter((item) => item.status === 'pendente').length,
-      comprados: itens.filter((item) => item.status === 'comprou').length,
-      total: aberta?.valor_total_calculado || 0,
+      pendentes: itens.filter((item) => (itemDrafts[item.id]?.status || item.status) === 'pendente').length,
+      comprados: itens.filter((item) => (itemDrafts[item.id]?.status || item.status) === 'comprou').length,
+      total,
     };
-  }, [compras]);
+  }, [compras, itemDrafts]);
 
   const handleCreateCompra = async () => {
     if (!encontroSelecionadoId) {
@@ -98,8 +113,9 @@ export function AlmoxarifadoComprasOperacionalPage() {
 
   const getDraft = (item: AlmoxarifadoCompraItem): CompraItemDraft => {
     return itemDrafts[item.id] || {
+      status: item.status,
       quantidade_comprada: String(item.quantidade_comprada || item.quantidade_a_comprar || 0),
-      valor_unitario: formatFinancialWithSymbol(toCentString(item.valor_unitario || 0)),
+      valor_unitario: item.valor_unitario || 0,
       mercado_fornecedor: item.mercado_fornecedor || '',
       observacoes: item.observacoes || '',
     };
@@ -115,43 +131,61 @@ export function AlmoxarifadoComprasOperacionalPage() {
     }));
   };
 
-  const saveInlineItem = async (
-    item: AlmoxarifadoCompraItem,
-    patch: Partial<{
-      status: AlmoxarifadoCompraItemStatus;
-      quantidade_comprada: number;
-      valor_unitario: number;
-      mercado_fornecedor: string;
-      observacoes: string;
-    }> = {},
-  ) => {
-    if (busyItemId) return;
+  const updatePurchaseDraft = (item: AlmoxarifadoCompraItem, patch: Partial<CompraItemDraft>) => {
+    const nextDraft = {
+      ...getDraft(item),
+      ...patch,
+    };
+    const canKeepBought = parseQuantity(nextDraft.quantidade_comprada) > 0 && nextDraft.valor_unitario > 0;
 
-    const draft = getDraft(item);
-    const nextQuantidade = patch.quantidade_comprada ?? Number(draft.quantidade_comprada || 0);
-    const nextValor = patch.valor_unitario ?? parseCurrency(draft.valor_unitario);
-    const shouldAutoMarkAsBought =
-      patch.status === undefined
-      && (patch.quantidade_comprada !== undefined || patch.valor_unitario !== undefined)
-      && nextQuantidade > 0
-      && nextValor > 0;
-    const nextStatus = patch.status ?? (shouldAutoMarkAsBought ? 'comprou' : item.status);
+    updateDraft(item, {
+      ...patch,
+      status: canKeepBought ? nextDraft.status : 'pendente',
+    });
+  };
 
-    setBusyItemId(item.id);
+  const handleFinalizeCompra = async () => {
+    if (!compraAtual) return;
+    if (saving) return;
+
     setSaving(true);
+    setBusyItemId('finalizar');
+    const uploadedProofReferences: string[] = [];
+
     try {
-      await almoxarifadoService.atualizarCompraItem(item.id, {
-        status: nextStatus,
-        quantidade_comprada: nextStatus === 'comprou' ? nextQuantidade : 0,
-        valor_unitario: nextStatus === 'comprou' ? nextValor : 0,
-        mercado_fornecedor: patch.mercado_fornecedor ?? draft.mercado_fornecedor,
-        observacoes: patch.observacoes ?? draft.observacoes,
-      });
-      toast.success('Item atualizado.');
+      for (const proofFile of proofFiles) {
+        uploadedProofReferences.push(await almoxarifadoService.uploadComprovanteCompra(compraAtual.id, proofFile));
+      }
+
+      await almoxarifadoService.finalizarCompra(
+        compraAtual.id,
+        (compraAtual.itens || []).map((item) => {
+          const draft = getDraft(item);
+          const quantidadeComprada = parseQuantity(draft.quantidade_comprada);
+
+          return {
+            id: item.id,
+            status: draft.status,
+            quantidade_comprada: draft.status === 'comprou' ? quantidadeComprada : 0,
+            valor_unitario: draft.status === 'comprou' ? draft.valor_unitario : 0,
+            mercado_fornecedor: draft.mercado_fornecedor,
+            observacoes: draft.observacoes,
+          };
+        }),
+        uploadedProofReferences,
+      );
+      setItemDrafts({});
+      setProofFiles([]);
+      toast.success('Compra finalizada.');
       await loadCompras();
     } catch (error) {
-      console.error('Erro ao atualizar item da compra:', error);
-      toast.error('Não foi possível atualizar o item.');
+      await Promise.all(uploadedProofReferences.map((reference) =>
+        almoxarifadoService.removerComprovanteCompra(reference).catch((storageError) => {
+          console.error('Erro ao desfazer upload do comprovante:', storageError);
+        }),
+      ));
+      console.error('Erro ao finalizar compra:', error);
+      toast.error('Não foi possível finalizar a compra.');
     } finally {
       setSaving(false);
       setBusyItemId(null);
@@ -160,7 +194,7 @@ export function AlmoxarifadoComprasOperacionalPage() {
 
   const compraAtual = resumo.compraAberta;
   const diferencaNota = compraAtual?.valor_total_informado
-    ? compraAtual.valor_total_informado - compraAtual.valor_total_calculado
+    ? compraAtual.valor_total_informado - resumo.total
     : null;
 
   return (
@@ -197,7 +231,7 @@ export function AlmoxarifadoComprasOperacionalPage() {
         <article className="almox-stat-card"><span className="almox-stat-card__icon"><Receipt size={22} /></span><div><span>Total calculado</span><strong>{money(resumo.total)}</strong></div></article>
       </section>
 
-      <section className="card almox-toolbar">
+      <section className="card almox-toolbar almox-purchase-toolbar">
         <div>
           <strong>{compraAtual ? `Compra ${compraAtual.status}` : 'Nenhuma lista aberta'}</strong>
           <p className="text-muted" style={{ margin: '0.25rem 0 0' }}>
@@ -208,11 +242,39 @@ export function AlmoxarifadoComprasOperacionalPage() {
           <button type="button" className="btn-secondary" onClick={loadCompras} disabled={loading}>
             {loading ? <Loader className="animate-spin" size={17} /> : <RefreshCw size={17} />} Atualizar
           </button>
-          <button type="button" className="btn-primary" onClick={handleCreateCompra} disabled={saving}>
+          {compraAtual && (
+            <label className="btn-secondary almox-proof-button" style={{ paddingInline: '0.5rem' }}>
+              <Upload size={17} /> Comprovantes
+              <input
+                type="file"
+                multiple
+                accept="image/*,application/pdf"
+                disabled={saving}
+                onChange={(event) => setProofFiles(Array.from(event.target.files || []))}
+              />
+            </label>
+          )}
+          <button type="button" className="btn-primary" onClick={handleCreateCompra} disabled={saving || Boolean(compraAtual)}>
             <Plus size={17} /> Gerar lista
           </button>
+          {compraAtual && (
+            <button type="button" className="btn-primary" onClick={handleFinalizeCompra} disabled={saving}>
+              {saving ? <Loader className="animate-spin" size={17} /> : <CheckSquare size={17} />} Finalizar compra
+            </button>
+          )}
         </div>
       </section>
+
+      {proofFiles.length > 0 && (
+        <div className="almox-proof-chip">
+          <FileText size={16} />
+          <span>{proofFiles.length} comprovante(s) selecionado(s)</span>
+          {proofFiles.some((file) => file.type.startsWith('image/')) && <small>Imagens serão otimizadas ao finalizar</small>}
+          <button type="button" onClick={() => setProofFiles([])} disabled={saving} aria-label="Remover comprovantes selecionados">
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="card empty-state"><Loader className="animate-spin" /> Carregando lista...</div>
@@ -220,80 +282,76 @@ export function AlmoxarifadoComprasOperacionalPage() {
         <div className="card empty-state">Nenhuma lista de compras criada para este encontro.</div>
       ) : (
         <section className="almox-order-list">
-          {compraAtual.itens?.map((item) => (
-            <article key={item.id} className="card almox-order-item almox-purchase-item">
-              <div>
-                <strong>{item.item?.nome || 'Item'}</strong>
-                <small>{item.marca || item.item?.marca_preferida || 'Marca livre'} · {statusLabels[item.status]}</small>
-              </div>
-              <div><span>A comprar</span><strong>{formatQuantity(item.quantidade_a_comprar, item.item?.unidade?.sigla)}</strong></div>
-              <label className="almox-check-option">
-                <input
-                  type="checkbox"
-                  checked={item.status === 'comprou'}
-                  disabled={saving || !!busyItemId}
-                  onChange={(event) => saveInlineItem(item, { status: event.target.checked ? 'comprou' : 'pendente' })}
-                />
-                Comprou
-              </label>
-              <label className="almox-check-option">
-                <input
-                  type="checkbox"
-                  checked={item.status === 'nao_comprou'}
-                  disabled={saving || !!busyItemId}
-                  onChange={(event) => saveInlineItem(item, { status: event.target.checked ? 'nao_comprou' : 'pendente' })}
-                />
-                Não comprou
-              </label>
-              <div className="almox-inline-field">
-                <span>Qtd.</span>
-                <input
-                  className="form-input standard-input"
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  value={getDraft(item).quantidade_comprada}
-                  disabled={saving || !!busyItemId}
-                  onChange={(event) => updateDraft(item, { quantidade_comprada: event.target.value })}
-                  onBlur={() => saveInlineItem(item, { quantidade_comprada: Number(getDraft(item).quantidade_comprada || 0) })}
-                />
-              </div>
-              <div className="almox-inline-field">
-                <span>Unitário</span>
-                <input
-                  className="form-input standard-input"
-                  type="tel"
-                  value={getDraft(item).valor_unitario}
-                  disabled={saving || !!busyItemId}
-                  onChange={(event) => {
-                    const digits = parseToDigits(event.target.value);
-                    if (digits.length > 12) return;
-                    updateDraft(item, { valor_unitario: formatFinancialWithSymbol(digits) });
-                  }}
-                  onBlur={() => saveInlineItem(item, { valor_unitario: parseCurrency(getDraft(item).valor_unitario) })}
-                />
-              </div>
-              <div className="almox-inline-field">
-                <span>Mercado</span>
-                <input
-                  className="form-input standard-input"
-                  value={getDraft(item).mercado_fornecedor}
-                  disabled={saving || !!busyItemId}
-                  onChange={(event) => updateDraft(item, { mercado_fornecedor: event.target.value })}
-                  onBlur={() => saveInlineItem(item, { mercado_fornecedor: getDraft(item).mercado_fornecedor })}
-                />
-              </div>
-              <div><span>Total</span><strong>{money(item.valor_total)}</strong></div>
-              {busyItemId === item.id && <Loader className="animate-spin" size={18} />}
-            </article>
-          ))}
+          {compraAtual.itens?.map((item) => {
+            const draft = getDraft(item);
+            const itemTotal = parseQuantity(draft.quantidade_comprada) * draft.valor_unitario;
+            const canMarkBought = parseQuantity(draft.quantidade_comprada) > 0 && draft.valor_unitario > 0;
+
+            return (
+              <article key={item.id} className="card almox-order-item almox-purchase-item">
+                <label
+                  className={`almox-row-checkbox ${saving || !!busyItemId || !canMarkBought ? 'almox-row-checkbox--disabled' : ''}`}
+                  aria-label={item.status === 'comprou' ? 'Marcar como pendente' : 'Marcar como comprado'}
+                  title={canMarkBought ? (item.status === 'comprou' ? 'Comprado' : 'Marcar como comprado') : 'Informe quantidade e valor unitário'}
+                >
+                  <input
+                    type="checkbox"
+                    checked={draft.status === 'comprou'}
+                    disabled={saving || !!busyItemId || !canMarkBought}
+                    onChange={(event) => updateDraft(item, { status: event.target.checked ? 'comprou' : 'pendente' })}
+                  />
+                  <span className="card-checkbox-indicator">
+                    {draft.status === 'comprou' ? <CheckSquare size={22} /> : <Square size={22} />}
+                  </span>
+                </label>
+                <div>
+                  <strong>{item.item?.nome || 'Item'}</strong>
+                  <small>{item.marca || item.item?.marca_preferida || 'Marca livre'} · {statusLabels[draft.status]}</small>
+                </div>
+                <div><span>A comprar</span><strong>{formatQuantity(item.quantidade_a_comprar, item.item?.unidade?.sigla)}</strong></div>
+                <div className="almox-inline-field">
+                  <FormField
+                    label="Qtd."
+                    name={`quantidade-comprada-${item.id}`}
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={draft.quantidade_comprada}
+                    disabled={saving || !!busyItemId}
+                    onChange={(event) => updatePurchaseDraft(item, { quantidade_comprada: event.target.value })}
+                  />
+                </div>
+                <div className="almox-inline-field">
+                  <CurrencyFormField
+                    label="Unitário"
+                    name={`valor-unitario-${item.id}`}
+                    value={draft.valor_unitario}
+                    className="almox-inline-currency"
+                    disabled={saving || !!busyItemId}
+                    onChange={(value) => updatePurchaseDraft(item, { valor_unitario: value })}
+                  />
+                </div>
+                <div className="almox-inline-field">
+                  <FormField
+                    label="Local da compra"
+                    name={`mercado-fornecedor-${item.id}`}
+                    value={draft.mercado_fornecedor}
+                    disabled={saving || !!busyItemId}
+                    onChange={(event) => updateDraft(item, { mercado_fornecedor: event.target.value })}
+                  />
+                </div>
+                <div><span>Total</span><strong>{money(itemTotal)}</strong></div>
+                {busyItemId === item.id && <Loader className="animate-spin" size={18} />}
+              </article>
+            );
+          })}
         </section>
       )}
 
       {compraAtual && (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Conferência</h3>
-          <p className="text-muted">Total calculado: <strong>{money(compraAtual.valor_total_calculado)}</strong></p>
+          <p className="text-muted">Total calculado: <strong>{money(resumo.total)}</strong></p>
           {compraAtual.valor_total_informado !== null && (
             <p className="text-muted">Diferença para nota: <strong>{money(diferencaNota)}</strong></p>
           )}

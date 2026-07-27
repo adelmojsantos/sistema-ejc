@@ -113,7 +113,6 @@ export function AlmoxarifadoPedidosPage() {
   const [pedidoCancelamento, setPedidoCancelamento] = useState<AlmoxarifadoPedido | null>(null);
   const [pedidoForm, setPedidoForm] = useState(pedidoFormInicial);
   const [itemForm, setItemForm] = useState(itemFormInicial);
-  const [selectedPedido, setSelectedPedido] = useState<AlmoxarifadoPedido | null>(null);
 
   const loadBaseData = useCallback(async () => {
     try {
@@ -138,7 +137,6 @@ export function AlmoxarifadoPedidosPage() {
         status: statusFiltro,
       });
       setPedidos(statusFiltro ? data : data.filter((pedido) => pedido.status !== 'cancelado'));
-      setSelectedPedido((current) => current ? data.find((pedido) => pedido.id === current.id) || null : null);
     } catch (error) {
       console.error('Erro ao carregar pedidos:', error);
       toast.error('Não foi possível carregar os pedidos.');
@@ -174,7 +172,7 @@ export function AlmoxarifadoPedidosPage() {
 
     setSaving(true);
     try {
-      const pedido = await almoxarifadoService.criarPedido({
+      await almoxarifadoService.criarPedido({
         ...pedidoForm,
         encontro_id: encontroSelecionadoId,
         titulo,
@@ -183,7 +181,6 @@ export function AlmoxarifadoPedidosPage() {
       toast.success('Pedido criado.');
       setPedidoModalOpen(false);
       setPedidoForm(pedidoFormInicial);
-      setSelectedPedido(pedido);
       await loadPedidos();
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
@@ -194,7 +191,6 @@ export function AlmoxarifadoPedidosPage() {
   };
 
   const openAddItem = (pedido: AlmoxarifadoPedido) => {
-    setSelectedPedido(pedido);
     setItemForm({ ...itemFormInicial, pedido_id: pedido.id });
     setItemModalOpen(true);
   };
