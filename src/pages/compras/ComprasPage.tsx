@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingBag, CreditCard, Shirt, Settings } from 'lucide-react';
+import { ShoppingBag, CreditCard, Shirt, Settings, Warehouse, CircleDollarSign } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { HubCard } from '../../components/ui/HubCard';
 import { useAuth } from '../../hooks/useAuth';
@@ -13,9 +13,30 @@ interface ComprasCategory {
   icon: ReactNode;
   color: string;
   available: boolean;
+  permissions: string[];
 }
 
 const CATEGORIES: ComprasCategory[] = [
+  {
+    id: 'almoxarifado',
+    path: '/compras/almoxarifado',
+    label: 'Estoque / Almoxarifado',
+    description: 'Controle contínuo de itens, destinos, validade e movimentações.',
+    icon: <Warehouse size={34} />,
+    color: '#f59e0b',
+    available: true,
+    permissions: ['modulo_compras', 'modulo_almoxarifado', 'almoxarifado_consultar', 'almoxarifado_gerenciar', 'almoxarifado_movimentar', 'modulo_coordenador']
+  },
+  {
+    id: 'financeiro',
+    path: '/compras/financeiro',
+    label: 'Financeiro',
+    description: 'Livro-caixa consolidado de receitas e despesas do encontro.',
+    icon: <CircleDollarSign size={34} />,
+    color: '#22c55e',
+    available: true,
+    permissions: ['modulo_compras', 'modulo_financeiro', 'financeiro_gerenciar']
+  },
   {
     id: 'taxas',
     path: '/compras/taxas',
@@ -23,7 +44,8 @@ const CATEGORIES: ComprasCategory[] = [
     description: 'Gestão de pagamentos das taxas de inscrição por equipe.',
     icon: <CreditCard size={34} />,
     color: '#10b981',
-    available: true
+    available: true,
+    permissions: ['modulo_compras']
   },
   {
     id: 'camisetas',
@@ -32,7 +54,8 @@ const CATEGORIES: ComprasCategory[] = [
     description: 'Listagem geral, por equipe e resumo consolidado.',
     icon: <Shirt size={34} />,
     color: '#3b82f6',
-    available: true
+    available: true,
+    permissions: ['modulo_compras']
   },
   {
     id: 'configuracao',
@@ -41,7 +64,8 @@ const CATEGORIES: ComprasCategory[] = [
     description: 'Cadastrar modelos de camisetas e tamanhos disponíveis.',
     icon: <Settings size={34} />,
     color: '#6366f1',
-    available: true
+    available: true,
+    permissions: ['modulo_compras']
   }
 ];
 
@@ -51,9 +75,28 @@ export function ComprasPage() {
   const { hasPermission } = useAuth();
 
   const isHub = location.pathname === '/compras' || location.pathname === '/compras/';
+  const canAccessCompras =
+    hasPermission('modulo_compras') ||
+    hasPermission('modulo_financeiro') ||
+    hasPermission('financeiro_gerenciar') ||
+    hasPermission('modulo_admin');
+  const canAccessAlmoxarifado =
+    hasPermission('modulo_almoxarifado') ||
+    hasPermission('almoxarifado_consultar') ||
+    hasPermission('almoxarifado_gerenciar') ||
+    hasPermission('almoxarifado_movimentar') ||
+    hasPermission('modulo_coordenador');
+  const visibleCategories = CATEGORIES.filter((category) =>
+    category.permissions.some((permission) => hasPermission(permission))
+  );
+  const isAlmoxarifadoRoute = location.pathname.startsWith('/compras/almoxarifado');
 
   // Proteção interna
-  if (!hasPermission('modulo_compras') && !hasPermission('modulo_admin')) {
+  if (!canAccessCompras && !canAccessAlmoxarifado) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  if (!isHub && !isAlmoxarifadoRoute && !canAccessCompras) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -71,7 +114,7 @@ export function ComprasPage() {
       </header>
 
       <div className="cadastros-hub__grid" style={{ marginTop: '2rem' }}>
-        {CATEGORIES.map((category) => (
+        {visibleCategories.map((category) => (
           <HubCard
             key={category.id}
             label={category.label}

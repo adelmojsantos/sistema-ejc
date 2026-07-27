@@ -12,6 +12,7 @@ interface SupabaseUser {
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const PUBLIC_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+const ALLOWED_PREFIXES = ['fotos/', 'comprovantes/'];
 
 function json(data: unknown, status = 200, headers?: HeadersInit): Response {
   const responseHeaders = new Headers(headers);
@@ -61,7 +62,7 @@ function objectKey(url: URL): string | null {
   }
 
   if (
-    !key.startsWith('fotos/')
+    !ALLOWED_PREFIXES.some((prefix) => key.startsWith(prefix))
     || key.length > 1024
     || key.includes('\\')
     || key.includes('\0')
@@ -109,7 +110,7 @@ async function serveObject(
     : await env.FOTOS_BUCKET.get(key);
 
   if (!object) {
-    return json({ error: 'Imagem não encontrada.' }, 404, {
+    return json({ error: 'Arquivo não encontrado.' }, 404, {
       'access-control-allow-origin': '*',
     });
   }
@@ -144,19 +145,19 @@ async function uploadObject(
   const contentType = request.headers.get('content-type')?.split(';', 1)[0].trim() || '';
 
   if (!Number.isFinite(contentLength) || contentLength <= 0) {
-    return json({ error: 'O tamanho da imagem é obrigatório.' }, 411, corsHeaders);
+    return json({ error: 'O tamanho do arquivo é obrigatório.' }, 411, corsHeaders);
   }
 
   if (contentLength > MAX_UPLOAD_BYTES) {
-    return json({ error: 'A imagem deve ter no máximo 15 MB.' }, 413, corsHeaders);
+    return json({ error: 'O arquivo deve ter no máximo 15 MB.' }, 413, corsHeaders);
   }
 
-  if (!contentType.startsWith('image/')) {
-    return json({ error: 'Envie somente arquivos de imagem.' }, 415, corsHeaders);
+  if (!contentType.startsWith('image/') && contentType !== 'application/pdf') {
+    return json({ error: 'Envie somente imagens ou PDF.' }, 415, corsHeaders);
   }
 
   if (!request.body) {
-    return json({ error: 'O arquivo da imagem é obrigatório.' }, 400, corsHeaders);
+    return json({ error: 'O arquivo é obrigatório.' }, 400, corsHeaders);
   }
 
   const uploaded = await env.FOTOS_BUCKET.put(key, request.body, {

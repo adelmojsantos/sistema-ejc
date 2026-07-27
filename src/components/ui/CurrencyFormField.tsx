@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { FormField } from './FormField';
 import { formatFinancialWithSymbol, parseToDigits, toCentString } from '../../utils/currencyUtils';
 
-interface CurrencyFormFieldProps {
+interface CurrencyFormFieldProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'name'> {
     label: string;
     value: number;
     onChange: (value: number) => void;
@@ -23,28 +23,15 @@ export function CurrencyFormField({
     required,
     colSpan,
     placeholder = 'R$ 0,00',
-    name
+    name,
+    ...inputProps
 }: CurrencyFormFieldProps) {
-    // Local state for the display string (including R$)
-    const [displayValue, setDisplayValue] = useState(formatFinancialWithSymbol(toCentString(value)));
-
-    // Synchronize local state with prop value (e.g. when loading data)
-    useEffect(() => {
-        const propDigits = toCentString(value);
-        const currentDigits = parseToDigits(displayValue);
-        if (propDigits !== currentDigits) {
-            setDisplayValue(formatFinancialWithSymbol(propDigits));
-        }
-    }, [value]);
+    const displayValue = formatFinancialWithSymbol(toCentString(value));
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const digits = parseToDigits(e.target.value);
 
-        // Prevent extremely large numbers if desired (optional)
         if (digits.length > 12) return;
-
-        const formatted = formatFinancialWithSymbol(digits);
-        setDisplayValue(formatted);
 
         const numericValue = parseInt(digits || '0', 10) / 100;
         onChange(numericValue);
@@ -54,7 +41,7 @@ export function CurrencyFormField({
         <FormField
             label={label}
             name={name}
-            type="tel" // Use tel for numeric keypad on mobile
+            type="tel"
             value={displayValue}
             onChange={handleChange}
             error={error}
@@ -64,6 +51,7 @@ export function CurrencyFormField({
             placeholder={placeholder}
             autoComplete="off"
             floating={true}
+            {...inputProps}
         />
     );
 }

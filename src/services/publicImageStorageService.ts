@@ -46,12 +46,12 @@ export async function uploadPublicImage(path: string, file: File): Promise<strin
   });
 
   if (!response.ok) {
-    throw await responseError(response, 'Não foi possível enviar a imagem.');
+    throw await responseError(response, 'Não foi possível enviar o arquivo.');
   }
 
   const body = await response.json() as { url?: string };
   if (!body.url) {
-    throw new Error('O armazenamento não retornou o endereço da imagem.');
+    throw new Error('O armazenamento não retornou o endereço do arquivo.');
   }
 
   return body.url;
@@ -67,7 +67,10 @@ export async function removePublicImage(url: string): Promise<void> {
   }
 
   const workerUrl = new URL(PUBLIC_IMAGE_BASE_URL);
-  if (parsedUrl.origin === workerUrl.origin && parsedUrl.pathname.startsWith('/fotos/')) {
+  if (
+    parsedUrl.origin === workerUrl.origin
+    && (parsedUrl.pathname.startsWith('/fotos/') || parsedUrl.pathname.startsWith('/comprovantes/'))
+  ) {
     const response = await fetch(parsedUrl.toString(), {
       method: 'DELETE',
       headers: {

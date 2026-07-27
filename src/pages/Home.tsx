@@ -147,10 +147,15 @@ export function Home() {
     });
   }
 
-  if (hasPermission('modulo_compras') || hasPermission('modulo_admin')) {
+  if (
+    hasPermission('modulo_compras') ||
+    hasPermission('modulo_financeiro') ||
+    hasPermission('financeiro_gerenciar') ||
+    hasPermission('modulo_admin')
+  ) {
     dashboardActions.push({
       title: 'Compras',
-      description: 'Gestão de taxas e pedidos de camisetas.',
+      description: 'Gestão financeira, taxas, camisetas e almoxarifado.',
       path: '/compras',
       icon: <ShoppingBag size={36} />,
       accent: 'primary'

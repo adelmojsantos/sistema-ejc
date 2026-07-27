@@ -88,7 +88,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     menuItems.push({ to: '/admin/biblioteca', label: 'Biblioteca', icon: Folder });
   }
 
-  if (hasPermission('modulo_compras') || hasPermission('modulo_admin')) {
+  const hasComprasAccess =
+    hasPermission('modulo_compras') ||
+    hasPermission('modulo_almoxarifado') ||
+    hasPermission('almoxarifado_consultar') ||
+    hasPermission('almoxarifado_gerenciar') ||
+    hasPermission('almoxarifado_movimentar') ||
+    hasPermission('modulo_financeiro') ||
+    hasPermission('financeiro_gerenciar') ||
+    hasPermission('modulo_admin') ||
+    hasPermission('modulo_coordenador');
+
+  if (hasComprasAccess) {
     menuItems.push({ to: '/compras', label: 'Compras', icon: ShoppingBag });
   }
 

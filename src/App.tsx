@@ -70,6 +70,14 @@ import { ComprasPage } from './pages/compras/ComprasPage';
 import { TaxasPage } from './pages/compras/TaxasPage';
 import { PedidosCamisetasPage } from './pages/compras/PedidosCamisetasPage';
 import { ConfiguracaoCamisetasPage } from './pages/compras/ConfiguracaoCamisetasPage';
+import { AlmoxarifadoPage } from './pages/compras/AlmoxarifadoPage';
+import { AlmoxarifadoItensPage } from './pages/compras/AlmoxarifadoItensPage';
+import { AlmoxarifadoHubPage } from './pages/compras/AlmoxarifadoHubPage';
+import { AlmoxarifadoPedidosPage } from './pages/compras/AlmoxarifadoPedidosPage';
+import { AlmoxarifadoComprasOperacionalPage } from './pages/compras/AlmoxarifadoComprasOperacionalPage';
+import { AlmoxarifadoComprasRealizadasPage } from './pages/compras/AlmoxarifadoComprasRealizadasPage';
+import { AlmoxarifadoCompraDetalhePage } from './pages/compras/AlmoxarifadoCompraDetalhePage';
+import { FinanceiroPage } from './pages/compras/FinanceiroPage';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { useEffect, useRef } from 'react';
 import { useLoading } from './contexts/LoadingContext';
@@ -426,6 +434,14 @@ function AnimatedRoutes() {
           } />
 
           <Route path="/compras" element={<ComprasPage />}>
+            <Route path="almoxarifado" element={<PageTransition><AlmoxarifadoHubPage /></PageTransition>} />
+            <Route path="almoxarifado/estoque" element={<PageTransition><AlmoxarifadoPage /></PageTransition>} />
+            <Route path="almoxarifado/itens" element={<PageTransition><AlmoxarifadoItensPage /></PageTransition>} />
+            <Route path="almoxarifado/pedidos" element={<PageTransition><AlmoxarifadoPedidosPage /></PageTransition>} />
+            <Route path="almoxarifado/compras" element={<PageTransition><AlmoxarifadoComprasOperacionalPage /></PageTransition>} />
+            <Route path="almoxarifado/compras-realizadas" element={<PageTransition><AlmoxarifadoComprasRealizadasPage /></PageTransition>} />
+            <Route path="almoxarifado/compras-realizadas/:compraId" element={<PageTransition><AlmoxarifadoCompraDetalhePage /></PageTransition>} />
+            <Route path="financeiro" element={<PageTransition><FinanceiroPage /></PageTransition>} />
             <Route path="taxas" element={<PageTransition><TaxasPage /></PageTransition>} />
             <Route path="camisetas" element={<PageTransition><PedidosCamisetasPage /></PageTransition>} />
             <Route path="configuracao" element={<PageTransition><ConfiguracaoCamisetasPage /></PageTransition>} />
