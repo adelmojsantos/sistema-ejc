@@ -1,4 +1,4 @@
-import { Ban, ChevronLeft, CircleDollarSign, FileText, Loader, Plus, TrendingDown, TrendingUp } from 'lucide-react';
+import { Ban, ChevronLeft, CircleDollarSign, Edit2, FileText, Loader, Plus, TrendingDown, TrendingUp } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -45,9 +45,8 @@ const origemLabel = (origem: string) => {
 };
 
 const tipoLancamentoOptions: GroupedDropdownItem<FinanceiroTipo>[] = [
-  { value: 'receita', label: 'Receita' },
-  { value: 'despesa', label: 'Despesa' },
-  { value: 'ajuste', label: 'Ajuste' },
+  { value: 'receita', label: 'Entrada' },
+  { value: 'despesa', label: 'Saída' },
 ];
 
 interface DropdownFormFieldProps<TValue extends string> {
@@ -106,6 +105,7 @@ export function FinanceiroPage() {
   const [lancamentoModalOpen, setLancamentoModalOpen] = useState(false);
   const [categoriaModalOpen, setCategoriaModalOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<FinanceiroLancamento | null>(null);
+  const [editTarget, setEditTarget] = useState<FinanceiroLancamento | null>(null);
   const [lancamentoForm, setLancamentoForm] = useState<FinanceiroLancamentoManualFormData>(lancamentoFormInicial);
   const [comprovanteFiles, setComprovanteFiles] = useState<File[]>([]);
 
@@ -153,12 +153,34 @@ export function FinanceiroPage() {
       encontro_id: encontroSelecionadoId,
       data_lancamento: hoje(),
     });
+    setEditTarget(null);
+    setComprovanteFiles([]);
+    setLancamentoModalOpen(true);
+  };
+
+  const openEditarLancamento = (lancamento: FinanceiroLancamento) => {
+    if (lancamento.origem !== 'manual') {
+      toast.error('Lançamentos automáticos devem ser alterados no módulo de origem.');
+      return;
+    }
+
+    setEditTarget(lancamento);
+    setLancamentoForm({
+      encontro_id: lancamento.encontro_id,
+      categoria_id: lancamento.categoria_id || '',
+      tipo: lancamento.tipo,
+      descricao: lancamento.descricao,
+      valor: lancamento.valor,
+      data_lancamento: lancamento.data_lancamento,
+      observacoes: lancamento.observacoes || '',
+    });
     setComprovanteFiles([]);
     setLancamentoModalOpen(true);
   };
 
   const closeLancamentoModal = () => {
     setLancamentoModalOpen(false);
+    setEditTarget(null);
     setComprovanteFiles([]);
   };
 
@@ -177,16 +199,21 @@ export function FinanceiroPage() {
 
     setSaving(true);
     try {
-      const lancamento = await financeiroService.criarLancamentoManual({
+      const formData = {
         ...lancamentoForm,
         encontro_id: encontroSelecionadoId,
-      });
+        valor: lancamentoForm.valor,
+      };
+      const lancamento = editTarget
+        ? await financeiroService.atualizarLancamentoManual(editTarget.id, formData)
+        : await financeiroService.criarLancamentoManual(formData);
       if (comprovanteFiles.length > 0) {
         await financeiroService.anexarComprovantesLancamento(lancamento, comprovanteFiles);
       }
-      toast.success('Lançamento criado.');
+      toast.success(editTarget ? 'Lançamento atualizado.' : 'Lançamento criado.');
       setLancamentoModalOpen(false);
       setLancamentoForm(lancamentoFormInicial);
+      setEditTarget(null);
       setComprovanteFiles([]);
       await loadLancamentos();
     } catch (error) {
@@ -276,7 +303,7 @@ export function FinanceiroPage() {
             <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Módulo de Compras</p>
             <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Financeiro</h1>
             <p className="text-muted" style={{ margin: '0.2rem 0 0' }}>
-              Livro-caixa consolidado de receitas, despesas e ajustes do encontro.
+              Livro-caixa consolidado de entradas e saídas do encontro.
             </p>
           </div>
         </div>
@@ -306,11 +333,11 @@ export function FinanceiroPage() {
       <section className="almox-summary-grid">
         <div className="almox-stat-card">
           <span className="almox-stat-card__icon"><TrendingUp size={22} /></span>
-          <div><span>Receitas</span><strong>{money(resumo.receitas)}</strong></div>
+          <div><span>Entradas</span><strong>{money(resumo.receitas)}</strong></div>
         </div>
         <div className="almox-stat-card">
           <span className="almox-stat-card__icon"><TrendingDown size={22} /></span>
-          <div><span>Despesas</span><strong>{money(resumo.despesas)}</strong></div>
+          <div><span>Saídas</span><strong>{money(resumo.despesas)}</strong></div>
         </div>
         <div className="almox-stat-card">
           <span className="almox-stat-card__icon"><CircleDollarSign size={22} /></span>
@@ -344,7 +371,7 @@ export function FinanceiroPage() {
                     <td>{new Date(`${lancamento.data_lancamento}T00:00:00`).toLocaleDateString('pt-BR')}</td>
                     <td>
                       <span className={lancamento.tipo === 'receita' ? 'almox-status-pill success' : 'almox-status-pill warning'}>
-                        {lancamento.tipo}
+                        {lancamento.tipo === 'receita' ? 'Entrada' : 'Saída'}
                       </span>
                     </td>
                     <td>
@@ -365,13 +392,22 @@ export function FinanceiroPage() {
                     <td><strong>{money(lancamento.valor)}</strong></td>
                     <td>
                       {lancamento.origem === 'manual' ? (
-                        <button
-                          type="button"
-                          className="btn-secondary btn-sm"
-                          onClick={() => setCancelTarget(lancamento)}
-                        >
-                          <Ban size={15} /> Cancelar
-                        </button>
+                        <div className="almox-actions">
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={() => openEditarLancamento(lancamento)}
+                          >
+                            <Edit2 size={15} /> Editar
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary btn-sm"
+                            onClick={() => setCancelTarget(lancamento)}
+                          >
+                            <Ban size={15} /> Cancelar
+                          </button>
+                        </div>
                       ) : <span className="almox-muted">Automático</span>}
                     </td>
                   </tr>
@@ -382,7 +418,7 @@ export function FinanceiroPage() {
         </section>
       )}
 
-      <Modal isOpen={lancamentoModalOpen} onClose={closeLancamentoModal} title="Novo lançamento financeiro" maxWidth="720px">
+      <Modal isOpen={lancamentoModalOpen} onClose={closeLancamentoModal} title={editTarget ? 'Editar lançamento financeiro' : 'Novo lançamento financeiro'} maxWidth="720px">
         <form onSubmit={handleSalvarLancamento} className="almox-form">
           <div className="almox-form-grid two">
             <DropdownFormField<FinanceiroTipo>
@@ -466,7 +502,7 @@ export function FinanceiroPage() {
               Cancelar
             </button>
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar lançamento'}
+              {saving ? 'Salvando...' : editTarget ? 'Atualizar lançamento' : 'Salvar lançamento'}
             </button>
           </div>
         </form>

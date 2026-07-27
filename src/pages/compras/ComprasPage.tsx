@@ -31,7 +31,7 @@ const CATEGORIES: ComprasCategory[] = [
     id: 'financeiro',
     path: '/compras/financeiro',
     label: 'Financeiro',
-    description: 'Livro-caixa consolidado de receitas e despesas do encontro.',
+    description: 'Livro-caixa consolidado de entradas e saídas do encontro.',
     icon: <CircleDollarSign size={34} />,
     color: '#22c55e',
     available: true,

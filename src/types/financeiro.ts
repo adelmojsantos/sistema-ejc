@@ -1,5 +1,5 @@
-export type FinanceiroTipo = 'receita' | 'despesa' | 'ajuste';
-export type FinanceiroCategoriaTipo = 'receita' | 'despesa' | 'ajuste' | 'ambos';
+export type FinanceiroTipo = 'receita' | 'despesa';
+export type FinanceiroCategoriaTipo = 'receita' | 'despesa' | 'ambos';
 export type FinanceiroOrigem = 'manual' | 'taxa' | 'camiseta' | 'almoxarifado_compra' | 'minimercado';
 export type FinanceiroStatus = 'ativo' | 'cancelado';
 
@@ -38,7 +38,6 @@ export interface FinanceiroLancamento {
 export interface FinanceiroResumo {
   receitas: number;
   despesas: number;
-  ajustes: number;
   saldo: number;
 }
 

@@ -177,6 +177,21 @@ export const financeiroService = {
     return normalizeLancamento(data as FinanceiroLancamento);
   },
 
+  async atualizarLancamentoManual(id: string, formData: FinanceiroLancamentoManualFormData): Promise<FinanceiroLancamento> {
+    const { data, error } = await supabase.rpc('atualizar_financeiro_lancamento_manual', {
+      p_lancamento_id: id,
+      p_categoria_id: formData.categoria_id || null,
+      p_tipo: formData.tipo,
+      p_descricao: formData.descricao,
+      p_valor: formData.valor,
+      p_data_lancamento: formData.data_lancamento || new Date().toISOString().slice(0, 10),
+      p_observacoes: formData.observacoes,
+    });
+
+    if (error) throw error;
+    return normalizeLancamento(data as FinanceiroLancamento);
+  },
+
   calcularResumo(lancamentos: FinanceiroLancamento[]): FinanceiroResumo {
     const receitas = lancamentos
       .filter((lancamento) => lancamento.tipo === 'receita')
@@ -184,15 +199,11 @@ export const financeiroService = {
     const despesas = lancamentos
       .filter((lancamento) => lancamento.tipo === 'despesa')
       .reduce((sum, lancamento) => sum + lancamento.valor, 0);
-    const ajustes = lancamentos
-      .filter((lancamento) => lancamento.tipo === 'ajuste')
-      .reduce((sum, lancamento) => sum + lancamento.valor, 0);
 
     return {
       receitas,
       despesas,
-      ajustes,
-      saldo: receitas + ajustes - despesas,
+      saldo: receitas - despesas,
     };
   },
 };

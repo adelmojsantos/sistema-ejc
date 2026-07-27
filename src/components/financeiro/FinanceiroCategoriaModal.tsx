@@ -32,16 +32,14 @@ const initialForm: FinanceiroCategoriaFormState = {
 };
 
 const tipoOptions: GroupedDropdownItem<FinanceiroCategoriaTipo>[] = [
-  { value: 'receita', label: 'Receita' },
-  { value: 'despesa', label: 'Despesa' },
-  { value: 'ajuste', label: 'Ajuste' },
+  { value: 'receita', label: 'Entrada' },
+  { value: 'despesa', label: 'Saída' },
   { value: 'ambos', label: 'Todos os tipos' },
 ];
 
 const tipoLabel = (tipo: FinanceiroCategoriaTipo) => {
-  if (tipo === 'receita') return 'Receita';
-  if (tipo === 'despesa') return 'Despesa';
-  if (tipo === 'ajuste') return 'Ajuste';
+  if (tipo === 'receita') return 'Entrada';
+  if (tipo === 'despesa') return 'Saída';
   return 'Todos os tipos';
 };
 
@@ -82,7 +80,7 @@ export function FinanceiroCategoriaModal({
       <div className="almox-category-header">
         <div>
           <strong>Classifique os lançamentos do financeiro</strong>
-          <p className="text-muted">Use categorias para separar receitas, despesas e ajustes no livro-caixa.</p>
+          <p className="text-muted">Use categorias para separar entradas e saídas no livro-caixa.</p>
         </div>
         <button
           type="button"

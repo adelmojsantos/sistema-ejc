@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS public.financeiro_categorias (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   encontro_id uuid REFERENCES public.encontros(id) ON DELETE CASCADE,
   nome text NOT NULL,
-  tipo text NOT NULL CHECK (tipo IN ('receita', 'despesa', 'ajuste', 'ambos')),
+  tipo text NOT NULL CHECK (tipo IN ('receita', 'despesa', 'ambos')),
   cor text,
   ativo boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS public.financeiro_lancamentos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   encontro_id uuid NOT NULL REFERENCES public.encontros(id) ON DELETE CASCADE,
   categoria_id uuid REFERENCES public.financeiro_categorias(id) ON DELETE SET NULL,
-  tipo text NOT NULL CHECK (tipo IN ('receita', 'despesa', 'ajuste')),
+  tipo text NOT NULL CHECK (tipo IN ('receita', 'despesa')),
   origem text NOT NULL DEFAULT 'manual' CHECK (origem IN ('manual', 'taxa', 'camiseta', 'almoxarifado_compra', 'minimercado')),
   origem_id uuid,
   descricao text NOT NULL,
@@ -126,10 +126,10 @@ ADD COLUMN IF NOT EXISTS financeiro_lancamento_id uuid REFERENCES public.finance
 ADD COLUMN IF NOT EXISTS financeiro_lancado_em timestamptz;
 
 COMMENT ON TABLE public.financeiro_categorias IS
-'Categorias usadas para classificar receitas e despesas do encontro.';
+'Categorias usadas para classificar entradas e saídas do encontro.';
 
 COMMENT ON TABLE public.financeiro_lancamentos IS
-'Livro-caixa unificado do encontro, com receitas, despesas e ajustes.';
+'Livro-caixa unificado do encontro, com entradas e saídas.';
 
 COMMENT ON COLUMN public.financeiro_lancamentos.origem IS
 'Origem funcional do lançamento para rastreabilidade e prevenção de duplicidade.';
@@ -138,7 +138,7 @@ COMMENT ON COLUMN public.almoxarifado_compras.financeiro_lancamento_id IS
 'Lançamento financeiro gerado pela finalização desta compra.';
 
 COMMENT ON COLUMN public.almoxarifado_compras.financeiro_lancado_em IS
-'Momento em que a compra gerou despesa no financeiro.';
+'Momento em que a compra gerou saída no financeiro.';
 
 GRANT EXECUTE ON FUNCTION public.can_access_financeiro() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.can_manage_financeiro() TO authenticated;
