@@ -115,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     menuItems.push({ to: '/ligacao', label: 'Ligação', icon: Mail });
   }
 
-  if (hasPermission('modulo_coordenador') || userParticipacao?.coordenador) {
+  if (hasPermission('modulo_coordenador') && userParticipacao?.coordenador) {
     menuItems.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe', icon: Users2 });
   }
 

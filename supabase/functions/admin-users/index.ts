@@ -28,6 +28,19 @@ interface PersonSearchItem {
   comunidade: string | null;
 }
 
+interface FolderCoordinatorAccessItem {
+  participacao_id: string;
+  pessoa_id: string;
+  nome_completo: string;
+  email: string | null;
+  equipe_id: string | null;
+  equipe_nome: string | null;
+  user_id: string | null;
+  possui_usuario: boolean;
+  possui_perfil: boolean;
+  temporary_password: boolean | null;
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -109,6 +122,82 @@ async function getDirigenciaAccessStatus(adminClient: ReturnType<typeof createCl
     todos_prontos: acessos.length > 0 && acessos.every((acesso) => acesso.possui_acesso),
     pendentes: acessos.filter((acesso) => !acesso.possui_acesso).length,
     sem_email: acessos.filter((acesso) => !acesso.email).length,
+  };
+}
+
+async function getFolderCoordinatorsAccessStatus(
+  adminClient: ReturnType<typeof createClient>,
+  encontroId: string,
+  grupoId?: string | null
+) {
+  const { data: participacoes, error: participacoesError } = await adminClient
+    .from('participacoes')
+    .select('id, pessoa_id, equipe_id, pessoas(nome_completo, email), equipes(nome)')
+    .eq('encontro_id', encontroId)
+    .eq('coordenador', true);
+
+  if (participacoesError) {
+    throw new Error('Não foi possível consultar os coordenadores do encontro.');
+  }
+
+  const { data: profiles, error: profilesError } = await adminClient
+    .from('profiles')
+    .select('id, email, temporary_password');
+
+  if (profilesError) {
+    throw new Error('Não foi possível consultar os acessos existentes.');
+  }
+
+  const profilesByEmail = new Map(
+    (profiles ?? []).map((profile) => [profile.email.toLowerCase(), profile])
+  );
+  const profileIds = (profiles ?? []).map((profile) => profile.id);
+
+  const { data: userGroups, error: userGroupsError } = profileIds.length > 0 && grupoId
+    ? await adminClient
+        .from('usuario_grupos')
+        .select('usuario_id, grupo_id, encontro_id')
+        .in('usuario_id', profileIds)
+        .eq('grupo_id', grupoId)
+        .eq('encontro_id', encontroId)
+    : { data: [], error: null };
+
+  if (userGroupsError) {
+    throw new Error('Não foi possível consultar os perfis dos coordenadores.');
+  }
+
+  const grantedUserIds = new Set((userGroups ?? []).map((userGroup) => userGroup.usuario_id));
+
+  const coordenadores: FolderCoordinatorAccessItem[] = (participacoes ?? []).map((participacao) => {
+    const pessoa = Array.isArray(participacao.pessoas) ? participacao.pessoas[0] : participacao.pessoas;
+    const equipe = Array.isArray(participacao.equipes) ? participacao.equipes[0] : participacao.equipes;
+    const email = pessoa?.email?.trim() || null;
+    const profile = email ? profilesByEmail.get(email.toLowerCase()) : null;
+
+    return {
+      participacao_id: participacao.id,
+      pessoa_id: participacao.pessoa_id,
+      nome_completo: pessoa?.nome_completo || 'Pessoa sem nome',
+      email,
+      equipe_id: participacao.equipe_id,
+      equipe_nome: equipe?.nome || null,
+      user_id: profile?.id || null,
+      possui_usuario: !!profile,
+      possui_perfil: !!profile && (!grupoId || grantedUserIds.has(profile.id)),
+      temporary_password: profile?.temporary_password ?? null,
+    };
+  }).sort((a, b) => {
+    const equipeCompare = (a.equipe_nome || '').localeCompare(b.equipe_nome || '', 'pt-BR');
+    if (equipeCompare !== 0) return equipeCompare;
+    return a.nome_completo.localeCompare(b.nome_completo, 'pt-BR');
+  });
+
+  return {
+    coordenadores,
+    total: coordenadores.length,
+    semEmail: coordenadores.filter((coordenador) => !coordenador.email).length,
+    semUsuario: coordenadores.filter((coordenador) => coordenador.email && !coordenador.possui_usuario).length,
+    semPerfil: coordenadores.filter((coordenador) => coordenador.email && (!coordenador.possui_usuario || !coordenador.possui_perfil)).length,
   };
 }
 // @ts-nocheck
@@ -271,6 +360,151 @@ Deno.serve(async (request) => {
       return jsonResponse(200, {
         ...(await getDirigenciaAccessStatus(adminClient, dirigenciaId)),
         criados: pendentes.length,
+      });
+    }
+
+    if (action === 'list-folder-coordinators') {
+      const encontroId = body?.encontroId as string | undefined;
+      const grupoId = body?.grupoId as string | null | undefined;
+
+      if (!encontroId) {
+        return jsonResponse(400, { error: 'encontroId is required' });
+      }
+
+      return jsonResponse(200, await getFolderCoordinatorsAccessStatus(adminClient, encontroId, grupoId));
+    }
+
+    if (action === 'prepare-folder-coordinators') {
+      const encontroId = body?.encontroId as string | undefined;
+      const grupoId = body?.grupoId as string | undefined;
+
+      if (!encontroId || !grupoId) {
+        return jsonResponse(400, { error: 'encontroId and grupoId are required' });
+      }
+
+      const status = await getFolderCoordinatorsAccessStatus(adminClient, encontroId, grupoId);
+      const results = [];
+
+      for (const coordenador of status.coordenadores) {
+        if (!coordenador.email) {
+          results.push({
+            ...coordenador,
+            created: false,
+            granted: false,
+            success: false,
+            message: 'Cadastre um e-mail para esta pessoa antes de preparar o acesso.',
+          });
+          continue;
+        }
+
+        let userId = coordenador.user_id;
+        let created = false;
+        let temporaryPassword: string | undefined;
+
+        if (!userId) {
+          const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
+            email: coordenador.email,
+            password: coordenador.email,
+            email_confirm: true,
+          });
+
+          if (createUserError || !createdUser.user) {
+            results.push({
+              ...coordenador,
+              created: false,
+              granted: false,
+              success: false,
+              message: createUserError?.message ?? 'Não foi possível criar o usuário.',
+            });
+            continue;
+          }
+
+          userId = createdUser.user.id;
+          created = true;
+          temporaryPassword = coordenador.email;
+
+          const { error: upsertError } = await adminClient.from('profiles').upsert({
+            id: userId,
+            email: coordenador.email,
+            role: 'viewer',
+            temporary_password: true,
+          });
+
+          if (upsertError) {
+            results.push({
+              ...coordenador,
+              user_id: userId,
+              created,
+              granted: false,
+              success: false,
+              temporaryPassword,
+              message: 'Usuário criado, mas não foi possível salvar o perfil.',
+            });
+            continue;
+          }
+        }
+
+        let granted = false;
+        if (!coordenador.possui_perfil || created) {
+          const { data: existingGroups, error: existingGroupError } = await adminClient
+            .from('usuario_grupos')
+            .select('usuario_id')
+            .eq('usuario_id', userId)
+            .eq('grupo_id', grupoId)
+            .eq('encontro_id', encontroId)
+            .limit(1);
+
+          if (existingGroupError) {
+            results.push({
+              ...coordenador,
+              user_id: userId,
+              created,
+              granted: false,
+              success: false,
+              temporaryPassword,
+              message: 'Não foi possível validar o perfil atual.',
+            });
+            continue;
+          }
+
+          if (!existingGroups || existingGroups.length === 0) {
+            const { error: insertGroupError } = await adminClient
+              .from('usuario_grupos')
+              .insert([{ usuario_id: userId, grupo_id: grupoId, encontro_id: encontroId }]);
+
+            if (insertGroupError) {
+              results.push({
+                ...coordenador,
+                user_id: userId,
+                created,
+                granted: false,
+                success: false,
+                temporaryPassword,
+                message: 'Não foi possível atribuir o perfil de coordenador.',
+              });
+              continue;
+            }
+            granted = true;
+          }
+        }
+
+        results.push({
+          ...coordenador,
+          user_id: userId,
+          possui_usuario: true,
+          possui_perfil: true,
+          created,
+          granted,
+          success: true,
+          temporaryPassword,
+        });
+      }
+
+      return jsonResponse(200, {
+        results,
+        created: results.filter((result) => result.success && result.created).length,
+        granted: results.filter((result) => result.success && result.granted).length,
+        skipped: results.filter((result) => result.success && !result.created && !result.granted).length,
       });
     }
 

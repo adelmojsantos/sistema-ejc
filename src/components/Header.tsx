@@ -86,7 +86,7 @@ export function Header() {
     navLinks.push({ to: '/admin/usuarios', label: 'Usuários' });
   }
 
-  if (hasPermission('modulo_coordenador') || userParticipacao?.coordenador) {
+  if (hasPermission('modulo_coordenador') && userParticipacao?.coordenador) {
     if (!navLinks.some(link => link.to === '/coordenador/minha-equipe')) {
       navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });
     }

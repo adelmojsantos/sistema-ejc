@@ -43,6 +43,40 @@ export interface AdminUsersListResponse {
     summary: AdminUsersSummary;
 }
 
+export interface CoordenadorPastaAccessItem {
+    participacao_id: string;
+    pessoa_id: string;
+    nome_completo: string;
+    email: string | null;
+    equipe_id: string | null;
+    equipe_nome: string | null;
+    user_id: string | null;
+    possui_usuario: boolean;
+    possui_perfil: boolean;
+    temporary_password: boolean | null;
+}
+
+export interface CoordenadorPastaPrepareResult {
+    participacao_id: string;
+    pessoa_id: string;
+    nome_completo: string;
+    email: string | null;
+    user_id: string | null;
+    created: boolean;
+    granted: boolean;
+    temporaryPassword?: string;
+    success: boolean;
+    message?: string;
+}
+
+export interface CoordenadorPastaAccessResponse {
+    coordenadores: CoordenadorPastaAccessItem[];
+    total: number;
+    semEmail: number;
+    semUsuario: number;
+    semPerfil: number;
+}
+
 interface CreateAdminUserPayload {
     email: string;
     gruposIds: string[];
@@ -106,6 +140,45 @@ export const adminUserService = {
                 filteredTotal: 0,
             },
         };
+    },
+
+    async listCoordenadoresPasta(encontroId: string, grupoId?: string): Promise<CoordenadorPastaAccessResponse> {
+        const headers = await getAuthHeaders();
+
+        const { data, error } = await supabase.functions.invoke('admin-users', {
+            body: {
+                action: 'list-folder-coordinators',
+                encontroId,
+                grupoId: grupoId || null,
+            },
+            headers,
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        return data as CoordenadorPastaAccessResponse;
+    },
+
+    async prepareCoordenadoresPasta(encontroId: string, grupoId: string): Promise<{
+        results: CoordenadorPastaPrepareResult[];
+        created: number;
+        granted: number;
+        skipped: number;
+    }> {
+        const headers = await getAuthHeaders();
+
+        const { data, error } = await supabase.functions.invoke('admin-users', {
+            body: {
+                action: 'prepare-folder-coordinators',
+                encontroId,
+                grupoId,
+            },
+            headers,
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        return data;
     },
 
     async searchPeople(search: string, page: number = 0, pageSize: number = 20): Promise<Pessoa[]> {

@@ -115,7 +115,8 @@ export function PlaceholderPage({ title }: { title: string }) {
 
 function AnimatedRoutes() {
   const location = useLocation();
-  const { profile, hasPermission } = useAuth();
+  const { profile, hasPermission, userParticipacao } = useAuth();
+  const canAccessMinhaEquipe = hasPermission('modulo_coordenador') && !!userParticipacao?.coordenador;
 
   return (
     <AnimatePresence mode="wait">
@@ -151,7 +152,7 @@ function AnimatedRoutes() {
             (() => {
               if ((hasPermission('modulo_visitacao_coordenar') || hasPermission('modulo_visitacao_duplas')) && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length === 1) {
                 return <Navigate to="/visitacao" replace />;
-              } else if (hasPermission('modulo_coordenador') && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length === 1) {
+              } else if (canAccessMinhaEquipe && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length === 1) {
                 return <Navigate to="/coordenador/minha-equipe" replace />;
               } else {
                 return <Home />;
@@ -368,15 +369,11 @@ function AnimatedRoutes() {
           </Route>
 
           <Route path="/coordenador/minha-equipe" element={
-            <ProtectedRoute requiredPermissions={['modulo_coordenador', 'modulo_admin']}>
-              <CoordenadorMinhaEquipePage />
-            </ProtectedRoute>
+            canAccessMinhaEquipe ? <CoordenadorMinhaEquipePage /> : <Navigate to="/dashboard" replace />
           } />
 
           <Route path="/coordenador/minha-equipe/avaliacao" element={
-            <ProtectedRoute requiredPermissions={['modulo_coordenador', 'modulo_admin']}>
-              <CoordenadorAvaliacaoPage />
-            </ProtectedRoute>
+            canAccessMinhaEquipe ? <CoordenadorAvaliacaoPage /> : <Navigate to="/dashboard" replace />
           } />
 
           <Route path="/coordenador/cozinha" element={

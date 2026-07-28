@@ -1,9 +1,14 @@
 import type { SyntheticEvent } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { CheckCircle, RotateCcw, Search, ShieldCheck, UserPlus, X, Trash2 } from 'lucide-react';
+import { CheckCircle, RotateCcw, Search, ShieldCheck, UserPlus, Users2, X, Trash2 } from 'lucide-react';
 import { ActionStepper } from '../../components/ui/ActionStepper';
-import { adminUserService, type AdminUsersSummary } from '../../services/adminUserService';
+import {
+    adminUserService,
+    type AdminUsersSummary,
+    type CoordenadorPastaAccessItem,
+    type CoordenadorPastaPrepareResult,
+} from '../../services/adminUserService';
 import type { Pessoa } from '../../types/pessoa';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { encontroService } from '../../services/encontroService';
@@ -58,7 +63,7 @@ export function UsersAdminPage() {
     const [individualStep, setIndividualStep] = useState<'contexto' | 'pessoa' | 'perfil' | 'criar'>('pessoa');
 
     // Bulk creation state
-    const [creationMode, setCreationMode] = useState<'individual' | 'lote'>('individual');
+    const [creationMode, setCreationMode] = useState<'individual' | 'lote' | 'coordenadores'>('individual');
     const { encontros, encontroAtivo } = useEncontros();
     const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
     const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
@@ -70,6 +75,11 @@ export function UsersAdminPage() {
     const [bulkEncontroAlteradoManual, setBulkEncontroAlteradoManual] = useState(false);
     const [loadingMembers, setLoadingMembers] = useState(false);
     const [bulkResults, setBulkResults] = useState<{ id: string; success: boolean; message?: string }[]>([]);
+    const [coordenadoresPasta, setCoordenadoresPasta] = useState<CoordenadorPastaAccessItem[]>([]);
+    const [coordenadorGrupoId, setCoordenadorGrupoId] = useState('');
+    const [loadingCoordenadores, setLoadingCoordenadores] = useState(false);
+    const [preparingCoordenadores, setPreparingCoordenadores] = useState(false);
+    const [coordenadorResults, setCoordenadorResults] = useState<CoordenadorPastaPrepareResult[]>([]);
 
     const [exportConfigs, setExportConfigs] = useState<ExportConfig[]>([]);
     const [selectedExportConfigId, setSelectedExportConfigId] = useState<string>('none');
@@ -159,6 +169,45 @@ export function UsersAdminPage() {
 
         setBulkStep('equipe');
     }, [creationMode, targetEncontroId, selectedEncontroId, bulkEncontroAlteradoManual]);
+
+    useEffect(() => {
+        if (coordenadorGrupoId || grupos.length === 0) return;
+
+        const defaultGroup = grupos.find((grupo) => {
+            const normalizedName = grupo.nome
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase();
+
+            return normalizedName.includes('pasta');
+        });
+
+        if (defaultGroup) setCoordenadorGrupoId(defaultGroup.id);
+    }, [coordenadorGrupoId, grupos]);
+
+    const loadCoordenadoresPasta = useCallback(async () => {
+        if (!targetEncontroId) {
+            setCoordenadoresPasta([]);
+            setCoordenadorResults([]);
+            return;
+        }
+
+        setLoadingCoordenadores(true);
+        try {
+            const response = await adminUserService.listCoordenadoresPasta(targetEncontroId, coordenadorGrupoId);
+            setCoordenadoresPasta(response.coordenadores);
+        } catch (loadError: unknown) {
+            const message = loadError instanceof Error ? loadError.message : 'Erro ao carregar coordenadores.';
+            toast.error(message);
+        } finally {
+            setLoadingCoordenadores(false);
+        }
+    }, [coordenadorGrupoId, targetEncontroId]);
+
+    useEffect(() => {
+        if (creationMode !== 'coordenadores') return;
+        void loadCoordenadoresPasta();
+    }, [creationMode, loadCoordenadoresPasta]);
 
     const handleClearSelection = () => {
         setSelectedPessoa(null);
@@ -338,6 +387,40 @@ export function UsersAdminPage() {
         if (results.length > successes) toast.error(`${results.length - successes} erro(s) encontrados.`);
         setSelectedMemberIds([]);
         if (successes > 0) loadUsers();
+    };
+
+    const handlePrepareCoordenadoresPasta = async () => {
+        if (!targetEncontroId) {
+            toast.error('Selecione um encontro como contexto de edição.');
+            return;
+        }
+        if (!coordenadorGrupoId) {
+            toast.error('Selecione o perfil de coordenador de pasta.');
+            return;
+        }
+
+        setPreparingCoordenadores(true);
+        setCoordenadorResults([]);
+        try {
+            const response = await adminUserService.prepareCoordenadoresPasta(targetEncontroId, coordenadorGrupoId);
+            setCoordenadorResults(response.results);
+            await Promise.all([loadCoordenadoresPasta(), loadUsers()]);
+
+            const errors = response.results.filter((result) => !result.success).length;
+            if (response.created || response.granted) {
+                toast.success(`${response.created} usuário(s) criado(s) e ${response.granted} perfil(is) concedido(s).`);
+            } else if (errors === 0) {
+                toast.success('Todos os coordenadores já estavam preparados.');
+            }
+            if (errors > 0) {
+                toast.error(`${errors} coordenador(es) precisam de ajuste manual.`);
+            }
+        } catch (prepareError: unknown) {
+            const message = prepareError instanceof Error ? prepareError.message : 'Erro ao preparar coordenadores.';
+            toast.error(message);
+        } finally {
+            setPreparingCoordenadores(false);
+        }
     };
 
     const handleConfirmMemberInBulk = async (participacaoId: string) => {
@@ -547,6 +630,11 @@ export function UsersAdminPage() {
     const bulkAcessosLabel = bulkGruposIds.length > 0
         ? bulkGruposIds.map(id => grupos.find(g => g.id === id)?.nome).filter(Boolean).join(', ')
         : 'Selecione ao menos um perfil';
+    const coordenadorGrupoLabel = coordenadorGrupoId
+        ? grupos.find((grupo) => grupo.id === coordenadorGrupoId)?.nome || 'Perfil selecionado'
+        : 'Selecione o perfil de coordenador';
+    const coordenadoresComEmail = coordenadoresPasta.filter((coordenador) => !!coordenador.email).length;
+    const coordenadoresPendentes = coordenadoresPasta.filter((coordenador) => coordenador.email && (!coordenador.possui_usuario || !coordenador.possui_perfil)).length;
 
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
@@ -643,6 +731,24 @@ export function UsersAdminPage() {
                             }}
                         >
                             Em Lote (Equipe)
+                        </button>
+                        <button
+                            type="button"
+                            className={`btn-text ${creationMode === 'coordenadores' ? 'active' : ''}`}
+                            onClick={() => {
+                                setCreationMode('coordenadores')
+                                setCoordenadorResults([])
+                            }}
+                            style={{
+                                backgroundColor: creationMode === 'coordenadores' ? 'var(--surface-1)' : 'transparent',
+                                color: creationMode === 'coordenadores' ? 'var(--primary-color)' : 'var(--muted-text)',
+                                boxShadow: creationMode === 'coordenadores' ? 'var(--shadow-sm)' : 'none',
+                                borderRadius: '8px',
+                                padding: '0.5rem 1rem',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            Coordenadores
                         </button>
                     </div>
                 </div>
@@ -824,7 +930,7 @@ export function UsersAdminPage() {
                             ]}
                         />
                     </form>
-                ) : (
+                ) : creationMode === 'lote' ? (
                     <div className="bulk-creation-form">
                         <ActionStepper
                             steps={[
@@ -1090,6 +1196,142 @@ export function UsersAdminPage() {
                                 },
                             ]}
                         />
+                    </div>
+                ) : (
+                    <div className="bulk-creation-form">
+                        <div style={{ display: 'grid', gap: '1rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                                <div className="card" style={{ padding: '1rem', background: 'var(--surface-1)' }}>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>Contexto</span>
+                                    <strong style={{ display: 'block', marginTop: '0.25rem' }}>{contextoLabel}</strong>
+                                    <small style={{ color: 'var(--muted-text)' }}>Use o seletor no topo para trocar o encontro.</small>
+                                </div>
+                                <div className="card" style={{ padding: '1rem', background: 'var(--surface-1)' }}>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>Coordenadores</span>
+                                    <strong style={{ display: 'block', fontSize: '1.4rem', marginTop: '0.25rem' }}>{coordenadoresPasta.length}</strong>
+                                    <small style={{ color: 'var(--muted-text)' }}>{coordenadoresPendentes} pendente(s) de acesso/perfil.</small>
+                                </div>
+                                <div className="card" style={{ padding: '1rem', background: 'var(--surface-1)' }}>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>Com e-mail</span>
+                                    <strong style={{ display: 'block', fontSize: '1.4rem', marginTop: '0.25rem' }}>{coordenadoresComEmail}</strong>
+                                    <small style={{ color: 'var(--muted-text)' }}>{coordenadoresPasta.length - coordenadoresComEmail} sem e-mail cadastrado.</small>
+                                </div>
+                            </div>
+
+                            <div className="card" style={{ padding: '1rem', background: 'var(--surface-1)' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', alignItems: 'center' }}>
+                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                        <label className="form-label">Perfil de coordenador de pasta</label>
+                                        <select
+                                            className="form-input"
+                                            value={coordenadorGrupoId}
+                                            onChange={(event) => {
+                                                setCoordenadorGrupoId(event.target.value);
+                                                setCoordenadorResults([]);
+                                            }}
+                                        >
+                                            <option value="">Selecione o perfil</option>
+                                            {grupos.map((grupo) => (
+                                                <option key={grupo.id} value={grupo.id}>{grupo.nome}</option>
+                                            ))}
+                                        </select>
+                                        <small style={{ color: 'var(--muted-text)' }}>
+                                            Perfil atual: {coordenadorGrupoLabel}
+                                        </small>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        onClick={loadCoordenadoresPasta}
+                                        disabled={!targetEncontroId || loadingCoordenadores}
+                                    >
+                                        <RotateCcw size={15} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                                        {loadingCoordenadores ? 'Atualizando...' : 'Atualizar'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="btn-primary"
+                                        onClick={handlePrepareCoordenadoresPasta}
+                                        disabled={!targetEncontroId || !coordenadorGrupoId || preparingCoordenadores || coordenadoresPendentes === 0}
+                                    >
+                                        <Users2 size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
+                                        {preparingCoordenadores ? 'Preparando...' : 'Preparar coordenadores'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {!targetEncontroId && (
+                                <div className="alert alert--error">
+                                    Selecione um encontro no contexto de edição. Coordenadores de pasta não devem ser preparados no escopo global.
+                                </div>
+                            )}
+
+                            {loadingCoordenadores ? (
+                                <p className="text-muted">Carregando coordenadores...</p>
+                            ) : coordenadoresPasta.length === 0 ? (
+                                <div className="empty-state" style={{ padding: '1.5rem' }}>
+                                    Nenhum coordenador encontrado no contexto selecionado.
+                                </div>
+                            ) : (
+                                <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '440px', overflowY: 'auto', paddingRight: '0.35rem' }}>
+                                    {coordenadoresPasta.map((coordenador) => {
+                                        const result = coordenadorResults.find((current) => current.participacao_id === coordenador.participacao_id);
+                                        const isReady = coordenador.possui_usuario && coordenador.possui_perfil;
+
+                                        return (
+                                            <div
+                                                key={coordenador.participacao_id}
+                                                className="bulk-member-card"
+                                                style={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                                    gap: '0.85rem',
+                                                    alignItems: 'center',
+                                                    padding: '0.85rem 1rem',
+                                                    background: 'var(--card-bg)',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: '10px',
+                                                }}
+                                            >
+                                                <div style={{ minWidth: 0 }}>
+                                                    <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {coordenador.nome_completo}
+                                                    </strong>
+                                                    <small style={{ color: 'var(--muted-text)' }}>
+                                                        {coordenador.email || 'Sem e-mail cadastrado'}
+                                                    </small>
+                                                </div>
+                                                <div style={{ color: 'var(--muted-text)', fontSize: '0.86rem' }}>
+                                                    <strong style={{ color: 'var(--text-color)' }}>{coordenador.equipe_nome || 'Equipe não informada'}</strong>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                                    {!coordenador.email ? (
+                                                        <span className="badge" style={{ color: 'var(--danger-text)', borderColor: 'var(--danger-text)' }}>Sem e-mail</span>
+                                                    ) : isReady ? (
+                                                        <span className="badge" style={{ color: 'var(--success-text)', borderColor: 'var(--success-text)' }}>Pronto</span>
+                                                    ) : !coordenador.possui_usuario ? (
+                                                        <span className="badge" style={{ color: 'var(--warning-color)', borderColor: 'var(--warning-color)' }}>Criar usuário</span>
+                                                    ) : (
+                                                        <span className="badge" style={{ color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}>Conceder perfil</span>
+                                                    )}
+                                                    {result && (
+                                                        <span style={{ fontSize: '0.78rem', color: result.success ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 700 }}>
+                                                            {result.success
+                                                                ? result.created
+                                                                    ? `Criado · senha: ${result.temporaryPassword}`
+                                                                    : result.granted
+                                                                        ? 'Perfil concedido'
+                                                                        : 'Já estava pronto'
+                                                                : result.message}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </section>

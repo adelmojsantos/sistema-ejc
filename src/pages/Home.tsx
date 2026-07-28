@@ -35,7 +35,7 @@ const itemVariants: Variants = {
 
 export function Home() {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
+  const { hasPermission, userParticipacao } = useAuth();
 
   const dashboardActions: DashboardAction[] = [];
 
@@ -103,7 +103,7 @@ export function Home() {
     });
   }
 
-  if (hasPermission('modulo_coordenador') || hasPermission('modulo_admin')) {
+  if (hasPermission('modulo_coordenador') && userParticipacao?.coordenador) {
     dashboardActions.push({
       title: 'Minha Equipe',
       description: 'Informações da sua equipe.',
