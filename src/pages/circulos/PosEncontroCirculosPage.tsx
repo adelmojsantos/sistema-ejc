@@ -15,6 +15,7 @@ import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
 import { equipeService } from '../../services/equipeService';
 import type { Equipe } from '../../types/equipe';
+import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 
 const formatFileSize = (size?: number | null) => {
   if (!size) return '';
@@ -693,7 +694,7 @@ export function PosEncontroCirculosPage() {
             {htmlToText(selectedPos.conteudo) && (
               <div
                 className="pos-encontro-rich-content pos-encontro-rich-panel"
-                dangerouslySetInnerHTML={{ __html: selectedPos.conteudo ?? '' }}
+                dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(selectedPos.conteudo) }}
               />
             )}
 

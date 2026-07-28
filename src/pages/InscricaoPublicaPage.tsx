@@ -38,8 +38,7 @@ export default function InscricaoPublicaPage() {
     useEffect(() => {
         const loadInitialData = async () => {
             try {
-                const encontros = await encontroService.listar();
-                const active = encontros.find(e => e.ativo);
+                const active = await encontroService.obterInscricaoPublicaAtiva();
 
                 if (!active) {
                     setVagasStatus('closed');

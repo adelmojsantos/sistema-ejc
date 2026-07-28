@@ -17,7 +17,7 @@ import { PesquisaSatisfacaoForm, pesquisaSatisfacaoCompleta } from '../../compon
 import { ActionStepper, type ActionStep } from '../../components/ui/ActionStepper';
 import { GroupedDropdown } from '../../components/ui/GroupedDropdown';
 import { useCirculoAccess } from '../../hooks/useCirculoAccess';
-import { equipeService } from '../../services/equipeService';
+import { externalAccessService } from '../../services/externalAccessService';
 import { posEncontroService } from '../../services/posEncontroService';
 import { pesquisaEncontristaService } from '../../services/pesquisaEncontristaService';
 import type { Equipe } from '../../types/equipe';
@@ -64,12 +64,12 @@ export default function FormCirculoFichaPage() {
       if (!meta || !token) return;
       try {
         const [eqs, ficha, fluxoPesquisa] = await Promise.all([
-          equipeService.listar(),
+          externalAccessService.getExternalTeams(token, true),
           posEncontroService.obterFichaPublica(token),
           pesquisaEncontristaService.obterFluxo(token),
         ]);
 
-        setEquipes(eqs.filter(eq => eq.aparece_pos_encontro !== false));
+        setEquipes(eqs as Equipe[]);
         setPesquisa(fluxoPesquisa);
         setRespostasPesquisa(fluxoPesquisa.respostas ?? {});
 

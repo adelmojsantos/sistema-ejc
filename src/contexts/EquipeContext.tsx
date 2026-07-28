@@ -11,12 +11,20 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { equipeService } from '../services/equipeService';
 import type { Equipe } from '../types/equipe';
 import { EquipeContext } from './EquipeContextDefinition';
+import { useAuth } from '../hooks/useAuth';
 
 export function EquipeProvider({ children }: { children: React.ReactNode }) {
+  const { session, loading: authLoading } = useAuth();
   const [equipes, setEquipes] = useState<Equipe[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   const reload = useCallback(async () => {
+    if (!session) {
+      setEquipes([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const data = await equipeService.listar();
@@ -26,11 +34,12 @@ export function EquipeProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [session]);
 
   useEffect(() => {
+    if (authLoading) return;
     reload();
-  }, [reload]);
+  }, [authLoading, reload]);
 
   return (
     <EquipeContext.Provider value={{ equipes, isLoading, reload }}>

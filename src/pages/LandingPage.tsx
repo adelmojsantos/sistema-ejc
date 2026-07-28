@@ -12,6 +12,8 @@ import { LandingHeader } from '../components/landing/LandingHeader';
 import { SEO } from '../components/landing/SEO';
 import { Section } from '../components/landing/Section';
 import { SocialProof } from '../components/landing/SocialProof';
+import { encontroService } from '../services/encontroService';
+import { listaEsperaService } from '../services/listaEsperaService';
 import { preCadastroService } from '../services/preCadastroService';
 import type { PreCadastroFormData } from '../types/preCadastro';
 import './LandingPage.css';
@@ -27,6 +29,7 @@ export default function LandingPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof PreCadastroFormData | 'consent', string>>>({});
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [registrationOpen, setRegistrationOpen] = useState<boolean | null>(null);
   // LGPD A1 — consentimento explícito obrigatório antes do envio
   const [consent, setConsent] = useState(false);
   // LGPD B3 — cooldown anti-spam: impede reenvios rápidos
@@ -42,6 +45,25 @@ export default function LandingPage() {
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    async function loadRegistrationStatus() {
+      try {
+        const activeEncounter = await encontroService.obterInscricaoPublicaAtiva();
+        if (!activeEncounter || activeEncounter.limite_vagas_online <= 0) {
+          setRegistrationOpen(false);
+          return;
+        }
+
+        const registrations = await listaEsperaService.getOnlineRegistrationsCount(activeEncounter.id);
+        setRegistrationOpen(registrations < activeEncounter.limite_vagas_online);
+      } catch {
+        setRegistrationOpen(null);
+      }
+    }
+
+    void loadRegistrationStatus();
   }, []);
 
   const handleChange = (field: keyof PreCadastroFormData, value: string) => {
@@ -91,7 +113,7 @@ export default function LandingPage() {
 
       <main>
         <Section noPadding className="landing-hero-section">
-          <Hero />
+          <Hero registrationOpen={registrationOpen} />
         </Section>
 
         <Section id="beneficios" background="secondary">
@@ -109,9 +131,15 @@ export default function LandingPage() {
             <p>
               As vagas são limitadas e o próximo encontro pode mudar a sua vida. Não adie sua renovação.
             </p>
-            <Link to="/inscricao" className="landing-button landing-button--light">
-              Fazer Inscrição Online
-            </Link>
+            {registrationOpen ? (
+              <Link to="/inscricao-online" className="landing-button landing-button--light">
+                Fazer Inscrição Online
+              </Link>
+            ) : (
+              <a href="#cadastro" className="landing-button landing-button--light">
+                Fazer Pré-Cadastro
+              </a>
+            )}
           </div>
         </Section>
 

@@ -4,7 +4,7 @@ import { useExternalSession } from '../contexts/ExternalSessionContext';
 import { toast } from 'react-hot-toast';
 
 export function useExternalAccess() {
-  const { login, logout, session, isAuthenticated, isLoading: isSessionLoading } = useExternalSession();
+  const { login, logout, token, session, isAuthenticated, isLoading: isSessionLoading } = useExternalSession();
   const [isValidating, setIsValidating] = useState(false);
 
   const validateAndAccess = async (params: ExternalAccessParams) => {
@@ -14,7 +14,7 @@ export function useExternalAccess() {
       await login(token);
       toast.success('Identificação realizada com sucesso!');
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
       // Erro genérico conforme requisito de segurança
       toast.error('Não foi possível validar seus dados. Verifique e tente novamente.');
@@ -28,6 +28,7 @@ export function useExternalAccess() {
     validateAndAccess,
     isValidating,
     isSessionLoading,
+    token,
     session,
     isAuthenticated,
     logout

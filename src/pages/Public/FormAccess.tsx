@@ -4,8 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import logoEjc from '../../assets/logo-ejc.svg';
 import { FormField } from '../../components/ui/FormField';
 import { useExternalAccess } from '../../hooks/useExternalAccess';
-import { encontroService } from '../../services/encontroService';
-import { equipeService } from '../../services/equipeService';
+import { externalAccessService } from '../../services/externalAccessService';
 import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
 
@@ -39,13 +38,9 @@ export default function FormAccess() {
         return;
       }
       try {
-        const [equipesList, encontrosList] = await Promise.all([
-          equipeService.listar(),
-          encontroService.listar()
-        ]);
-        setEquipes(equipesList);
-        const current = encontrosList.find(e => e.id === encontro_id);
-        setEncontro(current || null);
+        const context = await externalAccessService.getFormContext(encontro_id);
+        setEquipes((context?.equipes ?? []) as Equipe[]);
+        setEncontro((context?.encontro ?? null) as Encontro | null);
       } catch (error) {
         console.error('Erro ao carregar dados do encontro:', error);
       } finally {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useExternalAccess } from '../../hooks/useExternalAccess';
-import { recepcaoService } from '../../services/recepcaoService';
+import { externalAccessService } from '../../services/externalAccessService';
 import { FormField } from '../../components/ui/FormField';
 import { RadioGroup } from '../../components/ui/RadioGroup';
 import { Loader, Car, Baby, CheckCircle, LogOut, Trash2 } from 'lucide-react';
@@ -12,7 +12,7 @@ import { cleanPlate, formatPlate } from '../../utils/plateUtils';
 
 export default function FormPage() {
   const navigate = useNavigate();
-  const { session, isAuthenticated, isSessionLoading, logout } = useExternalAccess();
+  const { token, session, isAuthenticated, isSessionLoading, logout } = useExternalAccess();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -33,9 +33,9 @@ export default function FormPage() {
 
   useEffect(() => {
     async function loadExistingData() {
-      if (session?.participacao_id) {
+      if (token && session?.participacao_id) {
         try {
-          const existing = await recepcaoService.obterPorParticipacao(session.participacao_id);
+          const existing = await externalAccessService.getRecepcao(token);
           if (existing) {
             setRecordId(existing.id);
             setFormData({
@@ -53,7 +53,7 @@ export default function FormPage() {
       }
     }
     loadExistingData();
-  }, [session]);
+  }, [session, token]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter') {
@@ -64,10 +64,11 @@ export default function FormPage() {
     const handleDelete = async () => {
       if (!recordId) return;
       if (!window.confirm('Deseja realmente remover os dados do seu veículo?')) return;
+      if (!token) return;
 
       setIsDeleting(true);
       try {
-        await recepcaoService.excluir(recordId);
+        await externalAccessService.deleteRecepcao(token, recordId);
         toast.success('Veículo removido com sucesso!');
         setRecordId(null);
         setFormData({
@@ -86,7 +87,7 @@ export default function FormPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session?.participacao_id) return;
+    if (!session?.participacao_id || !token) return;
 
     if (!formData.veiculo_modelo.trim()) {
       toast.error('O modelo do veículo é obrigatório.');
@@ -107,7 +108,7 @@ export default function FormPage() {
         ...formData,
         veiculo_placa: cleanPlate(formData.veiculo_placa)
       };
-      const result = await recepcaoService.salvar(session.participacao_id, cleanedData);
+      const result = await externalAccessService.saveRecepcao(token, cleanedData);
       setRecordId(result.id);
       toast.success('Dados salvos com sucesso!');
       setIsSuccess(true);

@@ -6,6 +6,12 @@ import type { Encontro, EncontroFormData, QuadranteVisibilityConfig } from '../t
 const TABLE = 'encontros';
 
 export const encontroService = {
+    async obterInscricaoPublicaAtiva(): Promise<Encontro | null> {
+        const { data, error } = await supabase.rpc('get_public_active_registration');
+        if (error) throw error;
+        return (data as Encontro | null) ?? null;
+    },
+
     async listar(): Promise<Encontro[]> {
         const { data, error } = await supabase
             .from(TABLE)

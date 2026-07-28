@@ -10,6 +10,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { encontroService } from '../services/encontroService';
 import type { Encontro } from '../types/encontro';
+import { useAuth } from '../hooks/useAuth';
 
 interface EncontroContextType {
   encontros: Encontro[];
@@ -21,10 +22,17 @@ interface EncontroContextType {
 const EncontroContext = createContext<EncontroContextType | null>(null);
 
 export function EncontroProvider({ children }: { children: React.ReactNode }) {
+  const { session, loading: authLoading } = useAuth();
   const [encontros, setEncontros] = useState<Encontro[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   const reload = useCallback(async () => {
+    if (!session) {
+      setEncontros([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const data = await encontroService.listar();
@@ -34,11 +42,12 @@ export function EncontroProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [session]);
 
   useEffect(() => {
+    if (authLoading) return;
     reload();
-  }, [reload]);
+  }, [authLoading, reload]);
 
   const encontroAtivo = encontros.find(e => e.ativo) ?? null;
 

@@ -1,4 +1,7 @@
 import { supabase } from '../lib/supabase';
+import type { QuadranteVisibilityConfig } from '../types/encontro';
+import type { Palestra } from '../types/palestra';
+import type { RecreacaoQuadranteDados } from '../types/recreacao';
 
 export interface QuadranteData {
     id: string;
@@ -34,6 +37,30 @@ export interface QuadrantePublicInfo {
     nome: string;
     quadrante_ativo: boolean;
     tem_pin: boolean;
+}
+
+export interface QuadrantePublicPayload {
+    encontro: {
+        id: string;
+        nome: string;
+        tema: string | null;
+        data_inicio: string;
+        data_fim: string;
+        local: string | null;
+        edicao: number | null;
+        quadrante_ativo: boolean;
+        logo_url: string | null;
+        simbologia_texto: string | null;
+        tematica_texto: string | null;
+        musica: string | null;
+        musica_letra: string | null;
+        link_youtube: string | null;
+        link_musica: string | null;
+        quadrante_visibilidade: QuadranteVisibilityConfig | null;
+    };
+    participacoes: QuadranteData[];
+    palestras: Palestra[];
+    criancas: RecreacaoQuadranteDados[];
 }
 
 type QuadranteRawData = Omit<QuadranteData, 'equipes' | 'circulo_mediadores_foto'> & {
@@ -75,6 +102,19 @@ export const quadranteService = {
         }
 
         return !!data;
+    },
+
+    async obterPayloadPublico(token: string, pin: string | null): Promise<QuadrantePublicPayload> {
+        const { data, error } = await supabase.rpc('get_quadrante_public_payload', {
+            p_token: token,
+            p_pin: pin
+        });
+
+        if (error || !data) {
+            throw error ?? new Error('Quadrante não encontrado.');
+        }
+
+        return data as unknown as QuadrantePublicPayload;
     },
 
     /**

@@ -1,10 +1,7 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useExternalAccess } from '../../hooks/useExternalAccess';
-import { recreacaoService } from '../../services/recreacaoService';
-import { equipeService } from '../../services/equipeService';
-import { inscricaoService } from '../../services/inscricaoService';
-import { encontroService } from '../../services/encontroService';
+import { externalAccessService } from '../../services/externalAccessService';
 import { FormField } from '../../components/ui/FormField';
 import { FormRow } from '../../components/ui/FormRow';
 import { Loader, Baby, Car, CheckCircle, LogOut, Plus, Trash2, Pencil, Users } from 'lucide-react';
@@ -24,7 +21,7 @@ import {
 
 export default function FormRecreacaoPage() {
   const navigate = useNavigate();
-  const { session, isAuthenticated, isSessionLoading, logout } = useExternalAccess();
+  const { token, session, isAuthenticated, isSessionLoading, logout } = useExternalAccess();
   
   const [children, setChildren] = useState<RecreacaoDados[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -55,17 +52,13 @@ export default function FormRecreacaoPage() {
   }, [isAuthenticated, isSessionLoading, navigate]);
 
   const loadInitialData = useCallback(async () => {
-    if (!session?.encontro_id) return;
+    if (!session?.encontro_id || !token) return;
     
     try {
-      const [equipes, participantes, encontroData] = await Promise.all([
-        equipeService.listar(),
-        inscricaoService.listarPorEncontro(session.encontro_id),
-        encontroService.obterPorId(session.encontro_id)
-      ]);
-      setAllEquipes(equipes);
-      setAllParticipantes(participantes);
-      setEncontro(encontroData);
+      const context = await externalAccessService.getRecreacaoContext(token);
+      setAllEquipes(context.equipes as Equipe[]);
+      setAllParticipantes(context.participantes);
+      setEncontro(context.encontro as Encontro);
       
       // Default team to current participant's team if not already set
       if (session.participacoes?.equipe_id) {
@@ -74,13 +67,13 @@ export default function FormRecreacaoPage() {
     } catch (error) {
       console.error('Erro ao carregar dados auxiliares:', error);
     }
-  }, [session?.encontro_id, session?.participacoes?.equipe_id]);
+  }, [session?.encontro_id, session?.participacoes?.equipe_id, token]);
 
   const loadData = useCallback(async () => {
-    if (session?.participacao_id) {
+    if (session?.participacao_id && token) {
       try {
-        const data = await recreacaoService.listarPorResponsavel(session.participacao_id);
-        setChildren(data);
+        const context = await externalAccessService.getRecreacaoContext(token);
+        setChildren(context.criancas);
       } catch (error) {
         console.error('Erro ao carregar crianças:', error);
         toast.error('Erro ao carregar dados.');
@@ -88,7 +81,7 @@ export default function FormRecreacaoPage() {
         setIsLoading(false);
       }
     }
-  }, [session?.participacao_id]);
+  }, [session?.participacao_id, token]);
 
   useEffect(() => {
     loadData();
@@ -103,7 +96,7 @@ export default function FormRecreacaoPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!session?.participacao_id) return;
+    if (!session?.participacao_id || !token) return;
 
     const encontroStartDate = encontro?.data_inicio ? new Date(`${encontro.data_inicio}T00:00:00`) : undefined;
     const calculatedAge = calculateAgeParts(formData.data_nascimento, encontroStartDate);
@@ -128,7 +121,7 @@ export default function FormRecreacaoPage() {
         observacoes: formData.observacoes || null
       };
 
-      await recreacaoService.salvar(session.participacao_id, cleanedData, editingId || undefined);
+      await externalAccessService.saveRecreacao(token, cleanedData, editingId || undefined);
       toast.success(editingId ? 'Dados atualizados!' : 'Criança cadastrada com sucesso!');
       await loadData();
       resetForm();
@@ -162,10 +155,10 @@ export default function FormRecreacaoPage() {
   };
 
   const confirmDelete = async () => {
-    if (!idToDelete) return;
+    if (!idToDelete || !token) return;
     setIsDeleting(true);
     try {
-      await recreacaoService.excluir(idToDelete);
+      await externalAccessService.deleteRecreacao(token, idToDelete);
       toast.success('Cadastro removido.');
       await loadData();
     } catch (error) {

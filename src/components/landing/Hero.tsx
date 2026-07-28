@@ -1,13 +1,23 @@
 import { Send, Sparkles } from 'lucide-react';
 
-export function Hero() {
+interface HeroProps {
+  registrationOpen: boolean | null;
+}
+
+export function Hero({ registrationOpen }: HeroProps) {
+  const availabilityLabel = registrationOpen === true
+    ? 'Vagas abertas para o próximo encontro'
+    : registrationOpen === false
+      ? 'Pré-cadastro para o próximo encontro'
+      : 'Consulte as inscrições do próximo encontro';
+
   return (
     <div className="hero">
       <div className="landing-grid hero__grid">
         <div className="hero__content">
           <p className="hero__badge">
             <span />
-            Vagas Abertas para o Próximo Encontro
+            {availabilityLabel}
           </p>
 
           <h1>

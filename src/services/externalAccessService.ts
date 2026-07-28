@@ -1,4 +1,9 @@
 import { supabase } from '../lib/supabase';
+import type { Encontro } from '../types/encontro';
+import type { Equipe } from '../types/equipe';
+import type { InscricaoEnriched } from '../types/inscricao';
+import type { RecepcaoDados, RecepcaoDadosFormData } from '../types/recepcao';
+import type { RecreacaoDados, RecreacaoDadosFormData } from '../types/recreacao';
 
 export interface ExternalAccessParams {
   encontro_id: string;
@@ -34,7 +39,28 @@ export interface CirculoAccessParams {
   telefone_fim: string;    // 4 últimos dígitos
 }
 
+export interface ExternalFormContext {
+  encontro: Pick<Encontro, 'id' | 'nome' | 'data_inicio' | 'formulario_publico_ativo'>;
+  equipes: Array<Pick<Equipe, 'id' | 'nome'>>;
+}
+
+export interface ExternalRecreacaoContext {
+  encontro: Pick<Encontro, 'id' | 'nome' | 'data_inicio'>;
+  equipes: Array<Pick<Equipe, 'id' | 'nome'>>;
+  participantes: InscricaoEnriched[];
+  criancas: RecreacaoDados[];
+}
+
 export const externalAccessService = {
+  async getFormContext(encontroId: string): Promise<ExternalFormContext | null> {
+    const { data, error } = await supabase.rpc('get_external_form_context', {
+      p_encontro_id: encontroId
+    });
+
+    if (error) throw error;
+    return (data as ExternalFormContext | null) ?? null;
+  },
+
   /**
    * Valida os dados do participante e gera um token de acesso temporário via RPC.
    */
@@ -79,27 +105,79 @@ export const externalAccessService = {
    * Recupera e valida uma sessão externa pelo token.
    */
   async getSession(token: string): Promise<ExternalSession> {
-    const { data, error } = await supabase
-      .from('external_sessions')
-      .select(`
-        *,
-        participacoes (
-          pessoa_id,
-          equipe_id,
-          dados_confirmados,
-          pessoas (nome_completo),
-          equipes (nome)
-        )
-      `)
-      .eq('token', token)
-      .gt('expires_at', new Date().toISOString())
-      .single();
+    const { data, error } = await supabase.rpc('get_external_session', {
+      p_token: token
+    });
 
-    if (error) {
+    if (error || !data) {
        console.error('Erro ao buscar sessão externa:', error);
        throw new Error('Sessão inválida ou expirada.');
     }
 
-    return data as any;
+    return data as unknown as ExternalSession;
+  },
+
+  async getRecepcao(token: string): Promise<RecepcaoDados | null> {
+    const { data, error } = await supabase.rpc('get_external_recepcao', {
+      p_token: token
+    });
+    if (error) throw error;
+    return (data as RecepcaoDados | null) ?? null;
+  },
+
+  async saveRecepcao(token: string, formData: RecepcaoDadosFormData): Promise<RecepcaoDados> {
+    const { data, error } = await supabase.rpc('save_external_recepcao', {
+      p_token: token,
+      p_data: formData
+    });
+    if (error || !data) throw error ?? new Error('Não foi possível salvar os dados.');
+    return data as unknown as RecepcaoDados;
+  },
+
+  async deleteRecepcao(token: string, id: string): Promise<void> {
+    const { data, error } = await supabase.rpc('delete_external_recepcao', {
+      p_token: token,
+      p_id: id
+    });
+    if (error || !data) throw error ?? new Error('Cadastro não encontrado ou sem permissão.');
+  },
+
+  async getRecreacaoContext(token: string): Promise<ExternalRecreacaoContext> {
+    const { data, error } = await supabase.rpc('get_external_recreacao_context', {
+      p_token: token
+    });
+    if (error || !data) throw error ?? new Error('Sessão inválida ou expirada.');
+    return data as unknown as ExternalRecreacaoContext;
+  },
+
+  async saveRecreacao(
+    token: string,
+    formData: RecreacaoDadosFormData,
+    id?: string
+  ): Promise<RecreacaoDados> {
+    const { data, error } = await supabase.rpc('save_external_recreacao', {
+      p_token: token,
+      p_id: id ?? null,
+      p_data: formData
+    });
+    if (error || !data) throw error ?? new Error('Não foi possível salvar os dados.');
+    return data as unknown as RecreacaoDados;
+  },
+
+  async deleteRecreacao(token: string, id: string): Promise<void> {
+    const { data, error } = await supabase.rpc('delete_external_recreacao', {
+      p_token: token,
+      p_id: id
+    });
+    if (error || !data) throw error ?? new Error('Cadastro não encontrado ou sem permissão.');
+  },
+
+  async getExternalTeams(token: string, onlyPosEncontro = false): Promise<Array<Pick<Equipe, 'id' | 'nome'>>> {
+    const { data, error } = await supabase.rpc('get_external_teams', {
+      p_token: token,
+      p_only_pos_encontro: onlyPosEncontro
+    });
+    if (error) throw error;
+    return (data as Array<Pick<Equipe, 'id' | 'nome'>> | null) ?? [];
   }
 };

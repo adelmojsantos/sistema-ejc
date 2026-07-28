@@ -27,6 +27,7 @@ import { recreacaoService } from '../../services/recreacaoService';
 import type { Palestra } from '../../types/palestra';
 import type { RecreacaoQuadranteDados } from '../../types/recreacao';
 import { quadranteVisibilityDefault, type QuadranteVisibilityConfig } from '../../types/encontro';
+import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
 import logoCapelinha from '../../assets/logo_capelinha.png';
 
 // Import Google Fonts
@@ -136,7 +137,7 @@ function PalestraCard({ palestra, printOptimized = false }: { palestra: Palestra
             </div>
             <div
                 className="palestra-body rich-editorial-output"
-                dangerouslySetInnerHTML={{ __html: palestra.resumo || '<p>Resumo não disponível para esta palestra.</p>' }}
+                dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(palestra.resumo || '<p>Resumo não disponível para esta palestra.</p>') }}
             />
         </div>
     );
@@ -296,23 +297,26 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     return;
                 }
 
+                if (!isAdmin) {
+                    const payload = await quadranteService.obterPayloadPublico(token, pin);
+                    setEncontro({
+                        ...payload.encontro,
+                        quadrante_visibilidade: {
+                            ...quadranteVisibilityDefault,
+                            ...(payload.encontro.quadrante_visibilidade || {})
+                        }
+                    });
+                    setData(payload.participacoes);
+                    setPalestras(payload.palestras);
+                    setCriancasRecreacao(payload.criancas);
+                    return;
+                }
+
                 const publicInfo = await quadranteService.obterInfoPublica(token);
 
                 if (!publicInfo) throw new Error('Encontro não encontrado');
 
-                // Bypass Admin: Se estiver logado, ignora as restrições de PIN e Ativo
-                if (!isAdmin) {
-                    if (!publicInfo.quadrante_ativo) {
-                        toast.error('Este Quadrante ainda não foi publicado pelo administrador.', { duration: 5000 });
-                        setLoading(false);
-                        return;
-                    }
-
-                    if (publicInfo.tem_pin && !pin) {
-                        navigate(`/q/${token}${window.location.search}`);
-                        return;
-                    }
-                } else if (!publicInfo.quadrante_ativo) {
+                if (!publicInfo.quadrante_ativo) {
                     toast('Modo Visualização (Administrador)', { icon: '🛡️' });
                 }
 
@@ -637,7 +641,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                         <h2>Simbologia</h2>
                                         <div className="divider"></div>
                                     </div>
-                                    <div className="editorial-text rich-editorial-output" dangerouslySetInnerHTML={{ __html: encontro?.simbologia_texto || '' }} />
+                                    <div className="editorial-text rich-editorial-output" dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(encontro?.simbologia_texto) }} />
                                 </div>
                             </div>
                         </div>
@@ -680,7 +684,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                     </div>
                                     <div
                                         className="editorial-text rich-editorial-output"
-                                        dangerouslySetInnerHTML={{ __html: encontro?.tematica_texto || '<p>As referências e inspirações que deram vida ao tema deste encontro.</p>' }}
+                                        dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(encontro?.tematica_texto || '<p>As referências e inspirações que deram vida ao tema deste encontro.</p>') }}
                                     />
                                 </div>
                             </div>
@@ -713,7 +717,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                 <div className="lyrics-wrapper">
                                     <div
                                         className="lyrics-content rich-editorial-output"
-                                        dangerouslySetInnerHTML={{ __html: encontro?.musica_letra || '<p class="opacity-50 italic">Letra da música não cadastrada.</p>' }}
+                                        dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(encontro?.musica_letra || '<p class="opacity-50 italic">Letra da música não cadastrada.</p>') }}
                                     />
                                 </div>
                             </div>

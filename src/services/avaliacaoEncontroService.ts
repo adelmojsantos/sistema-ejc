@@ -64,6 +64,16 @@ export interface AvaliacaoRespostaInput {
   userId: string;
 }
 
+interface AvaliacaoRespostaPayload {
+  encontro_id: string;
+  equipe_id: string;
+  pergunta_id: string;
+  resposta_texto: string | null;
+  resposta_numero: number | null;
+  resposta_json: Record<string, unknown> | null;
+  respondido_por: string;
+}
+
 export interface AvaliacaoResumoIA {
   id: string;
   encontro_id: string;
@@ -286,7 +296,7 @@ export const avaliacaoEncontroService = {
     if (error) throw error;
   },
 
-  criarPayloadResposta({ encontroId, equipeId, pergunta, valor, userId }: AvaliacaoRespostaInput) {
+  criarPayloadResposta({ encontroId, equipeId, pergunta, valor, userId }: AvaliacaoRespostaInput): AvaliacaoRespostaPayload {
     const cleanValue = valor.trim();
 
     if (pergunta.tipo === 'nota') {

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { ListaEsperaFormData, ListaEsperaEntry } from '../types/listaEspera';
+import type { PessoaFormData } from '../types/pessoa';
 import { encontroService } from './encontroService';
 import { inscricaoService } from './inscricaoService';
 import { pessoaService } from './pessoaService';
@@ -7,8 +8,7 @@ import { pessoaService } from './pessoaService';
 export const listaEsperaService = {
     async join(data: ListaEsperaFormData): Promise<void> {
         // Encontra o encontro ativo
-        const encontros = await encontroService.listar();
-        const encontroAtivo = encontros.find(e => e.ativo);
+        const encontroAtivo = await encontroService.obterInscricaoPublicaAtiva();
 
         if (!encontroAtivo) {
             throw new Error('Não há encontro ativo no momento.');
@@ -137,9 +137,9 @@ export const listaEsperaService = {
                 origem: 'online'
             };
             // Retira do data coisas que nao vao ter na pessoa (ex: encontro_id, campos de auditoria da lista de espera)
-            const { encontro_id, created_at, criado_em, ...pessoaDataOnly } = novapessoaData as Record<string, any>;
+            const { encontro_id, ...pessoaDataOnly } = novapessoaData;
             
-            const novaPessoa = await pessoaService.criar(pessoaDataOnly as any);
+            const novaPessoa = await pessoaService.criar(pessoaDataOnly as unknown as PessoaFormData);
 
             // Vincula inscrição no Encontro
             await inscricaoService.criar({
@@ -164,7 +164,7 @@ export const listaEsperaService = {
 
     async vincularPessoaExistente(preId: string, pessoaOriginalId: string, formData: Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>): Promise<void> {
         try {
-            const { encontro_id, ...dadosPessoa } = formData as Record<string, any>;
+            const { encontro_id, ...dadosPessoa } = formData;
             
             // O usuário autorizou atualizar os dados originais no banco
             await pessoaService.atualizar(pessoaOriginalId, {
