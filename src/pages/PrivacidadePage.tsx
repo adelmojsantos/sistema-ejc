@@ -14,7 +14,7 @@ export function PrivacidadePage() {
         <div style={{ maxWidth: '760px', margin: '0 auto', padding: '2rem 1rem 4rem' }}>
             <nav style={{ marginBottom: '2rem' }}>
                 <Link
-                    to="/"
+                    to="/inicio"
                     style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
                         color: 'var(--primary-color)', textDecoration: 'none',

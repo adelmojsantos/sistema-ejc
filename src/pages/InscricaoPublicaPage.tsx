@@ -264,7 +264,7 @@ export default function InscricaoPublicaPage() {
                                         As inscrições online para o próximo encontro ainda não foram abertas ou já foram finalizadas.
                                         Fique atento às nossas redes sociais para mais avisos.
                                     </p>
-                                    <Link to="/" className="landing-button landing-button--secondary" style={{ marginTop: '1.5rem' }}>
+                                    <Link to="/inicio" className="landing-button landing-button--secondary" style={{ marginTop: '1.5rem' }}>
                                         Voltar à Página Inicial
                                     </Link>
                                 </div>
@@ -277,7 +277,7 @@ export default function InscricaoPublicaPage() {
                                     <p>
                                         Infelizmente todas as vagas online para este evento já foram preenchidas.
                                     </p>
-                                    <Link to="/" className="landing-button landing-button--secondary" style={{ marginTop: '1.5rem' }}>
+                                    <Link to="/inicio" className="landing-button landing-button--secondary" style={{ marginTop: '1.5rem' }}>
                                         Voltar à Página Inicial
                                     </Link>
                                 </div>
@@ -292,7 +292,7 @@ export default function InscricaoPublicaPage() {
                                         <br />
                                         Nossa equipe entrará em contato em breve para oficilizar tudo. <br /> Aguarde!
                                     </p>
-                                    <Link to="/" className="landing-button landing-button--secondary" style={{ marginTop: '1.5rem' }}>
+                                    <Link to="/inicio" className="landing-button landing-button--secondary" style={{ marginTop: '1.5rem' }}>
                                         Voltar à Página Inicial
                                     </Link>
                                 </div>

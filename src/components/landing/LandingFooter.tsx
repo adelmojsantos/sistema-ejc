@@ -15,7 +15,7 @@ export function LandingFooter() {
           <section className="landing-footer__brand" aria-labelledby="footer-brand">
             <h3 id="footer-brand" className="landing-footer__title landing-footer__brand-title">
               <span className="landing-footer__brand-icon has-image">
-                <img src="/logo.png" alt="Logo" />
+                <img src="/logo-160.webp" alt="Logo" />
               </span>
               EJC Capelinha
             </h3>

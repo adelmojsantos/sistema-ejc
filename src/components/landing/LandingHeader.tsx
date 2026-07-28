@@ -42,7 +42,7 @@ export function LandingHeader({ minimal = false }: LandingHeaderProps) {
   ];
 
   const minimalNavLinks = [
-    { name: 'Início', href: '/' }
+    { name: 'Início', href: '/inicio' }
   ];
 
   const navLinks = minimal ? minimalNavLinks : fullNavLinks;
@@ -58,18 +58,18 @@ export function LandingHeader({ minimal = false }: LandingHeaderProps) {
       <div className="container">
         <div className="landing-header__bar">
           {minimal ? (
-            <Link className="landing-header__brand" to="/" aria-label="Ir para a página inicial">
+            <Link className="landing-header__brand" to="/inicio" aria-label="EJC Capelinha — ir para a página inicial">
               <span className="landing-header__brand-icon has-image">
-                <img src="/logo.png" alt="Logo" />
+                <img src="/logo-160.webp" alt="Logo" />
               </span>
               <span className="landing-header__brand-text">
                 EJC <strong>Capelinha</strong>
               </span>
             </Link>
           ) : (
-            <a className="landing-header__brand" href="#" onClick={handleScrollToTop} aria-label="Ir para o topo">
+            <a className="landing-header__brand" href="#" onClick={handleScrollToTop} aria-label="EJC Capelinha — ir para o topo">
               <span className="landing-header__brand-icon has-image">
-                <img src="/logo.png" alt="Logo" />
+                <img src="/logo-160.webp" alt="Logo" />
               </span>
               <span className="landing-header__brand-text">
                 EJC <strong>Capelinha</strong>

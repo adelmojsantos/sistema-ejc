@@ -45,11 +45,10 @@ export function Hero({ registrationOpen }: HeroProps) {
 
         <figure className="hero__media">
           <img
-            src="/51-tema.png"
+            src="/51-tema.webp"
             alt="Jovens do EJC"
-            className="animate-float"
-            width={960}
-            height={1200}
+            width={640}
+            height={640}
             loading="eager"
             decoding="async"
             fetchPriority="high"

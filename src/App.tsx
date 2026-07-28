@@ -2,6 +2,7 @@ import { AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
 import { Navigate, Route, BrowserRouter as Router, Routes, useLocation, Outlet, useParams } from 'react-router-dom';
 import { Header } from './components/Header';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PageTransition } from './components/ui/PageTransition';
 import { AuthProvider } from './contexts/AuthContext';
@@ -9,93 +10,104 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { EncontroProvider } from './contexts/EncontroContext';
 import { EquipeProvider } from './contexts/EquipeContext';
 import { useAuth } from './hooks/useAuth';
-import { UsersAdminPage } from './pages/admin/UsersAdminPage';
-import { ImportarDadosPage } from './pages/admin/ImportarDadosPage';
-import { AccessAdminPage } from './pages/admin/AccessAdminPage';
-import { ExportConfigListPage } from './pages/admin/ExportConfigListPage';
-import { ExportConfigFormPage } from './pages/admin/ExportConfigFormPage';
-import { BibliotecaPage } from './pages/admin/BibliotecaPage';
-import { DirigenciaPage } from './pages/admin/DirigenciaPage';
-import { Cadastros } from './pages/cadastros/Cadastros';
-import { CirculosPage } from './pages/circulos/CirculosPage';
-import { CirculosPortalPage } from './pages/circulos/CirculosPortalPage';
-import { EncontroParticipantesPage } from './pages/cadastros/EncontroParticipantesPage';
-import { AvaliacaoEncontroPage } from './pages/cadastros/AvaliacaoEncontroPage';
-import { AvaliacaoEncontristasPage } from './pages/cadastros/AvaliacaoEncontristasPage';
-import { CronogramaEncontroPage } from './pages/cadastros/CronogramaEncontroPage';
-import { EncontrosPage } from './pages/cadastros/EncontrosPage';
-import { EquipesPage } from './pages/cadastros/EquipesPage';
-import { MontagemCirculos } from './pages/circulos/MontagemCirculos';
-import { ResumoPalestrasPage } from './pages/circulos/ResumoPalestrasPage';
-import { PosEncontroCirculosPage } from './pages/circulos/PosEncontroCirculosPage';
-import { PosEncontroFichasPage } from './pages/circulos/PosEncontroFichasPage';
-import { MontagemPage } from './pages/cadastros/MontagemPage';
-import { PessoasPage } from './pages/cadastros/PessoasPage';
-import { PalestrasGestaoPage } from './pages/cadastros/PalestrasGestaoPage';
-import { PalestrasResumoPage } from './pages/cadastros/PalestrasResumoPage';
-import { PosEncontrosCadastroPage } from './pages/cadastros/PosEncontrosCadastroPage';
-import { PosEncontroFormPage } from './pages/cadastros/PosEncontroFormPage';
-import { PalestrasModulePage } from './pages/atividades/PalestrasModulePage';
-import { ChangePasswordPage } from './pages/ChangePasswordPage';
-import { CoordenadorAvaliacaoPage } from './pages/coordenador/CoordenadorAvaliacaoPage';
-import { CoordenadorCozinhaPage } from './pages/coordenador/CoordenadorCozinhaPage';
-import { CoordenadorMinhaEquipePage } from './pages/coordenador/CoordenadorMinhaEquipePage';
-import { CuidadosPage } from './pages/cuidados/CuidadosPage';
-import { LigacaoPage } from './pages/ligacao/LigacaoPage';
-import { RecepcaoAdminPage } from './pages/recepcao/RecepcaoAdminPage';
-import { RecreacaoAdminPage } from './pages/recreacao/RecreacaoAdminPage';
-import { RelatoriosPage } from './pages/relatorios/RelatoriosPage';
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
-import { Home } from './pages/Home';
-import LandingPage from './pages/LandingPage';
-import { Login } from './pages/Login';
-import { PrivacidadePage } from './pages/PrivacidadePage';
-import { Secretaria } from './pages/Secretaria';
-import { ConfirmationReportPage } from './pages/secretaria/ConfirmationReportPage';
-import { ConfirmationTeamDetailPage } from './pages/secretaria/ConfirmationTeamDetailPage';
-import { VisitacaoMeusParticipantesPage } from './pages/visitacao/VisitacaoMeusParticipantesPage';
-import { CoordenadorVisitacaoPage } from './pages/visitacao/CoordenadorVisitacaoPage';
-import { VisitacaoManutencaoPage } from './pages/visitacao/VisitacaoManutencaoPage';
-import { VisitacaoPortalPage } from './pages/visitacao/VisitacaoPortalPage';
-import { VisitacaoPresencasPage } from './pages/visitacao/VisitacaoPresencasPage';
-import { SecretariaParticipantesPage } from './pages/secretaria/SecretariaParticipantesPage';
-import { SecretariaEncontreirosPage } from './pages/secretaria/SecretariaEncontreirosPage';
-import { GerenciarListaEsperaPage } from './pages/secretaria/GerenciarListaEsperaPage';
-import { SecretariaFotosPage } from './pages/secretaria/SecretariaFotosPage';
-import { ImpressosPage } from './pages/secretaria/ImpressosPage';
-import { IdentificacaoCarrosPage } from './pages/secretaria/IdentificacaoCarrosPage';
-import { SecretariaPlacasEquipesPage } from './pages/secretaria/SecretariaPlacasEquipesPage';
-import { LabelGeneratorPage } from './pages/secretaria/LabelGeneratorPage';
-import { ComprasPage } from './pages/compras/ComprasPage';
-import { TaxasPage } from './pages/compras/TaxasPage';
-import { PedidosCamisetasPage } from './pages/compras/PedidosCamisetasPage';
-import { ConfiguracaoCamisetasPage } from './pages/compras/ConfiguracaoCamisetasPage';
-import { AlmoxarifadoPage } from './pages/compras/AlmoxarifadoPage';
-import { AlmoxarifadoItensPage } from './pages/compras/AlmoxarifadoItensPage';
-import { AlmoxarifadoHubPage } from './pages/compras/AlmoxarifadoHubPage';
-import { AlmoxarifadoPedidosPage } from './pages/compras/AlmoxarifadoPedidosPage';
-import { AlmoxarifadoComprasOperacionalPage } from './pages/compras/AlmoxarifadoComprasOperacionalPage';
-import { AlmoxarifadoComprasRealizadasPage } from './pages/compras/AlmoxarifadoComprasRealizadasPage';
-import { AlmoxarifadoCompraDetalhePage } from './pages/compras/AlmoxarifadoCompraDetalhePage';
-import { FinanceiroPage } from './pages/compras/FinanceiroPage';
 import { SplashScreen } from './components/ui/SplashScreen';
-import { useEffect, useRef } from 'react';
+import { lazy, Suspense, type ComponentType } from 'react';
 import { useLoading } from './contexts/LoadingContext';
 import { AppLayout } from './components/layout/AppLayout';
 import { ExternalSessionProvider } from './contexts/ExternalSessionContext';
-import FormAccess from './pages/Public/FormAccess';
-import FormPage from './pages/Public/FormPage';
-import FormRecreacaoPage from './pages/Public/FormRecreacaoPage';
-import FormCirculoAccessPage from './pages/Public/FormCirculoAccessPage';
-import FormCirculoFichaPage from './pages/Public/FormCirculoFichaPage';
-import PesquisaSatisfacaoPublicPage from './pages/Public/PesquisaSatisfacaoPublicPage';
 import { CirculoSessionProvider } from './contexts/CirculoSessionContext';
-import { EncontroQuadranteConfigPage } from './pages/cadastros/EncontroQuadranteConfigPage';
-import { QuadranteAuthPage } from './pages/Public/QuadranteAuthPage';
-import { QuadrantePage } from './pages/Public/QuadrantePage';
-import SharedLibraryPage from './pages/shared/SharedLibraryPage';
-import InscricaoPublicaPage from './pages/InscricaoPublicaPage';
-import { InscricaoPage } from './pages/InscricaoPage';
+
+function lazyNamed<TProps extends object = Record<string, never>>(
+  loader: () => Promise<unknown>,
+  exportName: string
+) {
+  return lazy(async () => {
+    const module = await loader() as Record<string, unknown>;
+    return { default: module[exportName] as ComponentType<TProps> };
+  });
+}
+
+const UsersAdminPage = lazyNamed(() => import('./pages/admin/UsersAdminPage'), 'UsersAdminPage');
+const ImportarDadosPage = lazyNamed(() => import('./pages/admin/ImportarDadosPage'), 'ImportarDadosPage');
+const AccessAdminPage = lazyNamed(() => import('./pages/admin/AccessAdminPage'), 'AccessAdminPage');
+const ExportConfigListPage = lazyNamed(() => import('./pages/admin/ExportConfigListPage'), 'ExportConfigListPage');
+const ExportConfigFormPage = lazyNamed(() => import('./pages/admin/ExportConfigFormPage'), 'ExportConfigFormPage');
+const BibliotecaPage = lazyNamed(() => import('./pages/admin/BibliotecaPage'), 'BibliotecaPage');
+const DirigenciaPage = lazyNamed(() => import('./pages/admin/DirigenciaPage'), 'DirigenciaPage');
+const Cadastros = lazyNamed(() => import('./pages/cadastros/Cadastros'), 'Cadastros');
+const CirculosPage = lazyNamed(() => import('./pages/circulos/CirculosPage'), 'CirculosPage');
+const CirculosPortalPage = lazyNamed(() => import('./pages/circulos/CirculosPortalPage'), 'CirculosPortalPage');
+const EncontroParticipantesPage = lazyNamed(() => import('./pages/cadastros/EncontroParticipantesPage'), 'EncontroParticipantesPage');
+const AvaliacaoEncontroPage = lazyNamed(() => import('./pages/cadastros/AvaliacaoEncontroPage'), 'AvaliacaoEncontroPage');
+const AvaliacaoEncontristasPage = lazyNamed(() => import('./pages/cadastros/AvaliacaoEncontristasPage'), 'AvaliacaoEncontristasPage');
+const CronogramaEncontroPage = lazyNamed(() => import('./pages/cadastros/CronogramaEncontroPage'), 'CronogramaEncontroPage');
+const EncontrosPage = lazyNamed(() => import('./pages/cadastros/EncontrosPage'), 'EncontrosPage');
+const EquipesPage = lazyNamed(() => import('./pages/cadastros/EquipesPage'), 'EquipesPage');
+const MontagemCirculos = lazyNamed(() => import('./pages/circulos/MontagemCirculos'), 'MontagemCirculos');
+const ResumoPalestrasPage = lazyNamed(() => import('./pages/circulos/ResumoPalestrasPage'), 'ResumoPalestrasPage');
+const PosEncontroCirculosPage = lazyNamed(() => import('./pages/circulos/PosEncontroCirculosPage'), 'PosEncontroCirculosPage');
+const PosEncontroFichasPage = lazyNamed(() => import('./pages/circulos/PosEncontroFichasPage'), 'PosEncontroFichasPage');
+const MontagemPage = lazyNamed(() => import('./pages/cadastros/MontagemPage'), 'MontagemPage');
+const PessoasPage = lazyNamed(() => import('./pages/cadastros/PessoasPage'), 'PessoasPage');
+const PalestrasGestaoPage = lazyNamed(() => import('./pages/cadastros/PalestrasGestaoPage'), 'PalestrasGestaoPage');
+const PalestrasResumoPage = lazyNamed(() => import('./pages/cadastros/PalestrasResumoPage'), 'PalestrasResumoPage');
+const PosEncontrosCadastroPage = lazyNamed(() => import('./pages/cadastros/PosEncontrosCadastroPage'), 'PosEncontrosCadastroPage');
+const PosEncontroFormPage = lazyNamed(() => import('./pages/cadastros/PosEncontroFormPage'), 'PosEncontroFormPage');
+const PalestrasModulePage = lazyNamed(() => import('./pages/atividades/PalestrasModulePage'), 'PalestrasModulePage');
+const ChangePasswordPage = lazyNamed(() => import('./pages/ChangePasswordPage'), 'ChangePasswordPage');
+const CoordenadorAvaliacaoPage = lazyNamed(() => import('./pages/coordenador/CoordenadorAvaliacaoPage'), 'CoordenadorAvaliacaoPage');
+const CoordenadorCozinhaPage = lazyNamed(() => import('./pages/coordenador/CoordenadorCozinhaPage'), 'CoordenadorCozinhaPage');
+const CoordenadorMinhaEquipePage = lazyNamed(() => import('./pages/coordenador/CoordenadorMinhaEquipePage'), 'CoordenadorMinhaEquipePage');
+const CuidadosPage = lazyNamed(() => import('./pages/cuidados/CuidadosPage'), 'CuidadosPage');
+const LigacaoPage = lazyNamed(() => import('./pages/ligacao/LigacaoPage'), 'LigacaoPage');
+const RecepcaoAdminPage = lazyNamed(() => import('./pages/recepcao/RecepcaoAdminPage'), 'RecepcaoAdminPage');
+const RecreacaoAdminPage = lazyNamed(() => import('./pages/recreacao/RecreacaoAdminPage'), 'RecreacaoAdminPage');
+const RelatoriosPage = lazyNamed<{ mode?: 'relacao-crachas' | 'crachas-mesa' }>(() => import('./pages/relatorios/RelatoriosPage'), 'RelatoriosPage');
+const ForgotPasswordPage = lazyNamed(() => import('./pages/ForgotPasswordPage'), 'ForgotPasswordPage');
+const Home = lazyNamed(() => import('./pages/Home'), 'Home');
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const Login = lazyNamed(() => import('./pages/Login'), 'Login');
+const PrivacidadePage = lazyNamed(() => import('./pages/PrivacidadePage'), 'PrivacidadePage');
+const Secretaria = lazyNamed(() => import('./pages/Secretaria'), 'Secretaria');
+const ConfirmationReportPage = lazyNamed(() => import('./pages/secretaria/ConfirmationReportPage'), 'ConfirmationReportPage');
+const ConfirmationTeamDetailPage = lazyNamed(() => import('./pages/secretaria/ConfirmationTeamDetailPage'), 'ConfirmationTeamDetailPage');
+const VisitacaoMeusParticipantesPage = lazyNamed(() => import('./pages/visitacao/VisitacaoMeusParticipantesPage'), 'VisitacaoMeusParticipantesPage');
+const CoordenadorVisitacaoPage = lazyNamed(() => import('./pages/visitacao/CoordenadorVisitacaoPage'), 'CoordenadorVisitacaoPage');
+const VisitacaoManutencaoPage = lazyNamed(() => import('./pages/visitacao/VisitacaoManutencaoPage'), 'VisitacaoManutencaoPage');
+const VisitacaoPortalPage = lazyNamed(() => import('./pages/visitacao/VisitacaoPortalPage'), 'VisitacaoPortalPage');
+const VisitacaoPresencasPage = lazyNamed(() => import('./pages/visitacao/VisitacaoPresencasPage'), 'VisitacaoPresencasPage');
+const SecretariaParticipantesPage = lazyNamed(() => import('./pages/secretaria/SecretariaParticipantesPage'), 'SecretariaParticipantesPage');
+const SecretariaEncontreirosPage = lazyNamed(() => import('./pages/secretaria/SecretariaEncontreirosPage'), 'SecretariaEncontreirosPage');
+const GerenciarListaEsperaPage = lazyNamed(() => import('./pages/secretaria/GerenciarListaEsperaPage'), 'GerenciarListaEsperaPage');
+const SecretariaFotosPage = lazyNamed(() => import('./pages/secretaria/SecretariaFotosPage'), 'SecretariaFotosPage');
+const ImpressosPage = lazyNamed(() => import('./pages/secretaria/ImpressosPage'), 'ImpressosPage');
+const IdentificacaoCarrosPage = lazyNamed(() => import('./pages/secretaria/IdentificacaoCarrosPage'), 'IdentificacaoCarrosPage');
+const SecretariaPlacasEquipesPage = lazyNamed<{ mode?: 'salas' | 'duplas' }>(() => import('./pages/secretaria/SecretariaPlacasEquipesPage'), 'SecretariaPlacasEquipesPage');
+const LabelGeneratorPage = lazyNamed(() => import('./pages/secretaria/LabelGeneratorPage'), 'LabelGeneratorPage');
+const ComprasPage = lazyNamed(() => import('./pages/compras/ComprasPage'), 'ComprasPage');
+const TaxasPage = lazyNamed(() => import('./pages/compras/TaxasPage'), 'TaxasPage');
+const PedidosCamisetasPage = lazyNamed(() => import('./pages/compras/PedidosCamisetasPage'), 'PedidosCamisetasPage');
+const ConfiguracaoCamisetasPage = lazyNamed(() => import('./pages/compras/ConfiguracaoCamisetasPage'), 'ConfiguracaoCamisetasPage');
+const AlmoxarifadoPage = lazyNamed(() => import('./pages/compras/AlmoxarifadoPage'), 'AlmoxarifadoPage');
+const AlmoxarifadoItensPage = lazyNamed(() => import('./pages/compras/AlmoxarifadoItensPage'), 'AlmoxarifadoItensPage');
+const AlmoxarifadoHubPage = lazyNamed(() => import('./pages/compras/AlmoxarifadoHubPage'), 'AlmoxarifadoHubPage');
+const AlmoxarifadoPedidosPage = lazyNamed(() => import('./pages/compras/AlmoxarifadoPedidosPage'), 'AlmoxarifadoPedidosPage');
+const AlmoxarifadoComprasOperacionalPage = lazyNamed(() => import('./pages/compras/AlmoxarifadoComprasOperacionalPage'), 'AlmoxarifadoComprasOperacionalPage');
+const AlmoxarifadoComprasRealizadasPage = lazyNamed(() => import('./pages/compras/AlmoxarifadoComprasRealizadasPage'), 'AlmoxarifadoComprasRealizadasPage');
+const AlmoxarifadoCompraDetalhePage = lazyNamed(() => import('./pages/compras/AlmoxarifadoCompraDetalhePage'), 'AlmoxarifadoCompraDetalhePage');
+const FinanceiroPage = lazyNamed(() => import('./pages/compras/FinanceiroPage'), 'FinanceiroPage');
+const FormAccess = lazy(() => import('./pages/Public/FormAccess'));
+const FormPage = lazy(() => import('./pages/Public/FormPage'));
+const FormRecreacaoPage = lazy(() => import('./pages/Public/FormRecreacaoPage'));
+const FormCirculoAccessPage = lazy(() => import('./pages/Public/FormCirculoAccessPage'));
+const FormCirculoFichaPage = lazy(() => import('./pages/Public/FormCirculoFichaPage'));
+const PesquisaSatisfacaoPublicPage = lazy(() => import('./pages/Public/PesquisaSatisfacaoPublicPage'));
+const EncontroQuadranteConfigPage = lazyNamed(() => import('./pages/cadastros/EncontroQuadranteConfigPage'), 'EncontroQuadranteConfigPage');
+const QuadranteAuthPage = lazyNamed(() => import('./pages/Public/QuadranteAuthPage'), 'QuadranteAuthPage');
+const QuadrantePage = lazyNamed<{ isAdminView?: boolean }>(() => import('./pages/Public/QuadrantePage'), 'QuadrantePage');
+const SharedLibraryPage = lazy(() => import('./pages/shared/SharedLibraryPage'));
+const InscricaoPublicaPage = lazy(() => import('./pages/InscricaoPublicaPage'));
+const InscricaoPage = lazyNamed(() => import('./pages/InscricaoPage'), 'InscricaoPage');
 
 function LegacyExportConfigRedirect() {
   const { id } = useParams();
@@ -113,6 +125,20 @@ export function PlaceholderPage({ title }: { title: string }) {
   );
 }
 
+function RouteLoadingFallback() {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label="Carregando página"
+      className="route-loading-fallback"
+    >
+      <span className="route-loading-fallback__spinner" aria-hidden="true" />
+      <span>Carregando…</span>
+    </div>
+  );
+}
+
 function AnimatedRoutes() {
   const location = useLocation();
   const { profile, hasPermission, userParticipacao } = useAuth();
@@ -120,12 +146,14 @@ function AnimatedRoutes() {
 
   return (
     <AnimatePresence mode="wait">
-      <Routes location={location} key={location.pathname}>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Routes location={location} key={location.pathname}>
         {/* Public Routes */}
         <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
         <Route path="/esqueci-senha" element={<PageTransition><ForgotPasswordPage /></PageTransition>} />
         <Route path="/privacidade" element={<PageTransition><PrivacidadePage /></PageTransition>} />
-        <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/inicio" element={<LandingPage />} />
         <Route path="/inscricao-online" element={<PageTransition><InscricaoPublicaPage /></PageTransition>} />
         <Route path="/formulario" element={<PageTransition><FormAccess /></PageTransition>} />
         <Route path="/formulario/recepcao" element={<PageTransition><FormPage /></PageTransition>} />
@@ -478,41 +506,15 @@ function AnimatedRoutes() {
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
     </AnimatePresence>
   );
 }
 
 function MainApp() {
-  const { loading } = useAuth();
-  const { isLoading, setIsLoading } = useLoading();
-  const initialAuthHandledRef = useRef(false);
-
-  // Sync only the first auth boot with the splash screen.
-  useEffect(() => {
-    if (initialAuthHandledRef.current) return;
-
-    if (loading) {
-      setIsLoading(true);
-    } else {
-      // Small delay for smooth transition on first load
-      const timer = setTimeout(() => {
-        initialAuthHandledRef.current = true;
-        setIsLoading(false);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [loading, setIsLoading]);
-
-  // Safety timeout for initial mount (max 4s)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      initialAuthHandledRef.current = true;
-      setIsLoading(false);
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [setIsLoading]);
+  const { isLoading } = useLoading();
 
   return (
     <>
@@ -535,19 +537,21 @@ function MainApp() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <ExternalSessionProvider>
-          <CirculoSessionProvider>
-            <EncontroProvider>
-              <EquipeProvider>
-                <MainApp />
-              </EquipeProvider>
-            </EncontroProvider>
-          </CirculoSessionProvider>
-        </ExternalSessionProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <AppErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <ExternalSessionProvider>
+            <CirculoSessionProvider>
+              <EncontroProvider>
+                <EquipeProvider>
+                  <MainApp />
+                </EquipeProvider>
+              </EncontroProvider>
+            </CirculoSessionProvider>
+          </ExternalSessionProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </AppErrorBoundary>
   );
 }
 

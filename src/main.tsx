@@ -9,7 +9,6 @@ import '@fontsource/londrina-solid/100.css';
 import '@fontsource/londrina-solid/300.css';
 import '@fontsource/londrina-solid/400.css';
 import '@fontsource/londrina-solid/900.css';
-import 'leaflet/dist/leaflet.css';
 import './index.css'
 import { LoadingProvider } from './contexts/LoadingContext'
 import App from './App.tsx'

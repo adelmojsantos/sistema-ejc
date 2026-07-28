@@ -120,8 +120,9 @@ export function QuadranteAuthPage() {
                     </div>
 
                     <form onSubmit={handleSubmit} className="pin-form">
-                        <label>Digite o Código de Acesso:</label>
+                        <label htmlFor="quadrante-pin">Digite o Código de Acesso:</label>
                         <input 
+                            id="quadrante-pin"
                             type="text" 
                             inputMode="numeric"
                             autoComplete="one-time-code"

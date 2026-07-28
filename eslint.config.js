@@ -19,5 +19,17 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Dívida legada: permanece visível, mas a P1 passa a bloquear novos
+      // problemas estruturais sem exigir uma reescrita insegura em massa.
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrors: 'none',
+        ignoreRestSiblings: true,
+      }],
+      'react-refresh/only-export-components': 'warn',
+    },
   },
 ])

@@ -53,9 +53,9 @@ export function SocialProof() {
         <div className="social-proof__testimonials">
           {testimonials.map((item) => (
             <article key={item.author} className="social-proof__card">
-              <div className="social-proof__rating" aria-label="Avaliação máxima">
+              <div className="social-proof__rating" role="img" aria-label="Avaliação máxima: cinco estrelas">
                 {Array.from({ length: 5 }).map((_, index) => (
-                  <Star key={index} size={16} fill="currentColor" />
+                  <Star key={index} size={16} fill="currentColor" aria-hidden="true" />
                 ))}
               </div>
 

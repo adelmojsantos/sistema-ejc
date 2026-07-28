@@ -154,18 +154,14 @@ export const financeiroService = {
   async anexarComprovantesLancamento(lancamento: FinanceiroLancamento, files: File[]): Promise<FinanceiroLancamento> {
     const uploadedReferences: string[] = [];
 
-    try {
-      for (const file of files) {
-        uploadedReferences.push(await this.uploadComprovanteLancamento(lancamento.id, file));
-      }
-
-      return await this.atualizarComprovantesLancamento(lancamento.id, [
-        ...normalizeComprovantes(lancamento.comprovantes_urls),
-        ...uploadedReferences,
-      ]);
-    } catch (error) {
-      throw error;
+    for (const file of files) {
+      uploadedReferences.push(await this.uploadComprovanteLancamento(lancamento.id, file));
     }
+
+    return this.atualizarComprovantesLancamento(lancamento.id, [
+      ...normalizeComprovantes(lancamento.comprovantes_urls),
+      ...uploadedReferences,
+    ]);
   },
 
   async cancelarLancamentoManual(id: string): Promise<FinanceiroLancamento> {

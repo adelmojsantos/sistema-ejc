@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react';
-import { useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import type { MouseEvent, ReactNode } from 'react';
 
 interface ConfirmDialogProps {
@@ -30,6 +30,32 @@ export function ConfirmDialog({
     maxWidth = '440px'
 }: ConfirmDialogProps) {
     const overlayMouseDownRef = useRef(false);
+    const confirmButtonRef = useRef<HTMLButtonElement>(null);
+    const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+    const titleId = useId();
+    const descriptionId = useId();
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+        const focusTimer = window.setTimeout(() => confirmButtonRef.current?.focus(), 0);
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && !isLoading) {
+                event.preventDefault();
+                onCancel();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            window.clearTimeout(focusTimer);
+            document.removeEventListener('keydown', handleKeyDown);
+            previouslyFocusedRef.current?.focus();
+        };
+    }, [isLoading, isOpen, onCancel]);
 
     if (!isOpen) return null;
 
@@ -48,6 +74,10 @@ export function ConfirmDialog({
         <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
             <div
                 className="modal-content card"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                aria-describedby={descriptionId}
                 style={{
                     maxWidth,
                     width: 'calc(100% - 2rem)',
@@ -58,7 +88,7 @@ export function ConfirmDialog({
             >
                 {/* Usando um wrapper interno para contornar o padding: 0 !important do global */}
                 <div style={{ padding: '0.5rem' }}>
-                    <h3 style={{
+                    <h3 id={titleId} style={{
                         margin: '0 0 1rem 0',
                         fontSize: '1.5rem',
                         fontWeight: 800,
@@ -68,7 +98,7 @@ export function ConfirmDialog({
                         {title}
                     </h3>
 
-                    <div style={{
+                    <div id={descriptionId} style={{
                         marginBottom: '2.5rem',
                         color: 'var(--text-color)',
                         opacity: 0.9,
@@ -97,6 +127,7 @@ export function ConfirmDialog({
                             {cancelText}
                         </button>
                         <button
+                            ref={confirmButtonRef}
                             className={isDestructive ? 'btn-danger-solid' : 'btn-primary'}
                             onClick={onConfirm}
                             disabled={isLoading || isConfirmDisabled}

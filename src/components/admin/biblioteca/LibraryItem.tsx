@@ -136,7 +136,11 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
           }} className="quick-actions">
             {['pdf', 'image'].some(type => arquivo.tipo_mime.includes(type)) && (
               <button
-                onClick={(e) => { e.stopPropagation(); onPreview ? onPreview(arquivo) : onDownload(arquivo); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onPreview) onPreview(arquivo);
+                  else onDownload(arquivo);
+                }}
                 className="action-btn-hover"
                 style={{
                   padding: '0.4rem',
@@ -342,7 +346,11 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
             <>
               {['pdf', 'image'].some(type => arquivo.tipo_mime.includes(type)) && (
                 <button 
-                  onClick={(e) => { e.stopPropagation(); onPreview ? onPreview(arquivo) : onDownload(arquivo); }} 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onPreview) onPreview(arquivo);
+                    else onDownload(arquivo);
+                  }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--primary-color)' }}
                   title="Visualizar"
                 >

@@ -116,7 +116,7 @@ export function Header() {
       <div className="container header-bar">
         <Link to="/dashboard" className="header-brand">
           <span className="header-brand-icon has-image">
-            <img src="/logo.png" alt="Logo" />
+            <img src="/logo-160.webp" alt="Logo" />
           </span>
           <span className="header-brand-text">
             EJC <strong>Capelinha</strong>

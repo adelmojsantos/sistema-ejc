@@ -58,11 +58,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ isVisible, onFinishe
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    if (!isVisible) {
-      // Reset progress when not visible so it starts from 0 next time
-      setProgress(0);
-      return;
-    }
+    if (!isVisible) return;
 
     const interval = setInterval(() => {
       setProgress(prev => {
@@ -76,8 +72,13 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({ isVisible, onFinishe
     return () => clearInterval(interval);
   }, [isVisible]);
 
+  const handleExitComplete = () => {
+    setProgress(0);
+    onFinished?.();
+  };
+
   return (
-    <AnimatePresence onExitComplete={onFinished}>
+    <AnimatePresence onExitComplete={handleExitComplete}>
       {isVisible && (
         <motion.div
           className={styles.splashContainer}

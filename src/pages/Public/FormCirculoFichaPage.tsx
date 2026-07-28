@@ -320,7 +320,7 @@ export default function FormCirculoFichaPage() {
             <p style={{ fontSize: '0.75rem', opacity: 0.5, margin: 0 }}>{meta?.nome_encontrista}</p>
           </div>
         </div>
-        <button onClick={() => { logout(); navigate('/'); }} className="icon-btn" title="Sair">
+        <button onClick={() => { logout(); navigate('/'); }} className="icon-btn" title="Sair" aria-label="Sair do formulário">
           <LogOut size={18} />
         </button>
       </div>

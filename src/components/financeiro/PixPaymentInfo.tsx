@@ -23,9 +23,10 @@ export function PixPaymentInfo({ chave, tipo, qrCodeUrl, variant = 'default' }: 
                 return val.replace(/(\d{3})\d{6}(\d{2})/, '$1.***.***-$2');
             case 'cnpj':
                 return val.replace(/(\d{2})\d{8}(\d{4})/, '$1.***.***/$2-**');
-            case 'email':
+            case 'email': {
                 const [user, domain] = val.split('@');
                 return `${user[0]}***@${domain}`;
+            }
             case 'telefone':
                 return val.replace(/(\d{2})(\d{2})\d{5}(\d{2})/, '+$1 ($2) *****-**$3');
             default:

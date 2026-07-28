@@ -18,6 +18,7 @@ import {
   formatChildAge,
   MAX_RECREACAO_AGE_MONTHS
 } from '../../utils/ageUtils';
+import { userFacingError } from '../../utils/userFacingError';
 
 export default function FormRecreacaoPage() {
   const navigate = useNavigate();
@@ -76,7 +77,7 @@ export default function FormRecreacaoPage() {
         setChildren(context.criancas);
       } catch (error) {
         console.error('Erro ao carregar crianças:', error);
-        toast.error('Erro ao carregar dados.');
+        toast.error(userFacingError(error, 'Erro ao carregar dados.'));
       } finally {
         setIsLoading(false);
       }
@@ -127,7 +128,7 @@ export default function FormRecreacaoPage() {
       resetForm();
     } catch (error) {
       console.error('Erro ao salvar dados:', error);
-      toast.error('Erro ao salvar os dados.');
+      toast.error(userFacingError(error, 'Erro ao salvar os dados.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -163,7 +164,7 @@ export default function FormRecreacaoPage() {
       await loadData();
     } catch (error) {
       console.error('Erro ao excluir:', error);
-      toast.error('Erro ao excluir.');
+      toast.error(userFacingError(error, 'Erro ao excluir.'));
     } finally {
       setIsDeleting(false);
       setIdToDelete(null);
@@ -306,7 +307,7 @@ export default function FormRecreacaoPage() {
             <p style={{ fontSize: '0.75rem', opacity: 0.5, margin: 0 }}>{session?.participacoes?.equipes?.nome}</p>
           </div>
         </div>
-        <button onClick={logout} className="icon-btn" title="Sair">
+        <button onClick={logout} className="icon-btn" title="Sair" aria-label="Sair do formulário">
           <LogOut size={18} />
         </button>
       </div>

@@ -28,6 +28,7 @@ import type { Palestra } from '../../types/palestra';
 import type { RecreacaoQuadranteDados } from '../../types/recreacao';
 import { quadranteVisibilityDefault, type QuadranteVisibilityConfig } from '../../types/encontro';
 import { sanitizeRichHtml } from '../../utils/sanitizeRichHtml';
+import { userFacingError } from '../../utils/userFacingError';
 import logoCapelinha from '../../assets/logo_capelinha.png';
 
 // Import Google Fonts
@@ -347,7 +348,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                 setCriancasRecreacao(criancasData);
             } catch (error) {
                 console.error('Erro ao carregar quadrante:', error);
-                toast.error('Não foi possível carregar os dados.');
+                toast.error(userFacingError(error, 'Não foi possível carregar os dados.'));
             } finally {
                 setLoading(false);
             }
@@ -429,7 +430,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
 
     if (loading) {
         return (
-            <div className="loading-screen" style={{
+            <div className="loading-screen" role="status" aria-live="polite" style={{
                 position: 'fixed',
                 inset: 0,
                 display: 'flex',
@@ -547,7 +548,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
 
             {/* Header Overlay (Mobile & Desktop when Sidebar Closed) */}
             {!printOptimized && <div className={`mobile-header ${!sidebarOpen ? 'visible' : ''}`}>
-                <button onClick={() => setSidebarOpen(true)} className="menu-btn">
+                <button onClick={() => setSidebarOpen(true)} className="menu-btn" aria-label="Abrir menu do Quadrante">
                     <Menu size={24} style={{ width: 24, height: 24, flexShrink: 0 }} />
                 </button>
                 <h1 className={scrolled ? 'visible' : ''}>
@@ -555,7 +556,11 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     {activeSection && <span className="section-dot">•</span>}
                     {activeSection && <span className="active-section-name">{activeSection}</span>}
                 </h1>
-                <button onClick={toggleTheme} className="menu-btn">
+                <button
+                    onClick={toggleTheme}
+                    className="menu-btn"
+                    aria-label={`Ativar tema ${theme === 'dark' ? 'claro' : 'escuro'}`}
+                >
                     {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
             </div>}

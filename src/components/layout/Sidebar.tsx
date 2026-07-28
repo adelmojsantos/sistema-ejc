@@ -157,7 +157,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <aside className={`sidebar ${collapsed && !mobileOpen ? 'sidebar--collapsed' : ''} ${mobileOpen ? 'sidebar--open' : ''}`}>
         <div className="sidebar-logo">
-          <img src="/logo.png" alt="Logo" />
+          <img src="/logo-160.webp" alt="Logo" />
           {(!collapsed || mobileOpen) && <span>EJC <strong>Capelinha</strong></span>}
           {mobileOpen && (
             <button className="mobile-close-btn" onClick={() => setMobileOpen(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-color)' }}>

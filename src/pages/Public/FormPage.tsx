@@ -9,6 +9,8 @@ import logoEjc from '../../assets/logo-ejc.svg';
 import { toast } from 'react-hot-toast';
 import type { RecepcaoDadosFormData } from '../../types/recepcao';
 import { cleanPlate, formatPlate } from '../../utils/plateUtils';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { userFacingError } from '../../utils/userFacingError';
 
 export default function FormPage() {
   const navigate = useNavigate();
@@ -17,6 +19,7 @@ export default function FormPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [recordId, setRecordId] = useState<string | null>(null);
   const [formData, setFormData] = useState<RecepcaoDadosFormData>({
     veiculo_tipo: 'carro',
@@ -63,13 +66,13 @@ export default function FormPage() {
 
     const handleDelete = async () => {
       if (!recordId) return;
-      if (!window.confirm('Deseja realmente remover os dados do seu veículo?')) return;
       if (!token) return;
 
       setIsDeleting(true);
       try {
         await externalAccessService.deleteRecepcao(token, recordId);
         toast.success('Veículo removido com sucesso!');
+        setIsDeleteDialogOpen(false);
         setRecordId(null);
         setFormData({
           veiculo_tipo: 'carro',
@@ -79,7 +82,7 @@ export default function FormPage() {
         });
       } catch (error) {
         console.error('Erro ao excluir dados:', error);
-        toast.error('Erro ao excluir os dados. Tente novamente.');
+        toast.error(userFacingError(error, 'Erro ao excluir os dados. Tente novamente.'));
       } finally {
         setIsDeleting(false);
       }
@@ -114,7 +117,7 @@ export default function FormPage() {
       setIsSuccess(true);
     } catch (error) {
       console.error('Erro ao salvar dados:', error);
-      toast.error('Erro ao salvar os dados. Tente novamente.');
+      toast.error(userFacingError(error, 'Erro ao salvar os dados. Tente novamente.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -235,7 +238,7 @@ export default function FormPage() {
             <p style={{ fontSize: '0.75rem', opacity: 0.5, margin: 0 }}>{session?.participacoes?.equipes?.nome}</p>
           </div>
         </div>
-        <button onClick={logout} className="icon-btn" title="Sair">
+        <button onClick={logout} className="icon-btn" title="Sair" aria-label="Sair do formulário">
           <LogOut size={18} />
         </button>
       </div>
@@ -365,7 +368,7 @@ export default function FormPage() {
               {recordId && (
                 <button 
                   type="button" 
-                  onClick={handleDelete} 
+                  onClick={() => setIsDeleteDialogOpen(true)}
                   className="btn-danger-outline" 
                   style={{ height: '48px', display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'center' }}
                   disabled={isSubmitting || isDeleting}
@@ -397,6 +400,16 @@ export default function FormPage() {
           Seus dados são armazenados com segurança.
         </p>
       </div>
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        title="Remover veículo"
+        message="Deseja realmente remover os dados do seu veículo? Essa ação não pode ser desfeita."
+        confirmText="Remover"
+        onConfirm={handleDelete}
+        onCancel={() => setIsDeleteDialogOpen(false)}
+        isLoading={isDeleting}
+        isDestructive
+      />
     </div>
   );
 }

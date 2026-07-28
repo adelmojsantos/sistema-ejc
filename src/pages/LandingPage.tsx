@@ -107,11 +107,12 @@ export default function LandingPage() {
   return (
     <div className="landing-page" id="top">
       <SEO />
+      <a className="skip-link" href="#conteudo-principal">Pular para o conteúdo</a>
       <div className="landing-progress" style={{ width: `${scrollProgress * 100}%` }} />
 
       <LandingHeader />
 
-      <main>
+      <main id="conteudo-principal">
         <Section noPadding className="landing-hero-section">
           <Hero registrationOpen={registrationOpen} />
         </Section>
@@ -199,6 +200,7 @@ export default function LandingPage() {
                     icon={<User size={18} />}
                     required
                     placeholder="Seu nome completo"
+                    autoComplete="name"
                     className="landing-form__input"
                   />
 
@@ -211,6 +213,7 @@ export default function LandingPage() {
                     icon={<Phone size={18} />}
                     required
                     placeholder="(33) 99999-9999"
+                    autoComplete="tel"
                     className="landing-form__input"
                   />
 
@@ -222,6 +225,7 @@ export default function LandingPage() {
                     onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('email', event.target.value)}
                     error={errors.email}
                     placeholder="seu@email.com"
+                    autoComplete="email"
                     className="landing-form__input"
                   />
 
@@ -232,6 +236,7 @@ export default function LandingPage() {
                     value={form.data_nascimento || ''}
                     onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('data_nascimento', event.target.value)}
                     icon={<Calendar size={18} />}
+                    autoComplete="off"
                     className="landing-form__input"
                   />
 

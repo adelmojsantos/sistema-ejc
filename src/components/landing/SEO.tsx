@@ -34,8 +34,8 @@ export function SEO() {
     const title = 'EJC Capelinha | Encontro de Jovens com Cristo e Pré-Cadastro';
     const description =
       'Participe do EJC Capelinha. Uma experiência de fé, amizade e renovação para jovens. Faça seu pré-cadastro e receba as próximas orientações.';
-    const url = window.location.href;
-    const image = `${window.location.origin}/landing_hero.png`;
+    const url = `${window.location.origin}/inicio`;
+    const image = `${window.location.origin}/51-tema.webp`;
 
     document.title = title;
     document.documentElement.lang = 'pt-BR';

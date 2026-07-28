@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { Info, UserPlus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { PasswordInput } from '../components/ui/PasswordInput';
@@ -156,6 +157,20 @@ export function Login() {
                 {loading ? 'Validando acesso...' : 'Entrar no Sistema'}
               </button>
             </form>
+
+            <nav className="auth-public-access" aria-label="Acessos públicos">
+              <p>Não faz parte da equipe organizadora?</p>
+              <div className="auth-public-actions">
+                <Link to="/inscricao-online" className="auth-public-link auth-public-link--primary">
+                  <UserPlus size={20} aria-hidden="true" />
+                  <span>Fazer inscrição</span>
+                </Link>
+                <Link to="/inicio" className="auth-public-link">
+                  <Info size={20} aria-hidden="true" />
+                  <span>Conhecer o EJC</span>
+                </Link>
+              </div>
+            </nav>
 
             <footer style={{ marginTop: '3rem', textAlign: 'center', color: 'var(--muted-text)', fontSize: '0.75rem' }}>
               &copy; {new Date().getFullYear()} EJC Capelinha. Todos os direitos reservados.
