@@ -9,7 +9,7 @@ vi.mock('../hooks/useAuth', () => ({ useAuth: vi.fn() }));
 const mockedUseAuth = vi.mocked(useAuth);
 
 function renderProtected(
-  requiredPermissions: string[] | undefined = ['modulo_admin'],
+  requiredPermissions: string[] | null = ['modulo_admin'],
   requiredExactPermissions?: string[]
 ) {
   return render(
@@ -22,7 +22,7 @@ function renderProtected(
           path="/restrito"
           element={(
             <ProtectedRoute
-              requiredPermissions={requiredPermissions}
+              requiredPermissions={requiredPermissions ?? undefined}
               requiredExactPermissions={requiredExactPermissions}
             >
               <div>Conteúdo autorizado</div>
@@ -125,7 +125,7 @@ describe('ProtectedRoute', () => {
       hasExactPermission: () => false,
     } as unknown as ReturnType<typeof useAuth>);
 
-    renderProtected(undefined, ['modulo_diagnosticos']);
+    renderProtected(null, ['modulo_diagnosticos']);
 
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
   });
@@ -141,7 +141,7 @@ describe('ProtectedRoute', () => {
       hasExactPermission: (permission: string) => permission === 'modulo_diagnosticos',
     } as unknown as ReturnType<typeof useAuth>);
 
-    renderProtected(undefined, ['modulo_diagnosticos']);
+    renderProtected(null, ['modulo_diagnosticos']);
 
     expect(screen.getByText('Conteúdo autorizado')).toBeInTheDocument();
   });
