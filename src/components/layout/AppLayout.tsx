@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { useLocation } from 'react-router-dom';
@@ -17,9 +17,9 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const contentRef = useRef<HTMLElement>(null);
   const mobileOpen = mobileMenu.pathname === location.pathname && mobileMenu.open;
 
-  const setMobileOpen = (open: boolean) => {
+  const setMobileOpen = useCallback((open: boolean) => {
     setMobileMenu({ pathname: location.pathname, open });
-  };
+  }, [location.pathname]);
 
   // Save sidebar state to localStorage
   const handleSetCollapsed = (value: boolean) => {
@@ -56,7 +56,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       />
       
       <div className="layout-main">
-        <Topbar onMenuClick={() => setMobileOpen(!mobileOpen)} />
+        <Topbar
+          mobileMenuOpen={mobileOpen}
+          onMenuClick={() => setMobileOpen(!mobileOpen)}
+        />
         
         <main
           id="conteudo-principal"

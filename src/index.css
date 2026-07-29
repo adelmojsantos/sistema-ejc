@@ -4407,6 +4407,7 @@ tbody tr:hover {
   }
 
   .sidebar {
+    width: min(86vw, 320px);
     transform: translateX(-100%);
   }
 
@@ -4418,9 +4419,45 @@ tbody tr:hover {
   .sidebar-overlay {
     position: fixed;
     inset: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
     z-index: 45;
+    cursor: pointer;
+  }
+
+  .sidebar-nav {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .nav-item {
+    min-height: 48px;
+  }
+
+  .mobile-close-btn,
+  .mobile-menu-btn,
+  .user-menu-trigger,
+  .topbar .btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .content-area {
+    padding: 1rem;
+  }
+
+  .topbar {
+    padding: 0 1rem;
+  }
+
+  .page-title {
+    max-width: 45vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
@@ -4833,6 +4870,188 @@ tbody tr:hover {
 @media (max-width: 420px) {
   .auth-public-actions {
     grid-template-columns: 1fr;
+  }
+}
+
+.diagnostics-page {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.diagnostics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.diagnostics-header h1 {
+  margin: 0.25rem 0;
+}
+
+.diagnostics-header p {
+  margin: 0;
+  color: var(--muted-text);
+}
+
+.diagnostics-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--primary-color) !important;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.diagnostics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.diagnostics-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.diagnostics-notice,
+.diagnostics-empty,
+.diagnostics-card {
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--card-bg);
+}
+
+.diagnostics-notice {
+  padding: 1rem;
+  color: var(--muted-text);
+}
+
+.diagnostics-empty {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--muted-text);
+}
+
+.diagnostics-empty h2 {
+  margin: 0.75rem 0 0.25rem;
+  color: var(--text-color);
+  font-size: 1.1rem;
+}
+
+.diagnostics-empty p {
+  margin: 0;
+}
+
+.diagnostics-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  gap: 1rem;
+}
+
+.diagnostics-card {
+  min-width: 0;
+  padding: 1rem;
+}
+
+.diagnostics-card__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--muted-text);
+  font-size: 0.75rem;
+}
+
+.diagnostics-card__meta span {
+  color: var(--primary-color);
+  font-weight: 800;
+}
+
+.diagnostics-card h2 {
+  margin: 0.75rem 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.diagnostics-card dl {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.diagnostics-card dl div {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.diagnostics-card dt {
+  color: var(--muted-text);
+  font-size: 0.8rem;
+}
+
+.diagnostics-card dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.diagnostics-card details {
+  margin-top: 0.875rem;
+}
+
+.diagnostics-card summary {
+  cursor: pointer;
+  color: var(--primary-color);
+  font-weight: 700;
+}
+
+.diagnostics-card pre {
+  max-height: 16rem;
+  margin: 0.75rem 0 0;
+  padding: 0.75rem;
+  overflow: auto;
+  border-radius: 10px;
+  background: var(--secondary-bg);
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .diagnostics-header {
+    flex-direction: column;
+  }
+
+  .diagnostics-actions,
+  .diagnostics-actions button {
+    width: 100%;
+  }
+
+  .diagnostics-actions button {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  /*
+   * Legacy modules still render semantic tables. Their direct container becomes
+   * the scroll boundary so the application shell itself never overflows.
+   */
+  .content-area :has(> table) {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .content-area table {
+    min-width: max(640px, 100%);
+    font-size: 0.8125rem;
   }
 }
 

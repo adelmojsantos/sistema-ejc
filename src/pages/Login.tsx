@@ -91,6 +91,7 @@ export function Login() {
                     alt="Logo EJC"
                     width="140"
                     height="40"
+                    fetchPriority="high"
                     className="auth-logo-header"
                   />
                 </motion.div>
@@ -109,6 +110,7 @@ export function Login() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="seu@email.com"
+                  autoComplete="username"
                   required
                 />
               </div>
@@ -129,6 +131,7 @@ export function Login() {
                   id="password"
                   value={password}
                   onChange={setPassword}
+                  autoComplete="current-password"
                   required
                 />
               </div>

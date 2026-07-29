@@ -9,6 +9,7 @@ interface PasswordInputProps {
   minLength?: number;
   required?: boolean;
   className?: string;
+  autoComplete?: string;
 }
 
 export function PasswordInput({
@@ -19,6 +20,7 @@ export function PasswordInput({
   minLength,
   required,
   className = 'form-input',
+  autoComplete,
 }: PasswordInputProps) {
   const [show, setShow] = useState(false);
 
@@ -33,6 +35,7 @@ export function PasswordInput({
         placeholder={placeholder}
         minLength={minLength}
         required={required}
+        autoComplete={autoComplete}
         style={{ paddingRight: '3rem' }}
       />
       <button

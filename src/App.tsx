@@ -3,19 +3,16 @@ import { Toaster } from 'react-hot-toast';
 import { Navigate, Route, BrowserRouter as Router, Routes, useLocation, Outlet, useParams } from 'react-router-dom';
 import { Header } from './components/Header';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
+import { AppObservability } from './components/AppObservability';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { PageTransition } from './components/ui/PageTransition';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { EncontroProvider } from './contexts/EncontroContext';
-import { EquipeProvider } from './contexts/EquipeContext';
 import { useAuth } from './hooks/useAuth';
 import { SplashScreen } from './components/ui/SplashScreen';
 import { lazy, Suspense, type ComponentType } from 'react';
 import { useLoading } from './contexts/LoadingContext';
 import { AppLayout } from './components/layout/AppLayout';
-import { ExternalSessionProvider } from './contexts/ExternalSessionContext';
-import { CirculoSessionProvider } from './contexts/CirculoSessionContext';
 
 function lazyNamed<TProps extends object = Record<string, never>>(
   loader: () => Promise<unknown>,
@@ -34,6 +31,7 @@ const ExportConfigListPage = lazyNamed(() => import('./pages/admin/ExportConfigL
 const ExportConfigFormPage = lazyNamed(() => import('./pages/admin/ExportConfigFormPage'), 'ExportConfigFormPage');
 const BibliotecaPage = lazyNamed(() => import('./pages/admin/BibliotecaPage'), 'BibliotecaPage');
 const DirigenciaPage = lazyNamed(() => import('./pages/admin/DirigenciaPage'), 'DirigenciaPage');
+const DiagnosticsPage = lazyNamed(() => import('./pages/admin/DiagnosticsPage'), 'DiagnosticsPage');
 const Cadastros = lazyNamed(() => import('./pages/cadastros/Cadastros'), 'Cadastros');
 const CirculosPage = lazyNamed(() => import('./pages/circulos/CirculosPage'), 'CirculosPage');
 const CirculosPortalPage = lazyNamed(() => import('./pages/circulos/CirculosPortalPage'), 'CirculosPortalPage');
@@ -108,6 +106,9 @@ const QuadrantePage = lazyNamed<{ isAdminView?: boolean }>(() => import('./pages
 const SharedLibraryPage = lazy(() => import('./pages/shared/SharedLibraryPage'));
 const InscricaoPublicaPage = lazy(() => import('./pages/InscricaoPublicaPage'));
 const InscricaoPage = lazyNamed(() => import('./pages/InscricaoPage'), 'InscricaoPage');
+const AuthenticatedDataProviders = lazy(() => import('./components/providers/AuthenticatedDataProviders'));
+const ExternalAccessProvider = lazy(() => import('./components/providers/ExternalAccessProvider'));
+const CirculoAccessProvider = lazy(() => import('./components/providers/CirculoAccessProvider'));
 
 function LegacyExportConfigRedirect() {
   const { id } = useParams();
@@ -155,15 +156,19 @@ function AnimatedRoutes() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/inicio" element={<LandingPage />} />
         <Route path="/inscricao-online" element={<PageTransition><InscricaoPublicaPage /></PageTransition>} />
-        <Route path="/formulario" element={<PageTransition><FormAccess /></PageTransition>} />
-        <Route path="/formulario/recepcao" element={<PageTransition><FormPage /></PageTransition>} />
-        <Route path="/formulario/recreacao" element={<PageTransition><FormRecreacaoPage /></PageTransition>} />
+        <Route element={<ExternalAccessProvider><Outlet /></ExternalAccessProvider>}>
+          <Route path="/formulario" element={<PageTransition><FormAccess /></PageTransition>} />
+          <Route path="/formulario/recepcao" element={<PageTransition><FormPage /></PageTransition>} />
+          <Route path="/formulario/recreacao" element={<PageTransition><FormRecreacaoPage /></PageTransition>} />
+        </Route>
         <Route path="/q/:token" element={<QuadranteAuthPage />} />
         <Route path="/quadrante/:token" element={<QuadrantePage isAdminView={true} />} />
         <Route path="/quadrante/:token/publico" element={<QuadrantePage isAdminView={false} />} />
         {/* Rotas públicas — Ficha Pós-Encontro por Círculo */}
-        <Route path="/pos-encontro/circulo/:circulo_id" element={<PageTransition><FormCirculoAccessPage /></PageTransition>} />
-        <Route path="/pos-encontro/ficha" element={<PageTransition><FormCirculoFichaPage /></PageTransition>} />
+        <Route element={<CirculoAccessProvider><Outlet /></CirculoAccessProvider>}>
+          <Route path="/pos-encontro/circulo/:circulo_id" element={<PageTransition><FormCirculoAccessPage /></PageTransition>} />
+          <Route path="/pos-encontro/ficha" element={<PageTransition><FormCirculoFichaPage /></PageTransition>} />
+        </Route>
         <Route path="/pesquisa-satisfacao/equipe/:equipeId" element={<PageTransition><PesquisaSatisfacaoPublicPage /></PageTransition>} />
 
         <Route path="/alterar-senha" element={
@@ -175,7 +180,13 @@ function AnimatedRoutes() {
         } />
 
         {/* Private Routes Wrapper */}
-        <Route element={<ProtectedRoute><AppLayout><Outlet /></AppLayout></ProtectedRoute>}>
+        <Route element={(
+          <ProtectedRoute>
+            <AuthenticatedDataProviders>
+              <AppLayout><Outlet /></AppLayout>
+            </AuthenticatedDataProviders>
+          </ProtectedRoute>
+        )}>
           <Route path="/dashboard" element={
             (() => {
               if ((hasPermission('modulo_visitacao_coordenar') || hasPermission('modulo_visitacao_duplas')) && !hasPermission('modulo_admin') && Object.keys(profile?.permissions || []).length === 1) {
@@ -211,6 +222,12 @@ function AnimatedRoutes() {
           <Route path="/admin/dirigencia" element={
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
               <DirigenciaPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/admin/diagnosticos" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <DiagnosticsPage />
             </ProtectedRoute>
           } />
 
@@ -540,15 +557,9 @@ function App() {
     <AppErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <ExternalSessionProvider>
-            <CirculoSessionProvider>
-              <EncontroProvider>
-                <EquipeProvider>
-                  <MainApp />
-                </EquipeProvider>
-              </EncontroProvider>
-            </CirculoSessionProvider>
-          </ExternalSessionProvider>
+          <AppObservability>
+            <MainApp />
+          </AppObservability>
         </AuthProvider>
       </ThemeProvider>
     </AppErrorBoundary>

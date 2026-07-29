@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { captureAppError } from '../services/observabilityService';
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
@@ -16,7 +17,10 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[AppErrorBoundary] Falha não tratada na interface:', error, info);
+    captureAppError(error, {
+      source: 'react.error-boundary',
+      details: info.componentStack ?? undefined,
+    });
   }
 
   private retry = () => {

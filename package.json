@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
     "worker:check": "wrangler deploy --dry-run --config cloudflare/ejc-fotos/wrangler.jsonc",
     "worker:deploy": "wrangler deploy --config cloudflare/ejc-fotos/wrangler.jsonc",
     "migrate:public-images-r2": "node scripts/migrate-public-images-to-r2.mjs",
@@ -50,6 +51,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260701.1",
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.62.0",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

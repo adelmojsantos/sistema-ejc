@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Home,
   UserPlus,
@@ -20,7 +20,8 @@ import {
   Crown,
   HeartPulse,
   Mail,
-  ChefHat
+  ChefHat,
+  Activity
 } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
@@ -40,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setMobileOpen
 }) => {
   const { profile, userParticipacao, hasPermission } = useAuth();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const equipeNome = userParticipacao?.equipes?.nome ?? '';
   const isCozinhaCoordinator = Boolean(
     userParticipacao?.coordenador &&
@@ -80,6 +82,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     menuItems.push(
       { to: '/admin/usuarios', label: 'Usuários', icon: Users },
       { to: '/admin/acessos', label: 'Acessos', icon: Shield },
+      { to: '/admin/diagnosticos', label: 'Diagnósticos', icon: Activity },
       { to: '/admin/dirigencia', label: 'Dirigência', icon: Crown },
     );
   }
@@ -148,25 +151,59 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
   };
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeButtonRef.current?.focus();
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileOpen(false);
+    };
+    window.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [mobileOpen, setMobileOpen]);
+
   return (
     <>
       {/* Mobile Overlay */}
       {mobileOpen && (
-        <div className="sidebar-overlay" onClick={() => setMobileOpen(false)} />
+        <button
+          type="button"
+          className="sidebar-overlay"
+          aria-label="Fechar menu principal"
+          onClick={() => setMobileOpen(false)}
+        />
       )}
 
-      <aside className={`sidebar ${collapsed && !mobileOpen ? 'sidebar--collapsed' : ''} ${mobileOpen ? 'sidebar--open' : ''}`}>
+      <aside
+        id="sidebar-navigation"
+        className={`sidebar ${collapsed && !mobileOpen ? 'sidebar--collapsed' : ''} ${mobileOpen ? 'sidebar--open' : ''}`}
+        aria-label="Menu principal"
+      >
         <div className="sidebar-logo">
           <img src="/logo-160.webp" alt="Logo" />
           {(!collapsed || mobileOpen) && <span>EJC <strong>Capelinha</strong></span>}
           {mobileOpen && (
-            <button className="mobile-close-btn" onClick={() => setMobileOpen(false)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-color)' }}>
+            <button
+              ref={closeButtonRef}
+              type="button"
+              className="mobile-close-btn"
+              aria-label="Fechar menu principal"
+              onClick={() => setMobileOpen(false)}
+              style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-color)' }}
+            >
               <X size={24} />
             </button>
           )}
         </div>
 
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" aria-label="Módulos do sistema">
           {navLinks.map((link) => (
             <NavItem
               key={link.to}
@@ -192,8 +229,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           <button
+            type="button"
             className="nav-item collapse-btn"
             onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? 'Expandir menu principal' : 'Recolher menu principal'}
             style={{
               border: 'none',
               background: 'none',

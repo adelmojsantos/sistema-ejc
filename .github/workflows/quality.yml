@@ -40,3 +40,9 @@ jobs:
 
       - name: Gerar build de produção
         run: pnpm run build
+
+      - name: Instalar navegador E2E
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Executar jornadas E2E
+        run: pnpm test:e2e

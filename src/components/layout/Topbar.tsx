@@ -14,9 +14,10 @@ import { ConfirmDialog } from '../ConfirmDialog';
 
 interface TopbarProps {
   onMenuClick: () => void;
+  mobileMenuOpen: boolean;
 }
 
-export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
+export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) => {
   const { theme, toggleTheme } = useTheme();
   const { profile, signOut } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -60,6 +61,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
     if (path === '/dashboard') return 'Dashboard';
     if (path.startsWith('/admin/usuarios')) return 'Gerenciar Usuários';
     if (path.startsWith('/admin/acessos')) return 'Controle de Acessos';
+    if (path.startsWith('/admin/diagnosticos')) return 'Diagnósticos';
     if (path.startsWith('/secretaria/importar')) return 'Importar Dados';
     if (path.startsWith('/secretaria/configuracoes-exportacao')) return 'Configurações de Exportação';
     if (path.startsWith('/secretaria/participantes')) return 'Participantes';
@@ -94,6 +96,9 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
           <button 
             className="mobile-menu-btn" 
             onClick={onMenuClick}
+            aria-label={mobileMenuOpen ? 'Fechar menu principal' : 'Abrir menu principal'}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="sidebar-navigation"
           >
             <Menu size={24} />
           </button>
@@ -107,6 +112,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
             className="btn-text btn-icon" 
             onClick={toggleTheme}
             title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
+            aria-label={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
             style={{ padding: '0.5rem', borderRadius: '10px' }}
           >
             {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
@@ -118,6 +124,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
             <button 
               className={`user-menu-trigger ${isUserMenuOpen ? 'active' : ''}`}
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              aria-label="Abrir opções da conta"
+              aria-expanded={isUserMenuOpen}
             >
               <div className="user-avatar-sm">
                 {(profile?.nome_completo?.charAt(0) || profile?.email?.charAt(0))?.toUpperCase()}
