@@ -25,6 +25,21 @@ test('uma rota privada sem sessão retorna ao login', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Entrar no Sistema' })).toBeVisible();
 });
 
+test('a recuperação de senha usa link por e-mail', async ({ page }) => {
+  await page.goto('/esqueci-senha');
+
+  await expect(page.getByRole('heading', { name: 'Recuperar senha' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Enviar link de recuperação' })).toBeVisible();
+});
+
+test('a redefinição rejeita acesso sem sessão válida', async ({ page }) => {
+  await page.goto('/redefinir-senha');
+
+  await expect(page.getByRole('heading', { name: 'Link inválido ou expirado' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Solicitar novo link' }))
+    .toHaveAttribute('href', '/esqueci-senha');
+});
+
 test('a página institucional continua disponível e acessível', async ({ page }) => {
   await page.goto('/inicio');
 

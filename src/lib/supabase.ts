@@ -5,13 +5,14 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
 
 /**
  * LGPD Art. 46 — Segurança dos dados.
- * detectSessionInUrl: false → impede que tokens JWT apareçam em URLs
- *   (e portanto em logs de servidor / histórico do navegador).
+ * Links de convite e recuperação do Supabase precisam ser processados pelo
+ * cliente. A página de redefinição remove os parâmetros sensíveis da URL logo
+ * após a sessão ser reconhecida.
  */
 export const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {
         persistSession: true,
-        detectSessionInUrl: false,
+        detectSessionInUrl: true,
         autoRefreshToken: true,
     },
 });

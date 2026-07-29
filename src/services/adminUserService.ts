@@ -64,7 +64,6 @@ export interface CoordenadorPastaPrepareResult {
     user_id: string | null;
     created: boolean;
     granted: boolean;
-    temporaryPassword?: string;
     success: boolean;
     message?: string;
 }
@@ -85,12 +84,19 @@ interface CreateAdminUserPayload {
 
 interface CreateAdminUserResponse {
     user: AdminUserListItem;
-    temporaryPassword: string;
+    invitationSent: boolean;
 }
 
 interface ResetPasswordResponse {
     user: AdminUserListItem;
-    temporaryPassword: string;
+    recoveryEmailSent: boolean;
+}
+
+export interface SecurePendingPasswordsResponse {
+    total: number;
+    invalidated: number;
+    recoveryEmailsSent: number;
+    failed: number;
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -254,7 +260,7 @@ export const adminUserService = {
         }
     },
 
-    async resetTemporaryPassword(userId: string): Promise<ResetPasswordResponse> {
+    async sendPasswordRecovery(userId: string): Promise<ResetPasswordResponse> {
         const headers = await getAuthHeaders();
         const { data, error } = await supabase.functions.invoke('admin-users', {
             body: { action: 'reset-password', userId },
@@ -263,6 +269,18 @@ export const adminUserService = {
 
         if (error) throw error;
         return data as ResetPasswordResponse;
+    },
+
+    async securePendingPasswords(): Promise<SecurePendingPasswordsResponse> {
+        const headers = await getAuthHeaders();
+        const { data, error } = await supabase.functions.invoke('admin-users', {
+            body: { action: 'secure-pending-passwords' },
+            headers,
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        return data as SecurePendingPasswordsResponse;
     },
 
     async deleteUser(userId: string): Promise<void> {

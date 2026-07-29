@@ -1,7 +1,7 @@
 import type { SyntheticEvent } from 'react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { CheckCircle, RotateCcw, Search, ShieldCheck, UserPlus, Users2, X, Trash2 } from 'lucide-react';
+import { CheckCircle, Mail, RotateCcw, Search, ShieldCheck, UserPlus, Users2, X, Trash2 } from 'lucide-react';
 import { ActionStepper } from '../../components/ui/ActionStepper';
 import {
     adminUserService,
@@ -52,9 +52,10 @@ export function UsersAdminPage() {
     const [totalUsers, setTotalUsers] = useState(0);
     const [selectedGruposIds, setSelectedGruposIds] = useState<string[]>([]);
     const [creating, setCreating] = useState(false);
-    const [tempPasswords, setTempPasswords] = useState<Record<string, string>>({});
     const [updatingRoleById, setUpdatingRoleById] = useState<Record<string, boolean>>({});
     const [resettingPasswordById, setResettingPasswordById] = useState<Record<string, boolean>>({});
+    const [confirmPendingSecurity, setConfirmPendingSecurity] = useState(false);
+    const [securingPendingPasswords, setSecuringPendingPasswords] = useState(false);
     const [userToDelete, setUserToDelete] = useState<string | null>(null);
     const [selectedUserDetails, setSelectedUserDetails] = useState<UserExtended | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -236,9 +237,8 @@ export function UsersAdminPage() {
 
         setCreating(true);
         try {
-            const result = await adminUserService.createUser({ email, gruposIds: selectedGruposIds, encontroId: targetEncontroId });
-            setTempPasswords((prev) => ({ ...prev, [result.user.id]: result.temporaryPassword }));
-            toast.success('Usuário criado com senha temporária.');
+            await adminUserService.createUser({ email, gruposIds: selectedGruposIds, encontroId: targetEncontroId });
+            toast.success('Usuário criado e convite enviado por e-mail.');
             handleClearSelection();
             loadUsers();
         } catch (createError: unknown) {
@@ -372,7 +372,6 @@ export function UsersAdminPage() {
             try {
                 const result = await adminUserService.createUser({ email: member.pessoas.email, gruposIds: bulkGruposIds, encontroId: targetEncontroId });
                 setUsers(prev => [...prev, result.user]);
-                setTempPasswords(prev => ({ ...prev, [result.user.id]: result.temporaryPassword }));
                 results.push({ id: pessoaId, success: true });
             } catch (err: unknown) {
                 const message = err instanceof Error ? err.message : 'Erro ao criar';
@@ -452,19 +451,43 @@ export function UsersAdminPage() {
         }
     }
 
-    const handleResetTemporaryPassword = async (userId: string) => {
+    const handleSendPasswordRecovery = async (userId: string) => {
         setResettingPasswordById((prev) => ({ ...prev, [userId]: true }));
         try {
-            const result = await adminUserService.resetTemporaryPassword(userId);
-            setTempPasswords((prev) => ({ ...prev, [userId]: result.temporaryPassword }));
+            const result = await adminUserService.sendPasswordRecovery(userId);
             setUsers((prev) => prev.map((user) => (user.id === userId ? result.user : user)));
             setSelectedUserDetails((prev) => (prev?.id === userId ? { ...prev, ...result.user } : prev));
-            toast.success('Senha temporária redefinida.');
+            toast.success('Link de redefinição enviado por e-mail.');
         } catch (resetError: unknown) {
-            const message = resetError instanceof Error ? resetError.message : 'Erro ao redefinir senha.';
+            const message = resetError instanceof Error ? resetError.message : 'Erro ao enviar recuperação.';
             toast.error(message);
         } finally {
             setResettingPasswordById((prev) => ({ ...prev, [userId]: false }));
+        }
+    };
+
+    const handleSecurePendingPasswords = async () => {
+        setSecuringPendingPasswords(true);
+        try {
+            const result = await adminUserService.securePendingPasswords();
+            if (result.failed > 0) {
+                toast.error(
+                    `${result.invalidated} senha(s) invalidada(s), ${result.recoveryEmailsSent} e-mail(s) enviado(s) e ${result.failed} falha(s).`
+                );
+            } else {
+                toast.success(
+                    `${result.invalidated} senha(s) antiga(s) invalidadas e ${result.recoveryEmailsSent} link(s) enviado(s).`
+                );
+            }
+            await loadUsers();
+        } catch (secureError: unknown) {
+            const message = secureError instanceof Error
+                ? secureError.message
+                : 'Erro ao proteger os primeiros acessos pendentes.';
+            toast.error(message);
+        } finally {
+            setSecuringPendingPasswords(false);
+            setConfirmPendingSecurity(false);
         }
     };
 
@@ -543,14 +566,14 @@ export function UsersAdminPage() {
             return a.resolvedNome.localeCompare(b.resolvedNome);
         });
 
-        const columns = ['Equipe', 'Identificação (Nome / E-mail)', 'Senha Temporária'];
+        const columns = ['Equipe', 'Identificação (Nome / E-mail)', 'Status do acesso'];
 
         const rows = dataForExport.map(u => {
             const currentEquipe = u.resolvedEquipe;
             const nameEmailStr = `${u.resolvedNome}\n${u.email}`;
-            const tempPasswordText = tempPasswords[u.id] ? `Temporária pronta: ${tempPasswords[u.id]}` : (u.temporary_password ? u.email : 'Senha Própria');
+            const accessStatus = u.temporary_password ? 'Convite/primeiro acesso pendente' : 'Acesso configurado';
 
-            return [currentEquipe, nameEmailStr, tempPasswordText];
+            return [currentEquipe, nameEmailStr, accessStatus];
         });
 
         autoTable(doc, {
@@ -585,7 +608,7 @@ export function UsersAdminPage() {
 
     const handleExportCSV = () => {
         const rows = [
-            ['Nome', 'Email', 'Criado em', 'Senha Temporária', 'Grupos']
+            ['Nome', 'Email', 'Criado em', 'Primeiro acesso pendente', 'Grupos']
         ];
 
         filteredUsers.forEach(u => {
@@ -645,7 +668,7 @@ export function UsersAdminPage() {
                         Gestão de acessos
                     </h1>
                     <p className="text-muted" style={{ margin: '0.35rem 0 0' }}>
-                        Configure usuários, perfis de acesso e senhas temporárias por contexto de encontro.
+                        Configure usuários, perfis de acesso, convites e recuperação por e-mail.
                     </p>
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--surface-1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
@@ -673,7 +696,19 @@ export function UsersAdminPage() {
                 <div className="card" style={{ padding: '1rem' }}>
                     <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>Primeiro acesso</span>
                     <strong style={{ display: 'block', fontSize: '1.6rem', marginTop: '0.25rem', color: 'var(--warning-color)' }}>{summary.totalTemporaryPassword}</strong>
-                    <small style={{ color: 'var(--muted-text)' }}>Com senha temporária</small>
+                    <small style={{ color: 'var(--muted-text)' }}>Aguardando definição de senha</small>
+                    {summary.totalTemporaryPassword > 0 && (
+                        <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{ marginTop: '0.65rem', width: '100%', justifyContent: 'center', fontSize: '0.78rem' }}
+                            disabled={securingPendingPasswords}
+                            onClick={() => setConfirmPendingSecurity(true)}
+                        >
+                            <Mail size={13} style={{ marginRight: '0.3rem' }} />
+                            Proteger e enviar links
+                        </button>
+                    )}
                 </div>
                 <div className="card" style={{ padding: '1rem' }}>
                     <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>Sem pessoa</span>
@@ -908,7 +943,7 @@ export function UsersAdminPage() {
                                     id: 'criar',
                                     title: 'Criar usuário',
                                     summary: selectedPessoa?.email && selectedGruposIds.length > 0
-                                        ? `Senha temporária será o e-mail ${selectedPessoa.email}`
+                                        ? `Um convite será enviado para ${selectedPessoa.email}`
                                         : 'Complete as etapas anteriores',
                                     status: selectedPessoa?.email && selectedGruposIds.length > 0 && individualStep === 'criar' ? 'current' : 'pending',
                                     children: (
@@ -1318,7 +1353,7 @@ export function UsersAdminPage() {
                                                         <span style={{ fontSize: '0.78rem', color: result.success ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 700 }}>
                                                             {result.success
                                                                 ? result.created
-                                                                    ? `Criado · senha: ${result.temporaryPassword}`
+                                                                    ? 'Criado · convite enviado'
                                                                     : result.granted
                                                                         ? 'Perfil concedido'
                                                                         : 'Já estava pronto'
@@ -1470,7 +1505,6 @@ export function UsersAdminPage() {
                             <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>Nenhum usuário encontrado.</div>
                         )}
                         {filteredUsers.map((user) => {
-                            const tempPassword = tempPasswords[user.id];
                             const passwordResetting = !!resettingPasswordById[user.id];
                             const initial = (user.nome || user.email).charAt(0).toUpperCase();
                             const activeGroups = grupos.filter(g => user.grupos?.some(v => v.grupo_id === g.id && v.encontro_id === targetEncontroId));
@@ -1502,25 +1536,10 @@ export function UsersAdminPage() {
                                         {targetEquipe && (
                                             <div style={{ fontSize: '0.78rem', color: 'var(--muted-text)', marginTop: '0.15rem' }}>{targetEquipe}</div>
                                         )}
-                                        {user.temporary_password && !tempPassword && (
+                                        {user.temporary_password && (
                                             <span style={{ fontSize: '0.7rem', background: 'var(--warning-color)', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '12px', display: 'inline-block', marginTop: '0.3rem', fontWeight: 600 }}>
-                                                Senha Pendente
+                                                Primeiro acesso pendente
                                             </span>
-                                        )}
-                                        {tempPassword && (
-                                            <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                                                <code style={{ fontSize: '0.78rem', background: 'var(--secondary-bg)', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
-                                                    {tempPassword}
-                                                </code>
-                                                <button
-                                                    type="button"
-                                                    title="Copiar senha"
-                                                    onClick={() => { navigator.clipboard.writeText(tempPassword); toast.success('Senha copiada!'); }}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--primary-color)', display: 'flex', alignItems: 'center' }}
-                                                >
-                                                    <CheckCircle size={14} />
-                                                </button>
-                                            </div>
                                         )}
                                     </div>
 
@@ -1565,11 +1584,11 @@ export function UsersAdminPage() {
                                             type="button"
                                             className="btn-secondary"
                                             disabled={passwordResetting}
-                                            onClick={() => handleResetTemporaryPassword(user.id)}
+                                            onClick={() => handleSendPasswordRecovery(user.id)}
                                             style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem', whiteSpace: 'nowrap' }}
                                         >
-                                            <RotateCcw size={13} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />
-                                            {passwordResetting ? 'Redefinindo...' : 'Nova senha'}
+                                            <Mail size={13} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />
+                                            {passwordResetting ? 'Enviando...' : 'Enviar recuperação'}
                                         </button>
                                         <button
                                             type="button"
@@ -1627,6 +1646,25 @@ export function UsersAdminPage() {
                 onConfirm={handleDeleteUser}
                 onCancel={() => setUserToDelete(null)}
                 confirmText={isDeleting ? 'Removendo...' : 'Sim, Remover Acesso'}
+                cancelText="Cancelar"
+            />
+            <ConfirmDialog
+                isOpen={confirmPendingSecurity}
+                title="Proteger primeiros acessos"
+                message={
+                    <>
+                        <p>
+                            As senhas temporárias antigas serão invalidadas imediatamente e cada usuário
+                            receberá um link para definir a própria senha.
+                        </p>
+                        <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--muted-text)' }}>
+                            Usuários que não receberem o e-mail poderão solicitar outro link em “Esqueci minha senha”.
+                        </p>
+                    </>
+                }
+                onConfirm={handleSecurePendingPasswords}
+                onCancel={() => setConfirmPendingSecurity(false)}
+                confirmText={securingPendingPasswords ? 'Protegendo...' : `Proteger ${summary.totalTemporaryPassword} conta(s)`}
                 cancelText="Cancelar"
             />
             {selectedUserDetails && (
@@ -1724,22 +1762,12 @@ export function UsersAdminPage() {
                                         type="button"
                                         className="btn-secondary"
                                         disabled={!!resettingPasswordById[selectedUserDetails.id]}
-                                        onClick={() => handleResetTemporaryPassword(selectedUserDetails.id)}
+                                        onClick={() => handleSendPasswordRecovery(selectedUserDetails.id)}
                                         style={{ justifyContent: 'center' }}
                                     >
-                                        <RotateCcw size={14} style={{ marginRight: '0.35rem' }} />
-                                        {resettingPasswordById[selectedUserDetails.id] ? 'Redefinindo...' : 'Gerar nova senha temporária'}
+                                        <Mail size={14} style={{ marginRight: '0.35rem' }} />
+                                        {resettingPasswordById[selectedUserDetails.id] ? 'Enviando...' : 'Enviar link de redefinição'}
                                     </button>
-                                    {tempPasswords[selectedUserDetails.id] && (
-                                        <button
-                                            type="button"
-                                            className="btn-primary"
-                                            onClick={() => { navigator.clipboard.writeText(tempPasswords[selectedUserDetails.id]); toast.success('Senha copiada!'); }}
-                                            style={{ justifyContent: 'center' }}
-                                        >
-                                            Copiar senha temporária
-                                        </button>
-                                    )}
                                     <button
                                         type="button"
                                         className="btn-secondary"

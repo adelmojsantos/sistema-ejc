@@ -327,7 +327,7 @@ export function DirigenciaPage() {
       setAcessosStatus(nextStatus);
       toast.success(
         nextStatus.criados
-          ? `${nextStatus.criados} acesso(s) criado(s) com senha temporária.`
+          ? `${nextStatus.criados} acesso(s) criado(s) e convite(s) enviado(s).`
           : 'Todos os acessos já estavam prontos.'
       );
       if (nextStatus.criados) {
@@ -642,8 +642,8 @@ export function DirigenciaPage() {
                   <span className="dirigencia-kicker"><KeyRound size={17} /> Preparar acessos</span>
                   <h3>Acessos da nova dirigência</h3>
                   <p>
-                    As contas são criadas com senha temporária igual ao e-mail. O acesso administrativo
-                    será liberado somente ao ativar a nova dirigência.
+                    As contas são criadas por convite enviado ao e-mail. Cada integrante define a própria
+                    senha, e o acesso administrativo será liberado somente ao ativar a nova dirigência.
                   </p>
                 </div>
                 {!acessosStatus.todos_prontos && (

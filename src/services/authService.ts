@@ -16,8 +16,9 @@ export const authService = {
     },
 
     async resetPassword(email: string): Promise<void> {
-        const { error } = await supabase.functions.invoke('admin-users', {
-            body: { action: 'public-reset', email }
+        const normalizedEmail = email.trim().toLowerCase();
+        const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+            redirectTo: `${window.location.origin}/redefinir-senha`
         });
 
         if (error) throw error;

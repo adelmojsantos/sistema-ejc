@@ -18,10 +18,10 @@ export function ForgotPasswordPage() {
     try {
       await authService.resetPassword(email);
       setSubmitted(true);
-      toast.success('E-mail de recuperação enviado!');
+      toast.success('Solicitação recebida.');
     } catch (submitError: unknown) {
-      const message = submitError instanceof Error ? submitError.message : 'Erro ao solicitar recuperação.';
-      setError(message);
+      console.error('Erro ao solicitar recuperação:', submitError);
+      setError('Não foi possível processar a solicitação agora. Aguarde um momento e tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -36,10 +36,10 @@ export function ForgotPasswordPage() {
               <CheckCircle2 size={48} />
             </div>
           </div>
-          <h1 className="auth-title">Senha Redefinida</h1>
+          <h1 className="auth-title">Confira seu e-mail</h1>
           <p className="auth-subtitle" style={{ marginBottom: '2rem' }}>
-            Sua senha foi redefinida com sucesso para o seu próprio <strong>e-mail</strong>.
-            Você já pode realizar o login utilizando seu e-mail como senha.
+            Se existir uma conta vinculada ao endereço informado, você receberá
+            um link para definir uma nova senha.
           </p>
           <Link to="/login" className="btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', width: '100%', justifyContent: 'center' }}>
             Ir para o login
@@ -58,7 +58,7 @@ export function ForgotPasswordPage() {
           </Link>
           <div>
             <h1 className="auth-title">Recuperar senha</h1>
-            <p className="auth-subtitle">Informe seu e-mail para receber um link de redefinição.</p>
+            <p className="auth-subtitle">Informe seu e-mail para receber um link seguro de redefinição.</p>
           </div>
         </div>
 
@@ -83,7 +83,7 @@ export function ForgotPasswordPage() {
           {error && <div className="error-message">{error}</div>}
 
           <button type="submit" className="btn-primary auth-submit" disabled={loading || !email}>
-            {loading ? 'Enviando...' : 'Redefinir senha'}
+            {loading ? 'Enviando...' : 'Enviar link de recuperação'}
           </button>
 
           <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>

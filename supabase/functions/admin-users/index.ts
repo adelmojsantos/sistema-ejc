@@ -213,9 +213,11 @@ Deno.serve(async (request) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const publicAppUrl = (Deno.env.get('PUBLIC_APP_URL') || 'https://ejc-capelinha.vercel.app')
+      .replace(/\/+$/, '');
+    const passwordRedirectUrl = `${publicAppUrl}/redefinir-senha`;
 
-    if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+    if (!supabaseUrl || !serviceRoleKey) {
       return jsonResponse(500, { error: 'Missing Supabase environment variables' });
     }
 
@@ -232,40 +234,6 @@ Deno.serve(async (request) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false }
     });
-
-    // Public actions (No admin check required)
-    if (action === 'public-reset') {
-      const email = body?.email as string | undefined;
-      if (!email) {
-        return jsonResponse(400, { error: 'email is required' });
-      }
-
-      const { data: profile, error: profileError } = await adminClient
-        .from('profiles')
-        .select('id, email')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (profileError || !profile) {
-        return jsonResponse(404, { error: 'Usuário não encontrado com este e-mail.' });
-      }
-
-      const temporaryPassword = profile.email;
-      const { error: updateError } = await adminClient.auth.admin.updateUserById(profile.id, {
-        password: temporaryPassword
-      });
-
-      if (updateError) {
-        return jsonResponse(400, { error: updateError.message });
-      }
-
-      await adminClient
-        .from('profiles')
-        .update({ temporary_password: true })
-        .eq('id', profile.id);
-
-      return jsonResponse(200, { success: true });
-    }
 
     // Admin protected actions
     const authHeader = request.headers.get('Authorization');
@@ -321,12 +289,11 @@ Deno.serve(async (request) => {
 
       const pendentes = status.acessos.filter((acesso) => !acesso.possui_acesso);
       for (const acesso of pendentes) {
-        const email = acesso.email as string;
-        const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
-          email,
-          password: email,
-          email_confirm: true,
-        });
+        const email = (acesso.email as string).trim().toLowerCase();
+        const { data: createdUser, error: createUserError } =
+          await adminClient.auth.admin.inviteUserByEmail(email, {
+            redirectTo: passwordRedirectUrl,
+          });
 
         if (createUserError || !createdUser.user) {
           return jsonResponse(400, {
@@ -399,14 +366,13 @@ Deno.serve(async (request) => {
 
         let userId = coordenador.user_id;
         let created = false;
-        let temporaryPassword: string | undefined;
 
         if (!userId) {
-          const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
-            email: coordenador.email,
-            password: coordenador.email,
-            email_confirm: true,
-          });
+          const normalizedEmail = coordenador.email.trim().toLowerCase();
+          const { data: createdUser, error: createUserError } =
+            await adminClient.auth.admin.inviteUserByEmail(normalizedEmail, {
+              redirectTo: passwordRedirectUrl,
+            });
 
           if (createUserError || !createdUser.user) {
             results.push({
@@ -421,11 +387,10 @@ Deno.serve(async (request) => {
 
           userId = createdUser.user.id;
           created = true;
-          temporaryPassword = coordenador.email;
 
           const { error: upsertError } = await adminClient.from('profiles').upsert({
             id: userId,
-            email: coordenador.email,
+            email: normalizedEmail,
             role: 'viewer',
             temporary_password: true,
           });
@@ -437,7 +402,6 @@ Deno.serve(async (request) => {
               created,
               granted: false,
               success: false,
-              temporaryPassword,
               message: 'Usuário criado, mas não foi possível salvar o perfil.',
             });
             continue;
@@ -461,7 +425,6 @@ Deno.serve(async (request) => {
               created,
               granted: false,
               success: false,
-              temporaryPassword,
               message: 'Não foi possível validar o perfil atual.',
             });
             continue;
@@ -479,7 +442,6 @@ Deno.serve(async (request) => {
                 created,
                 granted: false,
                 success: false,
-                temporaryPassword,
                 message: 'Não foi possível atribuir o perfil de coordenador.',
               });
               continue;
@@ -496,7 +458,6 @@ Deno.serve(async (request) => {
           created,
           granted,
           success: true,
-          temporaryPassword,
         });
       }
 
@@ -660,19 +621,18 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'create') {
-      const email = body?.email as string | undefined;
+      const rawEmail = body?.email as string | undefined;
       const role = body?.role as UserRole | undefined;
 
-      if (!email || !role) {
+      if (!rawEmail || !role) {
         return jsonResponse(400, { error: 'email and role are required' });
       }
 
-      const temporaryPassword = email;
-      const { data: createdUser, error: createUserError } = await adminClient.auth.admin.createUser({
-        email,
-        password: temporaryPassword,
-        email_confirm: true
-      });
+      const email = rawEmail.trim().toLowerCase();
+      const { data: createdUser, error: createUserError } =
+        await adminClient.auth.admin.inviteUserByEmail(email, {
+          redirectTo: passwordRedirectUrl,
+        });
 
       if (createUserError || !createdUser.user) {
         return jsonResponse(400, { error: createUserError?.message ?? 'Failed to create user' });
@@ -697,7 +657,7 @@ Deno.serve(async (request) => {
           temporary_password: true,
           created_at: createdUser.user.created_at
         },
-        temporaryPassword
+        invitationSent: true
       });
     }
 
@@ -726,7 +686,7 @@ Deno.serve(async (request) => {
 
       const { data: profile, error: fetchError } = await adminClient
         .from('profiles')
-        .select('email')
+        .select('id, email, role, temporary_password, created_at')
         .eq('id', userId)
         .single();
 
@@ -734,29 +694,73 @@ Deno.serve(async (request) => {
         return jsonResponse(404, { error: 'User profile not found' });
       }
 
-      const temporaryPassword = profile.email;
-      const { error: updateError } = await adminClient.auth.admin.updateUserById(userId, {
-        password: temporaryPassword
-      });
+      if (profile.temporary_password) {
+        const { error: invalidateError } = await adminClient.auth.admin.updateUserById(userId, {
+          password: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
+        });
 
-      if (updateError) {
-        return jsonResponse(400, { error: updateError.message });
+        if (invalidateError) {
+          return jsonResponse(400, { error: 'Não foi possível invalidar a senha temporária anterior.' });
+        }
       }
 
-      const { data: updatedProfile, error: profileError } = await adminClient
-        .from('profiles')
-        .update({ temporary_password: true })
-        .eq('id', userId)
-        .select('id, email, role, temporary_password, created_at')
-        .single();
+      const { error: resetError } = await adminClient.auth.resetPasswordForEmail(profile.email, {
+        redirectTo: passwordRedirectUrl,
+      });
 
-      if (profileError || !updatedProfile) {
-        return jsonResponse(500, { error: 'Password reset but profile update failed' });
+      if (resetError) {
+        return jsonResponse(400, { error: resetError.message });
       }
 
       return jsonResponse(200, {
-        user: updatedProfile,
-        temporaryPassword
+        user: profile,
+        recoveryEmailSent: true
+      });
+    }
+
+    if (action === 'secure-pending-passwords') {
+      const { data: pendingProfiles, error: pendingError } = await adminClient
+        .from('profiles')
+        .select('id, email')
+        .eq('temporary_password', true)
+        .order('created_at');
+
+      if (pendingError) {
+        return jsonResponse(500, { error: 'Não foi possível consultar os primeiros acessos pendentes.' });
+      }
+
+      let invalidated = 0;
+      let recoveryEmailsSent = 0;
+      let failed = 0;
+
+      for (const profile of pendingProfiles ?? []) {
+        const { error: invalidateError } = await adminClient.auth.admin.updateUserById(profile.id, {
+          password: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
+        });
+
+        if (invalidateError) {
+          failed += 1;
+          continue;
+        }
+
+        invalidated += 1;
+        const { error: recoveryError } = await adminClient.auth.resetPasswordForEmail(profile.email, {
+          redirectTo: passwordRedirectUrl,
+        });
+
+        if (recoveryError) {
+          failed += 1;
+          continue;
+        }
+
+        recoveryEmailsSent += 1;
+      }
+
+      return jsonResponse(200, {
+        total: pendingProfiles?.length ?? 0,
+        invalidated,
+        recoveryEmailsSent,
+        failed,
       });
     }
 

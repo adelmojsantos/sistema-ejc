@@ -69,6 +69,7 @@ const RecepcaoAdminPage = lazyNamed(() => import('./pages/recepcao/RecepcaoAdmin
 const RecreacaoAdminPage = lazyNamed(() => import('./pages/recreacao/RecreacaoAdminPage'), 'RecreacaoAdminPage');
 const RelatoriosPage = lazyNamed<{ mode?: 'relacao-crachas' | 'crachas-mesa' }>(() => import('./pages/relatorios/RelatoriosPage'), 'RelatoriosPage');
 const ForgotPasswordPage = lazyNamed(() => import('./pages/ForgotPasswordPage'), 'ForgotPasswordPage');
+const ResetPasswordPage = lazyNamed(() => import('./pages/ResetPasswordPage'), 'ResetPasswordPage');
 const Home = lazyNamed(() => import('./pages/Home'), 'Home');
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const Login = lazyNamed(() => import('./pages/Login'), 'Login');
@@ -164,6 +165,7 @@ function AnimatedRoutes() {
         {/* Public Routes */}
         <Route path="/login" element={<PageTransition><Login /></PageTransition>} />
         <Route path="/esqueci-senha" element={<PageTransition><ForgotPasswordPage /></PageTransition>} />
+        <Route path="/redefinir-senha" element={<PageTransition><ResetPasswordPage /></PageTransition>} />
         <Route path="/privacidade" element={<PageTransition><PrivacidadePage /></PageTransition>} />
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/inicio" element={<LandingPage />} />
