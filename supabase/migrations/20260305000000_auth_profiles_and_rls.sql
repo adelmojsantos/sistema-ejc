@@ -1,3 +1,4 @@
+-- Canonical version 20260305000000
 create type public.user_role as enum (
   'admin',
   'secretaria',

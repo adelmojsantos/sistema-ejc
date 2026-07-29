@@ -1,4 +1,4 @@
--- Adicionar modelo_id à tabela de tamanhos para permitir vínculos específicos
+-- Canonical version 20260428083000: adicionar modelo_id aos tamanhos
 ALTER TABLE camiseta_tamanhos 
 ADD COLUMN IF NOT EXISTS modelo_id UUID REFERENCES camiseta_modelos(id) ON DELETE CASCADE;
 

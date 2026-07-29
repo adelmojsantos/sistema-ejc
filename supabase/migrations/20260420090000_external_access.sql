@@ -1,4 +1,4 @@
--- Migration: External Form Access
+-- Migration: External Form Access (canonical version 20260420090000)
 -- Date: 2026-04-20
 
 -- 1. Add formulario_publico_ativo to encontros

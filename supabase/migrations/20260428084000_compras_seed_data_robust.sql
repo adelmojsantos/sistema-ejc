@@ -1,4 +1,4 @@
--- 1. Limpar restrições de unicidade antigas na sigla (independente do nome)
+-- Canonical version 20260428084000: normalizar modelos e tamanhos
 DO $$ 
 DECLARE 
     r RECORD;

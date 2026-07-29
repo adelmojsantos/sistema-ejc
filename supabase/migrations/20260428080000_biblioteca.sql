@@ -1,4 +1,4 @@
--- 20260428_biblioteca.sql
+-- Canonical version 20260428080000: biblioteca
 -- Migration para criação da estrutura da Biblioteca de Arquivos (Document Library)
 
 -- 1. Criação das Tabelas

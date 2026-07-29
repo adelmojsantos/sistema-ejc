@@ -1,4 +1,4 @@
--- Migration: Update External Form Access RPC
+-- Migration: Update External Form Access RPC (canonical version 20260428087000)
 -- Date: 2026-04-28
 -- Removes data_nascimento validation and allows flexible phone number matching
 

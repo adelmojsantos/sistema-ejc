@@ -1,4 +1,4 @@
--- Criar tabela de tamanhos de camisetas
+-- Canonical version 20260428082000: criar tabela de tamanhos de camisetas
 CREATE TABLE IF NOT EXISTS camiseta_tamanhos (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     sigla TEXT NOT NULL UNIQUE,

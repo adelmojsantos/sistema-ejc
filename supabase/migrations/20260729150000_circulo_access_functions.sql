@@ -1,4 +1,4 @@
--- ============================================================
+-- Canonical version 20260729150000
 -- FUNÇÕES PARA ACESSO PÚBLICO À FICHA PÓS-ENCONTRO POR CÍRCULO
 -- Execute este arquivo inteiro no SQL Editor do Supabase
 -- ============================================================

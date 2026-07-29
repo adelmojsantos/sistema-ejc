@@ -1,4 +1,4 @@
--- Habilitar RLS nas tabelas do módulo de compras
+-- Canonical version 20260428086000: habilitar RLS do módulo de compras
 ALTER TABLE camiseta_modelos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE camiseta_tamanhos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE camiseta_pedidos ENABLE ROW LEVEL SECURITY;

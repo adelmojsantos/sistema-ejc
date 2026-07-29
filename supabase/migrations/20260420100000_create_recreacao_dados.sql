@@ -1,4 +1,4 @@
--- Create recreacao_dados table
+-- Create recreacao_dados table (canonical version 20260420100000)
 CREATE TABLE IF NOT EXISTS public.recreacao_dados (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     participacao_id UUID NOT NULL REFERENCES public.participacoes(id) ON DELETE CASCADE,

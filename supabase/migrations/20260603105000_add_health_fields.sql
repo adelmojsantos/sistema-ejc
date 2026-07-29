@@ -1,4 +1,4 @@
--- Add health information fields to pessoas table
+-- Canonical version 20260603105000: health information fields
 -- These fields are filled during visitation, not during registration
 
 ALTER TABLE pessoas

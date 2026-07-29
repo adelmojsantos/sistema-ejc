@@ -1,5 +1,5 @@
 -- ============================================================
--- MIGRATION: Intenção de Compra de Camiseta durante Visita
+-- MIGRATION: Intenção de Compra de Camiseta durante Visita (canonical version 20260515000000)
 -- ============================================================
 -- Tabela separada dos pedidos formais de equipe.
 -- Registra a INTENÇÃO expressada pelo encontrista durante a visita.

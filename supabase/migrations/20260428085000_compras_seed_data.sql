@@ -1,4 +1,4 @@
--- 1. Inserir Modelos Padrão com IDs específicos
+-- Canonical version 20260428085000: inserir modelos padrão
 INSERT INTO camiseta_modelos (id, nome, ativo)
 VALUES 
 ('568986f1-8c8d-4069-8074-b2635d6d7ffe', 'Masculina', true),
