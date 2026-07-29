@@ -14,7 +14,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS usuario_grupos_unique_idx ON public.usuario_gr
 
 -- 2. Atualizar a função RLS de Checagem do Banco
 -- Agora a função verifica automaticamente qual o Encontro ATUAL ATIVO e nega se a permissão do usuário for de um encontro passado.
-CREATE OR REPLACE FUNCTION public.has_permission(p_usuario_id uuid, p_permissao text)
+CREATE OR REPLACE FUNCTION public.has_permission(check_user uuid, permission_key text)
 RETURNS boolean
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -31,8 +31,8 @@ BEGIN
         FROM public.usuario_grupos ug
         JOIN public.grupo_permissoes gp ON gp.grupo_id = ug.grupo_id
         JOIN public.permissoes p ON p.id = gp.permissao_id
-        WHERE ug.usuario_id = p_usuario_id
-          AND p.chave = p_permissao
+        WHERE ug.usuario_id = check_user
+          AND p.chave = permission_key
           AND (ug.encontro_id IS NULL OR ug.encontro_id = v_encontro_ativo_id)
     ) INTO v_tem_permissao;
 

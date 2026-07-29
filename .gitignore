@@ -38,3 +38,4 @@ screatch_*
 .vercel
 supabase/.temp/
 .env*
+.supabase-ci/

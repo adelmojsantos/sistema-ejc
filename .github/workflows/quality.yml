@@ -46,3 +46,36 @@ jobs:
 
       - name: Executar jornadas E2E
         run: pnpm test:e2e
+
+  database:
+    name: Banco e autorização
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configurar Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.110.0
+
+      - name: Preparar migrations legadas para o CI
+        run: node scripts/prepare-supabase-ci.mjs
+
+      - name: Iniciar banco isolado
+        run: supabase --workdir .supabase-ci db start
+
+      - name: Executar testes SQL transacionais
+        run: supabase --workdir .supabase-ci test db
+
+      - name: Encerrar banco isolado
+        if: always()
+        continue-on-error: true
+        run: supabase --workdir .supabase-ci stop --no-backup

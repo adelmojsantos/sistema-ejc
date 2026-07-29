@@ -1,78 +1,116 @@
--- Read-only authorization smoke test for the P3 helper functions.
--- Every session change is scoped to a transaction and rolled back.
-
 BEGIN;
 
-DO $$
-DECLARE
-  v_user_id uuid;
-BEGIN
-  SELECT p.id
-  INTO v_user_id
-  FROM public.profiles p
-  WHERE public.is_admin(p.id)
-  LIMIT 1;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 
-  IF v_user_id IS NULL THEN
-    RAISE EXCEPTION 'P3 smoke test requires an administrator profile';
-  END IF;
+SELECT extensions.plan(6);
 
-  PERFORM set_config('request.jwt.claim.sub', v_user_id::text, true);
-END;
-$$;
+INSERT INTO auth.users (
+  id, email, aud, role, encrypted_password, email_confirmed_at,
+  created_at, updated_at, is_sso_user, is_anonymous
+)
+VALUES
+  (
+    '10000000-0000-0000-0000-000000000001',
+    'p3.admin@example.test',
+    'authenticated',
+    'authenticated',
+    crypt('fixture-password', gen_salt('bf')),
+    now(), now(), now(), false, false
+  ),
+  (
+    '10000000-0000-0000-0000-000000000002',
+    'p3.unauthorized@example.test',
+    'authenticated',
+    'authenticated',
+    crypt('fixture-password', gen_salt('bf')),
+    now(), now(), now(), false, false
+  );
 
+INSERT INTO public.usuario_grupos (usuario_id, grupo_id, encontro_id)
+VALUES (
+  '10000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0002-000000000001',
+  NULL
+);
+
+INSERT INTO public.encontros (
+  id, nome, data_inicio, data_fim, ativo, edicao
+)
+VALUES (
+  '30000000-0000-0000-0000-000000000001',
+  'P3 authorization fixture',
+  current_date,
+  current_date + 2,
+  true,
+  999901
+);
+
+INSERT INTO public.pessoas (id, nome_completo, email)
+VALUES (
+  '20000000-0000-0000-0000-000000000001',
+  'Pessoa fixture',
+  'p3.person@example.test'
+);
+
+INSERT INTO public.participacoes (
+  id, pessoa_id, encontro_id, participante
+)
+VALUES (
+  '40000000-0000-0000-0000-000000000001',
+  '20000000-0000-0000-0000-000000000001',
+  '30000000-0000-0000-0000-000000000001',
+  true
+);
+
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-0000-0000-000000000001',
+  true
+);
 SET LOCAL ROLE authenticated;
 
-SELECT
-  'administrator' AS scenario,
-  public.can_read_camiseta_catalog() AS can_read_shirt_catalog,
-  public.can_manage_camiseta_catalog() AS can_manage_shirt_catalog,
+SELECT extensions.ok(
+  public.can_read_camiseta_catalog(),
+  'administrator can read the shirt catalog'
+);
+SELECT extensions.ok(
+  public.can_manage_camiseta_catalog(),
+  'administrator can manage the shirt catalog'
+);
+SELECT extensions.ok(
   public.can_access_operational_participation(
-    (SELECT id FROM public.participacoes LIMIT 1),
+    '40000000-0000-0000-0000-000000000001',
     'modulo_recepcao',
     true
-  ) AS can_access_reception;
+  ),
+  'administrator can access operational participation'
+);
 
-ROLLBACK;
-
-BEGIN;
-
-DO $$
-DECLARE
-  v_user_id uuid;
-BEGIN
-  SELECT p.id
-  INTO v_user_id
-  FROM public.profiles p
-  WHERE NOT public.is_admin(p.id)
-    AND NOT public.has_permission(p.id, 'modulo_admin')
-    AND NOT public.has_permission(p.id, 'modulo_secretaria')
-    AND NOT public.has_permission(p.id, 'modulo_recepcao')
-    AND NOT public.has_permission(p.id, 'modulo_recreacao')
-    AND NOT public.has_permission(p.id, 'modulo_visitacao_coordenar')
-    AND NOT public.has_permission(p.id, 'modulo_visitacao_duplas')
-    AND NOT public.has_permission(p.id, 'modulo_coordenador')
-    AND NOT public.has_permission(p.id, 'modulo_compras')
-  LIMIT 1;
-
-  IF v_user_id IS NULL THEN
-    RAISE EXCEPTION 'P3 smoke test requires an unauthorized profile';
-  END IF;
-
-  PERFORM set_config('request.jwt.claim.sub', v_user_id::text, true);
-END;
-$$;
-
+RESET ROLE;
+SELECT set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-0000-0000-000000000002',
+  true
+);
 SET LOCAL ROLE authenticated;
 
-SELECT
-  'unauthorized' AS scenario,
-  public.can_read_camiseta_catalog() AS can_read_shirt_catalog,
-  public.can_manage_camiseta_catalog() AS can_manage_shirt_catalog,
-  public.can_access_operational_participation(
-    (SELECT id FROM public.participacoes LIMIT 1),
+SELECT extensions.ok(
+  NOT public.can_read_camiseta_catalog(),
+  'unauthorized user cannot read the shirt catalog'
+);
+SELECT extensions.ok(
+  NOT public.can_manage_camiseta_catalog(),
+  'unauthorized user cannot manage the shirt catalog'
+);
+SELECT extensions.ok(
+  NOT public.can_access_operational_participation(
+    '40000000-0000-0000-0000-000000000001',
     'modulo_recepcao',
     true
-  ) AS can_access_reception;
+  ),
+  'unauthorized user cannot access operational participation'
+);
 
+RESET ROLE;
+SELECT * FROM extensions.finish();
 ROLLBACK;

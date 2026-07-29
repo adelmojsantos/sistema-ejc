@@ -15,8 +15,8 @@ USING (
 );
 
 CREATE OR REPLACE FUNCTION public.has_permission(
-  p_usuario_id uuid,
-  p_permissao text
+  check_user uuid,
+  permission_key text
 )
 RETURNS boolean
 LANGUAGE plpgsql
@@ -32,7 +32,7 @@ BEGIN
   END IF;
 
   -- A regular authenticated user may only inspect their own permissions.
-  IF p_usuario_id IS DISTINCT FROM auth.uid()
+  IF check_user IS DISTINCT FROM auth.uid()
      AND NOT public.is_admin(auth.uid()) THEN
     RETURN false;
   END IF;
@@ -48,8 +48,8 @@ BEGIN
     FROM public.usuario_grupos ug
     JOIN public.grupo_permissoes gp ON gp.grupo_id = ug.grupo_id
     JOIN public.permissoes p ON p.id = gp.permissao_id
-    WHERE ug.usuario_id = p_usuario_id
-      AND p.chave = p_permissao
+    WHERE ug.usuario_id = check_user
+      AND p.chave = permission_key
       AND (
         ug.encontro_id IS NULL
         OR ug.encontro_id = v_encontro_ativo_id
