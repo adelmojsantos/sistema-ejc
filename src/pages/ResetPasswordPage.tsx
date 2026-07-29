@@ -1,17 +1,22 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { CheckCircle2, KeyRound } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { PasswordInput } from '../components/ui/PasswordInput';
 import { supabase } from '../lib/supabase';
 
 type RecoveryState = 'loading' | 'ready' | 'invalid' | 'success';
 
 export function ResetPasswordPage() {
+  const navigate = useNavigate();
   const [state, setState] = useState<RecoveryState>('loading');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [samePassword, setSamePassword] = useState(false);
+  const [successNotice, setSuccessNotice] = useState(
+    'Entre novamente usando a senha que você acabou de cadastrar.'
+  );
 
   useEffect(() => {
     let active = true;
@@ -50,6 +55,7 @@ export function ResetPasswordPage() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
+    setSamePassword(false);
 
     if (newPassword.length < 8) {
       setError('A nova senha deve ter no mínimo 8 caracteres.');
@@ -66,19 +72,55 @@ export function ResetPasswordPage() {
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
-      if (updateError) throw updateError;
+      if (updateError) {
+        if (updateError.code === 'same_password') {
+          setSamePassword(true);
+          setError(
+            'Essa senha já está cadastrada e pode ser usada normalmente. Você pode escolher outra ou seguir para o login.'
+          );
+          return;
+        }
+        throw updateError;
+      }
 
-      const { error: profileError } = await supabase.rpc('clear_temporary_password');
-      if (profileError) throw profileError;
+      let { error: profileError } = await supabase.rpc('clear_temporary_password');
+      if (profileError) {
+        console.error('Erro ao concluir o primeiro acesso; tentando novamente:', profileError);
+        await supabase.auth.refreshSession();
+        ({ error: profileError } = await supabase.rpc('clear_temporary_password'));
+      }
 
-      await supabase.auth.signOut({ scope: 'global' });
+      if (profileError) {
+        console.error('Senha salva, mas a pendência do primeiro acesso não foi limpa:', profileError);
+        setSuccessNotice(
+          'Sua senha foi salva. Se o sistema solicitar uma nova definição no próximo acesso, procure um administrador.'
+        );
+      }
+
+      const { error: signOutError } = await supabase.auth.signOut({ scope: 'global' });
+      if (signOutError) {
+        console.error('Senha salva, mas não foi possível encerrar todas as sessões:', signOutError);
+      }
       setState('success');
     } catch (submitError) {
       console.error('Erro ao redefinir senha:', submitError);
-      setError('Não foi possível salvar a nova senha. Solicite um novo link e tente novamente.');
+      setError('Não foi possível salvar a senha. Verifique os dados e tente novamente.');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleLoginWithCurrentPassword = async () => {
+    setSubmitting(true);
+    const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' });
+    if (signOutError) {
+      console.error('Não foi possível encerrar a sessão temporária:', signOutError);
+      setError('Não foi possível voltar ao login agora. Atualize a página e tente novamente.');
+      setSubmitting(false);
+      return;
+    }
+
+    navigate('/login', { replace: true });
   };
 
   if (state === 'loading') {
@@ -113,9 +155,9 @@ export function ResetPasswordPage() {
       <div className="auth-page">
         <div className="auth-card card" style={{ textAlign: 'center' }}>
           <CheckCircle2 size={48} style={{ color: 'var(--success-color)', marginBottom: '1rem' }} />
-          <h1 className="auth-title">Senha definida com sucesso</h1>
+          <h1 className="auth-title">Senha salva com sucesso</h1>
           <p className="auth-subtitle">
-            Entre novamente usando sua nova senha.
+            {successNotice}
           </p>
           <Link to="/login" className="btn-primary" style={{ display: 'flex', justifyContent: 'center', textDecoration: 'none' }}>
             Ir para o login
@@ -130,8 +172,10 @@ export function ResetPasswordPage() {
       <div className="auth-card card">
         <div className="auth-brand">
           <div>
-            <h1 className="auth-title">Definir nova senha</h1>
-            <p className="auth-subtitle">Escolha uma senha com pelo menos 8 caracteres.</p>
+            <h1 className="auth-title">Cadastrar ou alterar senha</h1>
+            <p className="auth-subtitle">
+              No primeiro acesso, cadastre sua senha. Em uma recuperação, escolha uma senha diferente da atual.
+            </p>
           </div>
         </div>
 
@@ -161,6 +205,17 @@ export function ResetPasswordPage() {
           </div>
 
           {error && <div className="error-message" role="alert">{error}</div>}
+
+          {samePassword && (
+            <button
+              type="button"
+              className="btn-secondary auth-submit"
+              disabled={submitting}
+              onClick={handleLoginWithCurrentPassword}
+            >
+              Entrar com essa senha
+            </button>
+          )}
 
           <button
             type="submit"
