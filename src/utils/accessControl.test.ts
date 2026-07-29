@@ -6,6 +6,7 @@ import {
   SHIRT_ROUTE_PERMISSIONS,
   canAccessKitchenArea,
   hasAnyPermission,
+  syncBackendAdminPermission,
 } from './accessControl';
 
 const checkerFor = (...permissions: string[]) =>
@@ -39,6 +40,22 @@ describe('accessControl', () => {
 
     expect(hasAnyPermission(hasPermission, ALMOXARIFADO_ROUTE_PERMISSIONS)).toBe(true);
     expect(hasAnyPermission(hasPermission, SHIRT_ROUTE_PERMISSIONS)).toBe(false);
+  });
+
+  it('reflete no frontend a decisão administrativa calculada pelo backend', () => {
+    expect(syncBackendAdminPermission(['modulo_dashboard'], true)).toEqual([
+      'modulo_dashboard',
+      'modulo_admin',
+    ]);
+    expect(syncBackendAdminPermission(['modulo_admin'], true)).toEqual([
+      'modulo_admin',
+    ]);
+    expect(
+      syncBackendAdminPermission(
+        ['modulo_dashboard', 'modulo_admin'],
+        false
+      )
+    ).toEqual(['modulo_dashboard']);
   });
 
   it('restringe a cozinha ao coordenador da equipe correta', () => {

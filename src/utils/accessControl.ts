@@ -48,6 +48,19 @@ export function hasAnyPermission(
   return permissions.some((permission) => hasPermission(permission));
 }
 
+export function syncBackendAdminPermission(
+  permissions: readonly string[],
+  isAdmin: boolean
+) {
+  const effectivePermissions = new Set(permissions);
+  if (isAdmin) {
+    effectivePermissions.add('modulo_admin');
+  } else {
+    effectivePermissions.delete('modulo_admin');
+  }
+  return [...effectivePermissions];
+}
+
 export function canAccessKitchenArea({
   hasPermission,
   isCoordinator,

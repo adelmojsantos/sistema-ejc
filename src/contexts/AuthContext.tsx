@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { UserProfile } from '../types/auth';
 import { AuthContext } from './auth-context';
 import type { InscricaoEnriched } from '../types/inscricao';
+import { syncBackendAdminPermission } from '../utils/accessControl';
 
 const PROFILE_CACHE_TTL_MS = 3 * 60 * 1000;
 
@@ -125,21 +126,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const grupoIds: string[] = [];
             const permissions: string[] = [];
 
-            const { data: ugData, error: ugError } = await supabase
-                .from('usuario_grupos')
-                .select(`
-                    encontro_id,
-                    grupos (
-                        id,
-                        nome,
-                        grupo_permissoes (
-                            permissoes (
-                                chave
+            const [
+                { data: ugData, error: ugError },
+                { data: backendIsAdmin, error: adminCheckError }
+            ] = await Promise.all([
+                supabase
+                    .from('usuario_grupos')
+                    .select(`
+                        encontro_id,
+                        grupos (
+                            id,
+                            nome,
+                            grupo_permissoes (
+                                permissoes (
+                                    chave
+                                )
                             )
                         )
-                    )
-                `)
-                .eq('usuario_id', userId);
+                    `)
+                    .eq('usuario_id', userId),
+                supabase.rpc('is_admin', { check_user: userId })
+            ]);
+
+            if (adminCheckError) throw adminCheckError;
 
             if (!ugError && ugData) {
                 // Flatten results, only allowing global groups OR groups for the active encounter
@@ -168,12 +177,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 });
             }
 
+            const effectivePermissions = syncBackendAdminPermission(
+                permissions,
+                backendIsAdmin === true
+            );
+
             const extendedProfile: UserProfile = {
                 ...(profileData as unknown as UserProfile),
                 nome_completo: pessoaData?.nome_completo,
                 grupos,
                 grupoIds,
-                permissions
+                permissions: effectivePermissions
             };
 
             setProfile(extendedProfile);
