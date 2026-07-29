@@ -240,7 +240,7 @@ function AnimatedRoutes() {
           } />
 
           <Route path="/admin/diagnosticos" element={
-            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+            <ProtectedRoute requiredExactPermissions={['modulo_diagnosticos']}>
               <DiagnosticsPage />
             </ProtectedRoute>
           } />

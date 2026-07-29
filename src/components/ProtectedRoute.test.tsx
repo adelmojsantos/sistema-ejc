@@ -8,7 +8,10 @@ vi.mock('../hooks/useAuth', () => ({ useAuth: vi.fn() }));
 
 const mockedUseAuth = vi.mocked(useAuth);
 
-function renderProtected(requiredPermissions = ['modulo_admin']) {
+function renderProtected(
+  requiredPermissions: string[] | undefined = ['modulo_admin'],
+  requiredExactPermissions?: string[]
+) {
   return render(
     <MemoryRouter initialEntries={['/restrito']}>
       <Routes>
@@ -18,7 +21,10 @@ function renderProtected(requiredPermissions = ['modulo_admin']) {
         <Route
           path="/restrito"
           element={(
-            <ProtectedRoute requiredPermissions={requiredPermissions}>
+            <ProtectedRoute
+              requiredPermissions={requiredPermissions}
+              requiredExactPermissions={requiredExactPermissions}
+            >
               <div>Conteúdo autorizado</div>
             </ProtectedRoute>
           )}
@@ -104,6 +110,38 @@ describe('ProtectedRoute', () => {
     } as unknown as ReturnType<typeof useAuth>);
 
     renderProtected(['modulo_compras', 'modulo_financeiro']);
+
+    expect(screen.getByText('Conteúdo autorizado')).toBeInTheDocument();
+  });
+
+  it('não aceita a permissão administrativa como curinga em uma rota exata', () => {
+    mockedUseAuth.mockReturnValue({
+      user: { id: 'admin-1' },
+      profile: { id: 'admin-1' },
+      loading: false,
+      profileLoading: false,
+      mustChangePassword: false,
+      hasPermission: () => true,
+      hasExactPermission: () => false,
+    } as unknown as ReturnType<typeof useAuth>);
+
+    renderProtected(undefined, ['modulo_diagnosticos']);
+
+    expect(screen.getByText('Dashboard')).toBeInTheDocument();
+  });
+
+  it('libera uma rota exata somente para quem recebeu a permissão', () => {
+    mockedUseAuth.mockReturnValue({
+      user: { id: 'developer-1' },
+      profile: { id: 'developer-1' },
+      loading: false,
+      profileLoading: false,
+      mustChangePassword: false,
+      hasPermission: () => false,
+      hasExactPermission: (permission: string) => permission === 'modulo_diagnosticos',
+    } as unknown as ReturnType<typeof useAuth>);
+
+    renderProtected(undefined, ['modulo_diagnosticos']);
 
     expect(screen.getByText('Conteúdo autorizado')).toBeInTheDocument();
   });

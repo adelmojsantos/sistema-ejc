@@ -12,10 +12,16 @@ supabaseKey = supabaseKey.replace(/\"|'/g, '');
 console.log('Using Key Format:', supabaseKey.substring(0, 10) + '...');
 
 async function test() {
+  const testEmail = process.env.TEST_USER_EMAIL;
+  const testPassword = process.env.TEST_USER_PASSWORD;
+  if (!testEmail || !testPassword) {
+    throw new Error('Defina TEST_USER_EMAIL e TEST_USER_PASSWORD para executar este teste.');
+  }
+
   const authRes = await fetch(supabaseUrl + '/auth/v1/token?grant_type=password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'apikey': supabaseKey },
-    body: JSON.stringify({ email: 'adelmojsantos1985@gmail.com', password: 'J@yset1509' })
+    body: JSON.stringify({ email: testEmail, password: testPassword })
   });
   const authData = await authRes.json();
   if (!authData.access_token) return console.error('Auth failed', authData);

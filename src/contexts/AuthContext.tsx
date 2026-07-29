@@ -314,6 +314,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return permissionSet.has(permission);
     }, [permissionSet]);
 
+    const hasExactPermission = useCallback((permission: string) => {
+        return permissionSet.has(permission);
+    }, [permissionSet]);
+
     const contextValue = useMemo(() => ({
         session,
         user,
@@ -324,7 +328,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         mustChangePassword: !!profile?.temporary_password,
         profileLoading,
         loading,
-        hasPermission
+        hasPermission,
+        hasExactPermission
     }), [
         session,
         user,
@@ -335,7 +340,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile?.temporary_password,
         profileLoading,
         loading,
-        hasPermission
+        hasPermission,
+        hasExactPermission
     ]);
 
     return (

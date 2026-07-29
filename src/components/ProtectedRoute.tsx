@@ -14,15 +14,25 @@ function ProtectedRouteLoading() {
 interface ProtectedRouteProps {
     children: React.ReactNode;
     requiredPermissions?: string[];
+    requiredExactPermissions?: string[];
     allowTemporaryPassword?: boolean;
 }
 
 export function ProtectedRoute({
     children,
     requiredPermissions,
+    requiredExactPermissions,
     allowTemporaryPassword = false
 }: ProtectedRouteProps) {
-    const { user, profile, loading, mustChangePassword, profileLoading, hasPermission } = useAuth();
+    const {
+        user,
+        profile,
+        loading,
+        mustChangePassword,
+        profileLoading,
+        hasPermission,
+        hasExactPermission
+    } = useAuth();
 
     if (loading) {
         return <ProtectedRouteLoading />;
@@ -43,13 +53,22 @@ export function ProtectedRoute({
         return <Navigate to="/alterar-senha" replace />;
     }
 
-    if (requiredPermissions && !profile) {
+    if ((requiredPermissions || requiredExactPermissions) && !profile) {
         return <Navigate to="/login" replace />;
     }
 
     if (requiredPermissions && profile) {
         const hasAccess = requiredPermissions.some(permission => hasPermission(permission));
         if (!hasAccess) {
+            return <Navigate to="/dashboard" replace />;
+        }
+    }
+
+    if (requiredExactPermissions && profile) {
+        const hasExactAccess = requiredExactPermissions.some(
+            permission => hasExactPermission(permission)
+        );
+        if (!hasExactAccess) {
             return <Navigate to="/dashboard" replace />;
         }
     }

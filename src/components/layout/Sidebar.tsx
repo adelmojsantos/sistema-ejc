@@ -45,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   mobileOpen,
   setMobileOpen
 }) => {
-  const { profile, userParticipacao, hasPermission } = useAuth();
+  const { profile, userParticipacao, hasPermission, hasExactPermission } = useAuth();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const equipeNome = userParticipacao?.equipes?.nome ?? '';
   const canAccessCozinha = canAccessKitchenArea({
@@ -84,9 +84,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     menuItems.push(
       { to: '/admin/usuarios', label: 'Usuários', icon: Users },
       { to: '/admin/acessos', label: 'Acessos', icon: Shield },
-      { to: '/admin/diagnosticos', label: 'Diagnósticos', icon: Activity },
       { to: '/admin/dirigencia', label: 'Dirigência', icon: Crown },
     );
+  }
+
+  if (hasExactPermission('modulo_diagnosticos')) {
+    menuItems.push({ to: '/admin/diagnosticos', label: 'Diagnósticos', icon: Activity });
   }
 
   if (hasPermission('modulo_biblioteca') || hasPermission('modulo_admin')) {
