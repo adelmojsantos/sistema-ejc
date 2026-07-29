@@ -20,8 +20,10 @@ DECLARE
   v_caller_member_id uuid;
   v_caller_user_id uuid;
   v_permanent_admin_user_id uuid;
+  v_consensus_person_id uuid;
   v_selected_user_id uuid;
   v_selected_person_id uuid;
+  v_consensus_indication_id uuid;
   v_admin_group_id uuid :=
     '00000000-0000-0000-0002-000000000001'::uuid;
 BEGIN
@@ -62,8 +64,8 @@ BEGIN
     true
   );
 
-  SELECT pr.id
-  INTO v_permanent_admin_user_id
+  SELECT pr.id, pe.id
+  INTO v_permanent_admin_user_id, v_consensus_person_id
   FROM public.profiles pr
   JOIN public.pessoas pe ON lower(pe.email) = lower(pr.email)
   WHERE NOT EXISTS (
@@ -148,16 +150,63 @@ BEGIN
   INSERT INTO public.dirigencias (
     nome,
     status,
-    indicacoes_finalizadas_em,
     created_by
   )
   VALUES (
     'P3 transactional test',
     'indicacao',
-    now(),
     v_caller_user_id
   )
   RETURNING id INTO v_next_dirigencia_id;
+
+  SELECT (
+    public.adicionar_indicacao_dirigencia(
+      v_next_dirigencia_id,
+      NULL,
+      v_consensus_person_id,
+      'adicional',
+      'P3 transactional consensus test'
+    )
+  ).id
+  INTO v_consensus_indication_id;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM public.dirigencia_indicacoes
+    WHERE id = v_consensus_indication_id
+      AND tipo = 'adicional'
+      AND indicador_membro_id IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Consensus nomination did not accept a null proposer';
+  END IF;
+
+  BEGIN
+    INSERT INTO public.dirigencia_indicacoes (
+      dirigencia_origem_id,
+      dirigencia_destino_id,
+      indicador_membro_id,
+      indicado_pessoa_id,
+      tipo,
+      created_by
+    )
+    VALUES (
+      v_current_dirigencia_id,
+      v_next_dirigencia_id,
+      NULL,
+      v_selected_person_id,
+      'regular',
+      v_caller_user_id
+    );
+
+    RAISE EXCEPTION 'Regular nomination accepted a null proposer';
+  EXCEPTION
+    WHEN check_violation OR not_null_violation THEN
+      NULL;
+  END;
+
+  UPDATE public.dirigencia_indicacoes
+  SET status = 'descartada'
+  WHERE id = v_consensus_indication_id;
 
   INSERT INTO public.dirigencia_indicacoes (
     dirigencia_origem_id,
@@ -177,6 +226,10 @@ BEGIN
     'selecionada',
     v_caller_user_id
   );
+
+  UPDATE public.dirigencias
+  SET indicacoes_finalizadas_em = now()
+  WHERE id = v_next_dirigencia_id;
 
   INSERT INTO p3_dirigencia_test_context (
     current_dirigencia_id,
@@ -308,7 +361,7 @@ $$;
 
 SELECT
   'passed' AS result,
-  'role-only denied; outgoing revoked; incoming granted; permanent preserved'
+  'consensus accepted; regular null denied; role-only denied; outgoing revoked; incoming granted; permanent preserved'
     AS assertions;
 
 ROLLBACK;
