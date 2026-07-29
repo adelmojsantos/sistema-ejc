@@ -25,6 +25,11 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
+import {
+  PURCHASES_ROUTE_PERMISSIONS,
+  canAccessKitchenArea,
+  hasAnyPermission,
+} from '../../utils/accessControl';
 import { NavItem } from './NavItem';
 
 interface SidebarProps {
@@ -43,14 +48,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { profile, userParticipacao, hasPermission } = useAuth();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const equipeNome = userParticipacao?.equipes?.nome ?? '';
-  const isCozinhaCoordinator = Boolean(
-    userParticipacao?.coordenador &&
-    equipeNome
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .includes('cozinha')
-  );
+  const canAccessCozinha = canAccessKitchenArea({
+    hasPermission,
+    isCoordinator: Boolean(profile && userParticipacao?.coordenador),
+    teamName: equipeNome,
+  });
 
   const navLinks = [
     { to: '/dashboard', label: 'Início', icon: Home },
@@ -91,16 +93,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     menuItems.push({ to: '/admin/biblioteca', label: 'Biblioteca', icon: Folder });
   }
 
-  const hasComprasAccess =
-    hasPermission('modulo_compras') ||
-    hasPermission('modulo_almoxarifado') ||
-    hasPermission('almoxarifado_consultar') ||
-    hasPermission('almoxarifado_gerenciar') ||
-    hasPermission('almoxarifado_movimentar') ||
-    hasPermission('modulo_financeiro') ||
-    hasPermission('financeiro_gerenciar') ||
-    hasPermission('modulo_admin') ||
-    hasPermission('modulo_coordenador');
+  const hasComprasAccess = hasAnyPermission(
+    hasPermission,
+    PURCHASES_ROUTE_PERMISSIONS
+  );
 
   if (hasComprasAccess) {
     menuItems.push({ to: '/compras', label: 'Compras', icon: ShoppingBag });
@@ -122,7 +118,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     menuItems.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe', icon: Users2 });
   }
 
-  if (hasPermission('modulo_admin') || isCozinhaCoordinator) {
+  if (canAccessCozinha) {
     menuItems.push({ to: '/coordenador/cozinha', label: 'Cozinha', icon: ChefHat });
   }
 

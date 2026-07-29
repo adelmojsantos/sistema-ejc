@@ -8,16 +8,17 @@ vi.mock('../hooks/useAuth', () => ({ useAuth: vi.fn() }));
 
 const mockedUseAuth = vi.mocked(useAuth);
 
-function renderProtected() {
+function renderProtected(requiredPermissions = ['modulo_admin']) {
   return render(
     <MemoryRouter initialEntries={['/restrito']}>
       <Routes>
         <Route path="/login" element={<div>Login</div>} />
         <Route path="/dashboard" element={<div>Dashboard</div>} />
+        <Route path="/alterar-senha" element={<div>Trocar senha</div>} />
         <Route
           path="/restrito"
           element={(
-            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+            <ProtectedRoute requiredPermissions={requiredPermissions}>
               <div>Conteúdo autorizado</div>
             </ProtectedRoute>
           )}
@@ -90,5 +91,35 @@ describe('ProtectedRoute', () => {
     renderProtected();
 
     expect(screen.getByText('Conteúdo autorizado')).toBeInTheDocument();
+  });
+
+  it('aceita qualquer uma das permissões exigidas pela rota', () => {
+    mockedUseAuth.mockReturnValue({
+      user: { id: 'financeiro-1' },
+      profile: { id: 'financeiro-1' },
+      loading: false,
+      profileLoading: false,
+      mustChangePassword: false,
+      hasPermission: (permission: string) => permission === 'modulo_financeiro',
+    } as unknown as ReturnType<typeof useAuth>);
+
+    renderProtected(['modulo_compras', 'modulo_financeiro']);
+
+    expect(screen.getByText('Conteúdo autorizado')).toBeInTheDocument();
+  });
+
+  it('bloqueia rotas internas enquanto a senha for temporária', () => {
+    mockedUseAuth.mockReturnValue({
+      user: { id: 'temp-1' },
+      profile: { id: 'temp-1' },
+      loading: false,
+      profileLoading: false,
+      mustChangePassword: true,
+      hasPermission: () => true,
+    } as unknown as ReturnType<typeof useAuth>);
+
+    renderProtected();
+
+    expect(screen.getByText('Trocar senha')).toBeInTheDocument();
   });
 });

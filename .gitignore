@@ -36,4 +36,5 @@ screatch_*
 *.sln
 *.sw?
 .vercel
+supabase/.temp/
 .env*
