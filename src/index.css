@@ -2188,6 +2188,54 @@ input:checked+.theme-toggle-slider:before {
   gap: 0.5rem;
 }
 
+.auth-status-card {
+  max-width: 520px;
+  padding: clamp(2rem, 5vw, 3rem);
+  text-align: center;
+}
+
+.auth-status-card__icon {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  color: var(--warning-color);
+}
+
+.auth-status-card--success .auth-status-card__icon {
+  color: var(--success-color);
+}
+
+.auth-status-card .auth-title {
+  text-wrap: balance;
+}
+
+.auth-status-card .auth-subtitle {
+  margin: 0.85rem auto 1.75rem;
+  max-width: 34rem;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+
+.auth-status-card > .btn-primary {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+  text-align: center;
+}
+
+@media (max-width: 639px) {
+  .auth-status-card {
+    padding: 2rem 1.25rem;
+  }
+
+  .auth-status-card .auth-subtitle {
+    margin-bottom: 1.5rem;
+  }
+}
+
 /* Floating Action Button for Mobile */
 .fab-mobile {
   display: none;

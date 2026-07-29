@@ -136,8 +136,10 @@ export function ResetPasswordPage() {
   if (state === 'invalid') {
     return (
       <div className="auth-page">
-        <div className="auth-card card" style={{ textAlign: 'center' }}>
-          <KeyRound size={42} style={{ color: 'var(--warning-color)', marginBottom: '1rem' }} />
+        <div className="auth-card auth-status-card card">
+          <div className="auth-status-card__icon" aria-hidden="true">
+            <KeyRound size={42} />
+          </div>
           <h1 className="auth-title">Link inválido ou expirado</h1>
           <p className="auth-subtitle">
             Solicite um novo e-mail de recuperação para continuar.
@@ -153,8 +155,10 @@ export function ResetPasswordPage() {
   if (state === 'success') {
     return (
       <div className="auth-page">
-        <div className="auth-card card" style={{ textAlign: 'center' }}>
-          <CheckCircle2 size={48} style={{ color: 'var(--success-color)', marginBottom: '1rem' }} />
+        <div className="auth-card auth-status-card auth-status-card--success card">
+          <div className="auth-status-card__icon" aria-hidden="true">
+            <CheckCircle2 size={48} />
+          </div>
           <h1 className="auth-title">Senha salva com sucesso</h1>
           <p className="auth-subtitle">
             {successNotice}
