@@ -696,7 +696,7 @@ Deno.serve(async (request) => {
 
       if (profile.temporary_password) {
         const { error: invalidateError } = await adminClient.auth.admin.updateUserById(userId, {
-          password: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
+          password: `${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '')}`,
         });
 
         if (invalidateError) {
@@ -735,7 +735,7 @@ Deno.serve(async (request) => {
 
       for (const profile of pendingProfiles ?? []) {
         const { error: invalidateError } = await adminClient.auth.admin.updateUserById(profile.id, {
-          password: `${crypto.randomUUID()}-${crypto.randomUUID()}`,
+          password: `${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '')}`,
         });
 
         if (invalidateError) {
