@@ -1,26 +1,43 @@
 export type PermissionChecker = (permission: string) => boolean;
 
-export const PURCHASES_ROUTE_PERMISSIONS: string[] = [
+const uniquePermissions = (...groups: readonly string[][]) =>
+  [...new Set(groups.flat())];
+
+export const ALMOXARIFADO_STOCK_ROUTE_PERMISSIONS: string[] = [
   'modulo_compras',
   'modulo_almoxarifado',
   'almoxarifado_consultar',
   'almoxarifado_gerenciar',
   'almoxarifado_movimentar',
-  'modulo_financeiro',
-  'financeiro_gerenciar',
   'modulo_coordenador',
   'modulo_admin',
 ];
 
-export const ALMOXARIFADO_ROUTE_PERMISSIONS: string[] = [
+export const ALMOXARIFADO_ORDER_ROUTE_PERMISSIONS: string[] = [
   'modulo_compras',
-  'modulo_almoxarifado',
-  'almoxarifado_consultar',
-  'almoxarifado_gerenciar',
-  'almoxarifado_movimentar',
+  'almoxarifado_pedidos_criar',
+  'almoxarifado_pedidos_gerenciar',
   'modulo_coordenador',
   'modulo_admin',
 ];
+
+export const ALMOXARIFADO_PURCHASE_OPERATION_ROUTE_PERMISSIONS: string[] = [
+  'modulo_compras',
+  'almoxarifado_compras_operar',
+  'modulo_admin',
+];
+
+export const ALMOXARIFADO_PURCHASE_HISTORY_ROUTE_PERMISSIONS: string[] =
+  uniquePermissions(
+    ALMOXARIFADO_STOCK_ROUTE_PERMISSIONS,
+    ALMOXARIFADO_PURCHASE_OPERATION_ROUTE_PERMISSIONS
+  );
+
+export const ALMOXARIFADO_ROUTE_PERMISSIONS: string[] = uniquePermissions(
+  ALMOXARIFADO_STOCK_ROUTE_PERMISSIONS,
+  ALMOXARIFADO_ORDER_ROUTE_PERMISSIONS,
+  ALMOXARIFADO_PURCHASE_OPERATION_ROUTE_PERMISSIONS
+);
 
 export const FINANCE_ROUTE_PERMISSIONS: string[] = [
   'modulo_compras',
@@ -33,6 +50,12 @@ export const SHIRT_ROUTE_PERMISSIONS: string[] = [
   'modulo_compras',
   'modulo_admin',
 ];
+
+export const PURCHASES_ROUTE_PERMISSIONS: string[] = uniquePermissions(
+  ALMOXARIFADO_ROUTE_PERMISSIONS,
+  FINANCE_ROUTE_PERMISSIONS,
+  SHIRT_ROUTE_PERMISSIONS
+);
 
 const normalizeTeamName = (teamName?: string | null) =>
   teamName

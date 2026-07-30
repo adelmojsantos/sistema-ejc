@@ -35,14 +35,23 @@ O módulo de Almoxarifado foi criado dentro do hub de Compras para controlar est
 - Ao lançar quantidade e valor unitário, o item é marcado automaticamente como comprado.
 - Total calculado da compra é atualizado a partir dos itens comprados.
 
-## Ainda pendente na Fase 3
+## Complementos concluídos após a Fase 3
 
-- Finalizar compra.
-- Ao finalizar, dar entrada automática no estoque para itens comprados.
-- Atualizar pedidos para parcial/finalizado conforme os itens comprados.
-- Upload de comprovante da compra.
-- Campo de valor total informado da nota e conferência de diferença.
-- Avaliar se a lista deve consolidar itens iguais de pedidos diferentes ou manter rastreabilidade por pedido.
+- Finalização transacional da compra.
+- Entrada automática no estoque para os itens comprados.
+- Atualização dos pedidos para parcial ou finalizado.
+- Upload de mais de um comprovante por compra.
+- Valor total informado da nota e conferência da diferença para o valor calculado.
+- Lançamento automático da despesa no livro-caixa do Financeiro.
+- Proteção contra lançamento duplicado no estoque e no Financeiro.
+- Manutenção da rastreabilidade por item de pedido. Itens iguais podem compartilhar o
+  mesmo saldo físico, mas a origem da necessidade continua identificável.
+
+## Homologação operacional
+
+A implementação está concluída. A validação com os responsáveis por Almoxarifado e
+Financeiro deve seguir o roteiro de
+[`p4-homologacao-resiliencia.md`](./p4-homologacao-resiliencia.md).
 
 ## Migrations criadas
 
@@ -51,4 +60,10 @@ O módulo de Almoxarifado foi criado dentro do hub de Compras para controlar est
 - `supabase/migrations/20260724112000_fix_pedido_stock_reservations.sql`
 - `supabase/migrations/20260724113000_fix_pedido_stock_allocation_order.sql`
 - `supabase/migrations/20260724120000_create_almoxarifado_compras_phase3.sql`
+- `supabase/migrations/20260727100000_fix_almoxarifado_compra_residual.sql`
+- `supabase/migrations/20260727102000_add_almoxarifado_compra_comprovantes_urls.sql`
+- `supabase/migrations/20260727103000_finalize_almoxarifado_compra_stock.sql`
+- `supabase/migrations/20260727104000_consolidate_almoxarifado_auto_stock.sql`
+- `supabase/migrations/20260727110000_create_financeiro_livro_caixa.sql`
+- `supabase/migrations/20260727111000_integrate_almoxarifado_compra_financeiro.sql`
 

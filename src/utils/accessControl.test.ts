@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   ALMOXARIFADO_ROUTE_PERMISSIONS,
+  ALMOXARIFADO_ORDER_ROUTE_PERMISSIONS,
+  ALMOXARIFADO_PURCHASE_HISTORY_ROUTE_PERMISSIONS,
+  ALMOXARIFADO_PURCHASE_OPERATION_ROUTE_PERMISSIONS,
+  ALMOXARIFADO_STOCK_ROUTE_PERMISSIONS,
   FINANCE_ROUTE_PERMISSIONS,
   PURCHASES_ROUTE_PERMISSIONS,
   SHIRT_ROUTE_PERMISSIONS,
@@ -40,6 +44,43 @@ describe('accessControl', () => {
 
     expect(hasAnyPermission(hasPermission, ALMOXARIFADO_ROUTE_PERMISSIONS)).toBe(true);
     expect(hasAnyPermission(hasPermission, SHIRT_ROUTE_PERMISSIONS)).toBe(false);
+  });
+
+  it('libera o operador de compras específico no hub e no almoxarifado', () => {
+    const hasPermission = checkerFor('almoxarifado_compras_operar');
+
+    expect(hasAnyPermission(hasPermission, PURCHASES_ROUTE_PERMISSIONS)).toBe(true);
+    expect(hasAnyPermission(hasPermission, ALMOXARIFADO_ROUTE_PERMISSIONS)).toBe(true);
+    expect(hasAnyPermission(
+      hasPermission,
+      ALMOXARIFADO_PURCHASE_OPERATION_ROUTE_PERMISSIONS
+    )).toBe(true);
+    expect(hasAnyPermission(
+      hasPermission,
+      ALMOXARIFADO_PURCHASE_HISTORY_ROUTE_PERMISSIONS
+    )).toBe(true);
+    expect(hasAnyPermission(hasPermission, ALMOXARIFADO_STOCK_ROUTE_PERMISSIONS))
+      .toBe(false);
+    expect(hasAnyPermission(hasPermission, ALMOXARIFADO_ORDER_ROUTE_PERMISSIONS))
+      .toBe(false);
+    expect(hasAnyPermission(hasPermission, FINANCE_ROUTE_PERMISSIONS)).toBe(false);
+    expect(hasAnyPermission(hasPermission, SHIRT_ROUTE_PERMISSIONS)).toBe(false);
+  });
+
+  it('libera a criação de pedidos sem ampliar acesso ao financeiro', () => {
+    const hasPermission = checkerFor('almoxarifado_pedidos_criar');
+
+    expect(hasAnyPermission(hasPermission, PURCHASES_ROUTE_PERMISSIONS)).toBe(true);
+    expect(hasAnyPermission(hasPermission, ALMOXARIFADO_ROUTE_PERMISSIONS)).toBe(true);
+    expect(hasAnyPermission(hasPermission, ALMOXARIFADO_ORDER_ROUTE_PERMISSIONS))
+      .toBe(true);
+    expect(hasAnyPermission(hasPermission, ALMOXARIFADO_STOCK_ROUTE_PERMISSIONS))
+      .toBe(false);
+    expect(hasAnyPermission(
+      hasPermission,
+      ALMOXARIFADO_PURCHASE_OPERATION_ROUTE_PERMISSIONS
+    )).toBe(false);
+    expect(hasAnyPermission(hasPermission, FINANCE_ROUTE_PERMISSIONS)).toBe(false);
   });
 
   it('reflete no frontend a decisão administrativa calculada pelo backend', () => {

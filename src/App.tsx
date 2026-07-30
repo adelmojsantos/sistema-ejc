@@ -15,6 +15,10 @@ import { useLoading } from './contexts/LoadingContext';
 import { AppLayout } from './components/layout/AppLayout';
 import {
   ALMOXARIFADO_ROUTE_PERMISSIONS,
+  ALMOXARIFADO_ORDER_ROUTE_PERMISSIONS,
+  ALMOXARIFADO_PURCHASE_HISTORY_ROUTE_PERMISSIONS,
+  ALMOXARIFADO_PURCHASE_OPERATION_ROUTE_PERMISSIONS,
+  ALMOXARIFADO_STOCK_ROUTE_PERMISSIONS,
   FINANCE_ROUTE_PERMISSIONS,
   PURCHASES_ROUTE_PERMISSIONS,
   SHIRT_ROUTE_PERMISSIONS,
@@ -496,16 +500,34 @@ function AnimatedRoutes() {
               <ComprasPage />
             </ProtectedRoute>
           }>
-            <Route element={
+            <Route path="almoxarifado" element={
               <ProtectedRoute requiredPermissions={ALMOXARIFADO_ROUTE_PERMISSIONS}>
+                <PageTransition><AlmoxarifadoHubPage /></PageTransition>
+              </ProtectedRoute>
+            } />
+            <Route element={
+              <ProtectedRoute requiredPermissions={ALMOXARIFADO_STOCK_ROUTE_PERMISSIONS}>
                 <Outlet />
               </ProtectedRoute>
             }>
-              <Route path="almoxarifado" element={<PageTransition><AlmoxarifadoHubPage /></PageTransition>} />
               <Route path="almoxarifado/estoque" element={<PageTransition><AlmoxarifadoPage /></PageTransition>} />
               <Route path="almoxarifado/itens" element={<PageTransition><AlmoxarifadoItensPage /></PageTransition>} />
-              <Route path="almoxarifado/pedidos" element={<PageTransition><AlmoxarifadoPedidosPage /></PageTransition>} />
-              <Route path="almoxarifado/compras" element={<PageTransition><AlmoxarifadoComprasOperacionalPage /></PageTransition>} />
+            </Route>
+            <Route path="almoxarifado/pedidos" element={
+              <ProtectedRoute requiredPermissions={ALMOXARIFADO_ORDER_ROUTE_PERMISSIONS}>
+                <PageTransition><AlmoxarifadoPedidosPage /></PageTransition>
+              </ProtectedRoute>
+            } />
+            <Route path="almoxarifado/compras" element={
+              <ProtectedRoute requiredPermissions={ALMOXARIFADO_PURCHASE_OPERATION_ROUTE_PERMISSIONS}>
+                <PageTransition><AlmoxarifadoComprasOperacionalPage /></PageTransition>
+              </ProtectedRoute>
+            } />
+            <Route element={
+              <ProtectedRoute requiredPermissions={ALMOXARIFADO_PURCHASE_HISTORY_ROUTE_PERMISSIONS}>
+                <Outlet />
+              </ProtectedRoute>
+            }>
               <Route path="almoxarifado/compras-realizadas" element={<PageTransition><AlmoxarifadoComprasRealizadasPage /></PageTransition>} />
               <Route path="almoxarifado/compras-realizadas/:compraId" element={<PageTransition><AlmoxarifadoCompraDetalhePage /></PageTransition>} />
             </Route>

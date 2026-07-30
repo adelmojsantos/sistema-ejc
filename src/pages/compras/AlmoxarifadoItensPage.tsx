@@ -6,6 +6,7 @@ import { AlmoxarifadoCategoriaModal, type CategoriaFormState } from '../../compo
 import { AlmoxarifadoItemModal } from '../../components/almoxarifado/AlmoxarifadoItemModal';
 import { AlmoxarifadoUnidadeModal, type UnidadeFormState } from '../../components/almoxarifado/AlmoxarifadoUnidadeModal';
 import { FormField } from '../../components/ui/FormField';
+import { useAuth } from '../../hooks/useAuth';
 import { almoxarifadoService } from '../../services/almoxarifadoService';
 import { equipeService } from '../../services/equipeService';
 import type {
@@ -60,6 +61,11 @@ function SelectField({
 
 export function AlmoxarifadoItensPage() {
   const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const canManage =
+    hasPermission('modulo_admin')
+    || hasPermission('modulo_compras')
+    || hasPermission('almoxarifado_gerenciar');
   const [categorias, setCategorias] = useState<AlmoxarifadoCategoria[]>([]);
   const [unidades, setUnidades] = useState<AlmoxarifadoUnidade[]>([]);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
@@ -265,7 +271,9 @@ export function AlmoxarifadoItensPage() {
             <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Estoque / Almoxarifado</p>
             <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Itens do Catálogo</h1>
             <p className="text-muted" style={{ margin: '0.2rem 0 0' }}>
-              Cadastre, acompanhe e inative os itens usados no estoque.
+              {canManage
+                ? 'Cadastre, acompanhe e inative os itens usados no estoque.'
+                : 'Consulte os itens usados no estoque.'}
             </p>
           </div>
         </div>
@@ -311,15 +319,19 @@ export function AlmoxarifadoItensPage() {
             {loading ? <Loader className="animate-spin" size={17} /> : <RefreshCw size={17} />}
             Atualizar
           </button>
-          <button type="button" className="btn-secondary" onClick={() => setCategoriaModalOpen(true)}>
-            <SlidersHorizontal size={17} /> Categorias
-          </button>
-          <button type="button" className="btn-secondary" onClick={() => setUnidadeModalOpen(true)}>
-            <SlidersHorizontal size={17} /> Unidades
-          </button>
-          <button type="button" className="btn-primary" onClick={openCreate}>
-            <Plus size={17} /> Novo item
-          </button>
+          {canManage && (
+            <>
+              <button type="button" className="btn-secondary" onClick={() => setCategoriaModalOpen(true)}>
+                <SlidersHorizontal size={17} /> Categorias
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setUnidadeModalOpen(true)}>
+                <SlidersHorizontal size={17} /> Unidades
+              </button>
+              <button type="button" className="btn-primary" onClick={openCreate}>
+                <Plus size={17} /> Novo item
+              </button>
+            </>
+          )}
         </div>
       </section>
 
@@ -344,7 +356,7 @@ export function AlmoxarifadoItensPage() {
                     <th>Marca</th>
                     <th>Fornecedor</th>
                     <th>Status</th>
-                    <th>Ações</th>
+                    {canManage && <th>Ações</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -357,7 +369,7 @@ export function AlmoxarifadoItensPage() {
                       <td>{item.marca_preferida || <span className="almox-muted">Livre</span>}</td>
                       <td>{item.fornecedor_padrao || <span className="almox-muted">Não informado</span>}</td>
                       <td><span className={`almox-badge ${!item.ativo ? 'almox-badge--danger' : ''}`}>{item.ativo ? 'Ativo' : 'Inativo'}</span></td>
-                      <td>
+                      {canManage && <td>
                         <div className="almox-actions">
                           <button type="button" className="btn-secondary btn-sm" onClick={() => openEdit(item)}>
                             <Edit2 size={14} /> Editar
@@ -366,7 +378,7 @@ export function AlmoxarifadoItensPage() {
                             {item.ativo ? 'Inativar' : 'Reativar'}
                           </button>
                         </div>
-                      </td>
+                      </td>}
                     </tr>
                   ))}
                 </tbody>
@@ -390,51 +402,55 @@ export function AlmoxarifadoItensPage() {
                   <div><span>Marca</span><strong>{item.marca_preferida || 'Livre'}</strong></div>
                   <div><span>Fornecedor</span><strong>{item.fornecedor_padrao || 'Não informado'}</strong></div>
                 </div>
-                <div className="almox-actions">
+                {canManage && <div className="almox-actions">
                   <button type="button" className="btn-secondary btn-sm" onClick={() => openEdit(item)}>
                     <Edit2 size={14} /> Editar
                   </button>
                   <button type="button" className="btn-secondary btn-sm" onClick={() => handleToggleItem(item)} disabled={saving}>
                     {item.ativo ? 'Inativar' : 'Reativar'}
                   </button>
-                </div>
+                </div>}
               </article>
             ))}
           </section>
         </>
       )}
 
-      <AlmoxarifadoItemModal
-        isOpen={modalOpen}
-        title={editingItem ? 'Editar item do catálogo' : 'Novo item do catálogo'}
-        form={itemForm}
-        categorias={categorias}
-        unidades={unidades}
-        equipes={equipes}
-        saving={saving}
-        submitLabel={editingItem ? 'Atualizar item' : 'Salvar item'}
-        onChange={setItemForm}
-        onClose={() => setModalOpen(false)}
-        onSubmit={handleSave}
-      />
+      {canManage && (
+        <>
+          <AlmoxarifadoItemModal
+            isOpen={modalOpen}
+            title={editingItem ? 'Editar item do catálogo' : 'Novo item do catálogo'}
+            form={itemForm}
+            categorias={categorias}
+            unidades={unidades}
+            equipes={equipes}
+            saving={saving}
+            submitLabel={editingItem ? 'Atualizar item' : 'Salvar item'}
+            onChange={setItemForm}
+            onClose={() => setModalOpen(false)}
+            onSubmit={handleSave}
+          />
 
-      <AlmoxarifadoCategoriaModal
-        isOpen={categoriaModalOpen}
-        categorias={categorias}
-        saving={saving}
-        onClose={() => setCategoriaModalOpen(false)}
-        onSave={handleSaveCategoria}
-        onToggle={handleToggleCategoria}
-      />
+          <AlmoxarifadoCategoriaModal
+            isOpen={categoriaModalOpen}
+            categorias={categorias}
+            saving={saving}
+            onClose={() => setCategoriaModalOpen(false)}
+            onSave={handleSaveCategoria}
+            onToggle={handleToggleCategoria}
+          />
 
-      <AlmoxarifadoUnidadeModal
-        isOpen={unidadeModalOpen}
-        unidades={unidades}
-        saving={saving}
-        onClose={() => setUnidadeModalOpen(false)}
-        onSave={handleSaveUnidade}
-        onToggle={handleToggleUnidade}
-      />
+          <AlmoxarifadoUnidadeModal
+            isOpen={unidadeModalOpen}
+            unidades={unidades}
+            saving={saving}
+            onClose={() => setUnidadeModalOpen(false)}
+            onSave={handleSaveUnidade}
+            onToggle={handleToggleUnidade}
+          />
+        </>
+      )}
     </section>
   );
 }

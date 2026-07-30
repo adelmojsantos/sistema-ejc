@@ -4,6 +4,13 @@ import type { ReactNode } from 'react';
 import { HubCard } from '../../components/ui/HubCard';
 import { useAuth } from '../../hooks/useAuth';
 import { Navigate } from 'react-router-dom';
+import {
+  ALMOXARIFADO_ROUTE_PERMISSIONS,
+  FINANCE_ROUTE_PERMISSIONS,
+  PURCHASES_ROUTE_PERMISSIONS,
+  SHIRT_ROUTE_PERMISSIONS,
+  hasAnyPermission,
+} from '../../utils/accessControl';
 
 interface ComprasCategory {
   id: string;
@@ -25,7 +32,7 @@ const CATEGORIES: ComprasCategory[] = [
     icon: <Warehouse size={34} />,
     color: '#f59e0b',
     available: true,
-    permissions: ['modulo_compras', 'modulo_almoxarifado', 'almoxarifado_consultar', 'almoxarifado_gerenciar', 'almoxarifado_movimentar', 'modulo_coordenador']
+    permissions: ALMOXARIFADO_ROUTE_PERMISSIONS
   },
   {
     id: 'financeiro',
@@ -35,7 +42,7 @@ const CATEGORIES: ComprasCategory[] = [
     icon: <CircleDollarSign size={34} />,
     color: '#22c55e',
     available: true,
-    permissions: ['modulo_compras', 'modulo_financeiro', 'financeiro_gerenciar']
+    permissions: FINANCE_ROUTE_PERMISSIONS
   },
   {
     id: 'taxas',
@@ -45,7 +52,7 @@ const CATEGORIES: ComprasCategory[] = [
     icon: <CreditCard size={34} />,
     color: '#10b981',
     available: true,
-    permissions: ['modulo_compras']
+    permissions: SHIRT_ROUTE_PERMISSIONS
   },
   {
     id: 'camisetas',
@@ -55,7 +62,7 @@ const CATEGORIES: ComprasCategory[] = [
     icon: <Shirt size={34} />,
     color: '#3b82f6',
     available: true,
-    permissions: ['modulo_compras']
+    permissions: SHIRT_ROUTE_PERMISSIONS
   },
   {
     id: 'configuracao',
@@ -65,7 +72,7 @@ const CATEGORIES: ComprasCategory[] = [
     icon: <Settings size={34} />,
     color: '#6366f1',
     available: true,
-    permissions: ['modulo_compras']
+    permissions: SHIRT_ROUTE_PERMISSIONS
   }
 ];
 
@@ -75,17 +82,14 @@ export function ComprasPage() {
   const { hasPermission } = useAuth();
 
   const isHub = location.pathname === '/compras' || location.pathname === '/compras/';
-  const canAccessCompras =
-    hasPermission('modulo_compras') ||
-    hasPermission('modulo_financeiro') ||
-    hasPermission('financeiro_gerenciar') ||
-    hasPermission('modulo_admin');
-  const canAccessAlmoxarifado =
-    hasPermission('modulo_almoxarifado') ||
-    hasPermission('almoxarifado_consultar') ||
-    hasPermission('almoxarifado_gerenciar') ||
-    hasPermission('almoxarifado_movimentar') ||
-    hasPermission('modulo_coordenador');
+  const canAccessCompras = hasAnyPermission(
+    hasPermission,
+    PURCHASES_ROUTE_PERMISSIONS
+  );
+  const canAccessAlmoxarifado = hasAnyPermission(
+    hasPermission,
+    ALMOXARIFADO_ROUTE_PERMISSIONS
+  );
   const visibleCategories = CATEGORIES.filter((category) =>
     category.permissions.some((permission) => hasPermission(permission))
   );
