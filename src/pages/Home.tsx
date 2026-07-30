@@ -1,18 +1,8 @@
 import type { Variants } from 'framer-motion';
 import { motion } from 'framer-motion';
-import { Calendar, Crown, FileText, Folder, HeartPulse, ListChecks, Mail, MapPin, Shield, ShoppingBag, UserPlus, Users, Users2Icon, UsersRound } from 'lucide-react';
-import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getNavigationModules } from '../config/navigation';
 import { useAuth } from '../hooks/useAuth';
-
-interface DashboardAction {
-  title: string;
-  description: string;
-  path: string;
-  icon: ReactNode;
-  accent: 'primary' | 'success' | 'violet' | 'amber';
-  featured?: boolean;
-}
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -35,159 +25,17 @@ const itemVariants: Variants = {
 
 export function Home() {
   const navigate = useNavigate();
-  const { hasPermission, userParticipacao } = useAuth();
-
-  const dashboardActions: DashboardAction[] = [];
-
-  if (hasPermission('modulo_secretaria')) {
-    dashboardActions.push({
-      title: 'Secretaria',
-      description: 'Gestão de documentos e informações gerais do encontro.',
-      path: '/secretaria',
-      icon: <FileText size={36} />,
-      accent: 'primary'
-    });
-    dashboardActions.push({
-      title: 'Inscrições Online',
-      description: 'Gestão de pré-inscrições recebidas pelo site.',
-      path: '/secretaria/lista-espera',
-      icon: <ListChecks size={36} />,
-      accent: 'violet'
-    });
-  }
-
-  if (hasPermission('modulo_visitacao') || hasPermission('modulo_admin')) {
-    dashboardActions.push({
-      title: 'Visitação',
-      description: 'Controle de visitas às famílias e acompanhamento.',
-      path: '/visitacao',
-      icon: <MapPin size={36} />,
-      accent: 'success'
-    });
-  }
-
-  const hasCirculosAccess =
-    hasPermission('modulo_circulos') ||
-    hasPermission('modulo_circulos_cadastros') ||
-    hasPermission('modulo_circulos_coordenador') ||
-    hasPermission('modulo_circulos_mediador') ||
-    hasPermission('modulo_admin');
-
-  if (hasCirculosAccess) {
-    dashboardActions.push({
-      title: 'Círculos',
-      description: 'Divisão dos participantes em grupos de estudo e partilha.',
-      path: '/circulos',
-      icon: <UsersRound size={36} />,
-      accent: 'violet'
-    });
-  }
-
-  if (hasPermission('modulo_cadastros') || hasPermission('modulo_admin')) {
-    dashboardActions.push({
-      title: 'Cadastros',
-      description: 'Cadastro de jovens, tios e membros das equipes.',
-      path: '/cadastros',
-      icon: <Calendar size={36} />,
-      accent: 'amber'
-    });
-  }
-
-  if (hasPermission('modulo_inscricao')) {
-    dashboardActions.push({
-      title: 'Inscrições',
-      description: 'Inscrições dos participantes para o EJC.',
-      path: '/inscricao',
-      icon: <UserPlus size={40} />,
-      accent: 'primary'
-    });
-  }
-
-  if (hasPermission('modulo_coordenador') && userParticipacao?.coordenador) {
-    dashboardActions.push({
-      title: 'Minha Equipe',
-      description: 'Informações da sua equipe.',
-      path: '/coordenador/minha-equipe',
-      icon: <Users2Icon size={40} />,
-      accent: 'primary'
-    });
-  }
-
-  if (hasPermission('modulo_admin')) {
-    dashboardActions.push({
-      title: 'Usuários',
-      description: 'Gestão de contas, redefinição de senha e permissões do sistema.',
-      path: '/admin/usuarios',
-      icon: <Users size={36} />,
-      accent: 'amber' as const
-    });
-    dashboardActions.push({
-      title: 'Acessos e Grupos',
-      description: 'Configure que módulos e telas cada perfil pode acessar.',
-      path: '/admin/acessos',
-      icon: <Shield size={36} />,
-      accent: 'success'
-    });
-    dashboardActions.push({
-      title: 'Dirigência',
-      description: 'Gerencie dirigentes, indicações e a sucessão das gestões.',
-      path: '/admin/dirigencia',
-      icon: <Crown size={36} />,
-      accent: 'violet'
-    });
-  }
-
-  if (hasPermission('modulo_biblioteca') || hasPermission('modulo_admin')) {
-    dashboardActions.push({
-      title: 'Biblioteca',
-      description: 'Documentos, manuais e arquivos globais do EJC.',
-      path: '/admin/biblioteca',
-      icon: <Folder size={36} />,
-      accent: 'violet' as const
-    });
-  }
-
-  if (
-    hasPermission('modulo_compras') ||
-    hasPermission('modulo_financeiro') ||
-    hasPermission('financeiro_gerenciar') ||
-    hasPermission('modulo_admin')
-  ) {
-    dashboardActions.push({
-      title: 'Compras',
-      description: 'Gestão financeira, taxas, camisetas e almoxarifado.',
-      path: '/compras',
-      icon: <ShoppingBag size={36} />,
-      accent: 'primary'
-    });
-  }
-
-  const hasCuidadosAccess =
-    hasPermission('modulo_cuidados') ||
-    hasPermission('modulo_admin');
-
-  if (hasCuidadosAccess) {
-    dashboardActions.push({
-      title: 'Cuidados',
-      description: 'Restrições alimentares e observações de saúde dos encontristas.',
-      path: '/cuidados',
-      icon: <HeartPulse size={36} />,
-      accent: 'success'
-    });
-  }
-
-  if (hasPermission('modulo_ligacao') || hasPermission('modulo_admin')) {
-    dashboardActions.push({
-      title: 'Ligação',
-      description: 'Localização de participantes e encontreiros para entrega de cartas e recados.',
-      path: '/ligacao',
-      icon: <Mail size={36} />,
-      accent: 'amber'
-    });
-  }
-
-  // Ordena os cards alfabeticamente pelo título
-  dashboardActions.sort((a, b) => a.title.localeCompare(b.title));
+  const {
+    hasPermission,
+    hasExactPermission,
+    userParticipacao,
+  } = useAuth();
+  const dashboardActions = getNavigationModules('dashboard', {
+    hasPermission,
+    hasExactPermission,
+    isCoordinator: Boolean(userParticipacao?.coordenador),
+    teamName: userParticipacao?.equipes?.nome,
+  }).sort((a, b) => a.label.localeCompare(b.label));
 
   return (
     <div className="dashboard animate-fade-in">
@@ -202,28 +50,31 @@ export function Home() {
         initial="hidden"
         animate="visible"
       >
-        {dashboardActions.map((action) => (
-          <motion.article
-            key={action.title}
-            variants={itemVariants}
-            className={`dashboard-card ${action.featured ? 'dashboard-card--featured' : ''}`}
-            onClick={() => navigate(action.path)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(event: React.KeyboardEvent) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                navigate(action.path);
-              }
-            }}
-          >
-            <div className={`dashboard-card__icon dashboard-card__icon--${action.accent}`}>
-              {action.icon}
-            </div>
-            <h2>{action.title}</h2>
-            <p>{action.description}</p>
-          </motion.article>
-        ))}
+        {dashboardActions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <motion.article
+              key={action.id}
+              variants={itemVariants}
+              className="dashboard-card"
+              onClick={() => navigate(action.path)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event: React.KeyboardEvent) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  navigate(action.path);
+                }
+              }}
+            >
+              <div className={`dashboard-card__icon dashboard-card__icon--${action.accent}`}>
+                <Icon size={36} />
+              </div>
+              <h2>{action.label}</h2>
+              <p>{action.description}</p>
+            </motion.article>
+          );
+        })}
       </motion.div>
     </div>
   );

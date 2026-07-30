@@ -10,6 +10,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
+import { getNavigationTitle } from '../../config/navigation';
 import { ConfirmDialog } from '../ConfirmDialog';
 
 interface TopbarProps {
@@ -50,43 +51,12 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
     }
   };
 
-  // Simple breadcrumb/title logic based on path
   const getPageTitle = () => {
-    const path = location.pathname;
     const searchParams = new URLSearchParams(location.search);
     const moduleName = searchParams.get('module');
 
     if (moduleName) return moduleName;
-
-    if (path === '/dashboard') return 'Dashboard';
-    if (path.startsWith('/admin/usuarios')) return 'Gerenciar Usuários';
-    if (path.startsWith('/admin/acessos')) return 'Controle de Acessos';
-    if (path.startsWith('/admin/diagnosticos')) return 'Diagnósticos';
-    if (path.startsWith('/secretaria/importar')) return 'Importar Dados';
-    if (path.startsWith('/secretaria/configuracoes-exportacao')) return 'Configurações de Exportação';
-    if (path.startsWith('/secretaria/participantes')) return 'Participantes';
-    if (path.startsWith('/secretaria/encontreiros')) return 'Encontreiros';
-    if (path.startsWith('/secretaria/lista-espera')) return 'Lista de Espera';
-    if (path.startsWith('/secretaria/confirmacoes')) return 'Relatório de Confirmações';
-    if (path.startsWith('/secretaria/impressos')) return 'Impressos';
-    if (path.startsWith('/secretaria/placas-equipes')) return 'Impressos';
-    if (path.startsWith('/palestras')) return 'Palestras';
-    if (path.startsWith('/relatorios')) return 'Impressos';
-    if (path.startsWith('/recepcao')) return 'Recepção';
-    if (path.startsWith('/recreacao')) return 'Recreação Infantil';
-    if (path.startsWith('/secretaria')) return 'Secretaria';
-    if (path.startsWith('/visitacao')) return 'Visitação';
-    if (path.startsWith('/circulos/fichas-pos-encontro')) return 'Ficha Pós-Encontro';
-    if (path.startsWith('/circulos/pos-encontros')) return 'Pós-Encontro';
-    if (path.startsWith('/circulos')) return 'Círculos';
-    if (path.startsWith('/cadastros/pos-encontros')) return 'Pós-Encontro';
-    if (path.startsWith('/cadastros/pessoas')) return 'Pessoas';
-    if (path.startsWith('/cadastros/encontros')) return 'Encontros';
-    if (path.startsWith('/cadastros/equipes')) return 'Equipes';
-    if (path.startsWith('/cadastros')) return 'Cadastros';
-    if (path.startsWith('/biblioteca')) return 'Biblioteca';
-    if (path.startsWith('/coordenador/minha-equipe')) return 'Minha Equipe';
-    return 'EJC Capelinha';
+    return getNavigationTitle(location.pathname);
   };
 
   return (

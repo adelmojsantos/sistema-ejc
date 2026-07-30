@@ -1,35 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  Home,
-  UserPlus,
-  FileText,
-  Calendar,
-  Users,
-  Shield,
-  Users2,
-  MapPin,
-  Car,
-  Baby,
-  ChevronLeft,
-  ChevronRight,
-  Mic2,
-  X,
-  Folder,
-  ShoppingBag,
-  UsersRound,
-  Crown,
-  HeartPulse,
-  Mail,
-  ChefHat,
-  Activity
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
-import {
-  PURCHASES_ROUTE_PERMISSIONS,
-  canAccessKitchenArea,
-  hasAnyPermission,
-} from '../../utils/accessControl';
+import { getNavigationModules } from '../../config/navigation';
 import { NavItem } from './NavItem';
 
 interface SidebarProps {
@@ -48,101 +21,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { profile, userParticipacao, hasPermission, hasExactPermission } = useAuth();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const equipeNome = userParticipacao?.equipes?.nome ?? '';
-  const canAccessCozinha = canAccessKitchenArea({
+  const navigationContext = {
     hasPermission,
-    isCoordinator: Boolean(profile && userParticipacao?.coordenador),
+    hasExactPermission,
+    isCoordinator: Boolean(userParticipacao?.coordenador),
     teamName: equipeNome,
-  });
-
+  };
+  const [homeLink, ...menuItems] = getNavigationModules('sidebar', navigationContext);
   const navLinks = [
-    { to: '/dashboard', label: 'Início', icon: Home },
+    ...(homeLink ? [homeLink] : []),
+    ...menuItems.sort((a, b) => a.label.localeCompare(b.label)),
   ];
-
-  const menuItems = [];
-
-  if (hasPermission('modulo_secretaria') || hasPermission('modulo_admin')) {
-    menuItems.push(
-      { to: '/inscricao', label: 'Inscrições', icon: UserPlus },
-      { to: '/secretaria', label: 'Secretaria', icon: FileText },
-      { to: '/cadastros', label: 'Cadastros', icon: Calendar },
-      { to: '/palestras', label: 'Palestras', icon: Mic2 },
-    );
-  }
-
-  const hasCirculosAccess = 
-    hasPermission('modulo_circulos') || 
-    hasPermission('modulo_circulos_cadastros') || 
-    hasPermission('modulo_circulos_coordenador') || 
-    hasPermission('modulo_circulos_mediador') || 
-    hasPermission('modulo_admin');
-    
-  if (hasCirculosAccess) {
-    menuItems.push({ to: '/circulos', label: 'Círculos', icon: UsersRound });
-  }
-
-  if (hasPermission('modulo_admin')) {
-    menuItems.push(
-      { to: '/admin/usuarios', label: 'Usuários', icon: Users },
-      { to: '/admin/acessos', label: 'Acessos', icon: Shield },
-      { to: '/admin/dirigencia', label: 'Dirigência', icon: Crown },
-    );
-  }
-
-  if (hasExactPermission('modulo_diagnosticos')) {
-    menuItems.push({ to: '/admin/diagnosticos', label: 'Diagnósticos', icon: Activity });
-  }
-
-  if (hasPermission('modulo_biblioteca') || hasPermission('modulo_admin')) {
-    menuItems.push({ to: '/admin/biblioteca', label: 'Biblioteca', icon: Folder });
-  }
-
-  const hasComprasAccess = hasAnyPermission(
-    hasPermission,
-    PURCHASES_ROUTE_PERMISSIONS
-  );
-
-  if (hasComprasAccess) {
-    menuItems.push({ to: '/compras', label: 'Compras', icon: ShoppingBag });
-  }
-
-  const hasCuidadosAccess =
-    hasPermission('modulo_cuidados') ||
-    hasPermission('modulo_admin');
-
-  if (hasCuidadosAccess) {
-    menuItems.push({ to: '/cuidados', label: 'Cuidados', icon: HeartPulse });
-  }
-
-  if (hasPermission('modulo_ligacao') || hasPermission('modulo_admin')) {
-    menuItems.push({ to: '/ligacao', label: 'Ligação', icon: Mail });
-  }
-
-  if (hasPermission('modulo_coordenador') && userParticipacao?.coordenador) {
-    menuItems.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe', icon: Users2 });
-  }
-
-  if (canAccessCozinha) {
-    menuItems.push({ to: '/coordenador/cozinha', label: 'Cozinha', icon: ChefHat });
-  }
-
-  const hasVisitacaoAccess = hasPermission('modulo_visitacao_coordenar') || hasPermission('modulo_visitacao_duplas') || hasPermission('modulo_admin');
-  if (hasVisitacaoAccess) {
-    menuItems.push({ to: '/visitacao', label: 'Visitação', icon: MapPin });
-  }
-
-  if (hasPermission('modulo_recepcao') || hasPermission('modulo_admin')) {
-    menuItems.push({ to: '/recepcao', label: 'Recepção', icon: Car });
-  }
-
-  if (hasPermission('modulo_recreacao') || hasPermission('modulo_admin')) {
-    menuItems.push({ to: '/recreacao', label: 'Recreação Infantil', icon: Baby });
-  }
-
-  // Ordena os itens alfabeticamente
-  menuItems.sort((a, b) => a.label.localeCompare(b.label));
-
-  // Adiciona ao menu principal após o Início
-  navLinks.push(...menuItems);
 
   const handleLinkClick = () => {
     if (window.innerWidth <= 1024) {
@@ -205,8 +94,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <nav className="sidebar-nav" aria-label="Módulos do sistema">
           {navLinks.map((link) => (
             <NavItem
-              key={link.to}
-              to={link.to}
+              key={link.path}
+              to={link.path}
               icon={link.icon}
               label={link.label}
               collapsed={collapsed && !mobileOpen}

@@ -2,6 +2,7 @@ import { BookOpen, Calendar, CalendarClock, Car, ClipboardCheck, Mic, Shield, Us
 import type { ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { HubCard } from '../../components/ui/HubCard';
+import { VISITATION_COORDINATION_PERMISSIONS } from '../../config/navigation';
 import { useAuth } from '../../hooks/useAuth';
 
 interface CadastroCategory {
@@ -12,7 +13,7 @@ interface CadastroCategory {
   icon: ReactNode;
   color: string;
   available: boolean;
-  permission?: string[];
+  permission?: readonly string[];
 }
 
 const CATEGORIES: CadastroCategory[] = [
@@ -74,7 +75,7 @@ const CATEGORIES: CadastroCategory[] = [
     icon: <Car size={34} />,
     color: '#10b981',
     available: true,
-    permission: ['modulo_visitacao', 'modulo_admin']
+    permission: VISITATION_COORDINATION_PERMISSIONS
   },
   {
     id: 'palestras',
