@@ -71,15 +71,15 @@ VALUES
   );
 
 INSERT INTO public.grupo_permissoes (grupo_id, permissao_id)
-SELECT '63000000-0000-0000-0000-000000000001', id
+SELECT '63000000-0000-0000-0000-000000000001'::uuid, id
 FROM public.permissoes
 WHERE chave = 'almoxarifado_consultar'
 UNION ALL
-SELECT '63000000-0000-0000-0000-000000000002', id
+SELECT '63000000-0000-0000-0000-000000000002'::uuid, id
 FROM public.permissoes
 WHERE chave = 'modulo_financeiro'
 UNION ALL
-SELECT '63000000-0000-0000-0000-000000000003', id
+SELECT '63000000-0000-0000-0000-000000000003'::uuid, id
 FROM public.permissoes
 WHERE chave = 'financeiro_gerenciar';
 
