@@ -63,6 +63,10 @@ SELECT extensions.lives_ok(
   'criação transacional da dupla funciona'
 );
 
+-- Authorization was exercised above. Remaining assertions inspect the
+-- transaction directly without broadening the authenticated role's grants.
+RESET ROLE;
+
 SELECT extensions.is(
   (SELECT nome FROM public.visita_grupos WHERE encontro_id = '25000000-0000-0000-0000-000000000001'),
   'Ana & Bruno',
