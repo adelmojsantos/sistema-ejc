@@ -11,7 +11,8 @@ export type PessoaUpdateData = Partial<PessoaFormData>;
  * Isso impede que telas de módulos diferentes enviem acidentalmente dados de participação.
  */
 export function normalizarPessoaUpdate(data: PessoaUpdateData): PessoaUpdateData {
-    const normalized = { ...data };
+    const normalized = { ...data } as PessoaUpdateData & Record<string, unknown>;
+    const mutable = normalized as Record<string, unknown>;
     const nullableTextFields: Array<keyof PessoaUpdateData> = [
         'cpf', 'email', 'comunidade', 'data_nascimento', 'nome_pai', 'nome_mae',
         'endereco', 'numero', 'complemento', 'cep', 'bairro', 'cidade', 'estado',
@@ -23,7 +24,7 @@ export function normalizarPessoaUpdate(data: PessoaUpdateData): PessoaUpdateData
         const value = normalized[field];
         if (typeof value === 'string') {
             const trimmed = value.trim();
-            normalized[field] = trimmed === '' ? null : trimmed as never;
+            mutable[field] = trimmed === '' ? null : trimmed;
         }
     }
 
@@ -40,7 +41,7 @@ export function normalizarPessoaUpdate(data: PessoaUpdateData): PessoaUpdateData
         normalized.cep = normalized.cep.replace(/\D/g, '') || null;
     }
 
-    return normalized;
+    return normalized as PessoaUpdateData;
 }
 
 export const pessoaService = {

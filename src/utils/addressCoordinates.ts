@@ -11,5 +11,8 @@ export function resolveAddressCoordinates(
 ): Coordinates {
   if (geocoded) return geocoded;
   if (addressChanged) return [null, null];
-  return [existingLatitude ?? null, existingLongitude ?? null];
+  if (existingLatitude != null && existingLongitude != null) {
+    return [existingLatitude, existingLongitude];
+  }
+  return [null, null];
 }

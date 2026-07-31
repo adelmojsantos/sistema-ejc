@@ -69,7 +69,7 @@ BEGIN
     string_agg(
       split_part(btrim(person.nome_completo), ' ', 1),
       ' & '
-      ORDER BY link.created_at, link.id
+      ORDER BY split_part(btrim(person.nome_completo), ' ', 1), link.created_at, link.id
     )
   INTO v_quantidade, v_nome
   FROM public.visita_participacao link
