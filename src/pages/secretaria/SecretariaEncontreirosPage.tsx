@@ -1,4 +1,4 @@
-import { ChevronLeft, Download, FileSpreadsheet, FileText, Filter, Loader, Search, Shield, User, Users, UserMinus, X } from 'lucide-react';
+import { ChevronLeft, Download, Eye, FileSpreadsheet, FileText, Filter, Loader, Search, Shield, User, Users, UserMinus, X } from 'lucide-react';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { toast } from 'react-hot-toast';
@@ -14,6 +14,7 @@ import type { InscricaoEnriched } from '../../types/inscricao';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
 
 function formatTelefone(tel: string | null | undefined) {
   if (!tel) return '—';
@@ -47,6 +48,7 @@ export function SecretariaEncontreirosPage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
+  const [contextParticipant, setContextParticipant] = useState<InscricaoEnriched | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
 
   // Seleciona encontro ativo automaticamente quando o contexto carregar
@@ -356,7 +358,16 @@ export function SecretariaEncontreirosPage() {
                       <User size={18} />
                     </div>
                     <div className="pessoa-row-info">
-                      <h3 className="pessoa-row-name">{p.pessoas?.nome_completo || 'Nome não informado'}</h3>
+                      <h3 className="pessoa-row-name">
+                        <button
+                          type="button"
+                          className="pessoa-context-trigger"
+                          onClick={() => setContextParticipant(p)}
+                          aria-label={`Visualizar ${p.pessoas?.nome_completo || 'encontreiro'}`}
+                        >
+                          {p.pessoas?.nome_completo || 'Nome não informado'}
+                        </button>
+                      </h3>
                       <span className="pessoa-row-sub">
                         <span style={{ opacity: 0.6 }}>{p.equipes?.nome || 'Sem Equipe'}</span>
                       </span>
@@ -387,6 +398,18 @@ export function SecretariaEncontreirosPage() {
                   </div>
 
                   <div className="pessoa-row-actions secretaria-pessoa-actions">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setContextParticipant(p);
+                      }}
+                      className="secretaria-details-button"
+                      title="Visualizar"
+                    >
+                      <Eye size={16} />
+                      <span>Visualizar</span>
+                    </button>
                     {selectedEncontro?.ativo && (
                       <button
                         onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
@@ -405,6 +428,11 @@ export function SecretariaEncontreirosPage() {
           </>
         )}
       </div>
+
+      <PessoaContextDrawer
+        participacao={contextParticipant}
+        onClose={() => setContextParticipant(null)}
+      />
 
       <ConfirmDialog
         isOpen={!!participantToUnlink}

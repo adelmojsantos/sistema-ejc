@@ -31,6 +31,7 @@ import { toast } from 'react-hot-toast';
 import { WhatsappLogo } from 'phosphor-react';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { FormField } from '../../components/ui/FormField';
 import { FormRow } from '../../components/ui/FormRow';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -43,7 +44,7 @@ import { useEncontros } from '../../contexts/EncontroContext';
 import { useEquipes } from '../../hooks/useEquipes';
 import type { Encontro } from '../../types/encontro';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import type { VisitaGrupo, VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
+import type { VisitaGrupo, VisitaGrupoDeleteImpact, VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
 import type { ParticipacaoCancelada } from '../../services/inscricaoService';
 import { normalizeString, formatPhone } from '../../utils/stringUtils';
 import { pessoaService } from '../../services/pessoaService';
@@ -69,6 +70,17 @@ export function CoordenadorVisitacaoPage() {
   const [searchParticipant, setSearchParticipant] = useState('');
   const [editingName, setEditingName] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
+  const [pendingRename, setPendingRename] = useState<{ id: string; oldName: string; newName: string } | null>(null);
+  const [deleteImpact, setDeleteImpact] = useState<VisitaGrupoDeleteImpact | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [isLoadingDeleteImpact, setIsLoadingDeleteImpact] = useState(false);
+  const [replacementTarget, setReplacementTarget] = useState<{
+    grupoId: string;
+    grupoNome: string;
+    vinculoId: string;
+    visitanteNome: string;
+  } | null>(null);
+  const [replacementParticipationId, setReplacementParticipationId] = useState('');
   const [vincularSubTab, setVincularSubTab] = useState<'lista' | 'buscar' | 'mapa'>('lista');
   const [neighborhoodFilter, setNeighborhoodFilter] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -168,19 +180,14 @@ export function CoordenadorVisitacaoPage() {
   const handleVincular = async (participacaoId: string) => {
     if (!selectedGrupoId || !selectedEncontroId) return;
     const existingVinculo = vinculos.find(v => v.participacao_id === participacaoId);
-    if (existingVinculo) {
+    if (existingVinculo?.grupo_id) {
       toast.error('Esta pessoa já está vinculada a uma visita.');
       return;
     }
 
     setIsLoading(true);
     try {
-      await visitacaoService.vincular({
-        grupo_id: selectedGrupoId,
-        participacao_id: participacaoId,
-        visitante: false,
-        status: 'pendente'
-      });
+      await visitacaoService.vincularOuReatribuirEncontrista(selectedGrupoId, participacaoId);
       await loadData();
       toast.success('Pessoa vinculada com sucesso!');
     } catch {
@@ -192,23 +199,13 @@ export function CoordenadorVisitacaoPage() {
 
   const handleCreateGroup = async () => {
     if (!selectedEncontroId || !selectedPessoa1 || !selectedPessoa2) return;
-    const p1 = equipeVisitacao.find(p => p.id === selectedPessoa1);
-    const p2 = equipeVisitacao.find(p => p.id === selectedPessoa2);
-    const name1 = p1?.pessoas?.nome_completo?.split(' ')[0] || 'Visitante 1';
-    const name2 = p2?.pessoas?.nome_completo?.split(' ')[0] || 'Visitante 2';
-    const groupName = `${name1} & ${name2}`;
-
     setIsLoading(true);
     try {
-      const newGroup = await visitacaoService.criarGrupo({
-        encontro_id: selectedEncontroId,
-        nome: groupName
-      });
-
-      await Promise.all([
-        visitacaoService.vincular({ grupo_id: newGroup.id, participacao_id: selectedPessoa1, visitante: true }),
-        visitacaoService.vincular({ grupo_id: newGroup.id, participacao_id: selectedPessoa2, visitante: true })
-      ]);
+      const newGroup = await visitacaoService.criarDuplaTransacional(
+        selectedEncontroId,
+        selectedPessoa1,
+        selectedPessoa2
+      );
 
       setSelectedPessoa1('');
       setSelectedPessoa2('');
@@ -225,10 +222,23 @@ export function CoordenadorVisitacaoPage() {
 
   const handleRenameGroup = async () => {
     if (!editingName || !tempName.trim()) return;
+    const group = grupos.find(item => item.id === editingName);
+    const currentName = group?.nome?.trim() || '';
+    const newName = tempName.trim();
+    if (currentName === newName) {
+      setEditingName(null);
+      return;
+    }
+    setPendingRename({ id: editingName, oldName: currentName, newName });
+  };
+
+  const confirmRenameGroup = async () => {
+    if (!pendingRename) return;
     setIsLoading(true);
     try {
-      await visitacaoService.atualizarGrupo(editingName, tempName.trim());
+      await visitacaoService.atualizarGrupo(pendingRename.id, pendingRename.newName);
       setEditingName(null);
+      setPendingRename(null);
       await loadData();
       toast.success('Grupo renomeado com sucesso!');
     } catch {
@@ -252,15 +262,52 @@ export function CoordenadorVisitacaoPage() {
   };
 
   const handleDeleteGroup = async (id: string) => {
-    if (!confirm('Deseja excluir este grupo de visitação?')) return;
+    setIsLoadingDeleteImpact(true);
+    try {
+      const impact = await visitacaoService.obterImpactoExclusaoGrupo(id);
+      setDeleteImpact(impact);
+      setDeleteConfirmation('');
+    } catch {
+      toast.error('Não foi possível analisar o impacto da exclusão.');
+    } finally {
+      setIsLoadingDeleteImpact(false);
+    }
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (!deleteImpact) return;
     setIsLoading(true);
     try {
-      await visitacaoService.excluirGrupo(id);
-      if (selectedGrupoId === id) setSelectedGrupoId('');
+      await visitacaoService.dissolverGrupo(deleteImpact.grupo_id);
+      if (selectedGrupoId === deleteImpact.grupo_id) setSelectedGrupoId('');
+      setSelectedDuoForDetails(null);
+      setDeleteImpact(null);
+      setDeleteConfirmation('');
       await loadData();
-      toast.success('Grupo excluído com sucesso!');
+      toast.success('Dupla dissolvida. Os encontristas continuam disponíveis para reatribuição.');
     } catch {
-      toast.error('Erro ao excluir grupo.');
+      toast.error('Erro ao dissolver a dupla. Nenhuma alteração foi concluída.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const confirmVisitorReplacement = async () => {
+    if (!replacementTarget || !replacementParticipationId) return;
+    setIsLoading(true);
+    try {
+      await visitacaoService.substituirVisitante(
+        replacementTarget.grupoId,
+        replacementTarget.vinculoId,
+        replacementParticipationId
+      );
+      setReplacementTarget(null);
+      setReplacementParticipationId('');
+      setSelectedDuoForDetails(null);
+      await loadData();
+      toast.success('Visitante substituído e nome da dupla atualizado.');
+    } catch {
+      toast.error('Erro ao substituir visitante. A dupla não foi alterada.');
     } finally {
       setIsLoading(false);
     }
@@ -422,6 +469,33 @@ export function CoordenadorVisitacaoPage() {
     grupos.find(g => g.id === selectedGrupoId),
     [grupos, selectedGrupoId]);
 
+  const deleteHasOperationalImpact = Boolean(deleteImpact && (
+    deleteImpact.encontristas_total > 0
+    || deleteImpact.realizadas_total > 0
+    || deleteImpact.ausentes_total > 0
+    || deleteImpact.fotos_familia_total > 0
+    || deleteImpact.intencoes_camiseta_total > 0
+    || deleteImpact.presencas_total > 0
+    || deleteImpact.desistentes_total > 0
+  ));
+  const deleteConfirmationPhrase = deleteImpact?.nome?.trim() || 'EXCLUIR';
+
+  const replacementCandidate = useMemo(
+    () => equipeVisitacao.find(item => item.id === replacementParticipationId) ?? null,
+    [equipeVisitacao, replacementParticipationId]
+  );
+
+  const replacementGeneratedName = useMemo(() => {
+    if (!replacementTarget || !replacementCandidate) return '';
+    const groupVisitors = vinculos
+      .filter(link => link.grupo_id === replacementTarget.grupoId && link.visitante)
+      .map(link => link.id === replacementTarget.vinculoId
+        ? replacementCandidate.pessoas?.nome_completo
+        : link.participacoes?.pessoas?.nome_completo)
+      .filter((name): name is string => Boolean(name));
+    return groupVisitors.map(name => name.trim().split(' ')[0]).join(' & ');
+  }, [replacementCandidate, replacementTarget, vinculos]);
+
   const searchResults = useMemo(() => {
     const q = normalizeString(searchParticipant);
     let results = [];
@@ -447,7 +521,7 @@ export function CoordenadorVisitacaoPage() {
         })
         .map(p => {
           const vinculo = vinculos.find(v => v.participacao_id === p.id);
-          if (!vinculo) return { id: p.id, vinculoId: null, nome: p.pessoas?.nome_completo, status: 'available' as const, grupoNome: null };
+          if (!vinculo?.grupo_id) return { id: p.id, vinculoId: vinculo?.id ?? null, nome: p.pessoas?.nome_completo, status: 'available' as const, grupoNome: null };
           if (vinculo.grupo_id === selectedGrupoId) return { id: p.id, vinculoId: vinculo.id, nome: p.pessoas?.nome_completo, status: vinculo.visitante ? ('visitor_here' as const) : ('in_this_group' as const), grupoNome: null };
           return { id: p.id, vinculoId: vinculo.id, nome: p.pessoas?.nome_completo, status: 'in_other_group' as const, grupoNome: vinculo.visita_grupos?.nome || 'Outra Visita' };
         });
@@ -771,9 +845,11 @@ export function CoordenadorVisitacaoPage() {
                                 </button>
                                 <button
                                   onClick={() => handleDeleteGroup(g.id)}
+                                  disabled={isLoadingDeleteImpact}
                                   className="icon-btn text-danger" style={{ padding: '2px', opacity: 0.5 }}
+                                  title="Dissolver dupla"
                                 >
-                                  <Trash2 size={12} />
+                                  {isLoadingDeleteImpact ? <Loader size={12} className="animate-spin" /> : <Trash2 size={12} />}
                                 </button>
                               </div>
                             </div>
@@ -890,6 +966,25 @@ export function CoordenadorVisitacaoPage() {
                   }}>
                     <Shield size={14} />
                     Visitante: {v.participacoes?.pessoas?.nome_completo}
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      title="Substituir visitante"
+                      aria-label={`Substituir ${v.participacoes?.pessoas?.nome_completo || 'visitante'}`}
+                      onClick={() => {
+                        setReplacementParticipationId('');
+                        setReplacementTarget({
+                          grupoId: selectedDuoForDetails.id,
+                          grupoNome: selectedDuoForDetails.nome || 'Dupla',
+                          vinculoId: v.id,
+                          visitanteNome: v.participacoes?.pessoas?.nome_completo || 'Visitante'
+                        });
+                        setSelectedDuoForDetails(null);
+                      }}
+                      style={{ marginLeft: '2px', padding: '2px' }}
+                    >
+                      <ArrowLeftRight size={13} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -1381,7 +1476,7 @@ export function CoordenadorVisitacaoPage() {
                           const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
                           const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
                           const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
-                          const hasNoLink = !vinculo;
+                          const hasNoLink = !vinculo?.grupo_id;
 
                           if (hideLinkedToSelected && isLinkedToSelected) return false;
                           if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
@@ -1403,7 +1498,7 @@ export function CoordenadorVisitacaoPage() {
                           const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
                           const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
                           const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
-                          const hasNoLink = !vinculo;
+                          const hasNoLink = !vinculo?.grupo_id;
 
                           if (hideLinkedToSelected && isLinkedToSelected) return false;
                           if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
@@ -1416,7 +1511,7 @@ export function CoordenadorVisitacaoPage() {
                         .map(p => {
                           const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
                           return (
-                            <div key={p.id} className={`item-link-card compact ${vinculo ? 'linked' : ''} ${vinculo?.grupo_id === selectedGrupoId ? 'selected' : ''} ${vinculo && vinculo.grupo_id !== selectedGrupoId ? 'busy' : ''}`}>
+                            <div key={p.id} className={`item-link-card compact ${vinculo?.grupo_id ? 'linked' : ''} ${vinculo?.grupo_id === selectedGrupoId ? 'selected' : ''} ${vinculo?.grupo_id && vinculo.grupo_id !== selectedGrupoId ? 'busy' : ''}`}>
                               <div className="item-link-card-info" style={{ flex: 1 }}>
                                 <h4 className="item-link-card-name">{p.pessoas?.nome_completo}</h4>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1450,7 +1545,7 @@ export function CoordenadorVisitacaoPage() {
                                 >
                                   <Edit2 size={18} />
                                 </button>
-                                {!vinculo ? (
+                                {!vinculo?.grupo_id ? (
                                   <button
                                     onClick={() => handleVincular(p.id)}
                                     disabled={isLoading || !selectedGrupoId}
@@ -1662,6 +1757,172 @@ export function CoordenadorVisitacaoPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!pendingRename}
+        title="Confirmar alteração do nome"
+        message={pendingRename && (
+          <div>
+            <p style={{ marginTop: 0 }}>
+              Alterar <strong>{pendingRename.oldName || 'Dupla sem nome'}</strong> para{' '}
+              <strong>{pendingRename.newName}</strong>?
+            </p>
+            <p style={{ marginBottom: 0, fontSize: '0.9rem', opacity: 0.75 }}>
+              O novo nome será exibido na Visitação, Secretaria, Recepção, Compras,
+              Ligação, presenças e etiquetas. Ele será considerado personalizado.
+            </p>
+          </div>
+        )}
+        confirmText="Alterar nome"
+        onConfirm={confirmRenameGroup}
+        onCancel={() => setPendingRename(null)}
+        isLoading={isLoading}
+      />
+
+      <Modal
+        isOpen={!!replacementTarget}
+        onClose={() => {
+          if (isLoading) return;
+          setReplacementTarget(null);
+          setReplacementParticipationId('');
+        }}
+        title="Substituir visitante"
+        maxWidth="560px"
+      >
+        <div className="flex-col gap-4">
+          <p style={{ margin: 0 }}>
+            Substituir <strong>{replacementTarget?.visitanteNome}</strong> na dupla{' '}
+            <strong>{replacementTarget?.grupoNome}</strong>.
+          </p>
+
+          <div className="form-group">
+            <label className="form-label">Novo visitante</label>
+            <LiveSearchSelect<InscricaoEnriched>
+              value={replacementParticipationId}
+              onChange={setReplacementParticipationId}
+              fetchData={async (search) => {
+                const query = normalizeString(search);
+                return visitantesDisponiveis.filter(item =>
+                  normalizeString(item.pessoas?.nome_completo || '').includes(query)
+                );
+              }}
+              getOptionLabel={item => item.pessoas?.nome_completo || ''}
+              getOptionValue={item => item.id}
+              placeholder="Selecione o substituto..."
+              initialOptions={visitantesDisponiveis}
+            />
+          </div>
+
+          {replacementCandidate && (
+            <div className="card" style={{ padding: '1rem', background: 'var(--warning-bg, rgba(245, 158, 11, 0.08))' }}>
+              <strong>Novo nome: {replacementGeneratedName}</strong>
+              <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem', opacity: 0.78 }}>
+                {replacementTarget?.visitanteNome} perderá o acesso aos participantes desta dupla e{' '}
+                {replacementCandidate.pessoas?.nome_completo} passará a ter acesso. Um nome personalizado
+                anteriormente será substituído pelo nome gerado acima.
+              </p>
+            </div>
+          )}
+
+          <div className="form-actions" style={{ borderTop: 'none', paddingTop: 0 }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={isLoading}
+              onClick={() => {
+                setReplacementTarget(null);
+                setReplacementParticipationId('');
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={isLoading || !replacementParticipationId}
+              onClick={confirmVisitorReplacement}
+            >
+              {isLoading ? <Loader size={18} className="animate-spin" /> : 'Confirmar substituição'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!deleteImpact}
+        onClose={() => {
+          if (isLoading) return;
+          setDeleteImpact(null);
+          setDeleteConfirmation('');
+        }}
+        title="Dissolver dupla de visitação"
+        maxWidth="620px"
+      >
+        {deleteImpact && (
+          <div className="flex-col gap-4">
+            <div className="card" style={{ padding: '1rem', borderColor: 'rgba(239, 68, 68, 0.45)' }}>
+              <strong>{deleteImpact.nome || 'Dupla sem nome'}</strong>
+              <p style={{ margin: '0.5rem 0 0', fontSize: '0.88rem', opacity: 0.78 }}>
+                A dupla será excluída, mas o histórico dos encontristas será preservado.
+              </p>
+            </div>
+
+            <ul style={{ margin: 0, paddingLeft: '1.25rem', lineHeight: 1.75 }}>
+              <li>
+                {deleteImpact.visitantes_total} visitante(s) serão liberados
+                {deleteImpact.visitantes.length > 0
+                  ? `: ${deleteImpact.visitantes.map(item => item.nome).join(', ')}`
+                  : ''}.
+              </li>
+              <li>{deleteImpact.encontristas_total} encontrista(s) ficarão pendentes de nova dupla.</li>
+              {deleteImpact.realizadas_total > 0 && <li>{deleteImpact.realizadas_total} visita(s) realizada(s) serão preservadas.</li>}
+              {deleteImpact.ausentes_total > 0 && <li>{deleteImpact.ausentes_total} ausência(s) serão preservadas.</li>}
+              {deleteImpact.fotos_familia_total > 0 && <li>{deleteImpact.fotos_familia_total} foto(s) de família serão preservadas.</li>}
+              {deleteImpact.intencoes_camiseta_total > 0 && <li>{deleteImpact.intencoes_camiseta_total} intenção(ões) de camiseta serão preservadas.</li>}
+              {deleteImpact.presencas_total > 0 && <li>{deleteImpact.presencas_total} presença(s) deixarão de apontar para esta dupla.</li>}
+              {deleteImpact.desistentes_total > 0 && <li>{deleteImpact.desistentes_total} desistente(s) perderão a referência da dupla original.</li>}
+              {deleteImpact.foto_url && <li>A foto própria da dupla será removida.</li>}
+            </ul>
+
+            {deleteHasOperationalImpact && (
+              <div className="form-group">
+                <label className="form-label" htmlFor="delete-duo-confirmation">
+                  Para confirmar, digite exatamente <strong>{deleteConfirmationPhrase}</strong>
+                </label>
+                <input
+                  id="delete-duo-confirmation"
+                  className="form-input"
+                  value={deleteConfirmation}
+                  onChange={event => setDeleteConfirmation(event.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+            )}
+
+            <div className="form-actions" style={{ borderTop: 'none', paddingTop: 0 }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={isLoading}
+                onClick={() => {
+                  setDeleteImpact(null);
+                  setDeleteConfirmation('');
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-danger-solid"
+                disabled={isLoading || (deleteHasOperationalImpact && deleteConfirmation.trim() !== deleteConfirmationPhrase)}
+                onClick={confirmDeleteGroup}
+              >
+                {isLoading ? <Loader size={18} className="animate-spin" /> : 'Dissolver dupla'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* ── Modal de Edição de Endereço ── */}
       <Modal

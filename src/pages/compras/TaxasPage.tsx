@@ -1,6 +1,6 @@
 import { ChevronLeft, Loader, Search } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { encontroService } from '../../services/encontroService';
@@ -13,8 +13,12 @@ import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofG
 
 export function TaxasPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { encontros } = useEncontros();
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
+  const initialEncontroId = searchParams.get('encontro') || '';
+  const initialSearchTerm = searchParams.get('busca') || '';
+  const initialActiveTab = searchParams.get('tipo') === 'encontreiro' ? 'equipes' : 'encontristas';
+  const [selectedEncontroId, setSelectedEncontroId] = useState<string>(initialEncontroId);
   const [proofGallery, setProofGallery] = useState<{ equipeNome: string; urls: string[] } | null>(null);
   const encontroPadraoId = encontros.find(e => e.ativo)?.id || encontros[0]?.id || '';
   const encontroSelecionadoId = selectedEncontroId || encontroPadraoId;
@@ -34,7 +38,12 @@ export function TaxasPage() {
     paymentStatusFilter,
     searchTerm,
     actions
-  } = useTaxas({ encontroId: encontroSelecionadoId, valorTaxa });
+  } = useTaxas({
+    encontroId: encontroSelecionadoId,
+    valorTaxa,
+    initialSearchTerm,
+    initialActiveTab,
+  });
 
   return (
     <div className="fade-in">

@@ -1,7 +1,7 @@
 import { CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Copy, Download, FileText, Loader, Plus, Search, Shirt, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
@@ -26,9 +26,12 @@ type DetailsConfig = {
 
 export function PedidosCamisetasPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { encontros } = useEncontros();
 
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
+  const [selectedEncontroId, setSelectedEncontroId] = useState<string>(
+    () => searchParams.get('encontro') || ''
+  );
   const encontroData = encontros.find(e => e.id === selectedEncontroId);
   const [pedidos, setPedidos] = useState<PedidoDetalhado[]>([]);
   const [resumo, setResumo] = useState<ResumoCamisetas[]>([]);
@@ -36,7 +39,7 @@ export function PedidosCamisetasPage() {
   const [equipes, setEquipes] = useState<Equipe[]>([]);
 
   const [selectedEquipeId, setSelectedEquipeId] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('busca') || '');
   const [showResumo, setShowResumo] = useState(false);
   const [showIntencoes, setShowIntencoes] = useState(false);
   const [resumoIntencoes, setResumoIntencoes] = useState<ResumoIntencoes[]>([]);

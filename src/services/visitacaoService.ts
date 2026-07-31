@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import type { VisitaGrupo, VisitaGrupoFormData, VisitaParticipacao, VisitaParticipacaoFormData, VisitaParticipacaoEnriched } from '../types/visitacao';
+import type { VisitaGrupo, VisitaGrupoDeleteImpact, VisitaParticipacao, VisitaParticipacaoEnriched } from '../types/visitacao';
 import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
 import { createPrivateStorageReference, removeStorageReference } from './privateStorageService';
 import { removePublicImage, uploadPublicImage } from './publicImageStorageService';
@@ -21,6 +21,16 @@ export interface IntencaoCamisetaItem {
 const GRUPOS_TABLE = 'visita_grupos';
 const PARTICIPACAO_TABLE = 'visita_participacao';
 
+export const VISIT_PARTICIPATION_BY_ENCOUNTER_SELECT = `
+    *,
+    participacoes:participacao_id!inner (
+        id,
+        encontro_id,
+        pessoas (*)
+    ),
+    visita_grupos:grupo_id (nome)
+`;
+
 export const visitacaoService = {
     // Group Management
     async listarGrupos(encontroId: string): Promise<VisitaGrupo[]> {
@@ -34,22 +44,21 @@ export const visitacaoService = {
         return data || [];
     },
 
-    async criarGrupo(formData: VisitaGrupoFormData): Promise<VisitaGrupo> {
-        const { data, error } = await supabase
-            .from(GRUPOS_TABLE)
-            .insert([formData])
-            .select()
-            .single();
-
+    async criarDuplaTransacional(encontroId: string, visitanteAId: string, visitanteBId: string): Promise<VisitaGrupo> {
+        const { data, error } = await supabase.rpc('create_visita_grupo', {
+            p_encontro_id: encontroId,
+            p_visitante_a_id: visitanteAId,
+            p_visitante_b_id: visitanteBId
+        });
         if (error) throw error;
-        return data;
+        return data as VisitaGrupo;
     },
 
     async atualizarGrupo(id: string, nome: string): Promise<void> {
-        const { error } = await supabase
-            .from(GRUPOS_TABLE)
-            .update({ nome })
-            .eq('id', id);
+        const { error } = await supabase.rpc('rename_visita_grupo', {
+            p_grupo_id: id,
+            p_nome: nome
+        });
 
         if (error) throw error;
     },
@@ -78,43 +87,57 @@ export const visitacaoService = {
         });
     },
 
-    async excluirGrupo(id: string): Promise<void> {
-        const { error } = await supabase
-            .from(GRUPOS_TABLE)
-            .delete()
-            .eq('id', id);
-
+    async obterImpactoExclusaoGrupo(id: string): Promise<VisitaGrupoDeleteImpact> {
+        const { data, error } = await supabase.rpc('get_visita_grupo_delete_impact', {
+            p_grupo_id: id
+        });
         if (error) throw error;
+        return data as VisitaGrupoDeleteImpact;
+    },
+
+    async dissolverGrupo(id: string): Promise<VisitaGrupoDeleteImpact> {
+        const { data, error } = await supabase.rpc('dissolve_visita_grupo', {
+            p_grupo_id: id
+        });
+        if (error) throw error;
+
+        const impact = data as VisitaGrupoDeleteImpact;
+        if (impact.foto_url) {
+            await removePublicImage(impact.foto_url).catch((storageError) => {
+                console.error('Erro ao remover arquivo da foto da dupla dissolvida:', storageError);
+            });
+        }
+        return impact;
     },
 
     // Participation Management
     async listarParticipacaoPorEncontro(encontroId: string): Promise<VisitaParticipacaoEnriched[]> {
         const { data, error } = await supabase
             .from(PARTICIPACAO_TABLE)
-            .select(`
-                *,
-                participacoes:participacao_id (
-                    id,
-                    encontro_id,
-                    pessoas (*)
-                ),
-                visita_grupos:grupo_id (nome)
-            `)
+            .select(VISIT_PARTICIPATION_BY_ENCOUNTER_SELECT)
             .filter('participacoes.encontro_id', 'eq', encontroId);
 
         if (error) throw error;
         return data || [];
     },
 
-    async vincular(formData: VisitaParticipacaoFormData): Promise<VisitaParticipacao> {
-        const { data, error } = await supabase
-            .from(PARTICIPACAO_TABLE)
-            .insert([formData])
-            .select()
-            .single();
-
+    async vincularOuReatribuirEncontrista(grupoId: string, participacaoId: string): Promise<VisitaParticipacao> {
+        const { data, error } = await supabase.rpc('assign_visita_participant', {
+            p_grupo_id: grupoId,
+            p_participacao_id: participacaoId
+        });
         if (error) throw error;
-        return data;
+        return data as VisitaParticipacao;
+    },
+
+    async substituirVisitante(grupoId: string, vinculoVisitanteId: string, novaParticipacaoId: string): Promise<VisitaGrupo> {
+        const { data, error } = await supabase.rpc('replace_visita_grupo_visitor', {
+            p_grupo_id: grupoId,
+            p_vinculo_visitante_id: vinculoVisitanteId,
+            p_nova_participacao_id: novaParticipacaoId
+        });
+        if (error) throw error;
+        return data as VisitaGrupo;
     },
 
     async desvincular(id: string): Promise<void> {

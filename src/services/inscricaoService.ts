@@ -7,6 +7,31 @@ import type { RecreacaoDados } from '../types/recreacao';
 
 const TABLE = 'participacoes';
 
+export const SECRETARIA_SAFE_PERSON_FIELDS = [
+    'id',
+    'nome_completo',
+    'cpf',
+    'email',
+    'telefone',
+    'comunidade',
+    'data_nascimento',
+    'endereco',
+    'numero',
+    'complemento',
+    'bairro',
+    'cidade',
+    'estado',
+    'cep',
+    'origem',
+    'latitude',
+    'longitude',
+    'nome_pai',
+    'telefone_pai',
+    'nome_mae',
+    'telefone_mae',
+    'outros_contatos',
+].join(', ');
+
 export interface ParticipacaoCancelada {
     id: string;
     pessoa_id: string;
@@ -85,7 +110,7 @@ export const inscricaoService = {
     async listarEncontreirosPorEncontro(encontroId: string): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('id, equipe_id, coordenador, participante, pessoa_id, pessoas(nome_completo, telefone, email, cpf, comunidade, endereco, numero, complemento, bairro, cidade, estado, cep), equipes(nome)')
+            .select(`id, encontro_id, equipe_id, coordenador, participante, pessoa_id, dados_confirmados, pago_taxa, pago_camiseta, foto_url, pessoas(${SECRETARIA_SAFE_PERSON_FIELDS}), equipes(nome), camiseta_pedidos(id, quantidade), visita_participacao(id, visitante, status, taxa_paga, visita_grupos(nome)), circulo_participacao(id, circulos(nome))`)
             .eq('encontro_id', encontroId)
             .eq('participante', false);
 
@@ -100,7 +125,7 @@ export const inscricaoService = {
     async listarParticipantesPorEncontro(encontroId: string): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('id, equipe_id, coordenador, participante, pessoa_id, origem, foto_url, foto_posicao_y, pessoas(*), equipes(nome), recepcao_dados(*), visita_participacao(id, visitante, status, observacoes, taxa_paga, data_visita, foto_familia_url, visita_grupos(nome)), circulo_participacao(id, circulos(nome))')
+            .select(`id, encontro_id, equipe_id, coordenador, participante, pessoa_id, dados_confirmados, pago_taxa, pago_camiseta, origem, foto_url, foto_posicao_y, pessoas(${SECRETARIA_SAFE_PERSON_FIELDS}), equipes(nome), camiseta_pedidos(id, quantidade), recepcao_dados(id, veiculo_tipo, veiculo_modelo, veiculo_cor, veiculo_placa), visita_participacao(id, visitante, status, taxa_paga, data_visita, foto_familia_url, visita_grupos(nome)), circulo_participacao(id, circulos(nome))`)
             .eq('encontro_id', encontroId)
             .eq('participante', true);
 

@@ -3,10 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { encontroService } from '../../services/encontroService';
 import { inscricaoService, type ParticipacaoCancelada } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
-import { visitacaoService } from '../../services/visitacaoService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car, Camera, SlidersHorizontal, Image as ImageIcon, Upload, Settings2, Minus, Plus as PlusIcon, RotateCcw, Pencil, Eye, Heart, Phone } from 'lucide-react';
+import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car, Camera, SlidersHorizontal, Image as ImageIcon, Upload, Settings2, Minus, Plus as PlusIcon, RotateCcw, Pencil, Eye } from 'lucide-react';
 import type { Encontro } from '../../types/encontro';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import { toast } from 'react-hot-toast';
@@ -23,6 +22,7 @@ import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { calculateAge } from '../../utils/dateUtils';
 import { formatTelefone } from '../../utils/cpfUtils';
+import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
 
 type GeoItemStatus = 'pending' | 'processing' | 'success' | 'error' | 'skipped';
 
@@ -50,20 +50,6 @@ function getVisitaStatusLabel(status: string | null | undefined) {
   return labels[status || ''] || 'Visita sem status';
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return '—';
-  const date = new Date(`${value}T12:00:00`);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('pt-BR');
-}
-
-function detailValue(value: string | number | boolean | null | undefined) {
-  if (value === true) return 'Sim';
-  if (value === false) return 'Não';
-  if (value === null || value === undefined || value === '') return '—';
-  return String(value);
-}
-
 function sanitizeFileName(value: string) {
   return value
     .normalize('NFD')
@@ -71,15 +57,6 @@ function sanitizeFileName(value: string) {
     .replace(/[^a-z0-9]+/gi, '_')
     .replace(/^_+|_+$/g, '')
     .toLowerCase() || 'arquivo';
-}
-
-function DetailItem({ label, value, wide = false }: { label: string; value: string | number | null | undefined; wide?: boolean }) {
-  return (
-    <div className={`secretaria-details-item ${wide ? 'is-wide' : ''}`}>
-      <span>{label}</span>
-      <strong>{detailValue(value)}</strong>
-    </div>
-  );
 }
 
 interface DesistentesTabProps {
@@ -209,14 +186,12 @@ export function SecretariaParticipantesPage() {
   const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; nome: string } | null>(null);
   const [photoActionsParticipant, setPhotoActionsParticipant] = useState<InscricaoEnriched | null>(null);
-  const [detailsParticipant, setDetailsParticipant] = useState<InscricaoEnriched | null>(null);
+  const [contextParticipant, setContextParticipant] = useState<InscricaoEnriched | null>(null);
   const [adjustingPhotoId, setAdjustingPhotoId] = useState<string | null>(null);
   const [tempPhotoPosition, setTempPhotoPosition] = useState(50);
-  const [uploadingFamilyPhotoVisitId, setUploadingFamilyPhotoVisitId] = useState<string | null>(null);
   const [isDownloadingFamilyPhotos, setIsDownloadingFamilyPhotos] = useState(false);
   const [showMissingFamilyPhotos, setShowMissingFamilyPhotos] = useState(false);
   const photoActionsInputRef = useRef<HTMLInputElement>(null);
-  const familyPhotoInputRef = useRef<HTMLInputElement>(null);
   const progressListRef = useRef<HTMLDivElement>(null);
   const canRestoreDesistencia = hasPermission('modulo_admin') || hasPermission('modulo_secretaria');
 
@@ -520,48 +495,6 @@ export function SecretariaParticipantesPage() {
     setSearchTerm('');
     setFilterVeiculo(false);
     setFilterSemFoto(false);
-  };
-
-  const updateFamilyPhotoState = (visitaId: string, fotoUrl: string) => {
-    const updateParticipant = (participante: InscricaoEnriched): InscricaoEnriched => ({
-      ...participante,
-      visita_participacao: participante.visita_participacao?.map((visita) => (
-        visita.id === visitaId ? { ...visita, foto_familia_url: fotoUrl } : visita
-      )),
-    });
-
-    setParticipantes((current) => current.map(updateParticipant));
-    setDetailsParticipant((current) => current ? updateParticipant(current) : current);
-  };
-
-  const handleFamilyPhotoUploadFromDetails = async (file: File) => {
-    if (!detailsParticipant) return;
-
-    if (!file.type.startsWith('image/')) {
-      toast.error('Selecione um arquivo de imagem válido.');
-      return;
-    }
-
-    const visitaPrincipal = detailsParticipant.visita_participacao?.find((v) => !v.visitante);
-    if (!visitaPrincipal?.id) {
-      toast.error('Este participante ainda não possui visita principal vinculada.');
-      return;
-    }
-
-    setUploadingFamilyPhotoVisitId(visitaPrincipal.id);
-    const loadingToast = toast.loading('Enviando foto da família...');
-
-    try {
-      const fotoUrl = await visitacaoService.uploadFotoFamilia(visitaPrincipal.id, file);
-      await visitacaoService.atualizarVisita(visitaPrincipal.id, { foto_familia_url: fotoUrl });
-      updateFamilyPhotoState(visitaPrincipal.id, fotoUrl);
-      toast.success('Foto da família atualizada!', { id: loadingToast });
-    } catch (error) {
-      console.error('Erro ao enviar foto da família:', error);
-      toast.error('Erro ao enviar foto da família.', { id: loadingToast });
-    } finally {
-      setUploadingFamilyPhotoVisitId(null);
-    }
   };
 
   const handleStartPhotoAdjustment = (participante: InscricaoEnriched) => {
@@ -1226,7 +1159,16 @@ export function SecretariaParticipantesPage() {
                           </button>
                         </div>
                         <div className="pessoa-row-info">
-                          <h3 className="pessoa-row-name">{nomeParticipante}</h3>
+                          <h3 className="pessoa-row-name">
+                            <button
+                              type="button"
+                              className="pessoa-context-trigger"
+                              onClick={() => setContextParticipant(p)}
+                              aria-label={`Visualizar ${nomeParticipante}`}
+                            >
+                              {nomeParticipante}
+                            </button>
+                          </h3>
                           <div className="secretaria-link-badges">
                             <span className={`secretaria-context-badge circle${circuloVinculado ? '' : ' muted'}`}>
                               <ImageIcon size={11} /> {circuloVinculado || 'Sem círculo'}
@@ -1277,13 +1219,13 @@ export function SecretariaParticipantesPage() {
 
                       <div className="pessoa-row-actions secretaria-pessoa-actions">
                         <button
-                          onClick={(e) => { e.stopPropagation(); setDetailsParticipant(p); }}
+                          onClick={(e) => { e.stopPropagation(); setContextParticipant(p); }}
                           className="secretaria-details-button"
-                          title="Ver detalhes completos"
-                          aria-label={`Ver detalhes completos de ${nomeParticipante}`}
+                          title="Visualizar"
+                          aria-label={`Visualizar ${nomeParticipante}`}
                         >
                           <Eye size={16} />
-                          <span>Detalhes</span>
+                          <span>Visualizar</span>
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleOpenPessoaEdit(p); }}
@@ -1489,138 +1431,10 @@ export function SecretariaParticipantesPage() {
         )}
       </Modal>
 
-      <Modal
-        isOpen={!!detailsParticipant}
-        onClose={() => setDetailsParticipant(null)}
-        title={`Detalhes - ${detailsParticipant?.pessoas?.nome_completo || 'Participante'}`}
-        maxWidth="980px"
-      >
-        {detailsParticipant && (() => {
-          const pessoa = detailsParticipant.pessoas;
-          const visitaPrincipal = detailsParticipant.visita_participacao?.find((v) => !v.visitante);
-          const circulo = detailsParticipant.circulo_participacao?.[0]?.circulos?.nome;
-          const idade = pessoa?.data_nascimento ? calculateAge(pessoa.data_nascimento, selectedEncontro?.data_inicio) : null;
-          const enderecoCompleto = [
-            pessoa?.endereco,
-            pessoa?.numero,
-            pessoa?.complemento,
-          ].filter(Boolean).join(', ');
-
-          return (
-            <div className="secretaria-details-modal">
-              <section className="secretaria-details-section">
-                <h3><User size={17} /> Dados do encontrista</h3>
-                <div className="secretaria-details-grid">
-                  <DetailItem label="Nome" value={pessoa?.nome_completo} />
-                  <DetailItem label="CPF" value={pessoa?.cpf} />
-                  <DetailItem label="Nascimento" value={formatDate(pessoa?.data_nascimento)} />
-                  <DetailItem label="Idade no encontro" value={idade !== null ? `${idade} anos` : '—'} />
-                  <DetailItem label="Comunidade" value={pessoa?.comunidade} />
-                  <DetailItem label="Origem" value={pessoa?.origem || detailsParticipant.origem} />
-                </div>
-              </section>
-
-              <section className="secretaria-details-section">
-                <h3><Phone size={17} /> Contatos</h3>
-                <div className="secretaria-details-grid">
-                  <DetailItem label="Telefone" value={formatTelefone(pessoa?.telefone)} />
-                  <DetailItem label="E-mail" value={pessoa?.email} />
-                  <DetailItem label="Pai" value={pessoa?.nome_pai} />
-                  <DetailItem label="Telefone do pai" value={formatTelefone(pessoa?.telefone_pai)} />
-                  <DetailItem label="Mãe" value={pessoa?.nome_mae} />
-                  <DetailItem label="Telefone da mãe" value={formatTelefone(pessoa?.telefone_mae)} />
-                  <DetailItem label="Outros contatos" value={pessoa?.outros_contatos} wide />
-                </div>
-              </section>
-
-              <section className="secretaria-details-section">
-                <h3><MapPin size={17} /> Endereço</h3>
-                <div className="secretaria-details-grid">
-                  <DetailItem label="Endereço" value={enderecoCompleto} wide />
-                  <DetailItem label="Bairro" value={pessoa?.bairro} />
-                  <DetailItem label="Cidade" value={pessoa?.cidade} />
-                  <DetailItem label="Estado" value={pessoa?.estado} />
-                  <DetailItem label="CEP" value={pessoa?.cep} />
-                  <DetailItem label="Latitude" value={pessoa?.latitude} />
-                  <DetailItem label="Longitude" value={pessoa?.longitude} />
-                </div>
-              </section>
-
-              <section className="secretaria-details-section">
-                <h3><Heart size={17} /> Saúde e alimentação</h3>
-                <div className="secretaria-details-grid">
-                  <DetailItem label="Restrição alimentar?" value={detailValue(pessoa?.possui_restricao_alimentar)} />
-                  <DetailItem label="Restrição alimentar" value={pessoa?.restricao_alimentar} wide />
-                  <DetailItem label="Alergia?" value={detailValue(pessoa?.possui_alergia)} />
-                  <DetailItem label="Alergia" value={pessoa?.alergia} wide />
-                  <DetailItem label="Medicamento contínuo?" value={detailValue(pessoa?.usa_medicamento_continuo)} />
-                  <DetailItem label="Medicamento contínuo" value={pessoa?.medicamento_continuo} wide />
-                  <DetailItem label="Observação de saúde?" value={detailValue(pessoa?.possui_observacao_saude)} />
-                  <DetailItem label="Observações de saúde" value={pessoa?.observacoes_saude} wide />
-                </div>
-              </section>
-
-              <section className="secretaria-details-section">
-                <h3><FileText size={17} /> Encontro e visita</h3>
-                <div className="secretaria-details-grid">
-                  <DetailItem label="Círculo" value={circulo} />
-                  <DetailItem label="Dupla visitante" value={visitaPrincipal?.visita_grupos?.nome} />
-                  <DetailItem label="Status da visita" value={getVisitaStatusLabel(visitaPrincipal?.status)} />
-                  <DetailItem label="Taxa da visita" value={visitaPrincipal?.taxa_paga ? 'Paga' : 'Pendente'} />
-                  <DetailItem label="Data da visita" value={formatDateTime(visitaPrincipal?.data_visita)} />
-                  <DetailItem label="Observações da visita" value={visitaPrincipal?.observacoes} wide />
-                </div>
-                <div className="secretaria-details-family-photo">
-                  {visitaPrincipal?.foto_familia_url ? (
-                    <img src={visitaPrincipal.foto_familia_url} alt="Foto da família" />
-                  ) : (
-                    <div className="secretaria-details-family-photo-empty">
-                      <ImageIcon size={24} />
-                      <span>Sem foto cadastrada</span>
-                    </div>
-                  )}
-                  <div>
-                    <strong>Foto da família</strong>
-                    <div>
-                      {visitaPrincipal?.foto_familia_url && (
-                        <>
-                          <button type="button" className="btn-secondary" onClick={() => setPreviewPhoto({ url: visitaPrincipal.foto_familia_url!, nome: `Foto da família - ${pessoa?.nome_completo || 'Participante'}` })}>
-                            <Eye size={16} /> Abrir
-                          </button>
-                          <button type="button" className="btn-secondary" onClick={() => handleDownloadPhoto(visitaPrincipal.foto_familia_url!, `familia_${pessoa?.nome_completo || 'participante'}`)}>
-                            <Download size={16} /> Baixar
-                          </button>
-                        </>
-                      )}
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={() => familyPhotoInputRef.current?.click()}
-                        disabled={!visitaPrincipal?.id || uploadingFamilyPhotoVisitId === visitaPrincipal?.id}
-                      >
-                        {uploadingFamilyPhotoVisitId === visitaPrincipal?.id ? <Loader size={16} className="animate-spin" /> : <Upload size={16} />}
-                        {visitaPrincipal?.foto_familia_url ? 'Alterar' : 'Adicionar foto'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {detailsParticipant.recepcao_dados && (
-                <section className="secretaria-details-section">
-                  <h3><Car size={17} /> Veículo</h3>
-                  <div className="secretaria-details-grid">
-                    <DetailItem label="Tipo" value={detailsParticipant.recepcao_dados.veiculo_tipo === 'moto' ? 'Moto' : 'Carro'} />
-                    <DetailItem label="Modelo" value={detailsParticipant.recepcao_dados.veiculo_modelo} />
-                    <DetailItem label="Cor" value={detailsParticipant.recepcao_dados.veiculo_cor} />
-                    <DetailItem label="Placa" value={detailsParticipant.recepcao_dados.veiculo_placa} />
-                  </div>
-                </section>
-              )}
-            </div>
-          );
-        })()}
-      </Modal>
+      <PessoaContextDrawer
+        participacao={contextParticipant}
+        onClose={() => setContextParticipant(null)}
+      />
 
       <Modal
         isOpen={!!previewPhoto}
@@ -1642,18 +1456,6 @@ export function SecretariaParticipantesPage() {
           </div>
         )}
       </Modal>
-
-      <input
-        ref={familyPhotoInputRef}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) handleFamilyPhotoUploadFromDetails(file);
-          event.target.value = '';
-        }}
-      />
 
       <Modal
         isOpen={!!photoActionsParticipant}
