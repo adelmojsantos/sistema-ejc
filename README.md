@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./public/logo-160.webp" alt="EJC Capelinha" width="120">
+  <img src="./public/logo-ejc.jpg" alt="EJC Capelinha" width="120">
 
   # Sistema EJC Capelinha
 
