@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { pessoaService, type PessoaUpdateData } from './pessoaService';
 import type { VisitaGrupo, VisitaGrupoDeleteImpact, VisitaParticipacao, VisitaParticipacaoEnriched } from '../types/visitacao';
 import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
 import { createPrivateStorageReference, removeStorageReference } from './privateStorageService';
@@ -188,13 +189,8 @@ export const visitacaoService = {
         return uploadPublicImage(filePath, optimizedFile);
     },
 
-    async atualizarPessoa(id: string, updates: Record<string, unknown>): Promise<void> {
-        const { error } = await supabase
-            .from('pessoas')
-            .update(updates)
-            .eq('id', id);
-
-        if (error) throw error;
+    async atualizarPessoa(id: string, updates: PessoaUpdateData): Promise<void> {
+        await pessoaService.atualizar(id, updates);
     },
 
     async atualizarParticipacao(id: string, updates: Record<string, unknown>): Promise<void> {

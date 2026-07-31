@@ -49,6 +49,7 @@ import type { ParticipacaoCancelada } from '../../services/inscricaoService';
 import { normalizeString, formatPhone } from '../../utils/stringUtils';
 import { pessoaService } from '../../services/pessoaService';
 import { geocodeWithFallback, getAddressByCEP } from '../../utils/geocoding';
+import { resolveAddressCoordinates } from '../../utils/addressCoordinates';
 
 export function CoordenadorVisitacaoPage() {
   const { encontros } = useEncontros();
@@ -414,11 +415,28 @@ export function CoordenadorVisitacaoPage() {
     try {
       // 1. Geocodificação antes de salvar (mesma lógica do cadastro)
       const coords = await geocodeWithFallback(addressForm);
+      const originalAddress = editingAddressPessoa.pessoas;
+      const normalizeAddressValue = (value: string | null | undefined) => (value || '').trim().toLowerCase();
+      const addressChanged = [
+        ['endereco', addressForm.endereco, originalAddress?.endereco],
+        ['numero', addressForm.numero, originalAddress?.numero],
+        ['complemento', addressForm.complemento, originalAddress?.complemento],
+        ['bairro', addressForm.bairro, originalAddress?.bairro],
+        ['cidade', addressForm.cidade, originalAddress?.cidade],
+        ['cep', addressForm.cep.replace(/\D/g, ''), originalAddress?.cep?.replace(/\D/g, '')],
+        ['estado', addressForm.estado, originalAddress?.estado],
+      ].some(([, current, original]) => normalizeAddressValue(current) !== normalizeAddressValue(original));
+      const [latitude, longitude] = resolveAddressCoordinates(
+        coords,
+        addressChanged,
+        originalAddress?.latitude,
+        originalAddress?.longitude,
+      );
 
       const updateData = {
         ...addressForm,
-        latitude: coords ? coords[0] : (editingAddressPessoa.pessoas?.latitude || null),
-        longitude: coords ? coords[1] : (editingAddressPessoa.pessoas?.longitude || null)
+        latitude,
+        longitude,
       };
 
       // 2. Atualiza no banco

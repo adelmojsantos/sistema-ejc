@@ -3,6 +3,46 @@ import type { Pessoa, PessoaFormData } from '../types/pessoa';
 
 const TABLE = 'pessoas';
 
+/** Campos pessoais aceitos pela edição. Vínculos de encontro pertencem a participacoes. */
+export type PessoaUpdateData = Partial<PessoaFormData>;
+
+/**
+ * Normaliza somente dados da pessoa, preservando campos omitidos em atualizações parciais.
+ * Isso impede que telas de módulos diferentes enviem acidentalmente dados de participação.
+ */
+export function normalizarPessoaUpdate(data: PessoaUpdateData): PessoaUpdateData {
+    const normalized = { ...data };
+    const nullableTextFields: Array<keyof PessoaUpdateData> = [
+        'cpf', 'email', 'comunidade', 'data_nascimento', 'nome_pai', 'nome_mae',
+        'endereco', 'numero', 'complemento', 'cep', 'bairro', 'cidade', 'estado',
+        'telefone_pai', 'telefone_mae', 'outros_contatos', 'qual_paroquia_ejc',
+        'restricao_alimentar', 'medicamento_continuo', 'alergia', 'observacoes_saude',
+    ];
+
+    for (const field of nullableTextFields) {
+        const value = normalized[field];
+        if (typeof value === 'string') {
+            const trimmed = value.trim();
+            normalized[field] = trimmed === '' ? null : trimmed as never;
+        }
+    }
+
+    if (typeof normalized.nome_completo === 'string') {
+        normalized.nome_completo = normalized.nome_completo.trim();
+    }
+    if (typeof normalized.telefone === 'string') {
+        normalized.telefone = normalized.telefone.replace(/\D/g, '');
+    }
+    if (typeof normalized.cpf === 'string') {
+        normalized.cpf = normalized.cpf.replace(/\D/g, '') || null;
+    }
+    if (typeof normalized.cep === 'string') {
+        normalized.cep = normalized.cep.replace(/\D/g, '') || null;
+    }
+
+    return normalized;
+}
+
 export const pessoaService = {
     async listar(): Promise<Pessoa[]> {
         const { data, error } = await supabase
@@ -81,10 +121,10 @@ export const pessoaService = {
         return data as Pessoa;
     },
 
-    async atualizar(id: string, formData: Partial<PessoaFormData>): Promise<Pessoa> {
+    async atualizar(id: string, formData: PessoaUpdateData): Promise<Pessoa> {
         const { data, error } = await supabase
             .from(TABLE)
-            .update(formData)
+            .update(normalizarPessoaUpdate(formData))
             .eq('id', id)
             .select()
             .single();
