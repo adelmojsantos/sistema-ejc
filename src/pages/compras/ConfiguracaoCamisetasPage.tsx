@@ -160,7 +160,11 @@ export function ConfiguracaoCamisetasPage() {
           </div>
         </div>
 
-        <div className="context-badge" title="O encontro é definido pelo seletor global no topo">
+        <div
+          className="context-badge"
+          title="O encontro é definido pelo seletor global no topo"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+        >
           <span style={{ fontSize: '0.85rem', fontWeight: 700, opacity: 0.6, whiteSpace: 'nowrap' }}>Preços para:</span>
           <strong>{encontroSelecionado?.edicao ? `${encontroSelecionado.edicao}º EJC` : encontroSelecionado?.nome ?? 'Encontro selecionado'}</strong>
         </div>
