@@ -1,7 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
+function normalizeEnvValue(value: unknown) {
+    if (typeof value !== 'string') return '';
+    return value.trim().replace(/^(["'])(.*)\1$/, '$2').trim();
+}
+
+const supabaseUrl = normalizeEnvValue(import.meta.env.VITE_SUPABASE_URL);
+const supabaseKey = normalizeEnvValue(import.meta.env.VITE_SUPABASE_KEY);
+
+try {
+    const parsedUrl = new URL(supabaseUrl);
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('protocolo inválido');
+} catch {
+    throw new Error('Configuração inválida: VITE_SUPABASE_URL deve ser uma URL HTTPS válida.');
+}
+
+if (!supabaseKey) {
+    throw new Error('Configuração inválida: VITE_SUPABASE_KEY não foi definida.');
+}
 
 /**
  * LGPD Art. 46 — Segurança dos dados.
