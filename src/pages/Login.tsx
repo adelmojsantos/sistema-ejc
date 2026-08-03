@@ -26,18 +26,26 @@ export function Login() {
     setLoading(true);
     setError(null);
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
-    if (signInError) {
-      setError(signInError.message);
+      if (signInError) {
+        setError(signInError.message);
+        setLoading(false);
+        return;
+      }
+
+      navigate('/dashboard', { replace: true });
+    } catch (caughtError) {
+      console.error('Erro de rede ao autenticar:', caughtError);
+      setError(caughtError instanceof Error
+        ? `Não foi possível conectar ao serviço de autenticação: ${caughtError.message}`
+        : 'Não foi possível conectar ao serviço de autenticação.');
       setLoading(false);
-      return;
     }
-
-    navigate('/dashboard', { replace: true });
   };
 
   return (
