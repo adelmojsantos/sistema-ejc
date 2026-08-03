@@ -284,7 +284,7 @@ export function SecretariaFotosPage() {
         }
     };
 
-    if (!encontros.length) return <div className="p-8 text-center">Carregando encontros...</div>;
+    if (!selectedEncontro) return <div className="p-8 text-center">Carregando encontro...</div>;
 
     return (
         <div className="container" style={{ paddingBottom: '4rem' }}>
