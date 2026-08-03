@@ -42,13 +42,12 @@ import apresentadoresIcon from '../../assets/apresentadores.png';
 import miniMercadoIcon from '../../assets/mini-mercado.png';
 import liturgiaIcon from '../../assets/liturgia.png';
 import cafeIcon from '../../assets/cafe.png';
-import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
 import { visitacaoService } from '../../services/visitacaoService';
 import { PageHeader } from '../../components/ui/PageHeader';
-import type { Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
 import type { VisitaGrupo, VisitaParticipacaoEnriched } from '../../types/visitacao';
+import { useEncontros } from '../../contexts/EncontroContext';
 
 import './SecretariaPlacasEquipesPage.css'
 
@@ -118,8 +117,7 @@ interface SecretariaPlacasEquipesPageProps {
 }
 
 export function SecretariaPlacasEquipesPage({ mode }: SecretariaPlacasEquipesPageProps) {
-  const [encontros, setEncontros] = useState<Encontro[]>([]);
-  const [encontroId, setEncontroId] = useState('');
+  const { encontroSelecionadoId: encontroId, encontroSelecionado: selectedEncontro } = useEncontros();
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [grupos, setGrupos] = useState<VisitaGrupo[]>([]);
   const [vinculos, setVinculos] = useState<VisitaParticipacaoEnriched[]>([]);
@@ -138,18 +136,10 @@ export function SecretariaPlacasEquipesPage({ mode }: SecretariaPlacasEquipesPag
     const loadData = async () => {
       try {
         setIsLoading(true);
-        const [encontrosData, equipesData] = await Promise.all([
-          encontroService.listar(),
-          equipeService.listar()
-        ]);
+        const equipesData = await equipeService.listar();
 
         if (!isMounted) return;
 
-        const orderedEncontros = [...encontrosData].sort((a, b) => (b.edicao ?? 0) - (a.edicao ?? 0));
-        const selected = orderedEncontros.find((encontro) => encontro.ativo) ?? orderedEncontros[0];
-
-        setEncontros(orderedEncontros);
-        setEncontroId(selected?.id ?? '');
         setEquipes(equipesData);
       } catch (error) {
         console.error('Erro ao carregar dados para placas das equipes:', error);
@@ -197,11 +187,6 @@ export function SecretariaPlacasEquipesPage({ mode }: SecretariaPlacasEquipesPag
       isMounted = false;
     };
   }, [encontroId]);
-
-  const selectedEncontro = useMemo(
-    () => encontros.find((encontro) => encontro.id === encontroId) ?? null,
-    [encontroId, encontros]
-  );
 
   const placas = useMemo<PlacaEquipe[]>(() => {
     const source = equipes
