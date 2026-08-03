@@ -1,15 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { encontroService } from '../../services/encontroService';
 import { inscricaoService, type ParticipacaoCancelada } from '../../services/inscricaoService';
 import { pessoaService } from '../../services/pessoaService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car, Camera, SlidersHorizontal, Image as ImageIcon, Upload, Settings2, Minus, Plus as PlusIcon, RotateCcw, Pencil, Eye } from 'lucide-react';
-import type { Encontro } from '../../types/encontro';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import { toast } from 'react-hot-toast';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useAuth } from '../../hooks/useAuth';
 import { Modal } from '../../components/ui/Modal';
@@ -157,8 +154,7 @@ export function SecretariaParticipantesPage() {
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { encontros } = useEncontros();
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
+  const { encontros, encontroSelecionadoId: selectedEncontroId, selecionarEncontro } = useEncontros();
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
   const [desistentes, setDesistentes] = useState<ParticipacaoCancelada[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -195,16 +191,12 @@ export function SecretariaParticipantesPage() {
   const progressListRef = useRef<HTMLDivElement>(null);
   const canRestoreDesistencia = hasPermission('modulo_admin') || hasPermission('modulo_secretaria');
 
-  // Seleciona encontro ativo automaticamente quando o contexto carregar
   useEffect(() => {
     const encontroParam = searchParams.get('encontro');
-    if (encontroParam) {
-      setSelectedEncontroId(encontroParam);
-    } else if (encontros.length > 0 && !selectedEncontroId) {
-      const active = encontros.find(e => e.ativo);
-      setSelectedEncontroId(active?.id ?? encontros[0].id);
+    if (encontroParam && encontros.some((encontro) => encontro.id === encontroParam) && encontroParam !== selectedEncontroId) {
+      selecionarEncontro(encontroParam);
     }
-  }, [encontros, searchParams, selectedEncontroId]);
+  }, [encontros, searchParams, selectedEncontroId, selecionarEncontro]);
 
   const loadParticipantes = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -892,20 +884,6 @@ export function SecretariaParticipantesPage() {
 
           <div className="card" style={{ marginBottom: '2rem' }}>
             <div className="grid-container secretaria-filter-grid">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Encontro</label>
-                <LiveSearchSelect<Encontro>
-                  value={selectedEncontroId}
-                  onChange={(val) => setSelectedEncontroId(val)}
-                  fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-                  getOptionLabel={(e) => `${e.nome}${e.tema ? ` (${e.tema})` : ''} ${e.ativo ? '(Ativo)' : ''}`}
-                  getOptionValue={(e) => String(e.id)}
-                  placeholder="Selecione um Encontro..."
-                  initialOptions={encontros}
-                  className="montagem-header-select"
-                />
-              </div>
-
               <div className="form-group" style={{ marginBottom: 0, flex: 2 }}>
                 <label className="form-label">{activeTab === 'desistentes' ? 'Buscar no histórico' : activeTab === 'fotosFamilias' ? 'Buscar foto da família' : 'Buscar Participante'}</label>
                 <div className="form-input-wrapper">

@@ -12,15 +12,11 @@ import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { useAuth } from '../../hooks/useAuth';
 import { useDebounce } from '../../hooks/useDebounce';
 import { cuidadosService } from '../../services/cuidadosService';
-import { encontroService } from '../../services/encontroService';
 import type { CuidadosFilter, CuidadosRegistro } from '../../types/cuidados';
-import type { Encontro } from '../../types/encontro';
 import { formatPhone, normalizeString } from '../../utils/stringUtils';
 import './CuidadosPage.css';
 
@@ -114,30 +110,19 @@ function CuidadosCard({ registro }: { registro: CuidadosRegistro }) {
 }
 
 export function CuidadosPage() {
-  const { hasPermission } = useAuth();
-  const { encontros, encontroAtivo } = useEncontros();
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
+  const { encontroSelecionadoId } = useEncontros();
   const [registros, setRegistros] = useState<CuidadosRegistro[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState<CuidadosFilter>('todos');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
 
-  const canChangeEncontro = hasPermission('modulo_admin');
-
-  useEffect(() => {
-    if (!selectedEncontroId) {
-      if (encontroAtivo) setSelectedEncontroId(encontroAtivo.id);
-      else if (encontros.length > 0) setSelectedEncontroId(encontros[0].id);
-    }
-  }, [encontroAtivo, encontros, selectedEncontroId]);
-
   const loadRegistros = useCallback(async () => {
-    if (!selectedEncontroId) return;
+    if (!encontroSelecionadoId) return;
 
     setLoading(true);
     try {
-      const data = await cuidadosService.listarPorEncontro(selectedEncontroId);
+      const data = await cuidadosService.listarPorEncontro(encontroSelecionadoId);
       setRegistros(data);
     } catch (error) {
       console.error(error);
@@ -145,7 +130,7 @@ export function CuidadosPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedEncontroId]);
+  }, [encontroSelecionadoId]);
 
   useEffect(() => {
     loadRegistros();
@@ -292,20 +277,6 @@ export function CuidadosPage() {
       />
 
       <section className="cuidados-toolbar card">
-        <div className="form-group">
-          <label className="form-label">Encontro</label>
-          <LiveSearchSelect<Encontro>
-            value={selectedEncontroId}
-            onChange={(value) => setSelectedEncontroId(value)}
-            fetchData={(search, page) => encontroService.buscarComPaginacao(search, page)}
-            getOptionLabel={(encontro) => `${encontro.nome}${encontro.ativo ? ' (Ativo)' : ''}`}
-            getOptionValue={(encontro) => encontro.id}
-            placeholder="Selecionar encontro..."
-            initialOptions={encontros}
-            disabled={!canChangeEncontro}
-          />
-        </div>
-
         <div className="form-group">
           <label className="form-label">Buscar</label>
           <div className="form-input-wrapper">

@@ -4,11 +4,9 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { CurrencyFormField } from '../../components/ui/CurrencyFormField';
 import { FormField } from '../../components/ui/FormField';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { MobileFileUploadButton } from '../../components/ui/MobileFileUploadButton';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { almoxarifadoService } from '../../services/almoxarifadoService';
-import { encontroService } from '../../services/encontroService';
 import type { AlmoxarifadoCompra, AlmoxarifadoCompraItem, AlmoxarifadoCompraItemStatus } from '../../types/almoxarifado';
 import './AlmoxarifadoPage.css';
 
@@ -41,10 +39,7 @@ const parseQuantity = (value: string) => Number(value.replace(',', '.') || 0);
 
 export function AlmoxarifadoComprasOperacionalPage() {
   const navigate = useNavigate();
-  const { encontros } = useEncontros();
-  const encontroPadraoId = encontros.find((encontro) => encontro.ativo)?.id || encontros[0]?.id || '';
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
-  const encontroSelecionadoId = selectedEncontroId || encontroPadraoId;
+  const { encontroSelecionadoId } = useEncontros();
   const [compras, setCompras] = useState<AlmoxarifadoCompra[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -214,16 +209,6 @@ export function AlmoxarifadoComprasOperacionalPage() {
           </div>
         </div>
 
-        <div className="form-group" style={{ marginBottom: 0, minWidth: '220px' }}>
-          <LiveSearchSelect
-            value={encontroSelecionadoId}
-            onChange={val => setSelectedEncontroId(val)}
-            fetchData={async (s, p) => await encontroService.buscarComPaginacao(s, p)}
-            getOptionLabel={e => e.nome}
-            getOptionValue={e => e.id}
-            initialOptions={encontros}
-          />
-        </div>
       </div>
 
       <section className="almox-summary-grid">

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { AlertTriangle, CheckCircle2, Users, Search, History } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
-import { LiveSearchSelect } from '../components/ui/LiveSearchSelect';
 import { PessoaForm } from '../components/pessoa/PessoaForm';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { encontroService } from '../services/encontroService';
@@ -47,7 +46,7 @@ export function InscricaoPage() {
         setEncontros(data);
         const active = data.find(e => e.ativo);
         if (active) setSelectedEncontroId(active.id);
-        else if (data.length > 0) setSelectedEncontroId(data[0].id);
+        else toast.error('Não há encontro ativo disponível para inscrição.');
       } catch {
         toast.error('Erro ao carregar encontros.');
       } finally {
@@ -129,6 +128,8 @@ export function InscricaoPage() {
     }
   };
 
+  const encontroAtivo = encontros.find((encontro) => encontro.id === selectedEncontroId && encontro.ativo);
+
   const handleSearchPreCadastro = async () => {
     if (!preCadastroSearch.trim()) return;
     setIsSearchingPre(true);
@@ -188,18 +189,23 @@ export function InscricaoPage() {
   return (
     <>
       <PageHeader 
-        title="Nova Inscrição Encontrista"
+        title="Nova Inscrição"
         subtitle="Portal / Inscrição"
         backPath="/dashboard"
       />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', margin: '0 auto' }}>
           {/* Step 1: Event Selection */}
-          <div className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
-                Encontro
-              </h3>
+          <div className="card" style={{ padding: '1.35rem 1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+              <div>
+                <span style={{ display: 'block', color: 'var(--muted-text)', fontSize: '0.78rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  Encontro ativo
+                </span>
+                <h3 style={{ margin: '0.25rem 0 0', color: 'var(--text-color)', fontSize: '1.35rem' }}>
+                  {encontroAtivo?.nome ?? 'Inscrições indisponíveis'}
+                </h3>
+              </div>
               <button
                 onClick={() => navigate(`/inscricao/participantes${selectedEncontroId ? `?encontro=${selectedEncontroId}` : ''}`)}
                 className="btn-text"
@@ -221,27 +227,9 @@ export function InscricaoPage() {
 
             {isLoadingEvents ? (
               <div className="text-center py-4">Carregando encontros...</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <LiveSearchSelect<Encontro>
-                    value={selectedEncontroId}
-                    onChange={(val) => setSelectedEncontroId(val)}
-                    fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-                    getOptionLabel={(e) => `${e.nome}${e.tema ? ` (${e.tema})` : ''} ${e.ativo ? '(Ativo)' : ''}`}
-                    getOptionValue={(e) => String(e.id)}
-                    placeholder="Selecione um Encontro..."
-                    initialOptions={encontros}
-                  />
-                </div>
-                {encontros.find(e => e.id === selectedEncontroId)?.ativo && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success-text)', fontWeight: 'bold', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-                    <CheckCircle2 size={18} />
-                    Este é o encontro configurado como ativo.
-                  </div>
-                )}
-              </div>
-            )}
+            ) : !encontroAtivo ? (
+              <div className="text-center py-4">Não há encontro ativo disponível para inscrição.</div>
+            ) : null}
           </div>
 
           {/* Step 1.5: Pre-Cadastro Search (Optional/Toggle) */}

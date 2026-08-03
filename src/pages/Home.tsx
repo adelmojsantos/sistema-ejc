@@ -31,7 +31,7 @@ const itemVariants: Variants = {
 
 export function Home() {
   const navigate = useNavigate();
-  const { encontroAtivo, isLoading: encontroLoading } = useEncontros();
+  const { encontroSelecionado, isLoading: encontroLoading } = useEncontros();
   const {
     hasPermission,
     hasExactPermission,
@@ -42,7 +42,7 @@ export function Home() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const loadSummary = useCallback(async () => {
-    if (!encontroAtivo?.id) {
+    if (!encontroSelecionado?.id) {
       setSummary(null);
       setSummaryError(null);
       return;
@@ -51,7 +51,7 @@ export function Home() {
     setSummaryLoading(true);
     setSummaryError(null);
     try {
-      const data = await dashboardService.obterResumo(encontroAtivo.id);
+      const data = await dashboardService.obterResumo(encontroSelecionado.id);
       setSummary(data);
     } catch (error) {
       console.error('[Dashboard] Erro ao carregar resumo operacional:', error);
@@ -60,7 +60,7 @@ export function Home() {
     } finally {
       setSummaryLoading(false);
     }
-  }, [encontroAtivo?.id]);
+  }, [encontroSelecionado?.id]);
 
   useEffect(() => {
     loadSummary();
@@ -87,12 +87,12 @@ export function Home() {
         <h1 className="page-title text-gradient">Dashboard</h1>
       </header>
 
-      {encontroAtivo && (
+      {encontroSelecionado && (
         <section className="dashboard-work" aria-labelledby="dashboard-work-title">
           <div className="dashboard-work__header">
             <div>
               <span className="dashboard-work__eyebrow">
-                {encontroAtivo.nome}
+                {encontroSelecionado.nome}
               </span>
               <h2 id="dashboard-work-title">Meu trabalho</h2>
               <p>Prioridades e números essenciais para sua função.</p>
@@ -222,4 +222,3 @@ export function Home() {
     </div>
   );
 }
-

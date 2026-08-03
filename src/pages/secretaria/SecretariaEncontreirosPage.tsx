@@ -4,12 +4,9 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
-import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useEquipes } from '../../hooks/useEquipes';
-import type { Encontro } from '../../types/encontro';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -36,10 +33,9 @@ function formatEnderecoCompleto(pessoa: InscricaoEnriched['pessoas']) {
 
 export function SecretariaEncontreirosPage() {
   const navigate = useNavigate();
-  const { encontros } = useEncontros();
+  const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
   const { equipes } = useEquipes();
 
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,14 +46,6 @@ export function SecretariaEncontreirosPage() {
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
   const [contextParticipant, setContextParticipant] = useState<InscricaoEnriched | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
-
-  // Seleciona encontro ativo automaticamente quando o contexto carregar
-  useEffect(() => {
-    if (encontros.length > 0 && !selectedEncontroId) {
-      const active = encontros.find(e => e.ativo);
-      setSelectedEncontroId(active?.id ?? encontros[0].id);
-    }
-  }, [encontros, selectedEncontroId]);
 
   const loadParticipantes = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -92,7 +80,7 @@ export function SecretariaEncontreirosPage() {
     }
   };
 
-  const selectedEncontro = encontros.find(e => e.id === selectedEncontroId);
+  const selectedEncontro = encontroSelecionado;
 
   const filteredParticipantes = useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
@@ -262,20 +250,6 @@ export function SecretariaEncontreirosPage() {
 
         <div className="card" style={{ marginBottom: '2rem' }}>
           <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', alignItems: 'end' }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Encontro</label>
-              <LiveSearchSelect<Encontro>
-                value={selectedEncontroId}
-                onChange={(val) => setSelectedEncontroId(val)}
-                fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-                getOptionLabel={(e) => `${e.nome}${e.tema ? ` (${e.tema})` : ''} ${e.ativo ? '(Ativo)' : ''}`}
-                getOptionValue={(e) => String(e.id)}
-                placeholder="Selecione um Encontro..."
-                initialOptions={encontros}
-                className="montagem-header-select"
-              />
-            </div>
-
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Equipe</label>
               <div style={{ position: 'relative' }}>

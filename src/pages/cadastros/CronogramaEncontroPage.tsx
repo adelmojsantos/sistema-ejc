@@ -11,13 +11,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { cronogramaService } from '../../services/cronogramaService';
-import { encontroService } from '../../services/encontroService';
 import type { EncontroCronogramaItem, EncontroCronogramaItemFormData } from '../../types/cronograma';
-import type { Encontro } from '../../types/encontro';
 import './CronogramaEncontroPage.css';
 
 const SUGGESTED_COLORS = ['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#64748b'];
@@ -58,9 +55,7 @@ function formatTime(value: string) {
 }
 
 export function CronogramaEncontroPage() {
-  const { encontros, encontroAtivo } = useEncontros();
-
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
+  const { encontros, encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const [selectedDate, setSelectedDate] = useState('');
   const [items, setItems] = useState<EncontroCronogramaItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -73,14 +68,6 @@ export function CronogramaEncontroPage() {
   const colorPopoverRef = useRef<HTMLDivElement>(null);
   const [editingItem, setEditingItem] = useState<EncontroCronogramaItem | null>(null);
   const [itemForm, setItemForm] = useState<EncontroCronogramaItemFormData>(emptyItemForm());
-
-  useEffect(() => {
-    if (!selectedEncontroId && encontroAtivo) {
-      setSelectedEncontroId(encontroAtivo.id);
-    } else if (!selectedEncontroId && encontros.length > 0) {
-      setSelectedEncontroId(encontros[0].id);
-    }
-  }, [encontroAtivo, encontros, selectedEncontroId]);
 
   const selectedEncontro = useMemo(
     () => encontros.find((encontro) => encontro.id === selectedEncontroId) || null,
@@ -295,20 +282,6 @@ export function CronogramaEncontroPage() {
         title="Cronograma"
         subtitle="Gestão de Cadastros"
         backPath="/cadastros"
-        actions={(
-          <div className="cronograma-encontro-select">
-            <label>Encontro</label>
-            <LiveSearchSelect<Encontro>
-              value={selectedEncontroId}
-              onChange={(value) => setSelectedEncontroId(value)}
-              fetchData={(search, page) => encontroService.buscarComPaginacao(search, page)}
-              getOptionLabel={(encontro) => encontro.nome}
-              getOptionValue={(encontro) => encontro.id}
-              initialOptions={encontros}
-              placeholder="Selecione o encontro"
-            />
-          </div>
-        )}
       />
 
       <div className="cronograma-day-toolbar">

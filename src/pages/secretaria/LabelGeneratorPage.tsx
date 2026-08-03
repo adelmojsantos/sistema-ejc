@@ -12,7 +12,6 @@ import { LabelManualSelector } from '../../components/labels/LabelManualSelector
 import { LabelPreview } from '../../components/labels/LabelPreview';
 import { LabelPrintArea } from '../../components/labels/LabelPrintArea';
 import { LabelTemplateEditor } from '../../components/labels/LabelTemplateEditor';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useEquipes } from '../../hooks/useEquipes';
@@ -21,7 +20,6 @@ import { circuloService } from '../../services/circuloService';
 import { labelDataService } from '../../services/labelDataService';
 import { labelTemplateService } from '../../services/labelTemplateService';
 import { labelPdfService } from '../../services/labelPdfService';
-import type { Encontro } from '../../types/encontro';
 import type { LabelDataFilters, LabelDataItem, LabelGrouping, LabelPrintItem, LabelTemplate } from '../../types/label';
 import { cloneDefaultLabelTemplate, getLabelsPerPage, getOrientedSheetDimensions, matchesLabelFilters, sortLabelItems, validateLabelLayout } from '../../utils/labelLayout';
 import './LabelGeneratorPage.css';
@@ -95,9 +93,8 @@ function StepperInput({ label, value, min, max, onChange }: StepperInputProps) {
 }
 
 export function LabelGeneratorPage() {
-  const { encontros, encontroAtivo } = useEncontros();
+  const { encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const { equipes } = useEquipes();
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
   const [templates, setTemplates] = useState<LabelTemplate[]>([]);
   const [template, setTemplate] = useState<LabelTemplate>(cloneDefaultLabelTemplate);
   const [items, setItems] = useState<LabelDataItem[]>([]);
@@ -161,10 +158,6 @@ export function LabelGeneratorPage() {
   const pages = useLabelPagination(printableItems, template.printSettings);
   const sheet = getOrientedSheetDimensions(template.printSettings);
   const layoutErrors = useMemo(() => validateLabelLayout(template), [template]);
-
-  useEffect(() => {
-    if (!selectedEncontroId && (encontroAtivo || encontros[0])) setSelectedEncontroId((encontroAtivo || encontros[0]).id);
-  }, [encontroAtivo, encontros, selectedEncontroId]);
 
   useEffect(() => {
     setSkippedLabels((current) => Math.min(current, maxSkippedLabels));
@@ -434,17 +427,6 @@ export function LabelGeneratorPage() {
       />
 
       <div className="label-context-bar">
-        <label className="standard-label-group">
-          <span className="form-label standard-label">Encontro</span>
-          <LiveSearchSelect<Encontro>
-            value={selectedEncontroId}
-            onChange={(value) => setSelectedEncontroId(value)}
-            fetchData={async (search, page) => encontros.filter((item) => item.nome.toLowerCase().includes(search.toLowerCase())).slice(page * 5, page * 5 + 5)}
-            getOptionLabel={(item) => item.nome}
-            getOptionValue={(item) => item.id}
-            initialOptions={encontros}
-          />
-        </label>
         <label className="standard-label-group">
           <span className="form-label standard-label">Modelo</span>
           <select className="form-input" value={template.id} onChange={(event) => selectTemplate(event.target.value)}>

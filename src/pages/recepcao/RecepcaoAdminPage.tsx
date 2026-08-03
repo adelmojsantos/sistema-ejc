@@ -21,12 +21,8 @@ import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
 import { GroupedDropdown, type GroupedDropdownItem } from '../../components/ui/GroupedDropdown';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
-import { useAuth } from '../../hooks/useAuth';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { encontroService } from '../../services/encontroService';
 import { recepcaoService } from '../../services/recepcaoService';
-import type { Encontro } from '../../types/encontro';
 import { formatPlate } from '../../utils/plateUtils';
 import { formatPhone } from '../../utils/stringUtils';
 import type { RecepcaoContato, RecepcaoContatosDupla, RecepcaoDados } from '../../types/recepcao';
@@ -100,12 +96,7 @@ function ContactSection({ title, contatos }: { title: string; contatos: Recepcao
 
 export function RecepcaoAdminPage() {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
-
-  const canChangeEncontro = hasPermission('modulo_admin');
-
-  const { encontros, encontroAtivo } = useEncontros();
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
+  const { encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const [registros, setRegistros] = useState<RecepcaoDados[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -126,13 +117,9 @@ export function RecepcaoAdminPage() {
   const [duplaContatos, setDuplaContatos] = useState<RecepcaoContatosDupla | null>(null);
   const [loadingDuplaContatos, setLoadingDuplaContatos] = useState(false);
 
-  // Seleciona encontro ativo via contexto
   useEffect(() => {
-    if (!selectedEncontroId) {
-      if (encontroAtivo) setSelectedEncontroId(encontroAtivo.id);
-      else if (encontros.length > 0) setSelectedEncontroId(encontros[0].id);
-    }
-  }, [encontros, encontroAtivo, selectedEncontroId]);
+    setSelectedVinculoFilter(FILTER_ALL);
+  }, [selectedEncontroId]);
 
   const loadRegistros = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -232,24 +219,26 @@ export function RecepcaoAdminPage() {
     {
       label: 'Equipes',
       defaultOpen: false,
-      options: [
+      emptyMessage: 'Nenhuma equipe possui cadastro de recepção ainda.',
+      options: equipesDisponiveis.length > 0 ? [
         { value: FILTER_ONLY_TEAMS, label: 'Somente equipes' },
         ...equipesDisponiveis.map(([id, nome]) => ({
           value: `${TEAM_FILTER_PREFIX}${id}` as VinculoFilterValue,
           label: nome
         }))
-      ]
+      ] : []
     },
     {
       label: 'Encontristas',
       defaultOpen: false,
-      options: [
+      emptyMessage: 'Nenhum encontrista possui cadastro de recepção ainda.',
+      options: duplasDisponiveis.length > 0 ? [
         { value: FILTER_ONLY_ENCONTRISTAS, label: 'Somente encontristas' },
         ...duplasDisponiveis.map(([id, nome]) => ({
           value: `${DUPLA_FILTER_PREFIX}${id}` as VinculoFilterValue,
           label: `Visitação - ${nome}`
         }))
-      ]
+      ] : []
     }
   ], [duplasDisponiveis, equipesDisponiveis]);
 
@@ -309,20 +298,6 @@ export function RecepcaoAdminPage() {
 
       <div className="card" style={{ marginBottom: '2rem', padding: '1.25rem' }}>
         <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem', alignItems: 'end' }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Encontro</label>
-            <LiveSearchSelect<Encontro>
-              value={selectedEncontroId}
-              onChange={(val) => { setSelectedEncontroId(val); setSelectedVinculoFilter(FILTER_ALL); }}
-              fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-              getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
-              getOptionValue={(e) => String(e.id)}
-              placeholder="Selecionar encontro..."
-              initialOptions={encontros}
-              disabled={!canChangeEncontro}
-            />
-          </div>
-
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Filtrar por</label>
             <div className="form-input-wrapper">

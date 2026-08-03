@@ -5,7 +5,6 @@ import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
 
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
 import { useEncontros } from '../../contexts/EncontroContext';
 import {
@@ -16,8 +15,6 @@ import {
   type PesquisaSatisfacaoRespondente,
   type PesquisaSatisfacaoResumoIA,
 } from '../../services/pesquisaSatisfacaoService';
-import { encontroService } from '../../services/encontroService';
-import type { Encontro } from '../../types/encontro';
 import type {
   PesquisaSatisfacaoPerguntaFormData,
   PesquisaSatisfacaoQuestion,
@@ -65,9 +62,7 @@ function formatPercent(value: number) {
 
 export function AvaliacaoEncontroPage() {
   const navigate = useNavigate();
-  const { encontros, encontroAtivo } = useEncontros();
-
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
+  const { encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const [tab, setTab] = useState<Tab>('respostas');
   const [perguntas, setPerguntas] = useState<PesquisaSatisfacaoQuestion[]>([]);
   const [painel, setPainel] = useState<PesquisaSatisfacaoPainel | null>(null);
@@ -87,14 +82,6 @@ export function AvaliacaoEncontroPage() {
   const [equipeFilter, setEquipeFilter] = useState('todas');
   const [questionFilter, setQuestionFilter] = useState('todas');
   const [search, setSearch] = useState('');
-
-  useEffect(() => {
-    if (!selectedEncontroId && encontroAtivo) {
-      setSelectedEncontroId(encontroAtivo.id);
-    } else if (!selectedEncontroId && encontros.length > 0) {
-      setSelectedEncontroId(encontros[0].id);
-    }
-  }, [encontroAtivo, encontros, selectedEncontroId]);
 
   const load = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -349,21 +336,6 @@ export function AvaliacaoEncontroPage() {
             <span>Cadastro e análise</span>
             <h1>Pesquisa de satisfação</h1>
           </div>
-        </div>
-        <div className="pesquisa-admin-encontro">
-          <LiveSearchSelect<Encontro>
-            value={selectedEncontroId}
-            onChange={(value) => {
-              setSelectedEncontroId(value);
-              setEquipeFilter('todas');
-              setQuestionFilter('todas');
-            }}
-            fetchData={async (searchTerm, page) => encontroService.buscarComPaginacao(searchTerm, page)}
-            getOptionLabel={(encontro) => `${encontro.nome}${encontro.ativo ? ' (Ativo)' : ''}`}
-            getOptionValue={(encontro) => String(encontro.id)}
-            placeholder="Selecione o encontro"
-            initialOptions={encontros}
-          />
         </div>
       </header>
 

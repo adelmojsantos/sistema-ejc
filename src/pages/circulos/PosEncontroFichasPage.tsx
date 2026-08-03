@@ -21,10 +21,10 @@ export function PosEncontroFichasPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const routeCirculoId = searchParams.get('circuloId');
-  const routeEncontroId = searchParams.get('encontroId');
-  const { encontros, encontroAtivo } = useEncontros();
+  const routeEncontroId = searchParams.get('encontroId') ?? searchParams.get('encontro');
+  const { encontros, encontroSelecionadoId } = useEncontros();
   const { hasPermission, userParticipacao } = useAuth();
-  const [selectedEncontroId, setSelectedEncontroId] = useState(routeEncontroId ?? '');
+  const [routeSelectedEncontroId, setRouteSelectedEncontroId] = useState(routeEncontroId ?? '');
   const [circulos, setCirculos] = useState<Circulo[]>([]);
   const [selectedCirculoId, setSelectedCirculoId] = useState<number | ''>(
     routeCirculoId && Number.isFinite(Number(routeCirculoId)) ? Number(routeCirculoId) : ''
@@ -33,6 +33,7 @@ export function PosEncontroFichasPage() {
   const [isLoadingParticipantes, setIsLoadingParticipantes] = useState(false);
   const canChooseCirculo = hasPermission('modulo_circulos_coordenador') || hasPermission('modulo_admin');
   const isMediatorOnly = hasPermission('modulo_circulos_mediador') && !canChooseCirculo;
+  const selectedEncontroId = routeEncontroId ? routeSelectedEncontroId : encontroSelecionadoId;
 
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [selectedParticipantForFicha, setSelectedParticipantForFicha] = useState<PosEncontroParticipanteCirculo | null>(null);
@@ -290,11 +291,9 @@ export function PosEncontroFichasPage() {
 
   useEffect(() => {
     if (routeEncontroId) {
-      setSelectedEncontroId(routeEncontroId);
-    } else if (!selectedEncontroId) {
-      setSelectedEncontroId(encontroAtivo?.id ?? encontros[encontros.length - 1]?.id ?? '');
+      setRouteSelectedEncontroId(routeEncontroId);
     }
-  }, [encontroAtivo, encontros, routeEncontroId, selectedEncontroId]);
+  }, [routeEncontroId]);
 
   useEffect(() => {
     if (routeCirculoId) {

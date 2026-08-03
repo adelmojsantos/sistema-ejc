@@ -29,20 +29,18 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { WhatsappLogo } from 'phosphor-react';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { FormField } from '../../components/ui/FormField';
 import { FormRow } from '../../components/ui/FormRow';
+import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { EncontristaMap } from '../../components/visitacao/EncontristaMap';
 import { TrocaDuplasModal } from '../../components/visitacao/TrocaDuplasModal';
-import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { visitacaoService } from '../../services/visitacaoService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useEquipes } from '../../hooks/useEquipes';
-import type { Encontro } from '../../types/encontro';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { VisitaGrupo, VisitaGrupoDeleteImpact, VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
 import type { ParticipacaoCancelada } from '../../services/inscricaoService';
@@ -52,13 +50,12 @@ import { geocodeWithFallback, getAddressByCEP } from '../../utils/geocoding';
 import { resolveAddressCoordinates } from '../../utils/addressCoordinates';
 
 export function CoordenadorVisitacaoPage() {
-  const { encontros } = useEncontros();
+  const { encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const { equipes } = useEquipes();
   const [activeTab, setActiveTab] = useState<'painel' | 'vincular'>('painel');
 
   // Data States
   const [grupos, setGrupos] = useState<VisitaGrupo[]>([]);
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [selectedGrupoId, setSelectedGrupoId] = useState<string>('');
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]); // jovens
   const [equipeVisitacao, setEquipeVisitacao] = useState<InscricaoEnriched[]>([]);
@@ -114,13 +111,6 @@ export function CoordenadorVisitacaoPage() {
     cep: '',
     estado: 'SP'
   });
-
-  // Seleciona o encontro mais recente quando o contexto carregar
-  useEffect(() => {
-    if (encontros.length > 0 && !selectedEncontroId) {
-      setSelectedEncontroId(encontros[encontros.length - 1].id);
-    }
-  }, [encontros, selectedEncontroId]);
 
   const loadData = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -634,7 +624,7 @@ export function CoordenadorVisitacaoPage() {
     }).format(parsedDate);
   };
 
-  if (isFetching && encontros.length === 0) return <div>Carregando...</div>;
+  if (isFetching && !selectedEncontroId) return <div>Carregando...</div>;
 
   return (
     <>
@@ -642,20 +632,6 @@ export function CoordenadorVisitacaoPage() {
         title="Gestão de Visitação"
         subtitle="Início / Visitação"
         backPath="/visitacao"
-        actions={
-          <div style={{ width: '100%', maxWidth: '300px' }}>
-            <LiveSearchSelect<Encontro>
-              value={selectedEncontroId}
-              onChange={(val) => setSelectedEncontroId(val)}
-              fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-              getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
-              getOptionValue={(e) => String(e.id)}
-              placeholder="Selecione um Encontro..."
-              initialOptions={encontros}
-              className="montagem-header-select"
-            />
-          </div>
-        }
         tabs={
           <div className="tabs-modern-container">
             <button

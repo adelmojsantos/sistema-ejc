@@ -23,12 +23,9 @@ import { Modal } from '../../components/ui/Modal';
 import { Gear, WhatsappLogo } from 'phosphor-react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
-import { encontroService } from '../../services/encontroService';
 import { recreacaoService } from '../../services/recreacaoService';
-import type { Encontro } from '../../types/encontro';
 import type { RecreacaoDados } from '../../types/recreacao';
 import { formatChildAge } from '../../utils/ageUtils';
 import './RecreacaoAdminPage.css';
@@ -47,11 +44,9 @@ export function RecreacaoAdminPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
 
-  const canChangeEncontro = hasPermission('modulo_admin');
   const canPrintBadges = hasPermission('modulo_secretaria') || hasPermission('modulo_admin');
 
-  const { encontros, encontroAtivo } = useEncontros();
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
+  const { encontros, encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
   const [registros, setRegistros] = useState<RecreacaoDados[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,14 +62,6 @@ export function RecreacaoAdminPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showBadges, setShowBadges] = useState(false);
   const [badgeBackground, setBadgeBackground] = useState<BadgeBackground>('white');
-
-  // Seleciona encontro ativo via contexto
-  useEffect(() => {
-    if (!selectedEncontroId) {
-      if (encontroAtivo) setSelectedEncontroId(encontroAtivo.id);
-      else if (encontros.length > 0) setSelectedEncontroId(encontros[0].id);
-    }
-  }, [encontros, encontroAtivo, selectedEncontroId]);
 
   const loadRegistros = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -145,7 +132,7 @@ export function RecreacaoAdminPage() {
       return;
     }
 
-    const selectedEncontro = encontros.find(encontro => encontro.id === selectedEncontroId);
+    const selectedEncontro = encontroSelecionado ?? encontros.find(encontro => encontro.id === selectedEncontroId);
     const rows = filteredRegistros.map(reg => ({
       'Nome da criança': reg.nome_crianca?.toUpperCase().trim(),
       'Data de nascimento': formatDateForExport(reg.data_nascimento),
@@ -194,7 +181,7 @@ export function RecreacaoAdminPage() {
   }, [registros, debouncedSearch]);
 
   const badgePages = useMemo(() => chunkItems(filteredRegistros, 8), [filteredRegistros]);
-  const selectedEncontro = encontros.find(encontro => encontro.id === selectedEncontroId);
+  const selectedEncontro = encontroSelecionado ?? encontros.find(encontro => encontro.id === selectedEncontroId);
 
   const handlePrintBadges = () => {
     if (!canPrintBadges) return;
@@ -259,20 +246,6 @@ export function RecreacaoAdminPage() {
 
       <div className="card" style={{ marginBottom: '2rem', padding: '1.25rem' }}>
         <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem', alignItems: 'end' }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Encontro</label>
-            <LiveSearchSelect<Encontro>
-              value={selectedEncontroId}
-              onChange={(val) => setSelectedEncontroId(val)}
-              fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-              getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
-              getOptionValue={(e) => String(e.id)}
-              placeholder="Selecionar encontro..."
-              initialOptions={encontros}
-              disabled={!canChangeEncontro}
-            />
-          </div>
-
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Buscar Criança ou Responsável</label>
             <div className="form-input-wrapper">

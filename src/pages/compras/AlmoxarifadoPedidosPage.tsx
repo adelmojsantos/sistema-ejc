@@ -4,12 +4,10 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { FormField } from '../../components/ui/FormField';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
 import { almoxarifadoService } from '../../services/almoxarifadoService';
-import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
 import type {
   AlmoxarifadoItem,
@@ -90,15 +88,12 @@ const buildDefaultTitle = (equipeNome?: string | null) => {
 
 export function AlmoxarifadoPedidosPage() {
   const navigate = useNavigate();
-  const { encontros } = useEncontros();
+  const { encontroSelecionadoId } = useEncontros();
   const { hasPermission } = useAuth();
   const canCreateForOthers =
     hasPermission('modulo_admin') ||
     hasPermission('modulo_compras') ||
     hasPermission('almoxarifado_pedidos_gerenciar');
-  const encontroPadraoId = encontros.find((encontro) => encontro.ativo)?.id || encontros[0]?.id || '';
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
-  const encontroSelecionadoId = selectedEncontroId || encontroPadraoId;
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [itens, setItens] = useState<AlmoxarifadoItem[]>([]);
   const [pedidos, setPedidos] = useState<AlmoxarifadoPedido[]>([]);
@@ -305,16 +300,6 @@ export function AlmoxarifadoPedidosPage() {
           </div>
         </div>
 
-        <div className="form-group" style={{ marginBottom: 0, minWidth: '220px' }}>
-          <LiveSearchSelect
-            value={encontroSelecionadoId}
-            onChange={val => setSelectedEncontroId(val)}
-            fetchData={async (s, p) => await encontroService.buscarComPaginacao(s, p)}
-            getOptionLabel={e => e.nome}
-            getOptionValue={e => e.id}
-            initialOptions={encontros}
-          />
-        </div>
       </div>
 
       <section className="almox-summary-grid">

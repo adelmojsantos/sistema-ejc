@@ -9,14 +9,12 @@ import {
 } from 'lucide-react';
 
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
-import { encontroService } from '../../services/encontroService';
 import { circuloService } from '../../services/circuloService';
 import { circuloParticipacaoService } from '../../services/circuloParticipacaoService';
 import { circuloMediadoresFotoService, type CirculoMediadoresFoto } from '../../services/circuloMediadoresFotoService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { normalizeString } from '../../utils/stringUtils';
 
-import type { Encontro } from '../../types/encontro';
 import type { Circulo } from '../../types/circulo';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { CirculoParticipacaoEnriched } from '../../types/circuloParticipacao';
@@ -41,12 +39,11 @@ interface CirculoAssignment {
 
 export function MontagemCirculos() {
   const navigate = useNavigate();
-  const { encontros, encontroAtivo } = useEncontros();
+  const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
   const { equipes } = useEquipes();
 
   // ── Data ──────────────────────────────────────────────────────────
   const [circulos, setCirculos] = useState<Circulo[]>([]);
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [vinculos, setVinculos] = useState<CirculoParticipacaoEnriched[]>([]);
   const [mediadoresFotos, setMediadoresFotos] = useState<CirculoMediadoresFoto[]>([]);
 
@@ -93,16 +90,6 @@ export function MontagemCirculos() {
       normalizeString(e.nome || '').includes('circulo')
     )?.id ?? null;
   }, [equipes]);
-
-  // ── Seleciona encontro ativo por padrão ───────────────────────────
-  useEffect(() => {
-    if (encontroAtivo && !selectedEncontroId) {
-      setSelectedEncontroId(encontroAtivo.id);
-    } else if (encontros.length > 0 && !selectedEncontroId) {
-      // Fallback para o último se nenhum estiver ativo
-      setSelectedEncontroId(encontros[encontros.length - 1].id);
-    }
-  }, [encontroAtivo, encontros, selectedEncontroId]);
 
   // ── Carrega círculos globais (uma única vez) ──────────────────────
   useEffect(() => {
@@ -400,16 +387,9 @@ export function MontagemCirculos() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ minWidth: '220px', maxWidth: '300px', flex: '1' }}>
-              <LiveSearchSelect<Encontro>
-                value={selectedEncontroId}
-                onChange={(val) => { setSelectedEncontroId(val); setOpenCirculoId(null); }}
-                fetchData={async (search, page) => encontroService.buscarComPaginacao(search, page)}
-                getOptionLabel={(e) => `${e.nome}${e.ativo ? ' (Ativo)' : ''}`}
-                getOptionValue={(e) => String(e.id)}
-                placeholder="Selecione um Encontro..."
-                initialOptions={encontros}
-              />
+            <div className="context-badge" title="O encontro é definido pelo seletor global no topo">
+              <span>Encontro:</span>
+              <strong>{encontroSelecionado?.edicao ? `${encontroSelecionado.edicao}º EJC` : encontroSelecionado?.nome ?? 'Nenhum selecionado'}</strong>
             </div>
 
             {selectedEncontroId && (

@@ -60,9 +60,9 @@ export function PosEncontroCirculosPage() {
   const { id: routePosId } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const routeCirculoId = searchParams.get('circuloId');
-  const { encontros, encontroAtivo } = useEncontros();
+  const { encontros, encontroSelecionadoId } = useEncontros();
   const { hasPermission, userParticipacao } = useAuth();
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
+  const [routeSelectedEncontroId, setRouteSelectedEncontroId] = useState('');
   const [posEncontros, setPosEncontros] = useState<PosEncontro[]>([]);
   const [selectedPosId, setSelectedPosId] = useState('');
   const [circulos, setCirculos] = useState<Circulo[]>([]);
@@ -81,12 +81,7 @@ export function PosEncontroCirculosPage() {
   const isMediatorOnly = hasPermission('modulo_circulos_mediador') && !canChooseCirculo;
   const isDetailRoute = !!routePosId;
 
-  useEffect(() => {
-    if (isDetailRoute) return;
-    if (!selectedEncontroId) {
-      setSelectedEncontroId(encontroAtivo?.id ?? encontros[encontros.length - 1]?.id ?? '');
-    }
-  }, [encontroAtivo, encontros, isDetailRoute, selectedEncontroId]);
+  const selectedEncontroId = isDetailRoute ? routeSelectedEncontroId : encontroSelecionadoId;
 
   // Carregar Equipes Ativas
   useEffect(() => {
@@ -123,7 +118,7 @@ export function PosEncontroCirculosPage() {
           return;
         }
 
-        setSelectedEncontroId(pos.encontro_id);
+        setRouteSelectedEncontroId(pos.encontro_id);
         setSelectedPosId(pos.id);
         setPosEncontros((current) => current.some((item) => item.id === pos.id) ? current : [pos, ...current]);
       } catch (error) {
@@ -576,15 +571,9 @@ export function PosEncontroCirculosPage() {
 
         {!isDetailRoute && !isMediatorOnly && (
           <div className="card pos-encontro-filters">
-            <div className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">Encontro</label>
-              <select className="form-input" value={selectedEncontroId} onChange={(event) => setSelectedEncontroId(event.target.value)}>
-                {encontros.map((encontro) => (
-                  <option key={encontro.id} value={encontro.id}>
-                    {formatEncontroOption(encontro)}
-                  </option>
-                ))}
-              </select>
+            <div className="form-group pos-encontro-context-badge" style={{ margin: 0 }}>
+              <span className="form-label">Edição ativa</span>
+              <strong>{selectedEncontro ? formatEncontroOption(selectedEncontro) : 'Nenhum encontro selecionado'}</strong>
             </div>
 
             {canChooseCirculo && (

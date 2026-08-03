@@ -18,7 +18,7 @@ import { RichTextEditor } from '../../components/ui/RichTextEditor';
 
 export function ResumoPalestrasPage() {
   const navigate = useNavigate();
-  const { encontroAtivo } = useEncontros();
+  const { encontroSelecionado } = useEncontros();
   const [palestras, setPalestras] = useState<Palestra[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,10 +27,10 @@ export function ResumoPalestrasPage() {
 
   useEffect(() => {
     async function load() {
-      if (!encontroAtivo) return;
+      if (!encontroSelecionado) return;
       setIsLoading(true);
       try {
-        const data = await palestraService.listarPorEncontro(encontroAtivo.id);
+        const data = await palestraService.listarPorEncontro(encontroSelecionado.id);
         setPalestras(data);
       } catch (error) {
         console.error('Erro ao carregar resumos:', error);
@@ -40,7 +40,7 @@ export function ResumoPalestrasPage() {
       }
     }
     load();
-  }, [encontroAtivo]);
+  }, [encontroSelecionado]);
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
@@ -76,7 +76,7 @@ export function ResumoPalestrasPage() {
         </div>
       </header>
 
-      {!encontroAtivo ? (
+      {!encontroSelecionado ? (
         <div className="card text-center" style={{ padding: '3rem' }}>
           <p style={{ color: 'var(--muted-text)' }}>Selecione um encontro ativo para gerenciar os resumos.</p>
         </div>

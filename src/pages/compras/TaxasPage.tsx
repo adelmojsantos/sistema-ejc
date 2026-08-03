@@ -1,9 +1,7 @@
 import { ChevronLeft, Loader, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { encontroService } from '../../services/encontroService';
 import { useTaxas } from '../../hooks/useTaxas';
 import { TaxaStatCard } from '../../components/compras/taxas/TaxaStatCard';
 import { TaxaParticipanteItem } from '../../components/compras/taxas/TaxaParticipanteItem';
@@ -14,16 +12,19 @@ import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofG
 export function TaxasPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { encontros } = useEncontros();
+  const { encontros, encontroSelecionadoId, selecionarEncontro } = useEncontros();
   const initialEncontroId = searchParams.get('encontro') || '';
   const initialSearchTerm = searchParams.get('busca') || '';
   const initialActiveTab = searchParams.get('tipo') === 'encontreiro' ? 'equipes' : 'encontristas';
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>(initialEncontroId);
   const [proofGallery, setProofGallery] = useState<{ equipeNome: string; urls: string[] } | null>(null);
-  const encontroPadraoId = encontros.find(e => e.ativo)?.id || encontros[0]?.id || '';
-  const encontroSelecionadoId = selectedEncontroId || encontroPadraoId;
   const encontroData = encontros.find(e => e.id === encontroSelecionadoId);
   const valorTaxa = encontroData?.valor_taxa || 0;
+
+  useEffect(() => {
+    if (initialEncontroId && encontros.some((encontro) => encontro.id === initialEncontroId)) {
+      selecionarEncontro(initialEncontroId);
+    }
+  }, [encontros, initialEncontroId, selecionarEncontro]);
 
   // Nossa Camada de Orquestração (Hook Interactor)
   const {
@@ -59,16 +60,6 @@ export function TaxasPage() {
           </div>
         </div>
 
-        <div className="form-group" style={{ marginBottom: 0, minWidth: '220px' }}>
-          <LiveSearchSelect
-            value={encontroSelecionadoId}
-            onChange={val => setSelectedEncontroId(val)}
-            fetchData={async (s, p) => await encontroService.buscarComPaginacao(s, p)}
-            getOptionLabel={e => e.nome}
-            getOptionValue={e => e.id}
-            initialOptions={encontros}
-          />
-        </div>
       </div>
 
       <div style={{ padding: '0 1rem', marginBottom: '1.5rem' }}>

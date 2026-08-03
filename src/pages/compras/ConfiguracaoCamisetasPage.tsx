@@ -3,12 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Plus, Edit2, Trash2, Save, Loader } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { camisetaService } from '../../services/camisetaService';
-import { encontroService } from '../../services/encontroService';
 import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { CurrencyFormField } from '../../components/ui/CurrencyFormField';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 
 export function ConfiguracaoCamisetasPage() {
   const navigate = useNavigate();
@@ -16,8 +14,7 @@ export function ConfiguracaoCamisetasPage() {
   const [tamanhos, setTamanhos] = useState<CamisetaTamanho[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const { encontros } = useEncontros();
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
+  const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
 
   // Estados para Modelos
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,13 +34,6 @@ export function ConfiguracaoCamisetasPage() {
 
   // Filtro de Tamanhos por Modelo
   const [filterModeloId, setFilterModeloId] = useState<string>('all');
-
-  useEffect(() => {
-    if (encontros.length > 0 && !selectedEncontroId) {
-      const active = encontros.find(e => e.ativo);
-      setSelectedEncontroId(active?.id ?? encontros[0].id);
-    }
-  }, [encontros, selectedEncontroId]);
 
   useEffect(() => {
     loadData();
@@ -170,24 +160,9 @@ export function ConfiguracaoCamisetasPage() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <div className="context-badge" title="O encontro é definido pelo seletor global no topo">
           <span style={{ fontSize: '0.85rem', fontWeight: 700, opacity: 0.6, whiteSpace: 'nowrap' }}>Preços para:</span>
-          <div className="form-group" style={{ marginBottom: 0, minWidth: '250px' }}>
-            <LiveSearchSelect
-              value={selectedEncontroId}
-              onChange={val => setSelectedEncontroId(val)}
-              fetchData={async (s, p) => await encontroService.buscarComPaginacao(s, p)}
-              getOptionLabel={e => e.nome}
-              getOptionValue={e => e.id}
-              initialOptions={encontros}
-              placeholder="Geral (Modelos Globais)"
-            />
-          </div>
-          {selectedEncontroId && (
-            <button className="btn-text" onClick={() => setSelectedEncontroId('')} style={{ fontSize: '0.8rem' }}>
-              Limpar
-            </button>
-          )}
+          <strong>{encontroSelecionado?.edicao ? `${encontroSelecionado.edicao}º EJC` : encontroSelecionado?.nome ?? 'Encontro selecionado'}</strong>
         </div>
       </div>
 

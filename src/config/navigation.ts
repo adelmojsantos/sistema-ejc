@@ -332,6 +332,7 @@ const NAVIGATION_TITLES: readonly NavigationTitle[] = [
   { pathPrefix: '/secretaria/placas-equipes', title: 'Impressos' },
   { pathPrefix: '/secretaria/importar', title: 'Importar Dados' },
   { pathPrefix: '/circulos/fichas-pos-encontro', title: 'Ficha Pós-Encontro' },
+  { pathPrefix: '/circulos/resumo-palestras', title: 'Resumo das Palestras' },
   { pathPrefix: '/circulos/pos-encontros', title: 'Pós-Encontro' },
   { pathPrefix: '/cadastros/pos-encontros', title: 'Pós-Encontro' },
   { pathPrefix: '/cadastros/encontros', title: 'Encontros' },
