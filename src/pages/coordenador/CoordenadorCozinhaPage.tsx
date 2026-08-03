@@ -6,7 +6,6 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
 import { cozinhaService, type CozinhaEquipeResumo, type CozinhaMapaResumo } from '../../services/cozinhaService';
-import type { Encontro } from '../../types/encontro';
 import './CoordenadorCozinhaPage.css';
 
 const emptyResumo: CozinhaMapaResumo = {
@@ -102,19 +101,12 @@ function QuantityCard({ icon, label, value, detail }: { icon: ReactNode; label: 
   );
 }
 
-function getSelectedEncontro(encontros: Encontro[], encontroAtivo: Encontro | null | undefined, userEncontroId?: string | null) {
-  return encontroAtivo
-    ?? encontros.find((encontro) => encontro.id === userEncontroId)
-    ?? encontros[0]
-    ?? null;
-}
-
 export function CoordenadorCozinhaPage() {
   const { userParticipacao, hasPermission } = useAuth();
-  const { encontroAtivo, encontros } = useEncontros();
+  const { encontroSelecionadoId, encontros } = useEncontros();
   const isAdmin = hasPermission('modulo_admin');
   const canAccess = isAdmin || Boolean(userParticipacao?.coordenador && isCozinhaTeam(userParticipacao.equipes?.nome));
-  const selectedEncontro = getSelectedEncontro(encontros, encontroAtivo, userParticipacao?.encontro_id);
+  const selectedEncontro = encontros.find((encontro) => encontro.id === encontroSelecionadoId) ?? null;
   const dias = useMemo(() => enumerateDays(selectedEncontro?.data_inicio, selectedEncontro?.data_fim), [selectedEncontro?.data_fim, selectedEncontro?.data_inicio]);
   const today = toDateInputValue(new Date());
   const initialDay = dias.includes(today) ? today : dias[0];

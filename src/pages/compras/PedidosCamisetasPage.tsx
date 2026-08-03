@@ -27,11 +27,7 @@ type DetailsConfig = {
 export function PedidosCamisetasPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { encontros } = useEncontros();
-
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>(
-    () => searchParams.get('encontro') || ''
-  );
+  const { encontros, encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const encontroData = encontros.find(e => e.id === selectedEncontroId);
   const [pedidos, setPedidos] = useState<PedidoDetalhado[]>([]);
   const [resumo, setResumo] = useState<ResumoCamisetas[]>([]);
@@ -82,13 +78,6 @@ export function PedidosCamisetasPage() {
   useEffect(() => {
     setIntencaoPaymentFilter('todos');
   }, [viewDetailsConfig]);
-
-  useEffect(() => {
-    if (encontros.length > 0 && !selectedEncontroId) {
-      const active = encontros.find(e => e.ativo);
-      setSelectedEncontroId(active?.id ?? encontros[0].id);
-    }
-  }, [encontros, selectedEncontroId]);
 
   const loadData = useCallback(async () => {
     if (!selectedEncontroId) return;

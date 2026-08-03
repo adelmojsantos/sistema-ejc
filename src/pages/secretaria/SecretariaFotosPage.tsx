@@ -295,7 +295,11 @@ export function SecretariaFotosPage() {
 
             <div className="card" style={{ padding: '1rem', marginBottom: '1.5rem', marginTop: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div className="context-badge" title="O encontro é definido pelo seletor global no topo">
+                    <div
+                        className="context-badge"
+                        title="O encontro é definido pelo seletor global no topo"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                    >
                         <span>Encontro:</span>
                         <strong>{encontroSelecionado?.edicao ? `${encontroSelecionado.edicao}º EJC` : encontroSelecionado?.nome ?? 'Nenhum selecionado'}</strong>
                     </div>
