@@ -7888,6 +7888,31 @@ textarea.form-input {
   text-align: left;
 }
 
+.secretaria-team-member-card__confirm-action,
+.secretaria-team-member-card__desktop-action {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.secretaria-team-member-card__confirm-action:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.12) !important;
+  border-color: rgba(16, 185, 129, 0.45) !important;
+  color: #10b981 !important;
+  transform: translateY(-1px);
+}
+
+.secretaria-team-member-card__desktop-action:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.12) !important;
+  border-color: rgba(59, 130, 246, 0.45) !important;
+  color: var(--primary-color) !important;
+  transform: translateY(-1px);
+}
+
+.secretaria-team-member-card__remove-action:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12) !important;
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  color: #ef4444 !important;
+}
+
 @media (max-width: 768px) {
   .secretaria-team-detail-header {
     width: 100%;
@@ -8077,6 +8102,13 @@ textarea.form-input {
   .secretaria-team-member-card__actions .btn-icon {
     width: 30px !important;
     height: 30px !important;
+  }
+
+  .secretaria-team-member-card__confirm-action {
+    width: auto !important;
+    min-width: 0;
+    padding: 0 0.65rem !important;
+    gap: 0.35rem;
   }
 
   .secretaria-team-member-card__desktop-action {

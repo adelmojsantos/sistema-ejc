@@ -1045,7 +1045,7 @@ export function ConfirmationTeamDetailPage() {
                     <button
                       onClick={() => setMemberToRemove(p)}
                       disabled={isActionLoading}
-                      className="btn-icon secretaria-team-member-card__desktop-action"
+                      className="btn-icon secretaria-team-member-card__desktop-action secretaria-team-member-card__remove-action"
                       style={{
                         backgroundColor: 'rgba(239, 68, 68, 0.05)', color: '#ef4444',
                         border: '1px solid rgba(239, 68, 68, 0.2)',
