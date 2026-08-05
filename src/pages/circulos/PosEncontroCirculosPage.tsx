@@ -570,20 +570,22 @@ export function PosEncontroCirculosPage() {
       <section className="pos-encontro-page">
 
         {!isDetailRoute && !isMediatorOnly && (
-          <div className="card pos-encontro-filters">
-            <div className="form-group pos-encontro-context-badge" style={{ margin: 0 }}>
-              <span className="form-label">Edição ativa</span>
+          <div className="pos-encontro-selection">
+            <div className="pos-encontro-selection-context">
+              <span>Edição ativa:</span>
               <strong>{selectedEncontro ? formatEncontroOption(selectedEncontro) : 'Nenhum encontro selecionado'}</strong>
             </div>
 
             {canChooseCirculo && (
-              <div className="form-group" style={{ margin: 0 }}>
-                <label className="form-label">Círculo</label>
-                <select className="form-input" value={selectedCirculoId} onChange={(event) => setSelectedCirculoId(Number(event.target.value))}>
-                  {circulos.map((circulo) => (
-                    <option key={circulo.id} value={circulo.id}>{circulo.nome}</option>
-                  ))}
-                </select>
+              <div className="card pos-encontro-filters">
+                <div className="form-group" style={{ margin: 0 }}>
+                  <label className="form-label">Círculo</label>
+                  <select className="form-input" value={selectedCirculoId} onChange={(event) => setSelectedCirculoId(Number(event.target.value))}>
+                    {circulos.map((circulo) => (
+                      <option key={circulo.id} value={circulo.id}>{circulo.nome}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
           </div>
@@ -801,6 +803,26 @@ export function PosEncontroCirculosPage() {
           grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
           gap: 1rem;
           align-items: end;
+        }
+
+        .pos-encontro-selection {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .pos-encontro-selection-context {
+          display: inline-flex;
+          align-items: baseline;
+          gap: 0.4rem;
+          width: fit-content;
+          color: var(--muted-text);
+          font-size: 0.9rem;
+        }
+
+        .pos-encontro-selection-context strong {
+          color: var(--text-color);
+          font-size: 1rem;
         }
 
         .pos-encontro-header-circle-name {
@@ -1264,6 +1286,11 @@ export function PosEncontroCirculosPage() {
         @media (max-width: 640px) {
           .pos-encontro-filters {
             grid-template-columns: 1fr;
+          }
+
+          .pos-encontro-selection-context {
+            width: 100%;
+            flex-wrap: wrap;
           }
 
           .pos-encontro-page {
