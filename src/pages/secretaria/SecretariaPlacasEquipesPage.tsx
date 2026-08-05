@@ -329,23 +329,6 @@ export function SecretariaPlacasEquipesPage({ mode }: SecretariaPlacasEquipesPag
         />
 
         <div className="card placas-toolbar">
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label" htmlFor="encontro-placas">Encontro</label>
-            <select
-              id="encontro-placas"
-              className="form-input"
-              value={encontroId}
-              onChange={(event) => setEncontroId(event.target.value)}
-              disabled={isLoading || encontros.length === 0}
-            >
-              {encontros.map((encontro) => (
-                <option key={encontro.id} value={encontro.id}>
-                  {encontro.edicao ? `${encontro.edicao}º EJC - ` : ''}{encontro.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {activeTab === 'duplas' && (
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label" htmlFor="paper-size">Tamanho do papel</label>
