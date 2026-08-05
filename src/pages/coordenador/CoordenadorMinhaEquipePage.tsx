@@ -974,14 +974,14 @@ export function CoordenadorMinhaEquipePage() {
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>
-                {teamConfirmation ? 'Equipe Finalizada' : (members.every(m => m.dados_confirmados) && members.length > 0 ? 'Pronto para Finalizar' : 'Confirmação Pendente')}
+                {teamConfirmation ? 'Equipe Finalizada' : (members.every(m => m.dados_confirmados) && members.length > 0 ? 'Pronto para Confirmar os Dados' : 'Confirmação de Dados Pendente')}
               </h3>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', opacity: 0.7 }}>
                 {teamConfirmation
                   ? `Finalizado por ${members.find(m => m.pessoas.email === teamConfirmation.profiles?.email)?.pessoas.nome_completo || teamConfirmation.profiles?.email || 'Coordenador'} em ${teamConfirmation.confirmado_em ? new Date(teamConfirmation.confirmado_em).toLocaleString('pt-BR') : '—'}`
                   : (members.every(m => m.dados_confirmados) && members.length > 0
-                    ? 'Todos os integrantes foram confirmados. Você pode finalizar a equipe agora.'
-                    : `Faltam ${members.filter(m => !m.dados_confirmados).length} integrantes para serem confirmados individualmente.`)}
+                    ? 'Todos os dados cadastrais dos integrantes foram revisados. Você pode confirmar e finalizar a equipe agora.'
+                    : `Confirme os dados cadastrais de cada integrante. Faltam ${members.filter(m => !m.dados_confirmados).length} integrantes.`)}
               </p>
             </div>
           </div>
@@ -998,7 +998,7 @@ export function CoordenadorMinhaEquipePage() {
                 cursor: members.every(m => m.dados_confirmados) && members.length > 0 ? 'pointer' : 'not-allowed'
               }}
             >
-              {isConfirming ? <Loader className="animate-spin" size={16} /> : 'Finalizar Confirmação da Equipe'}
+              {isConfirming ? <Loader className="animate-spin" size={16} /> : 'Confirmar dados da equipe'}
             </button>
           )}
         </div>

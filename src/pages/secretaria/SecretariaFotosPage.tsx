@@ -308,6 +308,14 @@ export function SecretariaFotosPage() {
 
             {loadingTeams ? (
                 <div className="p-12 text-center opacity-50"><div className="spinner" style={{ margin: '0 auto' }}></div></div>
+            ) : teams.length === 0 ? (
+                <div className="card empty-state" style={{ padding: '3rem 1.5rem', textAlign: 'center' }}>
+                    <Users size={44} style={{ opacity: 0.35, marginBottom: '0.75rem' }} />
+                    <h2 style={{ margin: '0 0 0.5rem', fontSize: '1.15rem' }}>Nenhuma equipe disponível para fotos</h2>
+                    <p style={{ margin: 0, maxWidth: '38rem', marginInline: 'auto', opacity: 0.7 }}>
+                        As equipes aparecerão aqui depois que o coordenador finalizar a confirmação dos dados cadastrais dos integrantes.
+                    </p>
+                </div>
             ) : (
                 <div className="equipes-grid">
                     {teams.map((team) => (

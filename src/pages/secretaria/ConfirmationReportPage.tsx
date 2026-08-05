@@ -528,7 +528,14 @@ export function ConfirmationReportPage() {
             {displayedTeams.length === 0 && (
               <div className="card empty-state" style={{ gridColumn: '1 / -1' }}>
                 <Users size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                <p>Nenhuma equipe encontrada.</p>
+                <p>{equipesResumo.length === 0
+                  ? 'Nenhuma equipe com confirmação iniciada para este encontro.'
+                  : 'Nenhuma equipe encontrada para os filtros atuais.'}</p>
+                {equipesResumo.length === 0 && (
+                  <small style={{ maxWidth: '34rem', opacity: 0.7 }}>
+                    As equipes aparecerão nas telas relacionadas após o coordenador confirmar os dados cadastrais dos integrantes.
+                  </small>
+                )}
               </div>
             )}
             {displayedTeams.map(status => (
