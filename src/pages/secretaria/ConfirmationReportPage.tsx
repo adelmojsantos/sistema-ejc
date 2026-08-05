@@ -218,7 +218,10 @@ export function ConfirmationReportPage() {
             </button>
             <div>
               <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Secretaria</p>
-              <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Dados Equipes</h1>
+              <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Confirmação de dados das equipes</h1>
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', opacity: 0.65 }}>
+                Acompanhe a revisão dos dados cadastrais dos integrantes pelo coordenador.
+              </p>
             </div>
           </div>
 
