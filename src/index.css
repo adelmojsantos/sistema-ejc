@@ -3158,10 +3158,13 @@ tbody tr:hover {
 /* Modern Tabs */
 .tabs-modern-container {
   display: flex;
+  max-width: 100%;
   background: var(--secondary-bg);
   padding: 6px;
   border-radius: 16px;
   border: 1px solid var(--border-color);
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .tab-btn-modern {
@@ -3177,6 +3180,23 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .tabs-modern-container {
+    width: 100%;
+    justify-content: flex-start;
+    border-radius: 14px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-btn-modern {
+    min-height: 48px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+  }
 }
 
 .tab-btn-modern:hover {
