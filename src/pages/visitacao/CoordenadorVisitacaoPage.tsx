@@ -25,7 +25,6 @@ import {
   Camera,
   Eye,
   ImagePlus
-  ,ChevronDown
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -54,7 +53,6 @@ export function CoordenadorVisitacaoPage() {
   const { encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const { equipes } = useEquipes();
   const [activeTab, setActiveTab] = useState<'painel' | 'vincular'>('painel');
-  const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
 
   // Data States
   const [grupos, setGrupos] = useState<VisitaGrupo[]>([]);
@@ -635,7 +633,6 @@ export function CoordenadorVisitacaoPage() {
         subtitle="Início / Visitação"
         backPath="/visitacao"
         tabs={
-          <>
           <div className="tabs-modern-container desktop-visitacao-tabs">
             <button
               onClick={() => setActiveTab('painel')}
@@ -650,19 +647,6 @@ export function CoordenadorVisitacaoPage() {
               <UserPlus size={18} /> 2. Vínculo de Encontristas
             </button>
           </div>
-          <div className="mobile-visitacao-tabs">
-            <button type="button" className="mobile-visitacao-tabs__trigger" onClick={() => setMobileTabsOpen((open) => !open)} aria-expanded={mobileTabsOpen}>
-              <span>{activeTab === 'painel' ? 'Etapa 1 · Painel de duplas' : 'Etapa 2 · Vínculo de encontristas'}</span>
-              <ChevronDown size={18} className={mobileTabsOpen ? 'is-open' : ''} />
-            </button>
-            {mobileTabsOpen && (
-              <div className="mobile-visitacao-tabs__menu">
-                <button type="button" className={activeTab === 'painel' ? 'is-selected' : ''} onClick={() => { setActiveTab('painel'); setMobileTabsOpen(false); }}>Etapa 1 · Painel de duplas</button>
-                <button type="button" className={activeTab === 'vincular' ? 'is-selected' : ''} onClick={() => { setActiveTab('vincular'); setMobileTabsOpen(false); }}>Etapa 2 · Vínculo de encontristas</button>
-              </div>
-            )}
-          </div>
-          </>
         }
       />
 

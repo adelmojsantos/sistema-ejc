@@ -3185,6 +3185,45 @@ tbody tr:hover {
 }
 
 @media (max-width: 720px) {
+  .topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+  }
+  .layout-main { padding-top: 64px; }
+  .topbar-heading-copy { display: none; }
+  .topbar > .topbar-heading { flex: 0 0 auto; }
+  .desktop-visitacao-tabs { display: flex; overflow: hidden; }
+  .desktop-visitacao-tabs .tab-btn-modern {
+    flex: 1 1 50%;
+    min-width: 0;
+    justify-content: center;
+    gap: 0;
+    padding: 0.55rem 0.3rem;
+    font-size: 0.72rem;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+  .desktop-visitacao-tabs .tab-btn-modern svg { display: none; }
+  .mobile-visitacao-tabs { display: none !important; }
+}
+
+@media (min-width: 721px) {
+  .topbar {
+    position: fixed;
+    top: 0;
+    left: var(--sidebar-width);
+    right: 0;
+    z-index: 40;
+  }
+  .layout-main { padding-top: var(--topbar-height); }
+  .sidebar--collapsed + .layout-main .topbar { left: var(--sidebar-collapsed-width); }
+}
+
+@media (max-width: 720px) {
   .tabs-modern-container {
     width: 100%;
     justify-content: flex-start;
