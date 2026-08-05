@@ -8583,3 +8583,98 @@ textarea.form-input {
     min-width: 0;
   }
 }
+
+/* Final responsive shell overrides: keep these after legacy layout rules. */
+.topbar {
+  position: fixed !important;
+  top: 0;
+  right: 0;
+  left: var(--sidebar-width);
+  z-index: 100;
+}
+
+.layout-main {
+  padding-top: var(--topbar-height);
+}
+
+.sidebar--collapsed + .layout-main .topbar {
+  left: var(--sidebar-collapsed-width);
+}
+
+.visitacao-monitor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.visitacao-monitor-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .topbar {
+    left: 0;
+    right: 0;
+    height: 64px;
+    min-height: 64px;
+  }
+
+  .layout-main { padding-top: 64px; }
+  .topbar-heading-copy { display: none !important; }
+
+  .desktop-visitacao-tabs {
+    display: flex !important;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .desktop-visitacao-tabs .tab-btn-modern {
+    display: flex;
+    flex: 1 1 50%;
+    min-width: 0;
+    justify-content: center;
+    gap: 0;
+    padding: 0.55rem 0.3rem;
+    font-size: 0.72rem;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+
+  .desktop-visitacao-tabs .tab-btn-modern svg { display: none; }
+  .mobile-visitacao-tabs { display: none !important; }
+
+  .visitacao-monitor-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .visitacao-monitor-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .visitacao-monitor-filters .filter-chip-modern {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+    padding: 0.45rem 0.35rem;
+    font-size: 0.76rem;
+    line-height: 1.1;
+    text-align: center;
+  }
+
+  .visitacao-create-duo-button {
+    width: 100%;
+    justify-content: center;
+  }
+}

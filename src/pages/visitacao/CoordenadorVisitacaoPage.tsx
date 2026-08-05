@@ -716,8 +716,8 @@ export function CoordenadorVisitacaoPage() {
           </div>
 
           {/* FILTERS & ADD BUTTON */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
+          <div className="visitacao-monitor-toolbar">
+            <div className="visitacao-monitor-filters">
               <button
                 onClick={() => setMonitorFilter('todos')}
                 className={`filter-chip-modern ${monitorFilter === 'todos' ? 'active' : ''}`}
@@ -744,7 +744,7 @@ export function CoordenadorVisitacaoPage() {
               </button>
             </div>
 
-            <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary" style={{ padding: '0.6rem 1.25rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary visitacao-create-duo-button" style={{ padding: '0.6rem 1.25rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Plus size={20} /> Montar Nova Dupla
             </button>
           </div>
