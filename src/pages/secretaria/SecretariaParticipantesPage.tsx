@@ -1619,7 +1619,7 @@ export function SecretariaParticipantesPage() {
         }
         .secretaria-filter-grid {
           display: grid;
-          grid-template-columns: minmax(220px, 0.85fr) minmax(360px, 1.65fr) minmax(148px, 0.5fr);
+          grid-template-columns: minmax(0, 2.2fr) minmax(180px, 0.8fr);
           gap: 1.25rem;
           align-items: end;
         }
