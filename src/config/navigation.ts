@@ -324,7 +324,7 @@ const NAVIGATION_TITLES: readonly NavigationTitle[] = [
   { pathPrefix: '/admin/dirigencia', title: 'Dirigência' },
   { pathPrefix: '/admin/diagnosticos', title: 'Diagnósticos' },
   { pathPrefix: '/secretaria/configuracoes-exportacao', title: 'Configurações de Exportação' },
-  { pathPrefix: '/secretaria/confirmacoes', title: 'Relatório de Confirmações' },
+  { pathPrefix: '/secretaria/confirmacoes', title: 'Confirmação Dados Equipes' },
   { pathPrefix: '/secretaria/lista-espera', title: 'Lista de Espera' },
   { pathPrefix: '/secretaria/participantes', title: 'Participantes' },
   { pathPrefix: '/secretaria/encontreiros', title: 'Encontreiros' },
