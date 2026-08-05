@@ -3199,6 +3199,93 @@ tbody tr:hover {
   }
 }
 
+.mobile-visitacao-tabs { display: none; }
+
+@media (max-width: 720px) {
+  .topbar {
+    height: 64px;
+    min-height: 64px;
+    padding: 0 0.7rem;
+    flex-wrap: nowrap;
+    row-gap: 0;
+  }
+  .topbar > .topbar-heading {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .topbar > .flex.items-center.gap-3 {
+    width: auto;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    gap: 0.2rem;
+  }
+  .topbar-heading-copy { max-width: 30vw; flex: 0 1 auto; }
+  .topbar-heading .page-title {
+    max-width: 100%;
+    font-size: 0.98rem !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .topbar-encounter-trigger {
+    min-width: 9.5rem;
+    max-width: 11.5rem;
+    min-height: 2.5rem;
+    padding: 0.3rem 0.55rem;
+  }
+  .topbar-encounter-content { display: flex; align-items: center; gap: 0.35rem; }
+  .topbar-encounter-content small { display: none; }
+  .topbar-encounter-status { display: inline-flex; margin-left: 0; }
+  .topbar-encounter-menu { top: calc(100% + 0.35rem); right: 0; width: min(17rem, calc(100vw - 1.2rem)); }
+
+  .desktop-visitacao-tabs { display: none; }
+  .mobile-visitacao-tabs { display: block; position: relative; width: 100%; }
+  .mobile-visitacao-tabs__trigger {
+    width: 100%;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--secondary-bg);
+    color: var(--text-color);
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+  }
+  .mobile-visitacao-tabs__trigger svg { transition: transform 0.2s ease; flex-shrink: 0; }
+  .mobile-visitacao-tabs__trigger svg.is-open { transform: rotate(180deg); }
+  .mobile-visitacao-tabs__menu {
+    position: absolute;
+    z-index: 20;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    right: 0;
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.35rem;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--surface-1);
+    box-shadow: var(--shadow-lg);
+  }
+  .mobile-visitacao-tabs__menu button {
+    min-height: 44px;
+    padding: 0.65rem 0.75rem;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-color);
+    font: inherit;
+    text-align: left;
+  }
+  .mobile-visitacao-tabs__menu button.is-selected,
+  .mobile-visitacao-tabs__menu button:hover { background: var(--primary-light); color: var(--primary-color); }
+}
+
 .tab-btn-modern:hover {
   color: var(--primary-color);
   background: var(--primary-light);
@@ -8437,33 +8524,16 @@ textarea.form-input {
 }
 
 @media (max-width: 720px) {
-  .topbar {
-    min-height: var(--topbar-height);
-    height: auto;
-    padding: 0.55rem 0.75rem;
-    flex-wrap: wrap;
-    row-gap: 0.45rem;
-  }
-  .topbar > .topbar-heading {
-    flex: 1 1 100%;
-    min-width: 0;
-  }
-  .topbar > .flex.items-center.gap-3 {
-    width: 100%;
-    justify-content: flex-end;
-  }
-  .topbar-heading-copy { max-width: none; flex: 1; gap: 0.28rem; }
-  .topbar-heading .page-title {
-    max-width: none;
-    overflow: visible;
-    text-overflow: clip;
-    white-space: normal;
-    font-size: 1.05rem !important;
-  }
+  .topbar { min-height: 64px; height: 64px; padding: 0 0.7rem; flex-wrap: nowrap; row-gap: 0; }
+  .topbar > .topbar-heading { flex: 0 1 auto; min-width: 0; }
+  .topbar > .flex.items-center.gap-3 { width: auto; flex: 0 0 auto; justify-content: flex-end; gap: 0.2rem; }
+  .topbar-heading-copy { max-width: 30vw; flex: 0 1 auto; gap: 0.28rem; }
+  .topbar-heading .page-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.98rem !important; }
   .topbar-group-divider { display: none; }
-  .topbar-encounter-trigger { min-width: 13rem; max-width: min(18rem, 70vw); }
-  .topbar-encounter-content small { display: block; font-size: 0.64rem; }
-  .topbar-encounter-status { display: inline-flex; margin-left: 0.35rem; }
+  .topbar-encounter-trigger { min-width: 9.5rem; max-width: 11.5rem; min-height: 2.5rem; padding: 0.3rem 0.55rem; }
+  .topbar-encounter-content { display: flex; align-items: center; gap: 0.35rem; }
+  .topbar-encounter-content small { display: none; }
+  .topbar-encounter-status { display: inline-flex; margin-left: 0; }
   .user-name-label { display: none; }
   .topbar-encounter-menu {
     position: absolute;
