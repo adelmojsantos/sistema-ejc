@@ -116,7 +116,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
                 >
                   <LockKeyhole size={14} aria-hidden="true" />
                   <span>
-                    <small>Edição ativa</small>
+                    <small>Edição selecionada</small>
                     <strong>{encontroSelecionado?.edicao ? `${encontroSelecionado.edicao}º EJC` : encontroSelecionado?.nome ?? 'Encontro'}</strong>
                     <em className={`topbar-encounter-status ${encontroSelecionado?.ativo ? 'is-active' : 'is-history'}`}>
                       {encontroSelecionado?.ativo ? 'Ativo' : 'Histórico'}
@@ -133,7 +133,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
                     aria-expanded={isEncounterMenuOpen}
                   >
                     <span className="topbar-encounter-content">
-                      <small>Edição ativa</small>
+                      <small>Edição selecionada</small>
                       <span style={{ display: 'flex', gap: '0.5rem' }}>
                         <strong>
                           {encontroSelecionado?.edicao ? `${encontroSelecionado.edicao}º EJC` : encontroSelecionado?.nome ?? (encontrosLoading ? 'Carregando…' : 'Selecionar')}
