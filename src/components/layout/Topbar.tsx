@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Menu,
+  X,
   Sun,
   Moon,
   LogOut,
@@ -98,7 +99,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
             aria-expanded={mobileMenuOpen}
             aria-controls="sidebar-navigation"
           >
-            <Menu size={24} />
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           <div className="topbar-heading-copy">
             <h1 className="page-title" style={{ fontSize: '1.25rem', fontWeight: 700 }}>{rootTitle}</h1>

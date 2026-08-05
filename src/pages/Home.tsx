@@ -42,7 +42,7 @@ export function Home() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const loadSummary = useCallback(async () => {
-    if (!encontroSelecionado?.id) {
+    if (!encontroSelecionado?.id || !encontroSelecionado.ativo) {
       setSummary(null);
       setSummaryError(null);
       return;
@@ -60,7 +60,7 @@ export function Home() {
     } finally {
       setSummaryLoading(false);
     }
-  }, [encontroSelecionado?.id]);
+  }, [encontroSelecionado?.id, encontroSelecionado?.ativo]);
 
   useEffect(() => {
     loadSummary();
@@ -87,7 +87,7 @@ export function Home() {
         <h1 className="page-title text-gradient">Dashboard</h1>
       </header>
 
-      {encontroSelecionado && (
+      {encontroSelecionado?.ativo && (
         <section className="dashboard-work" aria-labelledby="dashboard-work-title">
           <div className="dashboard-work__header">
             <div>
@@ -104,7 +104,13 @@ export function Home() {
               disabled={summaryLoading}
               aria-label="Atualizar resumo do dashboard"
             >
-              <RefreshCw size={17} className={summaryLoading ? 'is-spinning' : undefined} />
+              <RefreshCw
+                size={17}
+                strokeWidth={2.25}
+                aria-hidden="true"
+                className={summaryLoading ? 'is-spinning' : undefined}
+                style={{ color: 'var(--text-color)', stroke: 'currentColor', opacity: 1 }}
+              />
               Atualizar
             </button>
           </div>
