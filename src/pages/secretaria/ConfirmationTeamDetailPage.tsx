@@ -1017,15 +1017,16 @@ export function ConfirmationTeamDetailPage() {
                       <button
                         onClick={() => handleConfirmOneMember(p.id)}
                         disabled={isActionLoading}
-                        className="btn-icon"
+                        className="btn-icon secretaria-team-member-card__confirm-action"
                         style={{
                           backgroundColor: 'rgba(255, 255, 255, 0.03)', color: 'var(--text-color)',
-                          border: '1px solid var(--border-color)', opacity: 0.5,
-                          width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          border: '1px solid var(--border-color)', opacity: 0.8,
+                          height: '32px', padding: '0 0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem'
                         }}
-                        title="Confirmar integrante"
+                        title="Confirmar dados do integrante"
                       >
                         <Check size={18} style={{ flexShrink: 0 }} />
+                        <span>Confirmar dados</span>
                       </button>
                     )}
                     <button
