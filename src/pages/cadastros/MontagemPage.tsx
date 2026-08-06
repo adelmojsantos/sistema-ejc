@@ -4,16 +4,13 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Search, Plus, Trash2, Loader, Check, X, UserPlus, History, ChevronDown, ChevronUp, Save } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { HistoricoModal } from '../../components/pessoa/HistoricoModal';
 import { inscricaoService } from '../../services/inscricaoService';
 import type { InscricaoEnriched } from '../../types/inscricao';
-import { encontroService } from '../../services/encontroService';
 import { pessoaService } from '../../services/pessoaService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useEquipes } from '../../hooks/useEquipes';
-import type { Encontro } from '../../types/encontro';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 
 interface StagedMembro {
@@ -25,14 +22,13 @@ interface StagedMembro {
 
 export function MontagemPage() {
     const navigate = useNavigate();
-    const { encontros } = useEncontros();
+    const { encontros, encontroSelecionadoId: selectedEncontroId } = useEncontros();
     const { equipes } = useEquipes();
 
     // States
     const [inscricoes, setInscricoes] = useState<InscricaoEnriched[]>([]); // Membros persistidos
     const [searchResults, setSearchResults] = useState<(Pessoa & { equipeAtual?: string, noStaging?: boolean })[]>([]); // Para busca
 
-    const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
     const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
 
     // UI States
@@ -61,13 +57,6 @@ export function MontagemPage() {
             }
         }
     }, [expandedEquipeId]);
-
-    // Seleciona o encontro mais recente (último) quando o contexto carregar
-    useEffect(() => {
-        if (encontros.length > 0 && !selectedEncontroId) {
-            setSelectedEncontroId(encontros[encontros.length - 1].id);
-        }
-    }, [encontros, selectedEncontroId]);
 
     // Load memberships when Encontro changes (versão leve para montagem)
     const loadInscricoes = useCallback(async () => {
@@ -250,18 +239,6 @@ export function MontagemPage() {
                     </div>
                 </div>
 
-                <div style={{ width: '100%', maxWidth: '350px' }}>
-                    <LiveSearchSelect<Encontro>
-                        value={selectedEncontroId}
-                        onChange={(val) => setSelectedEncontroId(val)}
-                        fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-                        getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
-                        getOptionValue={(e) => String(e.id)}
-                        placeholder="Selecione um Encontro..."
-                        initialOptions={encontros}
-                        className="montagem-header-select"
-                    />
-                </div>
             </div>
 
             <motion.div

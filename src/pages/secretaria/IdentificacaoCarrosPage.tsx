@@ -25,18 +25,10 @@ const sanitizeFileName = (value: string) =>
     .replace(/^_+|_+$/g, '');
 
 export function IdentificacaoCarrosPage() {
-  const { encontros, encontroAtivo, isLoading: isLoadingEncontros } = useEncontros();
-  const [encontroId, setEncontroId] = useState('');
+  const { encontroSelecionadoId: encontroId, encontroSelecionado: selectedEncontro } = useEncontros();
   const [registros, setRegistros] = useState<RecepcaoDados[]>([]);
   const [selectedPriorityTeamKeys, setSelectedPriorityTeamKeys] = useState<string[]>(defaultPriorityTeamKeys);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    if (!encontroId) {
-      if (encontroAtivo) setEncontroId(encontroAtivo.id);
-      else if (encontros.length > 0) setEncontroId(encontros[0].id);
-    }
-  }, [encontroAtivo, encontroId, encontros]);
 
   useEffect(() => {
     let isMounted = true;
@@ -63,11 +55,6 @@ export function IdentificacaoCarrosPage() {
       isMounted = false;
     };
   }, [encontroId]);
-
-  const selectedEncontro = useMemo(
-    () => encontros.find(encontro => encontro.id === encontroId) ?? encontroAtivo,
-    [encontroAtivo, encontroId, encontros]
-  );
 
   const equipeOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -189,23 +176,6 @@ export function IdentificacaoCarrosPage() {
       />
 
       <div className="card carros-toolbar">
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label" htmlFor="carros-encontro">Encontro</label>
-          <select
-            id="carros-encontro"
-            className="form-input"
-            value={encontroId}
-            onChange={event => setEncontroId(event.target.value)}
-            disabled={isLoadingEncontros || encontros.length === 0}
-          >
-            {encontros.map(encontro => (
-              <option key={encontro.id} value={encontro.id}>
-                {encontro.edicao ? `${encontro.edicao}º EJC - ` : ''}{encontro.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-
         <button
           type="button"
           className="btn btn-primary common-button"

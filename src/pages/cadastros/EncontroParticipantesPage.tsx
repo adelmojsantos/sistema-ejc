@@ -1,15 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { encontroService } from '../../services/encontroService';
 import { inscricaoService } from '../../services/inscricaoService';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import { ChevronLeft, Search, Filter, Users, UserCheck, Shield, User, Download, FileText, FileSpreadsheet, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useEquipes } from '../../hooks/useEquipes';
-import type { Encontro } from '../../types/encontro';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -43,9 +40,8 @@ function maskCpf(cpf: string | null | undefined) {
 export function EncontroParticipantesPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { encontros, encontroAtivo } = useEncontros();
+  const { encontros, encontroSelecionadoId: selectedEncontroId, selecionarEncontro } = useEncontros();
   const { equipes } = useEquipes();
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -55,16 +51,13 @@ export function EncontroParticipantesPage() {
   const debouncedSearch = useDebounce(searchTerm, 400);
   const [filterTeamId, setFilterTeamId] = useState<string>(searchParams.get('filter') || 'all');
 
-  // Seleciona encontro via contexto ou URL param
+  // Mantém links com encontro explícito compatíveis com o contexto global.
   useEffect(() => {
     const encontroParam = searchParams.get('encontro');
-    if (encontroParam) {
-      setSelectedEncontroId(encontroParam);
-    } else if (!selectedEncontroId) {
-      if (encontroAtivo) setSelectedEncontroId(encontroAtivo.id);
-      else if (encontros.length > 0) setSelectedEncontroId(encontros[0].id);
+    if (encontroParam && encontros.some((encontro) => encontro.id === encontroParam) && encontroParam !== selectedEncontroId) {
+      selecionarEncontro(encontroParam);
     }
-  }, [encontros, encontroAtivo, searchParams, selectedEncontroId]);
+  }, [encontros, searchParams, selectedEncontroId, selecionarEncontro]);
 
   useEffect(() => {
     if (!selectedEncontroId) return;
@@ -440,20 +433,6 @@ export function EncontroParticipantesPage() {
 
       <div className="card" style={{ marginBottom: '2rem' }}>
         <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', alignItems: 'end' }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Encontro</label>
-            <LiveSearchSelect<Encontro>
-              value={selectedEncontroId}
-              onChange={(val) => setSelectedEncontroId(val)}
-              fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-              getOptionLabel={(e) => `${e.nome}${e.tema ? ` (${e.tema})` : ''} ${e.ativo ? '(Ativo)' : ''}`}
-              getOptionValue={(e) => String(e.id)}
-              placeholder="Selecione um Encontro..."
-              initialOptions={encontros}
-              className="montagem-header-select"
-            />
-          </div>
-
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Filtrar por Equipe/Tipo</label>
             <div style={{ position: 'relative' }}>

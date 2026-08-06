@@ -6,13 +6,14 @@ export interface VisitaGrupo {
     id: string; // uuid
     encontro_id: string; // uuid
     nome: string | null;
+    nome_automatico?: boolean;
     foto_url: string | null;
     created_at: string;
 }
 
 export interface VisitaParticipacao {
     id: string; // uuid
-    grupo_id: string; // uuid
+    grupo_id: string | null; // uuid; null after a group is safely dissolved
     participacao_id: string; // uuid from participacoes
     visitante: boolean;
     created_at: string;
@@ -53,4 +54,24 @@ export type VisitaParticipacaoFormData = {
     visitante: boolean;
     status?: VisitaStatus;
 };
+
+export interface VisitaGrupoDeleteImpact {
+    grupo_id: string;
+    nome: string | null;
+    foto_url: string | null;
+    visitantes: Array<{
+        vinculo_id: string;
+        participacao_id: string;
+        nome: string;
+    }>;
+    visitantes_total: number;
+    encontristas_total: number;
+    pendentes_total: number;
+    realizadas_total: number;
+    ausentes_total: number;
+    fotos_familia_total: number;
+    intencoes_camiseta_total: number;
+    presencas_total: number;
+    desistentes_total: number;
+}
 

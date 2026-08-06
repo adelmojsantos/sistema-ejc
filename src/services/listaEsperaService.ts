@@ -1,8 +1,6 @@
 import { supabase } from '../lib/supabase';
 import type { ListaEsperaFormData, ListaEsperaEntry } from '../types/listaEspera';
-import type { PessoaFormData } from '../types/pessoa';
 import { encontroService } from './encontroService';
-import { inscricaoService } from './inscricaoService';
 import { pessoaService } from './pessoaService';
 
 export const listaEsperaService = {
@@ -129,84 +127,20 @@ export const listaEsperaService = {
         }
     },
 
-    async efetivarListaEspera(preId: string, formData: Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>): Promise<void> {
-        try {
-            // Cria a pessoa
-            const novapessoaData = {
-                ...formData,
-                origem: 'online'
-            };
-            // Retira do data coisas que nao vao ter na pessoa (ex: encontro_id, campos de auditoria da lista de espera)
-            const { encontro_id, ...pessoaDataOnly } = novapessoaData;
-            
-            const novaPessoa = await pessoaService.criar(pessoaDataOnly as unknown as PessoaFormData);
-
-            // Vincula inscrição no Encontro
-            await inscricaoService.criar({
-                pessoa_id: novaPessoa.id,
-                encontro_id: encontro_id,
-                participante: true,
-                equipe_id: null,
-                coordenador: false,
-                dados_confirmados: true,
-                confirmado_em: new Date().toISOString(),
-                pago_taxa: false,
-                origem: 'online'
-            });
-
-            // Atualiza a flag na lista de espera
-            await this.updateStatus(preId, 'convertido');
-        } catch (error) {
-            console.error('Erro ao efetivar', error);
-            throw error;
-        }
+    async efetivarListaEspera(preId: string, _formData: Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>): Promise<void> {
+        const { error } = await supabase.rpc('aprovar_lista_espera', {
+            p_lista_espera_id: preId,
+            p_pessoa_id: null,
+        });
+        if (error) throw error;
     },
 
-    async vincularPessoaExistente(preId: string, pessoaOriginalId: string, formData: Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>): Promise<void> {
-        try {
-            const { encontro_id, ...dadosPessoa } = formData;
-            
-            // O usuário autorizou atualizar os dados originais no banco
-            await pessoaService.atualizar(pessoaOriginalId, {
-                nome_completo: dadosPessoa.nome_completo,
-                cpf: dadosPessoa.cpf,
-                data_nascimento: dadosPessoa.data_nascimento,
-                email: dadosPessoa.email,
-                telefone: dadosPessoa.telefone,
-                comunidade: dadosPessoa.comunidade,
-                endereco: dadosPessoa.endereco,
-                numero: dadosPessoa.numero,
-                complemento: dadosPessoa.complemento,
-                bairro: dadosPessoa.bairro,
-                cidade: dadosPessoa.cidade,
-                cep: dadosPessoa.cep,
-                telefone_pai: dadosPessoa.telefone_pai,
-                telefone_mae: dadosPessoa.telefone_mae,
-                nome_pai: dadosPessoa.nome_pai,
-                nome_mae: dadosPessoa.nome_mae,
-                fez_ejc_outra_paroquia: dadosPessoa.fez_ejc_outra_paroquia,
-                qual_paroquia_ejc: dadosPessoa.qual_paroquia_ejc
-            });
-
-            // Vincula inscrição no Encontro
-            await inscricaoService.criar({
-                pessoa_id: pessoaOriginalId,
-                encontro_id: encontro_id,
-                participante: true,
-                equipe_id: null,
-                coordenador: false,
-                dados_confirmados: true,
-                confirmado_em: new Date().toISOString(),
-                pago_taxa: false,
-                origem: 'online'
-            });
-
-            // Atualiza a flag na lista de espera
-            await this.updateStatus(preId, 'convertido');
-        } catch (error) {
-            console.error('Erro ao vincular pessoa existente', error);
-            throw error;
-        }
+    async vincularPessoaExistente(preId: string, pessoaOriginalId: string, _formData: Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>): Promise<void> {
+        const { error } = await supabase.rpc('aprovar_lista_espera', {
+            p_lista_espera_id: preId,
+            p_pessoa_id: pessoaOriginalId,
+        });
+        if (error) throw error;
     },
 
     async recusarListaEspera(id: string): Promise<void> {

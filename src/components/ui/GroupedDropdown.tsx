@@ -13,6 +13,7 @@ export type GroupedDropdownGroup<TValue extends string = string> = {
   label: string;
   defaultOpen?: boolean;
   options: GroupedDropdownOption<TValue>[];
+  emptyMessage?: string;
 };
 
 export type GroupedDropdownItem<TValue extends string = string> =
@@ -184,7 +185,9 @@ export function GroupedDropdown<TValue extends string = string>({
 
                 {isGroupOpen && (
                   <div className="grouped-dropdown-group-options">
-                    {item.options.map(option => {
+                    {item.options.length === 0 && item.emptyMessage ? (
+                      <div className="grouped-dropdown-empty">{item.emptyMessage}</div>
+                    ) : item.options.map(option => {
                       const isSelected = option.value === value;
                       return (
                         <button
@@ -272,6 +275,12 @@ export function GroupedDropdown<TValue extends string = string>({
           padding-left: 1.6rem;
           font-weight: 600;
         }
+        .grouped-dropdown-empty {
+          padding: 0.65rem 0.75rem;
+          color: var(--muted-text);
+          font-size: 0.85rem;
+          line-height: 1.35;
+        }
         .grouped-dropdown-option:hover,
         .grouped-dropdown-group-toggle:hover {
           background: var(--secondary-bg);
@@ -289,6 +298,8 @@ export function GroupedDropdown<TValue extends string = string>({
           flex-direction: column;
         }
         .grouped-dropdown-group-toggle {
+          justify-content: flex-start;
+          text-align: left;
           padding: 0.5rem 0.55rem;
           font-size: 0.72rem;
           font-weight: 800;

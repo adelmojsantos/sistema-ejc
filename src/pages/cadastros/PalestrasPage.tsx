@@ -16,19 +16,15 @@ import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { encontroService } from '../../services/encontroService';
 import { palestraService } from '../../services/palestraService';
 import { pessoaService } from '../../services/pessoaService';
 
-import type { Encontro } from '../../types/encontro';
 import type { Palestra, PalestraFormData } from '../../types/palestra';
 import type { Pessoa } from '../../types/pessoa';
 
 export function PalestrasPage() {
   const navigate = useNavigate();
-  const { encontros, encontroAtivo } = useEncontros();
-
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
+  const { encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const [palestras, setPalestras] = useState<Palestra[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -50,15 +46,6 @@ export function PalestrasPage() {
     ordem: 0,
     pessoa_id: null
   });
-
-  // ── Seleciona encontro ativo por padrão ───────────────────────────
-  useEffect(() => {
-    if (encontroAtivo && !selectedEncontroId) {
-      setSelectedEncontroId(encontroAtivo.id);
-    } else if (encontros.length > 0 && !selectedEncontroId) {
-      setSelectedEncontroId(encontros[encontros.length - 1].id);
-    }
-  }, [encontroAtivo, encontros, selectedEncontroId]);
 
   const loadPalestras = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -192,17 +179,6 @@ export function PalestrasPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <div style={{ width: '250px' }}>
-            <LiveSearchSelect<Encontro>
-              value={selectedEncontroId}
-              onChange={(val) => setSelectedEncontroId(val)}
-              fetchData={async (search, page) => encontroService.buscarComPaginacao(search, page)}
-              getOptionLabel={(e) => `${e.nome}${e.ativo ? ' (Ativo)' : ''}`}
-              getOptionValue={(e) => String(e.id)}
-              placeholder="Selecione o Encontro"
-              initialOptions={encontros}
-            />
-          </div>
           <button className="btn-primary" onClick={() => handleOpenModal()} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Plus size={18} /> Nova Palestra
           </button>

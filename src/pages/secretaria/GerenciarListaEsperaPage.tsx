@@ -15,8 +15,7 @@ import { calculateAge } from '../../utils/dateUtils';
 type ListaEsperaViewMode = 'todos' | 'pendente' | 'convertido' | 'reprovado';
 
 export function GerenciarListaEsperaPage() {
-    const { encontros, encontroAtivo } = useEncontros();
-    const [selectedEncontroId, setSelectedEncontroId] = useState('');
+    const { encontros, encontroSelecionadoId: selectedEncontroId } = useEncontros();
     const [entries, setEntries] = useState<ListaEsperaEntry[]>([]);
     const [efetivados, setEfetivados] = useState<ListaEsperaEntry[]>([]);
     const [reprovados, setReprovados] = useState<ListaEsperaEntry[]>([]);
@@ -44,13 +43,6 @@ export function GerenciarListaEsperaPage() {
     const ordenarPorNome = (items: ListaEsperaEntry[]) =>
         [...items].sort((a, b) => a.nome_completo.localeCompare(b.nome_completo, 'pt-BR'));
     const todosCadastros = ordenarPorNome([...entries, ...efetivados, ...reprovados]);
-
-    useEffect(() => {
-        if (selectedEncontroId || encontros.length === 0) return;
-
-        const fallbackEncontro = encontroAtivo ?? encontros[encontros.length - 1];
-        setSelectedEncontroId(fallbackEncontro.id);
-    }, [encontroAtivo, encontros, selectedEncontroId]);
 
     useEffect(() => {
         loadData();
@@ -335,27 +327,6 @@ export function GerenciarListaEsperaPage() {
                 </div>
             ) : (
                 <div className="premium-container">
-                    <div className="card" style={{ padding: '1.25rem 1.5rem' }}>
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label">Encontro</label>
-                            <select
-                                className="form-input"
-                                value={selectedEncontroId}
-                                onChange={(event) => {
-                                    setSelectedEncontroId(event.target.value);
-                                    setSelectedIds(new Set());
-                                    setSearchTerm('');
-                                }}
-                            >
-                                {encontros.map(encontro => (
-                                    <option key={encontro.id} value={encontro.id}>
-                                        {encontro.nome}{encontro.ativo ? ' (ativo)' : ''}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
                     {/* Stats Row */}
                     <div className="stats-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
                         {/* 1. Limite Total */}

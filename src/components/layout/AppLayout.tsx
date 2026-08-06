@@ -30,6 +30,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   // Reset mobile menu on route change
   useEffect(() => {
     contentRef.current?.focus();
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+      contentRef.current.scrollLeft = 0;
+    }
   }, [location.pathname]);
 
   // Reset mobile menu when resizing to desktop

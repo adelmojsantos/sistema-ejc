@@ -53,9 +53,9 @@ const formatDayLabel = (date: string) => parseDate(date).toLocaleDateString('pt-
 
 export function VisitacaoPresencasPage() {
   const { userParticipacao, hasPermission } = useAuth();
-  const { encontroAtivo, encontros } = useEncontros();
+  const { encontroSelecionado } = useEncontros();
   const canManageAll = hasPermission('modulo_admin') || hasPermission('modulo_visitacao_coordenar');
-  const selectedEncontro = encontroAtivo ?? encontros[0] ?? null;
+  const selectedEncontro = encontroSelecionado;
   const encontroId = selectedEncontro?.id ?? userParticipacao?.encontro_id ?? '';
 
   const dias = useMemo(() => enumerateDays(selectedEncontro?.data_inicio, selectedEncontro?.data_fim), [selectedEncontro?.data_fim, selectedEncontro?.data_inicio]);

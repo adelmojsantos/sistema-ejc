@@ -30,6 +30,7 @@ import { MyParticipantsMap } from '../../components/visitacao/MyParticipantsMap'
 import { formatPhone } from '../../utils/stringUtils';
 import { formatPlate } from '../../utils/plateUtils';
 import { WhatsappLogo } from 'phosphor-react';
+import { useEncontros } from '../../contexts/EncontroContext';
 
 type VisitaListItem = VisitaParticipacaoEnriched & {
     is_history?: boolean;
@@ -65,6 +66,7 @@ export function VisitacaoMeusParticipantesPage() {
     const { userParticipacao, hasPermission } = useAuth();
     const navigate = useNavigate();
     const isCoordinator = hasPermission('modulo_visitacao_coordenar');
+    const { encontroSelecionadoId } = useEncontros();
 
     const [participantes, setParticipantes] = useState<VisitaParticipacaoEnriched[]>([]);
     const [loading, setLoading] = useState(true);
@@ -92,17 +94,18 @@ export function VisitacaoMeusParticipantesPage() {
 
     useEffect(() => {
         async function loadGroups() {
-            if (isCoordinator && userParticipacao?.encontro_id) {
+            if (isCoordinator && encontroSelecionadoId) {
                 try {
-                    const data = await visitacaoService.listarGrupos(userParticipacao.encontro_id);
+                    const data = await visitacaoService.listarGrupos(encontroSelecionadoId);
                     setGrupos(data);
+                    setSelectedGrupoId((current) => data.some((grupo) => grupo.id === current) ? current : '');
                 } catch (error) {
                     console.error('Erro ao carregar grupos:', error);
                 }
             }
         }
         loadGroups();
-    }, [isCoordinator, userParticipacao?.encontro_id]);
+    }, [encontroSelecionadoId, isCoordinator]);
 
     useEffect(() => {
         async function loadParticipants() {
@@ -150,7 +153,7 @@ export function VisitacaoMeusParticipantesPage() {
                 setGrupoNome(targetGrupoNome);
 
                 if (targetGrupoId) {
-                    const encontroId = userParticipacao?.encontro_id || '';
+                    const encontroId = encontroSelecionadoId;
                     
                     // 1. Fetch active participants
                     const { data: activeData, error: activeError } = await supabase
@@ -203,7 +206,7 @@ export function VisitacaoMeusParticipantesPage() {
         }
 
         loadParticipants();
-    }, [userParticipacao, isCoordinator, selectedGrupoId, grupos]);
+    }, [encontroSelecionadoId, userParticipacao, isCoordinator, selectedGrupoId, grupos]);
 
     const stats = useMemo(() => {
         const ativos = participantes.filter(p => p.status !== 'cancelada');

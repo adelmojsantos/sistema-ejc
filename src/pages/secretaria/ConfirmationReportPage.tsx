@@ -2,9 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useNavigate } from 'react-router-dom';
 import { equipeService } from '../../services/equipeService';
-import { encontroService } from '../../services/encontroService';
 import { useEncontros } from '../../contexts/EncontroContext';
-import type { Encontro } from '../../types/encontro';
 import {
   ChevronLeft,
   ChevronRight,
@@ -28,7 +26,6 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { exportConfigService } from '../../services/exportConfigService';
 import { toast } from 'react-hot-toast';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 
 function formatDate(date: string | null | undefined) {
   if (!date) return '—';
@@ -50,8 +47,7 @@ type EquipeResumo = Awaited<ReturnType<typeof equipeService.listarResumoConfirma
 
 export function ConfirmationReportPage() {
   const navigate = useNavigate();
-  const { encontros, encontroAtivo } = useEncontros();
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
+  const { encontros, encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const [equipesResumo, setEquipesResumo] = useState<EquipeResumo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
@@ -60,15 +56,6 @@ export function ConfirmationReportPage() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-
-  // Seleciona o encontro ativo automaticamente via contexto
-  useEffect(() => {
-    if (!selectedEncontroId && encontroAtivo) {
-      setSelectedEncontroId(encontroAtivo.id);
-    } else if (!selectedEncontroId && encontros.length > 0) {
-      setSelectedEncontroId(encontros[0].id);
-    }
-  }, [encontros, encontroAtivo, selectedEncontroId]);
 
   // Carrega resumo leve ao trocar de encontro
   useEffect(() => {
@@ -231,7 +218,10 @@ export function ConfirmationReportPage() {
             </button>
             <div>
               <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Secretaria</p>
-              <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Dados Equipes</h1>
+              <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Confirmação de dados das equipes</h1>
+              <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', opacity: 0.65 }}>
+                Acompanhe a revisão dos dados cadastrais dos integrantes pelo coordenador.
+              </p>
             </div>
           </div>
 
@@ -370,19 +360,6 @@ export function ConfirmationReportPage() {
         {/* Filtros */}
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem', alignItems: 'end' }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Encontro</label>
-              <LiveSearchSelect<Encontro>
-                value={selectedEncontroId}
-                onChange={(val) => setSelectedEncontroId(val)}
-                fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-                getOptionLabel={(e) => `${e.nome}${e.tema ? ` (${e.tema})` : ''} ${e.ativo ? '(Ativo)' : ''}`}
-                getOptionValue={(e) => String(e.id)}
-                placeholder="Selecione um Encontro..."
-                initialOptions={encontros}
-              />
-            </div>
-
             <div className="form-group" style={{ marginBottom: 0, flex: 2 }}>
               <label className="form-label">Buscar Equipe</label>
               <div className="form-input-wrapper">
@@ -554,7 +531,14 @@ export function ConfirmationReportPage() {
             {displayedTeams.length === 0 && (
               <div className="card empty-state" style={{ gridColumn: '1 / -1' }}>
                 <Users size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                <p>Nenhuma equipe encontrada.</p>
+                <p>{equipesResumo.length === 0
+                  ? 'Nenhuma equipe com confirmação iniciada para este encontro.'
+                  : 'Nenhuma equipe encontrada para os filtros atuais.'}</p>
+                {equipesResumo.length === 0 && (
+                  <small style={{ maxWidth: '34rem', opacity: 0.7 }}>
+                    As equipes aparecerão nas telas relacionadas após o coordenador confirmar os dados cadastrais dos integrantes.
+                  </small>
+                )}
               </div>
             )}
             {displayedTeams.map(status => (

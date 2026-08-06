@@ -114,15 +114,7 @@ export function useVisitacaoCoordenacao({ encontroId, equipes }: UseVisitacaoCoo
   const handleCreateGroup = async (p1Id: string, p2Id: string) => {
     setIsLoading(true);
     try {
-      const p1 = equipeVisitacao.find(p => p.id === p1Id);
-      const p2 = equipeVisitacao.find(p => p.id === p2Id);
-      const groupName = `${p1?.pessoas?.nome_completo?.split(' ')[0]} & ${p2?.pessoas?.nome_completo?.split(' ')[0]}`;
-
-      const newGroup = await visitacaoService.criarGrupo({ encontro_id: encontroId, nome: groupName });
-      await Promise.all([
-        visitacaoService.vincular({ grupo_id: newGroup.id, participacao_id: p1Id, visitante: true }),
-        visitacaoService.vincular({ grupo_id: newGroup.id, participacao_id: p2Id, visitante: true })
-      ]);
+      const newGroup = await visitacaoService.criarDuplaTransacional(encontroId, p1Id, p2Id);
       
       toast.success('Dupla criada com sucesso!');
       loadData();
@@ -138,12 +130,7 @@ export function useVisitacaoCoordenacao({ encontroId, equipes }: UseVisitacaoCoo
     if (!selectedGrupoId) return;
     setIsLoading(true);
     try {
-      await visitacaoService.vincular({
-        grupo_id: selectedGrupoId,
-        participacao_id: participacaoId,
-        visitante: false,
-        status: 'pendente'
-      });
+      await visitacaoService.vincularOuReatribuirEncontrista(selectedGrupoId, participacaoId);
       toast.success('Encontrista vinculado!');
       loadData();
     } catch (err: any) {

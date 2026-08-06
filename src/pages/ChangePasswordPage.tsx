@@ -1,9 +1,10 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { PasswordInput } from '../components/ui/PasswordInput';
+import logoEjc from '../assets/logo-ejc.svg';
 
 export function ChangePasswordPage() {
     const [newPassword, setNewPassword] = useState('');
@@ -12,12 +13,6 @@ export function ChangePasswordPage() {
     const [error, setError] = useState<string | null>(null);
     const navigate = useNavigate();
     const { user, mustChangePassword, refreshProfile } = useAuth();
-
-    useEffect(() => {
-        if (!mustChangePassword) {
-            navigate('/dashboard', { replace: true });
-        }
-    }, [mustChangePassword, navigate]);
 
     const handleSubmit = async (event: FormEvent) => {
         event.preventDefault();
@@ -73,14 +68,16 @@ export function ChangePasswordPage() {
                 throw updateError;
             }
 
-            // 4. Limpar a flag temporária
-            // Pequeno delay para propagação do novo estado de auth
-            await new Promise(r => setTimeout(r, 800));
-            
-            const { error: rpcError } = await supabase.rpc('clear_temporary_password');
-            if (rpcError) {
-                console.error('Senha trocada, mas erro ao limpar flag temporária:', rpcError);
-                throw new Error('A senha foi alterada, mas não foi possível liberar o acesso. Tente entrar novamente ou acione um administrador.');
+            // Somente o primeiro acesso precisa limpar a flag temporária.
+            if (mustChangePassword) {
+                // Pequeno delay para propagação do novo estado de auth
+                await new Promise(r => setTimeout(r, 800));
+
+                const { error: rpcError } = await supabase.rpc('clear_temporary_password');
+                if (rpcError) {
+                    console.error('Senha trocada, mas erro ao limpar flag temporária:', rpcError);
+                    throw new Error('A senha foi alterada, mas não foi possível liberar o acesso. Tente entrar novamente ou acione um administrador.');
+                }
             }
 
             await refreshProfile({ force: true });
@@ -109,64 +106,99 @@ export function ChangePasswordPage() {
     };
 
     return (
-        <div className="auth-page">
-            <div className="auth-card card fade-in">
-                <div className="auth-brand">
-                    <div>
-                        <h1 className="auth-title">Troca obrigatória de senha</h1>
-                        <p className="auth-subtitle">Defina uma nova senha para liberar o acesso ao sistema.</p>
+        <div className="auth-split">
+            <aside className="auth-sidebar">
+                <div className="auth-sidebar-content">
+                    <div className="auth-sidebar-logo">
+                        <img
+                            src={logoEjc}
+                            alt="Logo EJC Capelinha"
+                            width="220"
+                            height="60"
+                            className="auth-logo-sidebar"
+                        />
+                    </div>
+                    <h1 className="auth-sidebar-title">Proteja seu acesso</h1>
+                    <p className="auth-sidebar-text">
+                        Uma senha forte ajuda a manter seguros os dados e o trabalho da equipe EJC Capelinha.
+                    </p>
+                </div>
+            </aside>
+
+            <main className="auth-main">
+                <div className="auth-container">
+                    <div className="auth-card card fade-in">
+                        <div className="auth-brand">
+                            <div className="auth-header-logo">
+                                <img
+                                    src={logoEjc}
+                                    alt="Logo EJC Capelinha"
+                                    width="140"
+                                    height="40"
+                                    className="auth-logo-header"
+                                />
+                            </div>
+                            <div>
+                                <h1 className="auth-title">{mustChangePassword ? 'Troca obrigatória de senha' : 'Alterar senha'}</h1>
+                                <p className="auth-subtitle">
+                                    {mustChangePassword
+                                        ? 'Defina uma nova senha para liberar o acesso ao sistema.'
+                                        : 'Atualize sua senha de acesso ao sistema.'}
+                                </p>
+                            </div>
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="auth-form">
+                            <div className="form-group">
+                                <label className="form-label" htmlFor="new-password">Nova senha</label>
+                                <PasswordInput
+                                    id="new-password"
+                                    value={newPassword}
+                                    onChange={setNewPassword}
+                                    placeholder="No mínimo 8 caracteres"
+                                    minLength={8}
+                                    required
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label className="form-label" htmlFor="confirm-password">Confirmar nova senha</label>
+                                <PasswordInput
+                                    id="confirm-password"
+                                    value={confirmPassword}
+                                    onChange={setConfirmPassword}
+                                    placeholder="Repita a senha"
+                                    minLength={8}
+                                    required
+                                />
+                            </div>
+
+                            {error && <div className="error-message">{error}</div>}
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={async () => {
+                                        if (mustChangePassword) {
+                                            await supabase.auth.signOut();
+                                            navigate('/login', { replace: true });
+                                        } else {
+                                            navigate('/dashboard', { replace: true });
+                                        }
+                                    }}
+                                    disabled={loading}
+                                >
+                                    Cancelar
+                                </button>
+                                <button type="submit" className="btn-primary" style={{ width: '100%' }} disabled={loading}>
+                                    {loading ? 'Salvando...' : 'Salvar nova senha'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
-
-                <form onSubmit={handleSubmit} className="auth-form">
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="new-password">Nova senha</label>
-                        <PasswordInput
-                            id="new-password"
-                            value={newPassword}
-                            onChange={setNewPassword}
-                            placeholder="No mínimo 8 caracteres"
-                            minLength={8}
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="confirm-password">Confirmar nova senha</label>
-                        <PasswordInput
-                            id="confirm-password"
-                            value={confirmPassword}
-                            onChange={setConfirmPassword}
-                            placeholder="Repita a senha"
-                            minLength={8}
-                            required
-                        />
-                    </div>
-
-                    {error && <div className="error-message">{error}</div>}
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                        <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={async () => {
-                                if (mustChangePassword) {
-                                    await supabase.auth.signOut();
-                                    navigate('/login', { replace: true });
-                                } else {
-                                    navigate('/dashboard', { replace: true });
-                                }
-                            }}
-                            disabled={loading}
-                        >
-                            Cancelar
-                        </button>
-                        <button type="submit" className="btn-primary" style={{ width: '100%' }} disabled={loading}>
-                            {loading ? 'Salvando...' : 'Salvar nova senha'}
-                        </button>
-                    </div>
-                </form>
-            </div>
+            </main>
         </div>
     );
 }

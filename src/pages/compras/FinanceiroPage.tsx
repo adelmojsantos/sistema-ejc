@@ -8,12 +8,10 @@ import { StorageLink } from '../../components/storage/StorageLink';
 import { CurrencyFormField } from '../../components/ui/CurrencyFormField';
 import { FormField } from '../../components/ui/FormField';
 import { GroupedDropdown, type GroupedDropdownItem } from '../../components/ui/GroupedDropdown';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { MobileFileUploadButton } from '../../components/ui/MobileFileUploadButton';
 import { Modal } from '../../components/ui/Modal';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
-import { encontroService } from '../../services/encontroService';
 import { financeiroService } from '../../services/financeiroService';
 import type { FinanceiroCategoria, FinanceiroLancamento, FinanceiroLancamentoManualFormData, FinanceiroTipo } from '../../types/financeiro';
 import './AlmoxarifadoPage.css';
@@ -93,11 +91,8 @@ function DropdownFormField<TValue extends string>({
 export function FinanceiroPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
-  const { encontros } = useEncontros();
-  const encontroPadraoId = encontros.find((encontro) => encontro.ativo)?.id || encontros[0]?.id || '';
+  const { encontroSelecionadoId } = useEncontros();
   const canManageFinanceiro = hasPermission('modulo_admin') || hasPermission('financeiro_gerenciar');
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
-  const encontroSelecionadoId = selectedEncontroId || encontroPadraoId;
   const [lancamentos, setLancamentos] = useState<FinanceiroLancamento[]>([]);
   const [categorias, setCategorias] = useState<FinanceiroCategoria[]>([]);
   const [loading, setLoading] = useState(true);
@@ -309,16 +304,6 @@ export function FinanceiroPage() {
         </div>
 
         <div className="almox-actions">
-          <div className="form-group" style={{ marginBottom: 0, minWidth: '220px' }}>
-            <LiveSearchSelect
-              value={encontroSelecionadoId}
-              onChange={val => setSelectedEncontroId(val)}
-              fetchData={async (s, p) => await encontroService.buscarComPaginacao(s, p)}
-              getOptionLabel={e => e.nome}
-              getOptionValue={e => e.id}
-              initialOptions={encontros}
-            />
-          </div>
           {canManageFinanceiro && (
             <button type="button" className="btn-secondary" onClick={() => setCategoriaModalOpen(true)}>
               Categorias

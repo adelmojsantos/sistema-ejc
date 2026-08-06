@@ -13,16 +13,12 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useEquipes } from '../../hooks/useEquipes';
-import { useAuth } from '../../hooks/useAuth';
 import { useDebounce } from '../../hooks/useDebounce';
-import { encontroService } from '../../services/encontroService';
 import { encontroPresencaService } from '../../services/encontroPresencaService';
 import { ligacaoService } from '../../services/ligacaoService';
-import type { Encontro } from '../../types/encontro';
 import type { LigacaoCorEquipe, LigacaoRegistro, LigacaoTipoPessoa } from '../../types/ligacao';
 import { normalizeString } from '../../utils/stringUtils';
 import './LigacaoPage.css';
@@ -123,10 +119,8 @@ function LigacaoCard({ registro }: { registro: LigacaoRegistro }) {
 }
 
 export function LigacaoPage() {
-  const { hasPermission } = useAuth();
-  const { encontros, encontroAtivo } = useEncontros();
+  const { encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const { equipes } = useEquipes();
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
   const [registros, setRegistros] = useState<LigacaoRegistro[]>([]);
   const [activeTab, setActiveTab] = useState<LigacaoTipoPessoa>('participante');
   const [teamColorFilter, setTeamColorFilter] = useState<LigacaoFiltroCor>('todas');
@@ -138,15 +132,6 @@ export function LigacaoPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingPresentes, setIsLoadingPresentes] = useState(false);
   const debouncedSearch = useDebounce(searchTerm, 300);
-
-  const canChangeEncontro = hasPermission('modulo_admin');
-
-  useEffect(() => {
-    const selectedExists = encontros.some((encontro) => encontro.id === selectedEncontroId);
-    if (!selectedEncontroId || !selectedExists) {
-      setSelectedEncontroId(encontroAtivo?.id ?? encontros[0]?.id ?? '');
-    }
-  }, [encontroAtivo, encontros, selectedEncontroId]);
 
   const loadRegistros = useCallback(async () => {
     if (!selectedEncontroId) {
@@ -241,20 +226,6 @@ export function LigacaoPage() {
     });
   }, [activeTab, circleFilter, criancas, debouncedSearch, encontreiros, participantes, presentesHojeIds, showPresentesHoje, teamColorFilter, teamFilter]);
 
-  const encontroSelector = canChangeEncontro ? (
-    <div className="ligacao-header-encontro">
-      <LiveSearchSelect<Encontro>
-        value={selectedEncontroId}
-        onChange={(value) => setSelectedEncontroId(value)}
-        fetchData={(search, page) => encontroService.buscarComPaginacao(search, page)}
-        getOptionLabel={(encontro) => `${encontro.nome}${encontro.ativo ? ' (Ativo)' : ''}`}
-        getOptionValue={(encontro) => encontro.id}
-        placeholder="Selecionar encontro..."
-        initialOptions={encontros}
-      />
-    </div>
-  ) : undefined;
-
   const tabs = (
     <div className="ligacao-tabs" role="tablist" aria-label="Pessoas do encontro">
       <button
@@ -299,7 +270,6 @@ export function LigacaoPage() {
         title="Ligação"
         subtitle="Localização para entrega de cartas e recados"
         backPath="/dashboard"
-        actions={encontroSelector}
         tabs={tabs}
       />
 

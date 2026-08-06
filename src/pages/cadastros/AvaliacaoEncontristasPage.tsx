@@ -70,8 +70,7 @@ function emptyForm(encontroId: string, ordem: number): PesquisaSatisfacaoPergunt
 
 export function AvaliacaoEncontristasPage() {
   const navigate = useNavigate();
-  const { encontros, encontroAtivo } = useEncontros();
-  const [encontroId, setEncontroId] = useState('');
+  const { encontroSelecionadoId: encontroId } = useEncontros();
   const [config, setConfig] = useState<PesquisaEncontristaConfig | null>(null);
   const [perguntas, setPerguntas] = useState<PesquisaSatisfacaoQuestion[]>([]);
   const [envios, setEnvios] = useState<PesquisaEncontristaEnvio[]>([]);
@@ -88,10 +87,6 @@ export function AvaliacaoEncontristasPage() {
   const [selectedEquipeResumo, setSelectedEquipeResumo] = useState<PesquisaEncontristaEquipeResumo | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<PesquisaSatisfacaoPerguntaFormData>(emptyForm('', 1));
-
-  useEffect(() => {
-    if (!encontroId && encontros.length) setEncontroId(encontroAtivo?.id ?? encontros[0].id);
-  }, [encontroId, encontroAtivo, encontros]);
 
   useEffect(() => {
     if (!encontroId) return;
@@ -260,9 +255,6 @@ export function AvaliacaoEncontristasPage() {
           <h1>Pesquisa dos encontristas</h1>
           <p>A avaliação aparece antes da ficha pós-encontro e da escolha das equipes.</p>
         </div>
-        <select className="form-input" value={encontroId} onChange={event => setEncontroId(event.target.value)}>
-          {encontros.map(encontro => <option key={encontro.id} value={encontro.id}>{encontro.nome}</option>)}
-        </select>
       </header>
 
       <div className="pesquisa-encontristas-admin__toolbar card">

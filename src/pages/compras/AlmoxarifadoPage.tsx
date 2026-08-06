@@ -6,12 +6,10 @@ import { AlmoxarifadoCategoriaModal, type CategoriaFormState } from '../../compo
 import { AlmoxarifadoItemModal } from '../../components/almoxarifado/AlmoxarifadoItemModal';
 import { AlmoxarifadoUnidadeModal, type UnidadeFormState } from '../../components/almoxarifado/AlmoxarifadoUnidadeModal';
 import { FormField } from '../../components/ui/FormField';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { Modal } from '../../components/ui/Modal';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
 import { almoxarifadoService } from '../../services/almoxarifadoService';
-import { encontroService } from '../../services/encontroService';
 import { equipeService } from '../../services/equipeService';
 import type {
   AlmoxarifadoCategoria,
@@ -117,13 +115,10 @@ function SelectField({
 
 export function AlmoxarifadoPage() {
   const navigate = useNavigate();
-  const { encontros } = useEncontros();
+  const { encontroSelecionadoId } = useEncontros();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('modulo_admin') || hasPermission('modulo_compras') || hasPermission('almoxarifado_gerenciar');
   const canMove = canManage || hasPermission('almoxarifado_movimentar');
-  const encontroPadraoId = encontros.find((encontro) => encontro.ativo)?.id || encontros[0]?.id || '';
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
-  const encontroSelecionadoId = selectedEncontroId || encontroPadraoId;
   const [categorias, setCategorias] = useState<AlmoxarifadoCategoria[]>([]);
   const [unidades, setUnidades] = useState<AlmoxarifadoUnidade[]>([]);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
@@ -387,16 +382,6 @@ export function AlmoxarifadoPage() {
           </div>
         </div>
 
-        <div className="form-group" style={{ marginBottom: 0, minWidth: '220px' }}>
-          <LiveSearchSelect
-            value={encontroSelecionadoId}
-            onChange={val => setSelectedEncontroId(val)}
-            fetchData={async (s, p) => await encontroService.buscarComPaginacao(s, p)}
-            getOptionLabel={e => e.nome}
-            getOptionValue={e => e.id}
-            initialOptions={encontros}
-          />
-        </div>
       </div>
 
       <section className="almox-summary-grid">

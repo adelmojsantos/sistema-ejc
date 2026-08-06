@@ -5,7 +5,6 @@ import * as XLSX from 'xlsx';
 import logoEjc from '../../assets/logo-ejc.svg';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { useAuth } from '../../hooks/useAuth';
 import { relatorioCrachaService } from '../../services/relatorioCrachaService';
 import { recreacaoService } from '../../services/recreacaoService';
 import type { Encontro } from '../../types/encontro';
@@ -130,10 +129,7 @@ const responsavelNomeSeTiverEquipe = (
 };
 
 export function RelatoriosPage({ mode }: RelatoriosPageProps) {
-  const { hasPermission } = useAuth();
-  const { encontros, encontroAtivo, isLoading: loadingEncontros } = useEncontros();
-  const canChangeEncontro = hasPermission('modulo_admin');
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
+  const { encontros, encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const [items, setItems] = useState<RelatorioCrachaItem[]>([]);
   const [recreacaoItems, setRecreacaoItems] = useState<RecreacaoDados[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -153,13 +149,6 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
   useEffect(() => {
     if (mode) setActiveReport(mode);
   }, [mode]);
-
-  useEffect(() => {
-    if (!selectedEncontroId) {
-      if (encontroAtivo) setSelectedEncontroId(encontroAtivo.id);
-      else if (encontros.length > 0) setSelectedEncontroId(encontros[0].id);
-    }
-  }, [encontroAtivo, encontros, selectedEncontroId]);
 
   const selectedEncontro = useMemo<Encontro | undefined>(
     () => encontros.find(encontro => encontro.id === selectedEncontroId),
@@ -503,25 +492,6 @@ export function RelatoriosPage({ mode }: RelatoriosPageProps) {
       </div>}
 
       <div className={`card relatorios-filters ${activeReport === 'crachas-mesa' ? 'relatorios-filters--single' : ''}`}>
-        <div className="form-group">
-          <label className="form-label" htmlFor="relatorios-encontro">Encontro</label>
-          <select
-            id="relatorios-encontro"
-            className="form-input"
-            value={selectedEncontroId}
-            onChange={event => setSelectedEncontroId(event.target.value)}
-            disabled={!canChangeEncontro || loadingEncontros}
-          >
-            {encontros.map(encontro => (
-              <option key={encontro.id} value={encontro.id}>
-                {encontro.edicao ? `${encontro.edicao}º EJC` : encontro.nome}
-                {encontro.tema ? ` - ${encontro.tema}` : ''}
-                {encontro.ativo ? ' (Ativo)' : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-
         {activeReport === 'relacao-crachas' && (
           <div className="form-group">
             <label className="form-label" htmlFor="relatorios-search">Buscar</label>

@@ -14,22 +14,29 @@ export type TaxaPaymentStatusFilter = 'todos' | 'pagos' | 'pendentes';
 interface UseTaxasProps {
   encontroId: string;
   valorTaxa: number;
+  initialSearchTerm?: string;
+  initialActiveTab?: TaxaTab;
 }
 
 const isEquipeDirigentes = (nome?: string | null) =>
   nome?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'dirigentes';
 
-export function useTaxas({ encontroId, valorTaxa }: UseTaxasProps) {
+export function useTaxas({
+  encontroId,
+  valorTaxa,
+  initialSearchTerm = '',
+  initialActiveTab = 'encontristas',
+}: UseTaxasProps) {
   // Estados de Dados
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const [relatorioTaxas, setRelatorioTaxas] = useState<TaxaReport[]>([]);
   
   // Estados de UI/Filtros
-  const [activeTab, setActiveTab] = useState<TaxaTab>('encontristas');
+  const [activeTab, setActiveTab] = useState<TaxaTab>(initialActiveTab);
   const [selectedEquipeId, setSelectedEquipeId] = useState<string>('all');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<TaxaPaymentStatusFilter>('todos');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const debouncedSearch = useDebounce(searchTerm, 400);
 
   const [loading, setLoading] = useState(true);

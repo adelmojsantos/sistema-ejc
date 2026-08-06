@@ -1,5 +1,5 @@
 import { Camera, ImagePlus, Loader, Mic2, Minus, Pencil, Plus, SlidersHorizontal, Trash2, Upload, User } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
@@ -11,13 +11,6 @@ import { palestraService } from '../../services/palestraService';
 import { pessoaService } from '../../services/pessoaService';
 import type { Palestra, PalestraFormData } from '../../types/palestra';
 import type { Pessoa } from '../../types/pessoa';
-
-const formatEncontroOption = (encontro: { nome?: string | null; edicao?: number | null; tema?: string | null }) => {
-  const edicaoLabel = encontro.edicao ? `${encontro.edicao}º EJC` : '';
-  const nome = encontro.nome?.trim() ?? '';
-  const nomeSemEdicao = edicaoLabel && nome.toLowerCase() === edicaoLabel.toLowerCase() ? '' : nome;
-  return [edicaoLabel, nomeSemEdicao].filter(Boolean).join(' - ') || nome || 'Encontro';
-};
 
 const htmlToText = (html?: string | null) => {
   if (!html) return '';
@@ -44,8 +37,7 @@ const emptyForm = (encontroId: string, ordem: number): PalestraFormData => ({
 });
 
 export function PalestrasModulePage() {
-  const { encontros, encontroAtivo } = useEncontros();
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
+  const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
   const [palestras, setPalestras] = useState<Palestra[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -67,17 +59,7 @@ export function PalestrasModulePage() {
   const listPhotoFileInputRef = useRef<HTMLInputElement>(null);
   const listPhotoCameraInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const selectedEncontroExists = encontros.some((encontro) => encontro.id === selectedEncontroId);
-    if (!selectedEncontroId || !selectedEncontroExists) {
-      setSelectedEncontroId(encontroAtivo?.id ?? encontros[encontros.length - 1]?.id ?? '');
-    }
-  }, [encontroAtivo, encontros, selectedEncontroId]);
-
-  const selectedEncontro = useMemo(
-    () => encontros.find((encontro) => encontro.id === selectedEncontroId) ?? null,
-    [encontros, selectedEncontroId]
-  );
+  const selectedEncontro = encontroSelecionado;
 
   const loadPalestras = async () => {
     if (!selectedEncontroId) return;
@@ -356,23 +338,6 @@ export function PalestrasModulePage() {
         title="Palestras"
         subtitle="Cadastros"
         backPath="/cadastros"
-        actions={(
-          <div className="palestras-header-filter">
-            <label className="form-label" htmlFor="palestras-encontro">Encontro</label>
-            <select
-              id="palestras-encontro"
-              className="form-input"
-              value={selectedEncontroId}
-              onChange={(event) => setSelectedEncontroId(event.target.value)}
-            >
-              {encontros.map((encontro) => (
-                <option key={encontro.id} value={encontro.id}>
-                  {formatEncontroOption(encontro)}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
       />
 
       <section className="palestras-toolbar">

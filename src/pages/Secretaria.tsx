@@ -17,8 +17,8 @@ const CATEGORIES: SecretariaCategory[] = [
   {
     id: 'confirmacoes',
     path: '/secretaria/confirmacoes',
-    label: 'Dados Equipes',
-    description: 'Relatório de conferência de dados pelas equipes.',
+    label: 'Confirmação Dados Equipes',
+    description: 'Confirmação dos dados cadastrais dos integrantes por equipe.',
     icon: <CheckCircle size={34} />,
     color: '#10b981',
     available: true

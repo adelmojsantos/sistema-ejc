@@ -680,7 +680,7 @@ export function VisitacaoManutencaoPage() {
             await inscricaoService.registrarCancelamento({
                 pessoa_id: (visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.id || '',
                 encontro_id: (visita.participacoes as ParticipacaoComPessoa | null)?.encontro_id || '',
-                grupo_id: visita.grupo_id,
+                grupo_id: visita.grupo_id || undefined,
                 status_visita: status,
                 observacoes: observacoes.trim() || undefined,
                 motivo_cancelamento: motivo,
@@ -692,7 +692,7 @@ export function VisitacaoManutencaoPage() {
                     participacao: participacaoSnapshot || undefined,
                     visita: {
                         id: visita.id,
-                        grupo_id: visita.grupo_id,
+                        grupo_id: visita.grupo_id || undefined,
                         visitante: visita.visitante,
                         status: visita.status,
                         observacoes: visita.observacoes,

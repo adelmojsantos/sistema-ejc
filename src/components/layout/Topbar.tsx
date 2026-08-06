@@ -1,16 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Menu, 
-  Sun, 
-  Moon, 
-  LogOut, 
+import {
+  Menu,
+  X,
+  Sun,
+  Moon,
+  LogOut,
   ChevronDown,
-  Settings
+  Settings,
+  LockKeyhole
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../hooks/useAuth';
+import { getNavigationTitle } from '../../config/navigation';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { useEncontros } from '../../contexts/EncontroContext';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -20,10 +24,13 @@ interface TopbarProps {
 export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) => {
   const { theme, toggleTheme } = useTheme();
   const { profile, signOut } = useAuth();
+  const { encontros, encontroSelecionadoId, selecionarEncontro, selecaoBloqueada, encontroSelecionado, isLoading: encontrosLoading } = useEncontros();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isEncounterMenuOpen, setIsEncounterMenuOpen] = useState(false);
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const encounterMenuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -31,6 +38,9 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setIsUserMenuOpen(false);
+      }
+      if (encounterMenuRef.current && !encounterMenuRef.current.contains(event.target as Node)) {
+        setIsEncounterMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -50,66 +60,118 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
     }
   };
 
-  // Simple breadcrumb/title logic based on path
   const getPageTitle = () => {
-    const path = location.pathname;
     const searchParams = new URLSearchParams(location.search);
     const moduleName = searchParams.get('module');
 
     if (moduleName) return moduleName;
-
-    if (path === '/dashboard') return 'Dashboard';
-    if (path.startsWith('/admin/usuarios')) return 'Gerenciar Usuários';
-    if (path.startsWith('/admin/acessos')) return 'Controle de Acessos';
-    if (path.startsWith('/admin/diagnosticos')) return 'Diagnósticos';
-    if (path.startsWith('/secretaria/importar')) return 'Importar Dados';
-    if (path.startsWith('/secretaria/configuracoes-exportacao')) return 'Configurações de Exportação';
-    if (path.startsWith('/secretaria/participantes')) return 'Participantes';
-    if (path.startsWith('/secretaria/encontreiros')) return 'Encontreiros';
-    if (path.startsWith('/secretaria/lista-espera')) return 'Lista de Espera';
-    if (path.startsWith('/secretaria/confirmacoes')) return 'Relatório de Confirmações';
-    if (path.startsWith('/secretaria/impressos')) return 'Impressos';
-    if (path.startsWith('/secretaria/placas-equipes')) return 'Impressos';
-    if (path.startsWith('/palestras')) return 'Palestras';
-    if (path.startsWith('/relatorios')) return 'Impressos';
-    if (path.startsWith('/recepcao')) return 'Recepção';
-    if (path.startsWith('/recreacao')) return 'Recreação Infantil';
-    if (path.startsWith('/secretaria')) return 'Secretaria';
-    if (path.startsWith('/visitacao')) return 'Visitação';
-    if (path.startsWith('/circulos/fichas-pos-encontro')) return 'Ficha Pós-Encontro';
-    if (path.startsWith('/circulos/pos-encontros')) return 'Pós-Encontro';
-    if (path.startsWith('/circulos')) return 'Círculos';
-    if (path.startsWith('/cadastros/pos-encontros')) return 'Pós-Encontro';
-    if (path.startsWith('/cadastros/pessoas')) return 'Pessoas';
-    if (path.startsWith('/cadastros/encontros')) return 'Encontros';
-    if (path.startsWith('/cadastros/equipes')) return 'Equipes';
-    if (path.startsWith('/cadastros')) return 'Cadastros';
-    if (path.startsWith('/biblioteca')) return 'Biblioteca';
-    if (path.startsWith('/coordenador/minha-equipe')) return 'Minha Equipe';
-    return 'EJC Capelinha';
+    return getNavigationTitle(location.pathname);
   };
+
+  const pageTitle = getPageTitle();
+  const rootTitle = (() => {
+    const roots = [
+      ['/cadastros', 'Cadastros'],
+      ['/circulos', 'Círculos'],
+      ['/compras', 'Compras'],
+      ['/secretaria', 'Secretaria'],
+      ['/visitacao', 'Visitação'],
+      ['/coordenador', 'Coordenação'],
+      ['/admin', 'Administração'],
+      ['/palestras', 'Palestras'],
+      ['/recepcao', 'Recepção'],
+      ['/recreacao', 'Recreação'],
+      ['/cuidados', 'Cuidados'],
+      ['/ligacao', 'Ligação'],
+    ] as const;
+    return roots.find(([prefix]) => location.pathname === prefix || location.pathname.startsWith(`${prefix}/`))?.[1] ?? pageTitle;
+  })();
+
 
   return (
     <>
       <header className="topbar">
-        <div className="flex items-center gap-4">
-          <button 
-            className="mobile-menu-btn" 
+        <div className="topbar-heading flex items-center gap-4">
+          <button
+            className="mobile-menu-btn"
             onClick={onMenuClick}
             aria-label={mobileMenuOpen ? 'Fechar menu principal' : 'Abrir menu principal'}
             aria-expanded={mobileMenuOpen}
             aria-controls="sidebar-navigation"
           >
-            <Menu size={24} />
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
-          <h1 className="page-title" style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-            {getPageTitle()}
-          </h1>
+          <div className="topbar-heading-copy">
+            <h1 className="page-title" style={{ fontSize: '1.25rem', fontWeight: 700 }}>{rootTitle}</h1>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <button 
-            className="btn-text btn-icon" 
+          {encontros.length > 0 && (
+            <div className="topbar-encounter-selector" ref={encounterMenuRef}>
+              <span className="sr-only">Encontro selecionado</span>
+              {selecaoBloqueada ? (
+                <span className="topbar-encounter-content topbar-encounter-locked"
+                  title="Coordenadores ficam vinculados ao encontro da sua participação"
+                  aria-label="Encontro selecionado e bloqueado para coordenadores"
+                >
+                  <LockKeyhole size={14} aria-hidden="true" />
+                  <span>
+                    <small>Edição selecionada</small>
+                    <strong>{encontroSelecionado?.edicao ? `${encontroSelecionado.edicao}º EJC` : encontroSelecionado?.nome ?? 'Encontro'}</strong>
+                    <em className={`topbar-encounter-status ${encontroSelecionado?.ativo ? 'is-active' : 'is-history'}`}>
+                      {encontroSelecionado?.ativo ? 'Ativo' : 'Histórico'}
+                    </em>
+                  </span>
+                </span>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="topbar-encounter-trigger"
+                    onClick={() => setIsEncounterMenuOpen((open) => !open)}
+                    aria-label="Alterar encontro selecionado"
+                    aria-expanded={isEncounterMenuOpen}
+                  >
+                    <span className="topbar-encounter-content">
+                      <small>Edição selecionada</small>
+                      <span style={{ display: 'flex', gap: '0.5rem' }}>
+                        <strong>
+                          {encontroSelecionado?.edicao ? `${encontroSelecionado.edicao}º EJC` : encontroSelecionado?.nome ?? (encontrosLoading ? 'Carregando…' : 'Selecionar')}
+                        </strong>
+                        <em className={`topbar-encounter-status ${encontroSelecionado?.ativo ? 'is-active' : 'is-history'}`}>
+                          {encontroSelecionado?.ativo ? 'Ativo' : 'Histórico'}
+                        </em>
+                      </span>
+                    </span>
+                    <ChevronDown size={15} className={isEncounterMenuOpen ? 'is-open' : undefined} aria-hidden="true" />
+                  </button>
+                  {isEncounterMenuOpen && (
+                    <div className="topbar-encounter-menu" role="menu" aria-label="Encontros disponíveis">
+                      {encontros.map((encontro) => (
+                        <button
+                          key={encontro.id}
+                          type="button"
+                          role="menuitem"
+                          className={encontro.id === encontroSelecionadoId ? 'is-selected' : undefined}
+                          onClick={() => {
+                            selecionarEncontro(encontro.id);
+                            setIsEncounterMenuOpen(false);
+                          }}
+                        >
+                          <span>{encontro.edicao ? `${encontro.edicao}º EJC` : encontro.nome}</span>
+                          <small>{encontro.ativo ? 'Ativo' : 'Histórico'}</small>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+          <div className="header-divider topbar-group-divider" style={{ height: '32px' }} />
+          <button
+            className="btn-text btn-icon"
             onClick={toggleTheme}
             title={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
             aria-label={theme === 'dark' ? 'Mudar para tema claro' : 'Mudar para tema escuro'}
@@ -121,7 +183,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
           <div className="header-divider" style={{ height: '32px' }} />
 
           <div className="user-menu-container" ref={userMenuRef}>
-            <button 
+            <button
               className={`user-menu-trigger ${isUserMenuOpen ? 'active' : ''}`}
               onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
               aria-label="Abrir opções da conta"
@@ -148,8 +210,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
                   <span>Alterar Senha</span>
                 </button>
                 <div className="dropdown-divider" />
-                <button 
-                  className="dropdown-item danger" 
+                <button
+                  className="dropdown-item danger"
                   onClick={() => {
                     setIsUserMenuOpen(false);
                     setIsSignOutModalOpen(true);

@@ -49,6 +49,10 @@ export interface InscricaoEnriched extends Inscricao {
       nome: string | null;
     } | null;
   }[];
+  camiseta_pedidos?: {
+    id: string;
+    quantidade: number;
+  }[];
 }
 
 export type InscricaoFormData = Omit<Inscricao, 'id' | 'data_inscricao'>;

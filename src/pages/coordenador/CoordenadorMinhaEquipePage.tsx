@@ -26,7 +26,8 @@ import {
   Car,
   ClipboardCheck,
   LayoutGrid,
-  ArrowRight
+  ArrowRight,
+  ExternalLink
 } from 'lucide-react';
 import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
@@ -57,6 +58,7 @@ import { formatBRL } from '../../utils/currencyUtils';
 import { formatChildAge } from '../../utils/ageUtils';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
+import { EquipeMapaModal } from '../../components/coordenador/EquipeMapaModal';
 import { Minus, Plus } from 'phosphor-react';
 
 interface EquipeMember {
@@ -133,6 +135,7 @@ export function CoordenadorMinhaEquipePage() {
   const [showBulkShirtModal, setShowBulkShirtModal] = useState(false);
   const [showShirtSummaryModal, setShowShirtSummaryModal] = useState(false);
   const [showTaxaSummaryModal, setShowTaxaSummaryModal] = useState(false);
+  const [showTeamMapModal, setShowTeamMapModal] = useState(false);
   const [comprovanteCamisetasUrl, setComprovanteCamisetasUrl] = useState<string | null>(null);
   const [comprovantesCamisetasUrls, setComprovantesCamisetasUrls] = useState<string[]>([]);
   const [proofGallery, setProofGallery] = useState<{ title: string; tipo: 'taxas' | 'camisetas'; urls: string[] } | null>(null);
@@ -795,8 +798,8 @@ export function CoordenadorMinhaEquipePage() {
 
   return (
     <>
-      <div className="page-header" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <div className="page-header" style={{ marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0, flex: '1 1 280px' }}>
           <button onClick={() => navigate('/dashboard')} className="icon-btn" aria-label="Voltar">
             <ChevronLeft size={20} />
           </button>
@@ -826,7 +829,19 @@ export function CoordenadorMinhaEquipePage() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        <div className="team-header-actions" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
+          {members.length > 0 && (
+            <button
+              onClick={() => setShowTeamMapModal(true)}
+              className="btn-secondary flex items-center gap-2"
+              style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+              title="Visualizar integrantes com endereço geolocalizado"
+            >
+              <MapPin size={16} />
+              <span>Mapa da equipe</span>
+            </button>
+          )}
+
           {userParticipacao?.coordenador && (
             <button
               onClick={() => setShowBulkShirtModal(true)}
@@ -843,23 +858,6 @@ export function CoordenadorMinhaEquipePage() {
             </button>
           )}
 
-          {userParticipacao?.coordenador && !userParticipacao.dados_confirmados && (
-            <button
-              onClick={handleConfirmData}
-              disabled={isConfirming || members.length === 0}
-              className="btn-primary flex items-center gap-2"
-              style={{
-                fontSize: '0.85rem',
-                padding: '0.5rem 1rem',
-                backgroundColor: 'var(--success-color, #10b981)',
-                borderColor: 'var(--success-color, #10b981)',
-              }}
-            >
-              {isConfirming ? <Loader className="animate-spin" size={16} /> : <CheckCircle size={16} />}
-              <span>Confirmar Dados</span>
-            </button>
-          )}
-
           {members.length > 0 && (
             <div style={{ position: 'relative' }}>
               <button
@@ -868,7 +866,7 @@ export function CoordenadorMinhaEquipePage() {
                 style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
               >
                 <Download size={16} />
-                <span className="hide-mobile">Exportar</span>
+                <span>Exportar</span>
               </button>
 
               {showExportMenu && (
@@ -976,14 +974,14 @@ export function CoordenadorMinhaEquipePage() {
             </div>
             <div>
               <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>
-                {teamConfirmation ? 'Equipe Finalizada' : (members.every(m => m.dados_confirmados) && members.length > 0 ? 'Pronto para Finalizar' : 'Confirmação Pendente')}
+                {teamConfirmation ? 'Equipe Finalizada' : (members.every(m => m.dados_confirmados) && members.length > 0 ? 'Pronto para Confirmar os Dados' : 'Confirmação de Dados Pendente')}
               </h3>
               <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', opacity: 0.7 }}>
                 {teamConfirmation
                   ? `Finalizado por ${members.find(m => m.pessoas.email === teamConfirmation.profiles?.email)?.pessoas.nome_completo || teamConfirmation.profiles?.email || 'Coordenador'} em ${teamConfirmation.confirmado_em ? new Date(teamConfirmation.confirmado_em).toLocaleString('pt-BR') : '—'}`
                   : (members.every(m => m.dados_confirmados) && members.length > 0
-                    ? 'Todos os integrantes foram confirmados. Você pode finalizar a equipe agora.'
-                    : `Faltam ${members.filter(m => !m.dados_confirmados).length} integrantes para serem confirmados individualmente.`)}
+                    ? 'Todos os dados cadastrais dos integrantes foram revisados. Você pode confirmar e finalizar a equipe agora.'
+                    : `Confirme os dados cadastrais de cada integrante. Faltam ${members.filter(m => !m.dados_confirmados).length} integrantes.`)}
               </p>
             </div>
           </div>
@@ -1000,7 +998,7 @@ export function CoordenadorMinhaEquipePage() {
                 cursor: members.every(m => m.dados_confirmados) && members.length > 0 ? 'pointer' : 'not-allowed'
               }}
             >
-              {isConfirming ? <Loader className="animate-spin" size={16} /> : 'Finalizar Confirmação da Equipe'}
+              {isConfirming ? <Loader className="animate-spin" size={16} /> : 'Confirmar dados da equipe'}
             </button>
           )}
         </div>
@@ -1395,6 +1393,15 @@ export function CoordenadorMinhaEquipePage() {
               .map(v => v?.trim())
               .filter(Boolean)
               .join(', ');
+            const hasMapAddress = Boolean(p.endereco?.trim() && p.cidade?.trim());
+            const mapsUrl = hasMapAddress
+              ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                [p.endereco, p.numero, p.bairro, p.cidade, p.estado, 'Brasil']
+                  .map(v => v?.trim())
+                  .filter(Boolean)
+                  .join(', ')
+              )}`
+              : null;
             const memberOrders = pedidosCamisetas.filter(pc => pc.participacao_id === m.id);
 
             return (
@@ -1421,6 +1428,20 @@ export function CoordenadorMinhaEquipePage() {
                             COORDENADOR
                           </span>
                         )}
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          color: m.dados_confirmados ? '#10b981' : '#f59e0b',
+                          backgroundColor: m.dados_confirmados ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                          borderRadius: '999px',
+                          padding: '0.25rem 0.55rem',
+                        }}>
+                          {m.dados_confirmados ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
+                          {m.dados_confirmados ? 'Dados confirmados' : 'Dados pendentes'}
+                        </span>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', opacity: 0.8, fontSize: '0.85rem', width: '100%' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', rowGap: '0.3rem' }}>
@@ -1439,25 +1460,12 @@ export function CoordenadorMinhaEquipePage() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    {m.dados_confirmados ? (
-                      <span className="badge badge-success" style={{
-                        fontSize: '0.65rem',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        color: '#10b981',
-                        border: 'none',
-                        padding: '0.5rem 0.75rem',
-                        height: '32px',
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}>
-                        <CheckCircle size={14} style={{ marginRight: '4px' }} /> CONFIRMADO
-                      </span>
-                    ) : (
+                  <div className="team-member-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {!m.dados_confirmados && (
                       <button
                         onClick={() => handleConfirmOneMember(m.id)}
-                        className="btn-icon"
-                        title="Confirmar integrante"
+                        className="btn-secondary"
+                        title="Confirmar dados do integrante"
                         style={{
                           backgroundColor: 'rgba(16, 185, 129, 0.1)',
                           color: '#10b981',
@@ -1466,16 +1474,16 @@ export function CoordenadorMinhaEquipePage() {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          width: '32px',
                           height: '32px'
                         }}
                       >
                         <Check size={18} />
+                        <span>Confirmar dados</span>
                       </button>
                     )}
                     <button
                       onClick={() => setEditingPessoa(p)}
-                      className="btn-icon"
+                      className="btn-secondary"
                       style={{
                         backgroundColor: 'rgba(0,0,0,0.05)',
                         padding: '0.5rem',
@@ -1483,16 +1491,16 @@ export function CoordenadorMinhaEquipePage() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        width: '32px',
-                        height: '32px'
-                      }}
+                          height: '32px'
+                        }}
                       title="Editar Dados"
                     >
                       <Pencil size={18} />
+                      <span>Editar dados</span>
                     </button>
                     <button
                       onClick={() => setDeleteTarget(m)}
-                      className="btn-icon"
+                      className="btn-secondary"
                       style={{
                         backgroundColor: 'rgba(239, 68, 68, 0.1)',
                         color: '#ef4444',
@@ -1501,12 +1509,12 @@ export function CoordenadorMinhaEquipePage() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        width: '32px',
-                        height: '32px'
-                      }}
+                          height: '32px'
+                        }}
                       title="Desvincular Integrante"
                     >
                       <UserX size={18} />
+                      <span>Desvincular</span>
                     </button>
                   </div>
                 </div>
@@ -1524,6 +1532,23 @@ export function CoordenadorMinhaEquipePage() {
                   }}>
                     <MapPin size={16} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--primary-color)', opacity: 0.8 }} />
                     <span style={{ flex: 1, lineHeight: '1.5', letterSpacing: '0.05rem' }}>{address}</span>
+                    {mapsUrl ? (
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-text"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}
+                        title="Abrir endereço no Google Maps"
+                      >
+                        <ExternalLink size={14} />
+                        Maps
+                      </a>
+                    ) : (
+                      <span style={{ fontSize: '0.7rem', opacity: 0.55, whiteSpace: 'nowrap' }}>
+                        Endereço incompleto
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -1980,6 +2005,13 @@ export function CoordenadorMinhaEquipePage() {
       )}
 
 
+
+      <EquipeMapaModal
+        isOpen={showTeamMapModal}
+        onClose={() => setShowTeamMapModal(false)}
+        equipeNome={equipeNome}
+        members={members}
+      />
 
       <BulkShirtOrderModal
         isOpen={showBulkShirtModal}

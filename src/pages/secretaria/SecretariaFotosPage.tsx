@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Image as ImageIcon, Trash2, Users, LayoutGrid, Search } from 'lucide-react';
+import { Camera, Image as ImageIcon, Trash2, Users, LayoutGrid } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Modal } from '../../components/ui/Modal';
@@ -54,8 +54,7 @@ function formatarResponsavel(
 }
 
 export function SecretariaFotosPage() {
-    const { encontros } = useEncontros();
-    const [selectedEncontro, setSelectedEncontro] = useState<string>('');
+    const { encontroSelecionadoId: selectedEncontro, encontroSelecionado } = useEncontros();
     const [teams, setTeams] = useState<TeamConfirmationWithEquipe[]>([]);
     const [loadingTeams, setLoadingTeams] = useState(false);
     const [uploading, setUploading] = useState<string | null>(null);
@@ -72,13 +71,6 @@ export function SecretariaFotosPage() {
     const [isChildrenModalOpen, setIsChildrenModalOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
-
-    // Seleciona o primeiro encontro quando o contexto carregar
-    useEffect(() => {
-        if (encontros.length > 0 && !selectedEncontro) {
-            setSelectedEncontro(encontros[0].id);
-        }
-    }, [encontros, selectedEncontro]);
 
     useEffect(() => {
         if (!selectedEncontro) return;
@@ -292,7 +284,7 @@ export function SecretariaFotosPage() {
         }
     };
 
-    if (!encontros.length) return <div className="p-8 text-center">Carregando encontros...</div>;
+    if (!selectedEncontro) return <div className="p-8 text-center">Carregando encontro...</div>;
 
     return (
         <div className="container" style={{ paddingBottom: '4rem' }}>
@@ -303,24 +295,27 @@ export function SecretariaFotosPage() {
 
             <div className="card" style={{ padding: '1rem', marginBottom: '1.5rem', marginTop: '1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <Search size={18} className="text-primary" />
-                    <select
-                        className="form-input"
-                        style={{ margin: 0, flex: 1 }}
-                        value={selectedEncontro}
-                        onChange={(e) => setSelectedEncontro(e.target.value)}
+                    <div
+                        className="context-badge"
+                        title="O encontro é definido pelo seletor global no topo"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
                     >
-                        {encontros.map(e => (
-                            <option key={e.id} value={e.id}>
-                                {e.nome} ({new Date(e.data_inicio).getFullYear()})
-                            </option>
-                        ))}
-                    </select>
+                        <span>Encontro:</span>
+                        <strong>{encontroSelecionado?.edicao ? `${encontroSelecionado.edicao}º EJC` : encontroSelecionado?.nome ?? 'Nenhum selecionado'}</strong>
+                    </div>
                 </div>
             </div>
 
             {loadingTeams ? (
                 <div className="p-12 text-center opacity-50"><div className="spinner" style={{ margin: '0 auto' }}></div></div>
+            ) : teams.length === 0 ? (
+                <div className="card empty-state" style={{ padding: '3rem 1.5rem', textAlign: 'center' }}>
+                    <Users size={44} style={{ opacity: 0.35, marginBottom: '0.75rem' }} />
+                    <h2 style={{ margin: '0 0 0.5rem', fontSize: '1.15rem' }}>Nenhuma equipe disponível para fotos</h2>
+                    <p style={{ margin: 0, maxWidth: '38rem', marginInline: 'auto', opacity: 0.7 }}>
+                        As equipes aparecerão aqui depois que o coordenador finalizar a confirmação dos dados cadastrais dos integrantes.
+                    </p>
+                </div>
             ) : (
                 <div className="equipes-grid">
                     {teams.map((team) => (

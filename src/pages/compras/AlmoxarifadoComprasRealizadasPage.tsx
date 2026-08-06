@@ -2,10 +2,8 @@ import { ChevronLeft, Eye, Loader, Receipt } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { almoxarifadoService } from '../../services/almoxarifadoService';
-import { encontroService } from '../../services/encontroService';
 import type { AlmoxarifadoCompra } from '../../types/almoxarifado';
 import './AlmoxarifadoPage.css';
 
@@ -14,10 +12,7 @@ const money = (value: number | null | undefined) =>
 
 export function AlmoxarifadoComprasRealizadasPage() {
   const navigate = useNavigate();
-  const { encontros } = useEncontros();
-  const encontroPadraoId = encontros.find((encontro) => encontro.ativo)?.id || encontros[0]?.id || '';
-  const [selectedEncontroId, setSelectedEncontroId] = useState('');
-  const encontroSelecionadoId = selectedEncontroId || encontroPadraoId;
+  const { encontroSelecionadoId } = useEncontros();
   const [compras, setCompras] = useState<AlmoxarifadoCompra[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -58,16 +53,6 @@ export function AlmoxarifadoComprasRealizadasPage() {
           </div>
         </div>
 
-        <div className="form-group" style={{ marginBottom: 0, minWidth: '220px' }}>
-          <LiveSearchSelect
-            value={encontroSelecionadoId}
-            onChange={val => setSelectedEncontroId(val)}
-            fetchData={async (s, p) => await encontroService.buscarComPaginacao(s, p)}
-            getOptionLabel={e => e.nome}
-            getOptionValue={e => e.id}
-            initialOptions={encontros}
-          />
-        </div>
       </div>
 
       {loading ? (
