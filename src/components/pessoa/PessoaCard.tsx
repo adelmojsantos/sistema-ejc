@@ -56,7 +56,7 @@ export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardPr
 
     return (
 
-        <div className="pessoa-row">
+        <div className="pessoa-row pessoa-card-row">
             {/* Avatar + Main Info */}
             <div className="pessoa-row-main">
                 <div className="pessoa-avatar small">
@@ -91,7 +91,6 @@ export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardPr
                     rel="noopener noreferrer"
                     className="pessoa-row-col pessoa-row-address"
                     style={{ textDecoration: 'none', color: 'var(--primary-color)' }}
-                    title={fullAddress}
                 >
                     <span className="pessoa-row-label">Endereço</span>
                     <span className="pessoa-row-value" style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -109,7 +108,7 @@ export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardPr
             )}
 
             {/* Actions */}
-            <div className="pessoa-row-actions">
+            <div className="pessoa-row-actions pessoa-card-actions">
                 {onHistory && (
                     <button
                         className="icon-btn"
@@ -118,6 +117,7 @@ export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardPr
                         aria-label="Ver histórico"
                     >
                         <History size={15} style={{ color: 'var(--primary-color)' }} />
+                        <span className="pessoa-action-label">Histórico</span>
                     </button>
                 )}
                 <button
@@ -125,16 +125,18 @@ export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardPr
                     onClick={() => onEdit(pessoa)}
                     title="Editar"
                     aria-label="Editar pessoa"
-                >
-                    <Pencil size={15} />
+                    >
+                        <Pencil size={15} />
+                        <span className="pessoa-action-label">Editar</span>
                 </button>
                 <button
                     className="icon-btn icon-btn-danger"
                     onClick={() => onDelete(pessoa)}
                     title="Excluir"
                     aria-label="Excluir pessoa"
-                >
-                    <Trash2 size={15} />
+                    >
+                        <Trash2 size={15} />
+                        <span className="pessoa-action-label">Excluir</span>
                 </button>
             </div>
         </div>

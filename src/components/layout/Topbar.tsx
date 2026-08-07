@@ -101,6 +101,10 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
+          <div className="tablet-topbar-brand" aria-label="EJC Capelinha">
+            <img src="/logo-160.webp" alt="" className="tablet-topbar-logo" />
+            <span>EJC Capelinha</span>
+          </div>
           <div className="topbar-heading-copy">
             <h1 className="page-title" style={{ fontSize: '1.25rem', fontWeight: 700 }}>{rootTitle}</h1>
           </div>
