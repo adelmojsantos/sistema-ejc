@@ -34,7 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const handleLinkClick = () => {
-    if (window.innerWidth <= 1024) {
+    if (window.innerWidth <= 1180) {
       setMobileOpen(false);
     }
   };

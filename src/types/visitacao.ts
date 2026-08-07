@@ -30,9 +30,17 @@ export interface VisitaParticipacaoEnriched extends VisitaParticipacao {
     participacoes?: {
         id: string;
         encontro_id: string;
+        equipe_id?: string | null;
+        participante?: boolean | null;
+        coordenador?: boolean | null;
+        dados_confirmados?: boolean | null;
+        confirmado_em?: string | null;
+        pago_taxa?: boolean | null;
+        pago_camiseta?: boolean | null;
         foto_url: string | null;
         foto_posicao_y?: number | null;
         pessoas: Pessoa | null;
+        equipes?: { nome: string | null } | null;
         recepcao_dados?: {
             id: string;
             participacao_id?: string;

@@ -194,8 +194,8 @@ export function PessoasPage() {
             {mode === 'list' && (
                 <>
                     <div className="card" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem' }}>
-                            <div style={{ flex: 1, minWidth: '300px' }}>
+                        <div className="pessoas-list-filters">
+                            <div className="pessoas-list-search">
                                 <div className="form-input-wrapper">
                                     <div className="form-input-icon">
                                         <Search size={16} />
@@ -235,30 +235,28 @@ export function PessoasPage() {
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>Encontro:</span>
+                            <div className="pessoas-list-filter-controls">
+                                <label className="pessoas-list-filter-field">
+                                    <span>Filtrar por encontro</span>
                                     <select
                                         className="form-input"
-                                        style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.85rem', width: 'auto', minWidth: '160px', marginTop: 0, height: '38px' }}
                                         value={selectedEncontroId}
                                         onChange={(e) => {
                                             setSelectedEncontroId(e.target.value);
                                             setPage(1);
                                         }}
                                     >
-                                        <option value="">Todos os Encontros</option>
+                                        <option value="">Todos os encontros</option>
                                         {encontros.map(e => (
                                             <option key={e.id} value={e.id}>{e.nome}</option>
                                         ))}
                                     </select>
-                                </div>
+                                </label>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>Exibir:</span>
+                                <label className="pessoas-list-filter-field pessoas-list-page-size-field">
+                                    <span>Exibir</span>
                                     <select
                                         className="form-input"
-                                        style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.85rem', width: 'auto', marginTop: 0, height: '38px' }}
                                         value={pageSize}
                                         onChange={(e) => {
                                             setPageSize(Number(e.target.value));
@@ -270,7 +268,7 @@ export function PessoasPage() {
                                         <option value={50}>50 por página</option>
                                         <option value={100}>100 por página</option>
                                     </select>
-                                </div>
+                                </label>
                             </div>
                         </div>
                     </div>

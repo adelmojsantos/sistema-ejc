@@ -31,6 +31,7 @@ import { formatPhone } from '../../utils/stringUtils';
 import { formatPlate } from '../../utils/plateUtils';
 import { WhatsappLogo } from 'phosphor-react';
 import { useEncontros } from '../../contexts/EncontroContext';
+import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
 
 type VisitaListItem = VisitaParticipacaoEnriched & {
     is_history?: boolean;
@@ -81,6 +82,7 @@ export function VisitacaoMeusParticipantesPage() {
     const [filterStatus, setFilterStatus] = useState<'todos' | 'pendentes' | 'visitados' | 'ausentes' | 'cancelados'>('todos');
     const [filterVeiculo, setFilterVeiculo] = useState(false);
     const [previewPhoto, setPreviewPhoto] = useState<{ url: string; nome: string } | null>(null);
+    const [contextParticipantId, setContextParticipantId] = useState<string | null>(null);
 
     useEffect(() => {
         sessionStorage.setItem('visita_view_mode', viewMode);
@@ -160,10 +162,20 @@ export function VisitacaoMeusParticipantesPage() {
                         .from('visita_participacao')
                         .select(`
                             *,
+                            visita_grupos:grupo_id (nome),
                             participacoes:participacao_id (
                                 id,
+                                encontro_id,
+                                equipe_id,
+                                participante,
+                                coordenador,
+                                dados_confirmados,
+                                confirmado_em,
+                                pago_taxa,
+                                pago_camiseta,
                                 foto_url,
                                 pessoas (*),
+                                equipes (nome),
                                 recepcao_dados (*)
                             )
                         `)
@@ -710,7 +722,15 @@ export function VisitacaoMeusParticipantesPage() {
                                                 )}
 
                                                 {/* Rodapé do Card / Ação Principal */}
-                                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                                                <div className="visita-card-actions" style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '0.65rem', marginTop: '0.25rem' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setContextParticipantId(p.participacao_id)}
+                                                        className="btn-secondary"
+                                                        style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem', borderRadius: '8px' }}
+                                                    >
+                                                        <Users size={16} /> <span>Resumo da pessoa</span>
+                                                    </button>
                                                     <button
                                                         onClick={() => navigate(`/visitacao/manutencao/${p.id}`)}
                                                         className="btn-primary visita-detail-btn"
@@ -741,6 +761,12 @@ export function VisitacaoMeusParticipantesPage() {
                     </div>
                 )}
             </Modal>
+
+            <PessoaContextDrawer
+                participacaoId={contextParticipantId}
+                encontroId={encontroSelecionadoId || null}
+                onClose={() => setContextParticipantId(null)}
+            />
 
             <style>{`
                     .hover-primary:hover {
@@ -792,6 +818,20 @@ export function VisitacaoMeusParticipantesPage() {
                         object-fit: contain;
                         border-radius: 8px;
                         background: var(--secondary-bg);
+                    }
+                    .visita-card-actions > button {
+                        min-width: 0;
+                        width: auto;
+                        flex: 0 1 auto;
+                    }
+                    @media (max-width: 520px) {
+                        .visita-card-actions {
+                            justify-content: stretch !important;
+                        }
+                        .visita-card-actions > button {
+                            flex: 1 1 100%;
+                            width: 100%;
+                        }
                     }
                 `}</style>
         </>

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { useDebounce } from '../../hooks/useDebounce';
 import logoEjc from '../../assets/logo-ejc.svg';
@@ -46,11 +46,24 @@ export function RecreacaoAdminPage() {
 
   const canPrintBadges = hasPermission('modulo_secretaria') || hasPermission('modulo_admin');
 
-  const { encontros, encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
+  const { encontros, encontroSelecionadoId: selectedEncontroId, encontroSelecionado, selecionarEncontro } = useEncontros();
+  const [searchParams] = useSearchParams();
   const [registros, setRegistros] = useState<RecreacaoDados[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
+
+  useEffect(() => {
+    const encontroParam = searchParams.get('encontro');
+    if (encontroParam && encontros.some((encontro) => encontro.id === encontroParam) && encontroParam !== selectedEncontroId) {
+      selecionarEncontro(encontroParam);
+    }
+  }, [encontros, searchParams, selectedEncontroId, selecionarEncontro]);
+
+  useEffect(() => {
+    const responsavelNome = searchParams.get('responsavelNome');
+    if (responsavelNome) setSearchTerm(responsavelNome);
+  }, [searchParams]);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);

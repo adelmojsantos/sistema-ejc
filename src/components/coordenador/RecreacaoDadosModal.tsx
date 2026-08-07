@@ -180,6 +180,10 @@ export function RecreacaoDadosModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentParticipacaoId) return;
+    if (!currentParticipant || currentParticipant.participante !== false || !currentParticipant.equipe_id) {
+      toast.error('A recreação infantil só pode ser cadastrada para filhos de encontreiros vinculados a uma equipe.');
+      return;
+    }
     const encontroStartDate = encontro?.data_inicio ? new Date(`${encontro.data_inicio}T00:00:00`) : undefined;
     const calculatedAge = calculateAgeParts(formData.data_nascimento, encontroStartDate);
 
@@ -254,11 +258,12 @@ export function RecreacaoDadosModal({
   };
 
   const filteredParticipantes = allParticipantes
+    .filter(p => p.participante === false && Boolean(p.equipe_id))
     .filter(p => !selectedTeamId || p.equipe_id === selectedTeamId)
     .filter(p => p.id !== currentParticipacaoId)
     .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
   const primaryResponsibleOptions = allParticipantes
-    .filter(p => p.participante !== true)
+    .filter(p => p.participante === false && Boolean(p.equipe_id))
     .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''));
   const encontroStartDate = encontro?.data_inicio ? new Date(`${encontro.data_inicio}T00:00:00`) : undefined;
   const formAge = calculateAgeParts(formData.data_nascimento, encontroStartDate);

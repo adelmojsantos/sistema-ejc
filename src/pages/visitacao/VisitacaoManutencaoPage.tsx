@@ -18,6 +18,8 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { StorageLink } from '../../components/storage/StorageLink';
 import { formatTelefone, formatCpf } from '../../utils/cpfUtils';
 import { cleanPlate, formatPlate } from '../../utils/plateUtils';
+import { geocodeWithFallback } from '../../utils/geocoding';
+import { resolveAddressCoordinates } from '../../utils/addressCoordinates';
 
 /** Local type for the Supabase-joined participacoes field on this page's query */
 type ParticipacaoComPessoa = {
@@ -37,6 +39,8 @@ type ParticipacaoComPessoa = {
         cidade: string | null;
         estado: string | null;
         data_nascimento: string | null;
+        latitude: number | null;
+        longitude: number | null;
         nome_pai: string | null;
         telefone_pai: string | null;
         nome_mae: string | null;
@@ -762,6 +766,25 @@ export function VisitacaoManutencaoPage() {
             // Update Person record (Correction)
             const pessoaId = (visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.id;
             if (pessoaId) {
+                const pessoaAtual = (visita.participacoes as ParticipacaoComPessoa | null)?.pessoas;
+                const normalizeAddressValue = (value: string | null | undefined) => (value || '').trim().toLowerCase();
+                const addressChanged = [
+                    [endereco, pessoaAtual?.endereco],
+                    [numero, pessoaAtual?.numero],
+                    [complemento, pessoaAtual?.complemento],
+                    [bairro, pessoaAtual?.bairro],
+                    [cidade, pessoaAtual?.cidade],
+                    [estado, pessoaAtual?.estado],
+                    [cep.replace(/\D/g, ''), pessoaAtual?.cep?.replace(/\D/g, '')],
+                ].some(([current, original]) => normalizeAddressValue(current) !== normalizeAddressValue(original));
+                const geocoded = endereco.trim() ? await geocodeWithFallback({ endereco, numero, bairro, cidade, estado, cep }) : null;
+                const [latitude, longitude] = resolveAddressCoordinates(
+                    geocoded,
+                    addressChanged,
+                    pessoaAtual?.latitude,
+                    pessoaAtual?.longitude,
+                );
+
                 await visitacaoService.atualizarPessoa(pessoaId, {
                     nome_completo: nomeCompleto,
                     telefone,
@@ -772,6 +795,8 @@ export function VisitacaoManutencaoPage() {
                     bairro,
                     cidade,
                     estado,
+                    latitude,
+                    longitude,
                     data_nascimento: dataNascimento,
                     nome_pai: nomePai,
                     telefone_pai: telefonePai,
