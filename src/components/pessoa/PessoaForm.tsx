@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import type { PessoaFormData } from '../../types/pessoa';
 import { formatCpf, isValidCpf } from '../../utils/cpfUtils';
 import { geocodeWithFallback } from '../../utils/geocoding';
+import { resolveAddressCoordinates } from '../../utils/addressCoordinates';
 import { FormField } from '../ui/FormField';
 import { FormRow } from '../ui/FormRow';
 import { FormSection } from '../ui/FormSection';
@@ -191,7 +192,10 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
             const addressChanged = 
                 form.endereco !== (initialData?.endereco || '') ||
                 form.numero !== (initialData?.numero || '') ||
+                form.complemento !== (initialData?.complemento || '') ||
+                form.bairro !== (initialData?.bairro || '') ||
                 form.cidade !== (initialData?.cidade || '') ||
+                form.estado !== (initialData?.estado || '') ||
                 (form.cep ? form.cep.replace(/\D/g, '') : '') !== (initialData?.cep ? initialData.cep.replace(/\D/g, '') : '');
 
             const shouldGeocode = (form.endereco && (!form.latitude || !form.longitude)) || (form.endereco && addressChanged);
@@ -199,10 +203,16 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
             if (shouldGeocode) {
                 console.log('[PessoaForm] Address changed or coords missing, geocoding...');
                 const coords = await geocodeWithFallback(form);
-                if (coords) {
-                    payload.latitude = coords[0];
-                    payload.longitude = coords[1];
-                }
+                // Nunca mantenha uma coordenada antiga para um endereço novo
+                // que não pôde ser localizado. Isso evita exibir um ponto
+                // incorreto no mapa e mantém o comportamento da edição de
+                // endereço da Visitação.
+                [payload.latitude, payload.longitude] = resolveAddressCoordinates(
+                    coords,
+                    addressChanged,
+                    initialData?.latitude,
+                    initialData?.longitude,
+                );
             }
 
             await onSubmit(payload, !skipValidation);
