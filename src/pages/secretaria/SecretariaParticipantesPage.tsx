@@ -182,7 +182,7 @@ export function SecretariaParticipantesPage() {
   const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; nome: string } | null>(null);
   const [photoActionsParticipant, setPhotoActionsParticipant] = useState<InscricaoEnriched | null>(null);
-  const [contextParticipant, setContextParticipant] = useState<InscricaoEnriched | null>(null);
+  const [contextParticipantId, setContextParticipantId] = useState<string | null>(null);
   const [adjustingPhotoId, setAdjustingPhotoId] = useState<string | null>(null);
   const [tempPhotoPosition, setTempPhotoPosition] = useState(50);
   const [isDownloadingFamilyPhotos, setIsDownloadingFamilyPhotos] = useState(false);
@@ -1141,7 +1141,7 @@ export function SecretariaParticipantesPage() {
                             <button
                               type="button"
                               className="pessoa-context-trigger"
-                              onClick={() => setContextParticipant(p)}
+                              onClick={() => setContextParticipantId(p.id)}
                               aria-label={`Visualizar ${nomeParticipante}`}
                             >
                               {nomeParticipante}
@@ -1197,7 +1197,7 @@ export function SecretariaParticipantesPage() {
 
                       <div className="pessoa-row-actions secretaria-pessoa-actions">
                         <button
-                          onClick={(e) => { e.stopPropagation(); setContextParticipant(p); }}
+                          onClick={(e) => { e.stopPropagation(); setContextParticipantId(p.id); }}
                           className="secretaria-details-button"
                           title="Visualizar"
                           aria-label={`Visualizar ${nomeParticipante}`}
@@ -1410,8 +1410,9 @@ export function SecretariaParticipantesPage() {
       </Modal>
 
       <PessoaContextDrawer
-        participacao={contextParticipant}
-        onClose={() => setContextParticipant(null)}
+        participacaoId={contextParticipantId}
+        encontroId={selectedEncontroId || null}
+        onClose={() => setContextParticipantId(null)}
       />
 
       <Modal
@@ -1814,8 +1815,10 @@ export function SecretariaParticipantesPage() {
         }
         .secretaria-details-button,
         .secretaria-edit-button {
-          width: 34px;
-          height: 34px;
+          width: auto;
+          min-width: 112px;
+          height: 38px;
+          padding: 0 0.8rem;
           border-radius: 9px;
           border: 1px solid rgba(37, 99, 235, 0.45);
           background: rgba(37, 99, 235, 0.06);
@@ -1852,13 +1855,15 @@ export function SecretariaParticipantesPage() {
         }
         .secretaria-details-button span,
         .secretaria-edit-button span {
-          display: none;
+          display: inline;
           font-size: 0.85rem;
           font-weight: 700;
         }
         .secretaria-unlink-button {
-          width: 34px;
-          height: 34px;
+          width: auto;
+          min-width: 128px;
+          height: 38px;
+          padding: 0 0.8rem;
           border-radius: 9px;
           border: 1px solid rgba(239, 68, 68, 0.7);
           background: transparent;
@@ -1884,7 +1889,7 @@ export function SecretariaParticipantesPage() {
           transform: translateY(-1px);
         }
         .secretaria-unlink-button span {
-          display: none;
+          display: inline;
           font-size: 0.85rem;
           font-weight: 700;
         }
@@ -2511,11 +2516,50 @@ export function SecretariaParticipantesPage() {
           display: block;
         }
         .secretaria-pessoa-actions {
+          grid-column: 1 / -1;
+          grid-row: 2;
           justify-content: flex-end;
           margin-left: 0;
+          padding-top: 0.8rem;
+          border-top: 1px solid var(--border-color);
           gap: 0.45rem;
-          min-width: 84px;
+          min-width: 0;
           flex-wrap: nowrap;
+        }
+        @media (min-width: 901px) and (max-width: 1200px) {
+          .secretaria-pessoa-row {
+            grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+            align-items: start;
+            row-gap: 0.9rem;
+          }
+          .secretaria-pessoa-main {
+            grid-column: 1;
+          }
+          .secretaria-pessoa-contact {
+            grid-column: 2;
+          }
+          .secretaria-pessoa-address,
+          .secretaria-pessoa-actions {
+            grid-column: 1 / -1;
+          }
+          .secretaria-pessoa-address {
+            grid-row: 2;
+          }
+          .secretaria-pessoa-address {
+            padding-top: 0.25rem;
+          }
+          .secretaria-pessoa-actions {
+            grid-row: 3;
+            min-width: 0;
+            justify-content: flex-end;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border-color);
+          }
+          .secretaria-address-main span {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+          }
         }
         @media (max-width: 900px) {
           .secretaria-filter-grid {
@@ -2548,6 +2592,7 @@ export function SecretariaParticipantesPage() {
           }
           .secretaria-pessoa-row {
             grid-template-columns: 1fr;
+            grid-auto-flow: row;
             align-items: stretch;
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -2579,6 +2624,7 @@ export function SecretariaParticipantesPage() {
             text-overflow: clip;
           }
           .secretaria-pessoa-actions {
+            grid-row: auto;
             justify-content: flex-start;
             padding-top: 0.35rem;
             border-top: 1px solid var(--border-color);

@@ -44,7 +44,7 @@ export function SecretariaEncontreirosPage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
-  const [contextParticipant, setContextParticipant] = useState<InscricaoEnriched | null>(null);
+  const [contextParticipantId, setContextParticipantId] = useState<string | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
 
   const loadParticipantes = useCallback(async () => {
@@ -336,7 +336,7 @@ export function SecretariaEncontreirosPage() {
                         <button
                           type="button"
                           className="pessoa-context-trigger"
-                          onClick={() => setContextParticipant(p)}
+                          onClick={() => setContextParticipantId(p.id)}
                           aria-label={`Visualizar ${p.pessoas?.nome_completo || 'encontreiro'}`}
                         >
                           {p.pessoas?.nome_completo || 'Nome não informado'}
@@ -376,7 +376,7 @@ export function SecretariaEncontreirosPage() {
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        setContextParticipant(p);
+                        setContextParticipantId(p.id);
                       }}
                       className="secretaria-details-button"
                       title="Visualizar"
@@ -404,8 +404,9 @@ export function SecretariaEncontreirosPage() {
       </div>
 
       <PessoaContextDrawer
-        participacao={contextParticipant}
-        onClose={() => setContextParticipant(null)}
+        participacaoId={contextParticipantId}
+        encontroId={selectedEncontroId || null}
+        onClose={() => setContextParticipantId(null)}
       />
 
       <ConfirmDialog

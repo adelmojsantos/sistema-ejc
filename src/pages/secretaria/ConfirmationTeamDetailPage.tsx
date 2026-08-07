@@ -45,6 +45,7 @@ import { Modal as _Modal } from '../../components/ui/Modal';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { useAuth } from '../../hooks/useAuth';
 import { validatePessoaForConfirmation } from '../../utils/pessoaValidation';
+import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
 
 function getInitials(name: string) {
   return name
@@ -77,6 +78,7 @@ export function ConfirmationTeamDetailPage() {
   );
   const [equipeNome, setEquipeNome] = useState<string>('');
   const [participacoes, setParticipacoes] = useState<InscricaoEnriched[]>([]);
+  const [contextParticipantId, setContextParticipantId] = useState<string | null>(null);
   const [isTeamConfirmed, setIsTeamConfirmed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
@@ -1030,6 +1032,15 @@ export function ConfirmationTeamDetailPage() {
                       </button>
                     )}
                     <button
+                      type="button"
+                      onClick={() => setContextParticipantId(p.id)}
+                      className="btn-secondary"
+                      title="Ver resumo da pessoa"
+                    >
+                      <Users size={16} />
+                      <span>Ver resumo</span>
+                    </button>
+                    <button
                       onClick={() => setEditingPessoa(p.pessoas)}
                       className="btn-icon secretaria-team-member-card__desktop-action"
                       style={{
@@ -1295,6 +1306,11 @@ export function ConfirmationTeamDetailPage() {
         participacaoId={recreacaoParticipacaoId || ''}
         participanteNome={recreacaoParticipanteNome}
         encontroId={encontroId}
+      />
+      <PessoaContextDrawer
+        participacaoId={contextParticipantId}
+        encontroId={encontroId || null}
+        onClose={() => setContextParticipantId(null)}
       />
       {/* Modal de remoção de integrante */}
       <ConfirmDialog

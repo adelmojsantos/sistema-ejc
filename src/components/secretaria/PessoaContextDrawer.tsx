@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Banknote,
@@ -14,13 +14,15 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import type { InscricaoEnriched } from '../../types/inscricao';
+import { carregarPessoaContexto } from '../../services/pessoaContextService';
 import { FINANCE_ROUTE_PERMISSIONS, SHIRT_ROUTE_PERMISSIONS, hasAnyPermission } from '../../utils/accessControl';
 import { VISITATION_COORDINATION_PERMISSIONS } from '../../config/navigation';
 import { formatTelefone } from '../../utils/cpfUtils';
 import './PessoaContextDrawer.css';
 
 interface PessoaContextDrawerProps {
-  participacao: InscricaoEnriched | null;
+  participacaoId: string | null;
+  encontroId: string | null;
   onClose: () => void;
 }
 
@@ -58,12 +60,30 @@ function ContextStatus({
   );
 }
 
-export function PessoaContextDrawer({ participacao, onClose }: PessoaContextDrawerProps) {
+export function PessoaContextDrawer({ participacaoId, encontroId, onClose }: PessoaContextDrawerProps) {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
+  const [participacao, setParticipacao] = useState<InscricaoEnriched | null>(null);
 
   useEffect(() => {
-    if (!participacao) return;
+    let cancelled = false;
+    setParticipacao(null);
+    if (!participacaoId || !encontroId) return;
+
+    carregarPessoaContexto(participacaoId, encontroId)
+      .then((data) => {
+        if (!cancelled) setParticipacao(data);
+      })
+      .catch((error) => {
+        console.error('Erro ao carregar resumo contextual:', error);
+        if (!cancelled) setParticipacao(null);
+      });
+
+    return () => { cancelled = true; };
+  }, [participacaoId, encontroId]);
+
+  useEffect(() => {
+    if (!participacaoId || !encontroId) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -75,7 +95,7 @@ export function PessoaContextDrawer({ participacao, onClose }: PessoaContextDraw
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [onClose, participacao]);
+  }, [onClose, participacaoId, encontroId]);
 
   const visita = useMemo(() => {
     if (!participacao) return null;
@@ -88,19 +108,31 @@ export function PessoaContextDrawer({ participacao, onClose }: PessoaContextDraw
   if (!participacao) return null;
 
   const pessoa = participacao.pessoas;
+  const isEncontrista = participacao.participante === true;
+  const recepcao = Array.isArray(participacao.recepcao_dados)
+    ? participacao.recepcao_dados[0] ?? null
+    : participacao.recepcao_dados ?? null;
+  const recreacao = Array.from(new Map(
+    [...(participacao.recreacao_dados ?? []), ...(participacao.recreacao_dados_secundario ?? [])]
+      .map((item) => [item.id, item])
+  ).values());
+  const otherModuleCount = (recepcao ? 1 : 0) + (recreacao.length > 0 && !isEncontrista ? 1 : 0);
   const circulo = participacao.circulo_participacao?.[0]?.circulos?.nome ?? null;
   const camisetaQuantidade = participacao.camiseta_pedidos?.reduce(
     (total, pedido) => total + (pedido.quantidade || 0),
     0
   ) ?? 0;
-  const isEncontrista = participacao.participante === true;
   const canOpenFinance = hasAnyPermission(hasPermission, FINANCE_ROUTE_PERMISSIONS);
   const canOpenShirts = hasAnyPermission(hasPermission, SHIRT_ROUTE_PERMISSIONS);
+  const canOpenRecreacao = hasPermission('modulo_recreacao') || hasPermission('modulo_admin');
   const canOpenVisitacao = hasAnyPermission(hasPermission, VISITATION_COORDINATION_PERMISSIONS);
   const canOpenCircles = hasAnyPermission(hasPermission, CIRCLE_PERMISSIONS);
   const hasShirtOrder = camisetaQuantidade > 0;
-  const showCircle = isEncontrista || Boolean(circulo);
-  const showVisitacao = isEncontrista || Boolean(visita);
+  // Círculo e dupla visitante são vínculos do encontrista (a pessoa visitada).
+  // Um encontreiro pode ter registros operacionais de Visitação, mas isso não
+  // significa que esses módulos façam parte do seu resumo pessoal.
+  const showCircle = isEncontrista && participacao.circulo_participacao !== undefined;
+  const showVisitacao = isEncontrista && participacao.visita_participacao !== undefined;
 
   const goTo = (path: string) => {
     onClose();
@@ -156,16 +188,18 @@ export function PessoaContextDrawer({ participacao, onClose }: PessoaContextDraw
           </section>
 
           <section className="pessoa-context-section">
-            <h3><ClipboardCheck size={17} /> Encontro e equipe</h3>
-            <div className="pessoa-context-status-grid">
+            <h3><ClipboardCheck size={17} /> {isEncontrista ? 'Participação no encontro' : 'Equipe e atuação'}</h3>
+            <div className={`pessoa-context-status-grid ${isEncontrista ? 'is-single' : ''}`}>
               <ContextStatus
-                label="Dados"
-                value={participacao.dados_confirmados ? 'Confirmados' : 'Aguardando confirmação'}
-                tone={participacao.dados_confirmados ? 'success' : 'warning'}
+                label="Dados cadastrais"
+                value={participacao.dados_confirmados === null ? 'Não informado neste módulo' : participacao.dados_confirmados ? 'Confirmados' : 'Aguardando confirmação'}
+                tone={participacao.dados_confirmados === null ? 'neutral' : participacao.dados_confirmados ? 'success' : 'warning'}
               />
-              <ContextStatus label="Equipe" value={participacao.equipes?.nome || 'Sem equipe'} />
+              {!isEncontrista && (
+                <ContextStatus label="Equipe de trabalho" value={participacao.equipes?.nome || 'Sem equipe'} />
+              )}
             </div>
-            {participacao.equipe_id && (
+            {!isEncontrista && participacao.equipe_id && (
               <button
                 type="button"
                 className="pessoa-context-link"
@@ -178,7 +212,7 @@ export function PessoaContextDrawer({ participacao, onClose }: PessoaContextDraw
 
           <section className="pessoa-context-section">
             <h3><Banknote size={17} /> Financeiro</h3>
-            <div className="pessoa-context-status-grid">
+            <div className={`pessoa-context-status-grid ${hasShirtOrder ? '' : 'is-single'}`}>
               <ContextStatus
                 label="Taxa"
                 value={participacao.pago_taxa ? 'Paga' : 'Pendente'}
@@ -197,17 +231,19 @@ export function PessoaContextDrawer({ participacao, onClose }: PessoaContextDraw
                 {canOpenFinance && (
                   <button
                     type="button"
+                    className="pessoa-context-link"
                     onClick={() => goTo(`/compras/taxas?encontro=${participacao.encontro_id}&tipo=${isEncontrista ? 'encontrista' : 'encontreiro'}&busca=${encodeURIComponent(pessoa?.nome_completo || '')}`)}
                   >
-                    Ver taxas
+                    Ver taxas <ChevronRight size={16} />
                   </button>
                 )}
                 {canOpenShirts && hasShirtOrder && (
                   <button
                     type="button"
+                    className="pessoa-context-link"
                     onClick={() => goTo(`/compras/camisetas?encontro=${participacao.encontro_id}&busca=${encodeURIComponent(pessoa?.nome_completo || '')}`)}
                   >
-                    Ver camisetas
+                    Ver camisetas <ChevronRight size={16} />
                   </button>
                 )}
               </div>
@@ -254,6 +290,35 @@ export function PessoaContextDrawer({ participacao, onClose }: PessoaContextDraw
                   onClick={() => goTo(visita?.id ? `/visitacao/manutencao/${visita.id}` : '/visitacao/coordenador')}
                 >
                   Abrir na Visitação <ChevronRight size={16} />
+                </button>
+              )}
+            </section>
+          )}
+
+          {(recepcao || (!isEncontrista && recreacao.length > 0)) && (
+            <section className="pessoa-context-section">
+              <h3><CheckCircle2 size={17} /> Outros módulos</h3>
+              <div className={`pessoa-context-status-grid ${otherModuleCount < 2 ? 'is-single' : ''}`}>
+                {recepcao && (
+                  <ContextStatus
+                    label="Recepção"
+                    value={`${recepcao.veiculo_tipo || 'Veículo'}${recepcao.veiculo_modelo ? ` · ${recepcao.veiculo_modelo}` : ''}`}
+                  />
+                )}
+                {!isEncontrista && recreacao.length > 0 && (
+                  <ContextStatus
+                    label="Crianças cadastradas"
+                    value={recreacao.map((item) => item.nome_crianca).join('\n')}
+                  />
+                )}
+              </div>
+              {!isEncontrista && canOpenRecreacao && recreacao.length > 0 && (
+                <button
+                  type="button"
+                  className="pessoa-context-link"
+                  onClick={() => goTo(`/recreacao?encontro=${participacao.encontro_id}&responsavel=${participacao.id}&responsavelNome=${encodeURIComponent(pessoa?.nome_completo || '')}`)}
+                >
+                  Abrir Recreação infantil <ChevronRight size={16} />
                 </button>
               )}
             </section>
