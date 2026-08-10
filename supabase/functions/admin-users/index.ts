@@ -10,6 +10,8 @@ interface UserGrupoVinculo {
 interface EnrichedUser {
   id: string;
   email: string;
+  pessoaId: string | null;
+  pessoaVinculo: 'explicit' | 'email_fallback' | 'none';
   role?: string;
   temporary_password: boolean;
   created_at: string;
@@ -93,19 +95,17 @@ async function getDirigenciaAccessStatus(adminClient: ReturnType<typeof createCl
 
   const { data: profiles, error: profilesError } = await adminClient
     .from('profiles')
-    .select('id, email, temporary_password');
+    .select('id, email, pessoa_id, temporary_password');
 
   if (profilesError) {
     throw new Error('Não foi possível consultar os acessos existentes.');
   }
 
-  const profilesByEmail = new Map(
-    (profiles ?? []).map((profile) => [profile.email.toLowerCase(), profile])
-  );
+  const profileIndex = indexProfilesByIdentity(profiles ?? []);
 
   const acessos = (pessoas ?? []).map((pessoa) => {
     const email = pessoa.email?.trim() || null;
-    const profile = email ? profilesByEmail.get(email.toLowerCase()) : null;
+    const profile = profileIndex.find(pessoa.id, email);
 
     return {
       pessoa_id: pessoa.id,
@@ -122,6 +122,36 @@ async function getDirigenciaAccessStatus(adminClient: ReturnType<typeof createCl
     todos_prontos: acessos.length > 0 && acessos.every((acesso) => acesso.possui_acesso),
     pendentes: acessos.filter((acesso) => !acesso.possui_acesso).length,
     sem_email: acessos.filter((acesso) => !acesso.email).length,
+  };
+}
+
+function normalizeEmail(email: string | null | undefined) {
+  return email?.trim().toLowerCase() || '';
+}
+
+function indexProfilesByIdentity(profiles: Array<{ id: string; email: string; pessoa_id?: string | null }>) {
+  const byPersonId = new Map<string, (typeof profiles)[number]>();
+  const unlinkedByEmail = new Map<string, Array<(typeof profiles)[number]>>();
+
+  for (const profile of profiles) {
+    if (profile.pessoa_id) {
+      byPersonId.set(profile.pessoa_id, profile);
+      continue;
+    }
+    const email = normalizeEmail(profile.email);
+    if (!email) continue;
+    const candidates = unlinkedByEmail.get(email) || [];
+    candidates.push(profile);
+    unlinkedByEmail.set(email, candidates);
+  }
+
+  return {
+    find(personId: string, email: string | null | undefined) {
+      const explicit = byPersonId.get(personId);
+      if (explicit) return explicit;
+      const candidates = unlinkedByEmail.get(normalizeEmail(email)) || [];
+      return candidates.length === 1 ? candidates[0] : null;
+    },
   };
 }
 
@@ -142,15 +172,13 @@ async function getFolderCoordinatorsAccessStatus(
 
   const { data: profiles, error: profilesError } = await adminClient
     .from('profiles')
-    .select('id, email, temporary_password');
+    .select('id, email, pessoa_id, temporary_password');
 
   if (profilesError) {
     throw new Error('Não foi possível consultar os acessos existentes.');
   }
 
-  const profilesByEmail = new Map(
-    (profiles ?? []).map((profile) => [profile.email.toLowerCase(), profile])
-  );
+  const profileIndex = indexProfilesByIdentity(profiles ?? []);
   const profileIds = (profiles ?? []).map((profile) => profile.id);
 
   const { data: userGroups, error: userGroupsError } = profileIds.length > 0 && grupoId
@@ -172,7 +200,7 @@ async function getFolderCoordinatorsAccessStatus(
     const pessoa = Array.isArray(participacao.pessoas) ? participacao.pessoas[0] : participacao.pessoas;
     const equipe = Array.isArray(participacao.equipes) ? participacao.equipes[0] : participacao.equipes;
     const email = pessoa?.email?.trim() || null;
-    const profile = email ? profilesByEmail.get(email.toLowerCase()) : null;
+    const profile = profileIndex.find(participacao.pessoa_id, email);
 
     return {
       participacao_id: participacao.id,
@@ -304,6 +332,7 @@ Deno.serve(async (request) => {
         const { error: upsertError } = await adminClient.from('profiles').upsert({
           id: createdUser.user.id,
           email,
+          pessoa_id: acesso.pessoa_id,
           role: 'viewer',
           temporary_password: true,
         });
@@ -391,6 +420,7 @@ Deno.serve(async (request) => {
           const { error: upsertError } = await adminClient.from('profiles').upsert({
             id: userId,
             email: normalizedEmail,
+            pessoa_id: coordenador.pessoa_id,
             role: 'viewer',
             temporary_password: true,
           });
@@ -479,14 +509,13 @@ Deno.serve(async (request) => {
 
       const { data, error } = await adminClient
         .from('profiles')
-        .select('id, email, role, temporary_password, created_at')
+        .select('id, email, pessoa_id, role, temporary_password, created_at')
         .order('email', { ascending: true });
 
       if (error) return jsonResponse(500, { error: 'Failed to list users' });
 
       const profiles = data ?? [];
       const userIds = profiles.map((u) => u.id);
-      const emails = profiles.map((u) => u.email?.toLowerCase()).filter(Boolean);
 
       const { data: ugData, error: ugError } = await adminClient
         .from('usuario_grupos')
@@ -497,8 +526,7 @@ Deno.serve(async (request) => {
 
       const { data: pessoasData, error: pessoasError } = await adminClient
         .from('pessoas')
-        .select('email, nome_completo, participacoes(encontro_id, equipes(nome))')
-        .in('email', emails.length > 0 ? emails : ['']);
+        .select('id, email, nome_completo, participacoes(encontro_id, equipes(nome))');
 
       if (pessoasError) return jsonResponse(500, { error: 'Failed to list linked people' });
 
@@ -508,9 +536,10 @@ Deno.serve(async (request) => {
         ugMap.get(ug.usuario_id)!.push({ grupo_id: ug.grupo_id, encontro_id: ug.encontro_id });
       }
 
-      const pessoasMap = new Map<string, { nome: string; encontrosIds: string[]; equipesNomes: Record<string, string> }>();
+      type PersonInfo = { id: string; nome: string; encontrosIds: string[]; equipesNomes: Record<string, string> };
+      const pessoasById = new Map<string, PersonInfo>();
+      const pessoasByEmail = new Map<string, PersonInfo[]>();
       for (const pessoa of pessoasData || []) {
-        if (!pessoa.email) continue;
         const participacoes = (pessoa.participacoes || []) as {
           encontro_id: string;
           equipes: { nome: string }[] | { nome: string } | null;
@@ -526,18 +555,34 @@ Deno.serve(async (request) => {
           }
         }
 
-        pessoasMap.set(pessoa.email.toLowerCase(), {
+        const personInfo: PersonInfo = {
+          id: pessoa.id,
           nome: pessoa.nome_completo,
           encontrosIds,
           equipesNomes,
-        });
+        };
+        pessoasById.set(pessoa.id, personInfo);
+
+        const normalizedEmail = normalizeEmail(pessoa.email);
+        if (normalizedEmail) {
+          const candidates = pessoasByEmail.get(normalizedEmail) || [];
+          candidates.push(personInfo);
+          pessoasByEmail.set(normalizedEmail, candidates);
+        }
       }
 
       const enrichedUsers: EnrichedUser[] = profiles.map((profile) => {
-        const pessoaInfo = pessoasMap.get(profile.email.toLowerCase());
+        const explicitPerson = profile.pessoa_id ? pessoasById.get(profile.pessoa_id) : undefined;
+        const fallbackCandidates = profile.pessoa_id
+          ? []
+          : (pessoasByEmail.get(normalizeEmail(profile.email)) || []);
+        const fallbackPerson = fallbackCandidates.length === 1 ? fallbackCandidates[0] : undefined;
+        const pessoaInfo = explicitPerson || fallbackPerson;
         return {
           id: profile.id,
           email: profile.email,
+          pessoaId: pessoaInfo?.id || null,
+          pessoaVinculo: explicitPerson ? 'explicit' : fallbackPerson ? 'email_fallback' : 'none',
           role: profile.role,
           temporary_password: profile.temporary_password,
           created_at: profile.created_at,
@@ -622,13 +667,30 @@ Deno.serve(async (request) => {
 
     if (action === 'create') {
       const rawEmail = body?.email as string | undefined;
+      const pessoaId = body?.pessoaId as string | undefined;
       const role = body?.role as UserRole | undefined;
 
-      if (!rawEmail || !role) {
-        return jsonResponse(400, { error: 'email and role are required' });
+      if (!rawEmail || !pessoaId || !role) {
+        return jsonResponse(400, { error: 'email, pessoaId and role are required' });
       }
 
       const email = rawEmail.trim().toLowerCase();
+      const { data: selectedPerson, error: selectedPersonError } = await adminClient
+        .from('pessoas')
+        .select('id, email')
+        .eq('id', pessoaId)
+        .maybeSingle();
+
+      if (selectedPersonError || !selectedPerson) {
+        return jsonResponse(400, { error: 'Pessoa selecionada não foi encontrada.' });
+      }
+
+      if (normalizeEmail(selectedPerson.email) !== email) {
+        return jsonResponse(400, {
+          error: 'O e-mail informado não corresponde à pessoa selecionada. Atualize o cadastro e tente novamente.'
+        });
+      }
+
       const { data: createdUser, error: createUserError } =
         await adminClient.auth.admin.inviteUserByEmail(email, {
           redirectTo: passwordRedirectUrl,
@@ -641,6 +703,7 @@ Deno.serve(async (request) => {
       const { error: upsertError } = await adminClient.from('profiles').upsert({
         id: createdUser.user.id,
         email,
+        pessoa_id: pessoaId,
         role,
         temporary_password: true
       });
@@ -653,6 +716,8 @@ Deno.serve(async (request) => {
         user: {
           id: createdUser.user.id,
           email,
+          pessoaId,
+          pessoaVinculo: 'explicit',
           role,
           temporary_password: true,
           created_at: createdUser.user.created_at

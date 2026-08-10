@@ -14,7 +14,7 @@ interface AuthProfileCacheEntry {
     cachedAt: number;
 }
 
-const getProfileCacheKey = (userId: string) => `auth-profile:${userId}`;
+const getProfileCacheKey = (userId: string) => `auth-profile:v2:${userId}`;
 
 const readProfileCache = (userId: string): AuthProfileCacheEntry | null => {
     try {
@@ -92,21 +92,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // 1. Fetch Profile
             const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
-                .select('id, email, temporary_password, created_at, updated_at')
+                .select('id, email, pessoa_id, temporary_password, created_at, updated_at')
                 .eq('id', userId)
                 .maybeSingle();
 
             if (profileError) throw profileError;
 
             // 2. Fetch Personal Data (get full name from 'pessoas' table)
-            let pessoaData = null;
+            let pessoaData: { id: string; nome_completo: string } | null = null;
+            let pessoaVinculo: UserProfile['pessoa_vinculo'] = 'none';
             if (profileData) {
-                const { data } = await supabase
-                    .from('pessoas')
-                    .select('nome_completo')
-                    .ilike('email', profileData.email)
-                    .maybeSingle();
-                pessoaData = data;
+                if (profileData.pessoa_id) {
+                    const { data } = await supabase
+                        .from('pessoas')
+                        .select('id, nome_completo')
+                        .eq('id', profileData.pessoa_id)
+                        .maybeSingle();
+                    pessoaData = data;
+                    pessoaVinculo = data ? 'explicit' : 'none';
+                } else if (profileData.email) {
+                    const { data } = await supabase
+                        .from('pessoas')
+                        .select('id, nome_completo')
+                        .ilike('email', profileData.email.trim())
+                        .limit(2);
+
+                    if (data?.length === 1) {
+                        pessoaData = data[0];
+                        pessoaVinculo = 'email_fallback';
+                    }
+                }
             }
 
             // 3. Fetch Active Encounter
@@ -184,6 +199,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const extendedProfile: UserProfile = {
                 ...(profileData as unknown as UserProfile),
+                pessoa_id: pessoaData?.id ?? null,
+                pessoa_vinculo: pessoaVinculo,
                 nome_completo: pessoaData?.nome_completo,
                 grupos,
                 grupoIds,
@@ -195,11 +212,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             let nextUserParticipacao: InscricaoEnriched | null = null;
 
             // 5. Fetch Latest Participation for the active encounter
-            if (activeEncontroId && profileData?.email) {
+            if (activeEncontroId && pessoaData?.id) {
                 const { data: partData, error: partError } = await supabase
                     .from('participacoes')
                     .select('*, pessoas!inner(nome_completo, cpf, email), equipes(nome)')
-                    .eq('pessoas.email', profileData.email)
+                    .eq('pessoa_id', pessoaData.id)
                     .eq('encontro_id', activeEncontroId)
                     .maybeSingle();
 

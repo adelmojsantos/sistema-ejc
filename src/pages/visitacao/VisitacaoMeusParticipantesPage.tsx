@@ -141,7 +141,7 @@ export function VisitacaoMeusParticipantesPage() {
                 setGrupoNome('');
             }
 
-            if (!profile?.email || !encontroSelecionadoId) {
+            if (!profile?.pessoa_id || !encontroSelecionadoId) {
                 if (!cancelled) {
                     setParticipantes([]);
                     setLoading(false);
@@ -157,9 +157,9 @@ export function VisitacaoMeusParticipantesPage() {
                 if (!isCoordinator || !selectedGrupoId) {
                     const { data: myVinculo, error: vinculoError } = await supabase
                         .from('visita_participacao')
-                        .select('grupo_id, visita_grupos(nome), participacoes!inner(encontro_id, pessoas!inner(email))')
+                        .select('grupo_id, visita_grupos(nome), participacoes!inner(encontro_id, pessoa_id)')
                         .eq('participacoes.encontro_id', encontroSelecionadoId)
-                        .eq('participacoes.pessoas.email', profile.email)
+                        .eq('participacoes.pessoa_id', profile.pessoa_id)
                         .eq('visitante', true)
                         .maybeSingle();
 
@@ -265,7 +265,7 @@ export function VisitacaoMeusParticipantesPage() {
         return () => {
             cancelled = true;
         };
-    }, [encontroSelecionadoId, profile?.email, isCoordinator, selectedGrupoId, grupos, reloadKey]);
+    }, [encontroSelecionadoId, profile?.pessoa_id, isCoordinator, selectedGrupoId, grupos, reloadKey]);
 
     const handleRestoreParticipation = async () => {
         if (!cancelamentoParaRestaurar) return;
