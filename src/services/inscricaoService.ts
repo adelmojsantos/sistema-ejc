@@ -219,6 +219,32 @@ export const inscricaoService = {
         if (error) throw error;
     },
 
+    /**
+     * Cancela uma participação preservando os dados operacionais em histórico
+     * para uma eventual restauração pela Secretaria.
+     */
+    async cancelarParticipacao(participacaoId: string, motivo: string): Promise<{ cancelamento_id: string }> {
+        const { data, error } = await supabase.rpc('cancelar_participacao', {
+            p_participacao_id: participacaoId,
+            p_motivo: motivo,
+        });
+
+        if (error) throw error;
+        return data as { cancelamento_id: string };
+    },
+
+    async restaurarParticipacaoCancelada(cancelamentoId: string): Promise<{
+        participacao_id?: string;
+        already_reverted?: boolean;
+    }> {
+        const { data, error } = await supabase.rpc('restaurar_participacao_cancelada', {
+            p_cancelamento_id: cancelamentoId,
+        });
+
+        if (error) throw error;
+        return (data || {}) as { participacao_id?: string; already_reverted?: boolean };
+    },
+
     async confirmarDados(id: string): Promise<Inscricao> {
         const { data, error } = await supabase
             .from(TABLE)

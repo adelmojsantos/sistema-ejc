@@ -33,7 +33,7 @@ export const listaEsperaService = {
         const { data: existente } = await supabase.rpc('check_duplicate_registration', checkPayload);
 
         if (existente) {
-             throw new Error('Uma inscrição com este E-mail, CPF ou Telefone já existe na fila deste Encontro!');
+             throw new Error('Já existe uma inscrição ou participação neste encontro com este e-mail, CPF ou telefone.');
         }
 
         const { error } = await supabase

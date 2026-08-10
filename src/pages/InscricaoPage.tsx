@@ -59,6 +59,10 @@ export function InscricaoPage() {
   const performRegistration = async (pessoaId: string, isNew: boolean) => {
     setIsSaving(true);
     try {
+      if (!selectedEncontroId || !encontroAtivo) {
+        throw new Error('Não há encontro ativo disponível para inscrição.');
+      }
+
       // 2. Vincular ao encontro
       await inscricaoService.criar({
         pessoa_id: pessoaId,
@@ -85,8 +89,8 @@ export function InscricaoPage() {
       setPotentialMatches([]);
       setSelectedMatch(null);
       setPessoaFormKey(prev => prev + 1); // Force form reset
-    } catch {
-      toast.error('Erro ao realizar inscrição.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao realizar inscrição.');
     } finally {
       setIsSaving(false);
     }
@@ -345,7 +349,7 @@ export function InscricaoPage() {
           </div>
 
           {/* Step 2: Person Data */}
-          <div className="card">
+          {encontroAtivo ? <div className="card">
             <h2 style={{ marginTop: 0, marginBottom: '1.5rem', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               Dados do Encontrista
             </h2>
@@ -358,7 +362,12 @@ export function InscricaoPage() {
               requireBirthDate={true}
               requireFezEjc={true}
             />
-          </div>
+          </div> : (
+            <div className="card text-center py-4">
+              <strong>Inscrições indisponíveis</strong>
+              <p style={{ marginBottom: 0, opacity: 0.7 }}>A inscrição direta só pode ser feita para uma edição ativa.</p>
+            </div>
+          )}
         </div>
 
       <ConfirmDialog

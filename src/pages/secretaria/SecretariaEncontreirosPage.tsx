@@ -44,6 +44,7 @@ export function SecretariaEncontreirosPage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState('');
   const [contextParticipantId, setContextParticipantId] = useState<string | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
 
@@ -69,12 +70,13 @@ export function SecretariaEncontreirosPage() {
     if (!participantToUnlink) return;
     setIsUnlinking(true);
     try {
-      await inscricaoService.desvincularDoEncontro(participantToUnlink.id);
-      toast.success(`${participantToUnlink.pessoas?.nome_completo} desvinculado(a) com sucesso.`);
+      await inscricaoService.cancelarParticipacao(participantToUnlink.id, motivoCancelamento);
+      toast.success(`${participantToUnlink.pessoas?.nome_completo} teve a participação cancelada.`);
       setParticipantToUnlink(null);
+      setMotivoCancelamento('');
       await loadParticipantes();
-    } catch {
-      toast.error('Erro ao desvincular encontreiro.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao cancelar participação.');
     } finally {
       setIsUnlinking(false);
     }
@@ -386,14 +388,14 @@ export function SecretariaEncontreirosPage() {
                     </button>
                     {selectedEncontro?.ativo && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
+                        onClick={(e) => { e.stopPropagation(); setMotivoCancelamento(''); setParticipantToUnlink(p); }}
                         className="secretaria-unlink-button"
-                        title="Desvincular do encontro"
-                        aria-label="Desvincular do encontro"
-                      >
-                        <UserMinus size={16} />
-                        <span>Desvincular</span>
-                      </button>
+                        title="Cancelar participação"
+                        aria-label="Cancelar participação"
+                        >
+                          <UserMinus size={16} />
+                          <span>Cancelar</span>
+                        </button>
                     )}
                   </div>
                 </div>
@@ -411,18 +413,29 @@ export function SecretariaEncontreirosPage() {
 
       <ConfirmDialog
         isOpen={!!participantToUnlink}
-        title="Desvincular Encontreiro"
+        title="Cancelar participação"
         message={
           <>
-            Tem certeza que deseja desvincular o(a) encontreiro(a) <strong style={{ color: 'var(--text-color)' }}>{participantToUnlink?.pessoas?.nome_completo}</strong> deste encontro?
+            Deseja cancelar a participação de <strong style={{ color: 'var(--text-color)' }}>{participantToUnlink?.pessoas?.nome_completo}</strong> neste encontro?
             <br /><br />
-            Esta ação <strong style={{ color: 'var(--danger-text)' }}>apenas removerá o vínculo</strong> da pessoa com este encontro específico. O cadastro da pessoa no sistema de pessoas será mantido intacto.
+            Os dados operacionais serão preservados no histórico para possível restauração pela Secretaria. O cadastro da pessoa permanecerá intacto.
+            <label className="form-label" style={{ display: 'block', marginTop: '1rem' }}>
+              Motivo do cancelamento
+              <textarea
+                className="form-input"
+                value={motivoCancelamento}
+                onChange={(event) => setMotivoCancelamento(event.target.value)}
+                placeholder="Descreva o motivo do cancelamento"
+                rows={3}
+                style={{ marginTop: '0.45rem', resize: 'vertical' }}
+              />
+            </label>
           </>
         }
-        confirmText="Sim, desvincular"
+        confirmText="Cancelar participação"
         cancelText="Cancelar"
         onConfirm={handleUnlink}
-        onCancel={() => setParticipantToUnlink(null)}
+        onCancel={() => { setParticipantToUnlink(null); setMotivoCancelamento(''); }}
         isLoading={isUnlinking}
         isDestructive={true}
       />
@@ -469,7 +482,8 @@ export function SecretariaEncontreirosPage() {
           background-color: rgba(239, 68, 68, 0.1);
         }
         .secretaria-encontreiro-row {
-          grid-template-columns: minmax(260px, 1.35fr) minmax(170px, 0.75fr) minmax(190px, 0.9fr) minmax(140px, 0.7fr) auto;
+          grid-template-columns: minmax(300px, 1.45fr) minmax(180px, 0.8fr) minmax(260px, 1.2fr) minmax(84px, auto);
+          align-items: center;
         }
         .secretaria-team-badge {
           width: fit-content;
@@ -497,8 +511,10 @@ export function SecretariaEncontreirosPage() {
           font-weight: 700;
         }
         .secretaria-unlink-button {
-          width: 34px;
-          height: 34px;
+          width: 150px;
+          min-width: 150px;
+          height: 38px;
+          padding: 0 0.8rem;
           border-radius: 9px;
           border: 1px solid rgba(239, 68, 68, 0.7);
           background: transparent;
@@ -524,12 +540,26 @@ export function SecretariaEncontreirosPage() {
           transform: translateY(-1px);
         }
         .secretaria-unlink-button span {
-          display: none;
+          display: inline;
           font-size: 0.85rem;
           font-weight: 700;
         }
         .secretaria-pessoa-actions {
+          grid-area: auto;
+          grid-column: 1 / -1;
+          grid-row: 2;
           justify-content: flex-end;
+          margin-left: 0;
+          padding-top: 0.7rem;
+          border-top: 1px solid var(--border-color);
+          gap: 0.45rem;
+          min-width: 0;
+          flex-wrap: nowrap;
+        }
+        .secretaria-encontreiros-grid .secretaria-details-button {
+          width: 150px;
+          min-width: 150px;
+          height: 38px;
         }
         @media (max-width: 900px) {
           .secretaria-encontreiros-grid {
@@ -539,6 +569,7 @@ export function SecretariaEncontreirosPage() {
           }
           .secretaria-encontreiro-row {
             grid-template-columns: 1fr;
+            grid-auto-flow: row;
             align-items: stretch;
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -549,16 +580,61 @@ export function SecretariaEncontreirosPage() {
             border-bottom: 1px solid var(--border-color);
           }
           .secretaria-pessoa-actions {
+            grid-area: auto;
+            grid-column: auto;
+            grid-row: auto;
             justify-content: flex-start;
             padding-top: 0.35rem;
             border-top: 1px solid var(--border-color);
           }
+          .secretaria-details-button,
           .secretaria-unlink-button {
-            width: 100%;
+            flex: 1 1 0;
+            width: auto;
+            min-width: 0;
             height: 40px;
           }
           .secretaria-unlink-button span {
             display: inline;
+          }
+        }
+
+        /* A largura útil da lista varia com a barra lateral. Portanto, estes
+           pontos de quebra acompanham o container, não apenas a janela. */
+        @container pessoa-list (min-width: 601px) and (max-width: 970px) {
+          .secretaria-encontreiro-row {
+            grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+            align-items: start;
+            row-gap: 0.9rem;
+          }
+          .secretaria-encontreiro-row > .pessoa-row-main { grid-column: 1; grid-row: 1; }
+          .secretaria-encontreiro-row > .pessoa-row-col:nth-child(2) { grid-column: 2; grid-row: 1; }
+          .secretaria-encontreiro-row > .pessoa-row-col:nth-child(3) { grid-column: 1; grid-row: 2; }
+          .secretaria-encontreiro-row > .pessoa-row-col:nth-child(4) { grid-column: 2; grid-row: 2; }
+          .secretaria-pessoa-actions {
+            grid-column: 1 / -1;
+            grid-row: 3;
+            justify-content: flex-end;
+            min-width: 0;
+          }
+          .secretaria-encontreiros-grid .secretaria-details-button,
+          .secretaria-encontreiros-grid .secretaria-unlink-button {
+            flex: 1 1 0;
+            width: auto;
+            min-width: 0;
+          }
+        }
+        @container pessoa-list (max-width: 600px) {
+          .secretaria-encontreiro-row {
+            grid-template-columns: 1fr;
+            grid-auto-flow: row;
+            align-items: stretch;
+          }
+          .secretaria-encontreiro-row > .pessoa-row-main,
+          .secretaria-encontreiro-row > .pessoa-row-col,
+          .secretaria-pessoa-actions {
+            grid-column: auto;
+            grid-row: auto;
           }
         }
       `}</style>

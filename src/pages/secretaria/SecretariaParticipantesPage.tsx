@@ -61,15 +61,16 @@ interface DesistentesTabProps {
   total: number;
   isLoading: boolean;
   canRestore: boolean;
+  isEncontroAtivo: boolean;
   onRestore: (desistencia: ParticipacaoCancelada) => void;
 }
 
-function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }: DesistentesTabProps) {
+function DesistentesTab({ desistentes, total, isLoading, canRestore, isEncontroAtivo, onRestore }: DesistentesTabProps) {
   if (isLoading) {
     return (
       <div className="card text-center py-8">
         <Loader size={32} className="animate-spin" style={{ display: 'inline-block', marginBottom: '1rem' }} />
-        <p>Carregando desistentes...</p>
+        <p>Carregando cancelamentos...</p>
       </div>
     );
   }
@@ -78,7 +79,7 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
     return (
       <div className="empty-state">
         <UserMinus size={48} style={{ opacity: 0.3 }} />
-        <p>{total > 0 ? 'Nenhum desistente encontrado para a busca.' : 'Nenhuma desistência registrada nesta edição.'}</p>
+        <p>{total > 0 ? 'Nenhum cancelamento encontrado para a busca.' : 'Nenhum cancelamento registrado nesta edição.'}</p>
       </div>
     );
   }
@@ -93,7 +94,8 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
         {desistentes.map((desistencia) => {
           const pessoa = desistencia.pessoas;
           const nome = pessoa?.nome_completo || 'Nome não informado';
-          const dupla = desistencia.visita_grupos?.nome || 'Dupla não informada';
+          const dupla = desistencia.visita_grupos?.nome;
+          const possuiDupla = !!dupla;
           const isRevertida = !!desistencia.revertido_em;
 
           return (
@@ -108,12 +110,12 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
                   <div className="secretaria-desistente-badges">
                     <span className={`secretaria-desistente-status ${isRevertida ? 'is-reverted' : 'is-active'}`}>
                       {isRevertida ? <CheckCircle size={12} /> : <UserMinus size={12} />}
-                      {isRevertida ? 'Desistência revertida' : 'Desistência ativa'}
+                      {isRevertida ? 'Cancelamento revertido' : 'Cancelamento ativo'}
                     </span>
-                    <span><Users size={12} /> {dupla}</span>
-                    <span><Clock size={12} /> Desistiu em {formatDateTime(desistencia.data_cancelamento)}</span>
+                    {possuiDupla ? <span><Users size={12} /> {dupla}</span> : <span>Cancelamento administrativo</span>}
+                    <span><Clock size={12} /> Cancelado em {formatDateTime(desistencia.data_cancelamento)}</span>
                     {isRevertida && (
-                      <span><RotateCcw size={12} /> Retornou em {formatDateTime(desistencia.revertido_em)}</span>
+                      <span><RotateCcw size={12} /> Restaurado em {formatDateTime(desistencia.revertido_em)}</span>
                     )}
                   </div>
                 </div>
@@ -128,6 +130,8 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
               <div className="secretaria-desistente-actions">
                 {isRevertida ? (
                   <span className="secretaria-desistente-readonly">Histórico encerrado</span>
+                ) : !isEncontroAtivo ? (
+                  <span className="secretaria-desistente-readonly">Edição histórica: somente consulta</span>
                 ) : canRestore ? (
                   <button
                     type="button"
@@ -135,7 +139,7 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
                     onClick={() => onRestore(desistencia)}
                   >
                     <RotateCcw size={16} />
-                    Reverter
+                    Restaurar
                   </button>
                 ) : (
                   <span className="secretaria-desistente-readonly">Somente admin/secretaria</span>
@@ -155,6 +159,7 @@ export function SecretariaParticipantesPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { encontros, encontroSelecionadoId: selectedEncontroId, selecionarEncontro } = useEncontros();
+  const encontroSelecionado = encontros.find((encontro) => encontro.id === selectedEncontroId) ?? null;
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
   const [desistentes, setDesistentes] = useState<ParticipacaoCancelada[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -164,6 +169,7 @@ export function SecretariaParticipantesPage() {
   const [showConfirmGeoModal, setShowConfirmGeoModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState('');
   const [desistenciaToRestore, setDesistenciaToRestore] = useState<ParticipacaoCancelada | null>(null);
   const [editingPessoa, setEditingPessoa] = useState<Pessoa | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
@@ -385,12 +391,13 @@ export function SecretariaParticipantesPage() {
     if (!participantToUnlink) return;
     setIsUnlinking(true);
     try {
-      await inscricaoService.desvincularDoEncontro(participantToUnlink.id);
-      toast.success(`${participantToUnlink.pessoas?.nome_completo} desvinculado(a) com sucesso.`);
+      await inscricaoService.cancelarParticipacao(participantToUnlink.id, motivoCancelamento);
+      toast.success(`${participantToUnlink.pessoas?.nome_completo} teve a participação cancelada.`);
       setParticipantToUnlink(null);
-      await loadParticipantes();
-    } catch {
-      toast.error('Erro ao desvincular participante.');
+      setMotivoCancelamento('');
+      await Promise.all([loadParticipantes(), loadDesistentes()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao cancelar participação.');
     } finally {
       setIsUnlinking(false);
     }
@@ -464,7 +471,7 @@ export function SecretariaParticipantesPage() {
     const restoredName = desistenciaToRestore.pessoas?.nome_completo || 'Participante';
     setIsRestoringDesistencia(true);
     try {
-      const result = await inscricaoService.desfazerDesistencia(desistenciaToRestore.id);
+      const result = await inscricaoService.restaurarParticipacaoCancelada(desistenciaToRestore.id);
       setDesistentes((prev) => prev.filter((item) => item.id !== desistenciaToRestore.id));
       setDesistenciaToRestore(null);
       await Promise.all([loadParticipantes(), loadDesistentes()]);
@@ -866,7 +873,7 @@ export function SecretariaParticipantesPage() {
               onClick={() => handleTabChange('desistentes')}
             >
               <UserMinus size={16} />
-              <span className="secretaria-tab-label">Histórico de desistências</span>
+              <span className="secretaria-tab-label">Histórico de cancelamentos</span>
               <span className="secretaria-tab-count">{desistentes.length}</span>
             </button>
             <button
@@ -893,7 +900,7 @@ export function SecretariaParticipantesPage() {
                   <input
                     type="text"
                     className="form-input form-input--with-icon"
-                    placeholder={activeTab === 'desistentes' ? 'Nome, e-mail, telefone, comunidade, dupla ou observação...' : activeTab === 'fotosFamilias' ? 'Buscar encontrista ou dupla...' : 'Nome, e-mail, telefone, bairro ou cidade...'}
+                    placeholder={activeTab === 'desistentes' ? 'Nome, e-mail, telefone, comunidade, dupla ou motivo...' : activeTab === 'fotosFamilias' ? 'Buscar encontrista ou dupla...' : 'Nome, e-mail, telefone, bairro ou cidade...'}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -959,6 +966,7 @@ export function SecretariaParticipantesPage() {
               total={desistentes.length}
               isLoading={isLoadingDesistentes}
               canRestore={canRestoreDesistencia}
+              isEncontroAtivo={!!encontroSelecionado?.ativo}
               onRestore={setDesistenciaToRestore}
             />
           ) : activeTab === 'fotosFamilias' ? (
@@ -1217,13 +1225,13 @@ export function SecretariaParticipantesPage() {
                         </button>
                         {selectedEncontro?.ativo && (
                           <button
-                            onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
+                            onClick={(e) => { e.stopPropagation(); setMotivoCancelamento(''); setParticipantToUnlink(p); }}
                             className="secretaria-unlink-button"
-                            title="Desvincular do encontro"
-                            aria-label="Desvincular do encontro"
+                            title="Cancelar participação"
+                            aria-label="Cancelar participação"
                           >
                             <UserMinus size={16} />
-                            <span>Desvincular</span>
+                            <span>Cancelar</span>
                           </button>
                         )}
                       </div>
@@ -1357,18 +1365,29 @@ export function SecretariaParticipantesPage() {
 
       <ConfirmDialog
         isOpen={!!participantToUnlink}
-        title="Desvincular Participante"
+        title="Cancelar participação"
         message={
           <>
-            Tem certeza que deseja desvincular o(a) participante <strong style={{ color: 'var(--text-color)' }}>{participantToUnlink?.pessoas?.nome_completo}</strong> deste encontro?
+            Deseja cancelar a participação de <strong style={{ color: 'var(--text-color)' }}>{participantToUnlink?.pessoas?.nome_completo}</strong> neste encontro?
             <br /><br />
-            Esta ação <strong style={{ color: 'var(--danger-text)' }}>apenas removerá o vínculo</strong> da pessoa com este encontro específico. O cadastro da pessoa no sistema de pessoas será mantido intacto.
+            Os dados operacionais serão preservados no histórico para possível restauração pela Secretaria. O cadastro da pessoa permanecerá intacto.
+            <label className="form-label" style={{ display: 'block', marginTop: '1rem' }}>
+              Motivo do cancelamento
+              <textarea
+                className="form-input"
+                value={motivoCancelamento}
+                onChange={(event) => setMotivoCancelamento(event.target.value)}
+                placeholder="Descreva o motivo do cancelamento"
+                rows={3}
+                style={{ marginTop: '0.45rem', resize: 'vertical' }}
+              />
+            </label>
           </>
         }
-        confirmText="Sim, desvincular"
+        confirmText="Cancelar participação"
         cancelText="Cancelar"
         onConfirm={handleUnlink}
-        onCancel={() => setParticipantToUnlink(null)}
+        onCancel={() => { setParticipantToUnlink(null); setMotivoCancelamento(''); }}
         isLoading={isUnlinking}
         isDestructive={true}
       />

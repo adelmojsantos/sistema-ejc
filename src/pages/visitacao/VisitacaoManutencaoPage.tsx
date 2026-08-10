@@ -672,50 +672,9 @@ export function VisitacaoManutencaoPage() {
 
         setSaving(true);
         try {
-            const { data: participacaoSnapshot, error: participacaoSnapshotError } = await supabase
-                .from('participacoes')
-                .select('*')
-                .eq('id', visita.participacao_id)
-                .maybeSingle();
+            await inscricaoService.cancelarParticipacao(visita.participacao_id, motivo);
 
-            if (participacaoSnapshotError) throw participacaoSnapshotError;
-
-            // 1. Record the cancellation in the history table
-            await inscricaoService.registrarCancelamento({
-                pessoa_id: (visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.id || '',
-                encontro_id: (visita.participacoes as ParticipacaoComPessoa | null)?.encontro_id || '',
-                grupo_id: visita.grupo_id || undefined,
-                status_visita: status,
-                observacoes: observacoes.trim() || undefined,
-                motivo_cancelamento: motivo,
-                dados_snapshot: {
-                    visita_participacao_id: id,
-                    participacao_id: visita.participacao_id,
-                    taxa_paga: taxaPaga,
-                    data_registro: new Date().toISOString(),
-                    participacao: participacaoSnapshot || undefined,
-                    visita: {
-                        id: visita.id,
-                        grupo_id: visita.grupo_id || undefined,
-                        visitante: visita.visitante,
-                        status: visita.status,
-                        observacoes: visita.observacoes,
-                        foto_url: visita.foto_url,
-                        foto_familia_url: fotoFamiliaUrl,
-                        taxa_paga: taxaPaga,
-                        data_visita: visita.data_visita
-                    }
-                }
-            });
-
-            // 2. Delete the visitation link (visita_participacao)
-            await visitacaoService.desvincular(id);
-
-            // 3. Delete the meeting registration (participacoes)
-            // As requested, this removes the person from the meeting entirely
-            await inscricaoService.desvincularDoEncontro(visita.participacao_id);
-
-            toast.success('Pessoa marcada como desistente e participação removida do encontro.');
+            toast.success('Desistência registrada e participação removida do encontro.');
             navigate('/visitacao/meus-participantes');
         } catch (error) {
             console.error('Erro ao cancelar:', error);
