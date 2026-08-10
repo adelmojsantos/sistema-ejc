@@ -66,7 +66,7 @@ const formatVehicleText = (value: string | null | undefined) => {
 };
 
 export function VisitacaoMeusParticipantesPage() {
-    const { userParticipacao, hasPermission } = useAuth();
+    const { profile, userParticipacao, hasPermission } = useAuth();
     const navigate = useNavigate();
     const isCoordinator = hasPermission('modulo_visitacao_coordenar');
     const { encontroSelecionadoId, encontroSelecionado } = useEncontros();
@@ -74,9 +74,7 @@ export function VisitacaoMeusParticipantesPage() {
     const [participantes, setParticipantes] = useState<VisitaParticipacaoEnriched[]>([]);
     const [loading, setLoading] = useState(true);
     const [grupos, setGrupos] = useState<VisitaGrupo[]>([]);
-    const [selectedGrupoId, setSelectedGrupoId] = useState<string>(() => {
-        return sessionStorage.getItem('visita_selected_grupo_id') || '';
-    });
+    const [selectedGrupoId, setSelectedGrupoId] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'map'>(() => {
         return (sessionStorage.getItem('visita_view_mode') as 'list' | 'map') || 'list';
     });
@@ -94,30 +92,60 @@ export function VisitacaoMeusParticipantesPage() {
     }, [viewMode]);
 
     useEffect(() => {
-        if (selectedGrupoId) {
-            sessionStorage.setItem('visita_selected_grupo_id', selectedGrupoId);
-        }
-    }, [selectedGrupoId]);
+        if (!encontroSelecionadoId) return;
+
+        const storageKey = `visita_selected_grupo_id:${encontroSelecionadoId}`;
+        setParticipantes([]);
+        setGrupoNome('');
+        setSelectedGrupoId(sessionStorage.getItem(storageKey) || '');
+        setLoading(true);
+    }, [encontroSelecionadoId]);
 
     useEffect(() => {
+        if (!encontroSelecionadoId || !selectedGrupoId) return;
+        sessionStorage.setItem(`visita_selected_grupo_id:${encontroSelecionadoId}`, selectedGrupoId);
+    }, [encontroSelecionadoId, selectedGrupoId]);
+
+    useEffect(() => {
+        let cancelled = false;
+
         async function loadGroups() {
             if (isCoordinator && encontroSelecionadoId) {
                 try {
                     const data = await visitacaoService.listarGrupos(encontroSelecionadoId);
+                    if (cancelled) return;
                     setGrupos(data);
                     setSelectedGrupoId((current) => data.some((grupo) => grupo.id === current) ? current : '');
                 } catch (error) {
+                    if (cancelled) return;
                     console.error('Erro ao carregar grupos:', error);
                 }
+            } else if (!cancelled) {
+                setGrupos([]);
             }
         }
         loadGroups();
+
+        return () => {
+            cancelled = true;
+        };
     }, [encontroSelecionadoId, isCoordinator]);
 
     useEffect(() => {
+        let cancelled = false;
+
         async function loadParticipants() {
-            if (!userParticipacao) {
-                setLoading(false);
+            if (!cancelled) {
+                setLoading(true);
+                setParticipantes([]);
+                setGrupoNome('');
+            }
+
+            if (!profile?.email || !encontroSelecionadoId) {
+                if (!cancelled) {
+                    setParticipantes([]);
+                    setLoading(false);
+                }
                 return;
             }
 
@@ -129,8 +157,9 @@ export function VisitacaoMeusParticipantesPage() {
                 if (!isCoordinator || !selectedGrupoId) {
                     const { data: myVinculo, error: vinculoError } = await supabase
                         .from('visita_participacao')
-                        .select('grupo_id, visita_grupos(nome)')
-                        .eq('participacao_id', userParticipacao.id)
+                        .select('grupo_id, visita_grupos(nome), participacoes!inner(encontro_id, pessoas!inner(email))')
+                        .eq('participacoes.encontro_id', encontroSelecionadoId)
+                        .eq('participacoes.pessoas.email', profile.email)
                         .eq('visitante', true)
                         .maybeSingle();
 
@@ -157,6 +186,7 @@ export function VisitacaoMeusParticipantesPage() {
                     if (g) targetGrupoNome = g.nome || '';
                 }
 
+                if (cancelled) return;
                 setGrupoNome(targetGrupoNome);
 
                 if (targetGrupoId) {
@@ -185,6 +215,7 @@ export function VisitacaoMeusParticipantesPage() {
                             )
                         `)
                         .eq('grupo_id', targetGrupoId)
+                        .eq('participacoes.encontro_id', encontroId)
                         .eq('visitante', false);
 
                     if (activeError) throw activeError;
@@ -215,19 +246,26 @@ export function VisitacaoMeusParticipantesPage() {
                         console.error('Erro ao buscar cancelados:', err);
                     }
 
-                    setParticipantes([...(activeData || []), ...transformedCanceled] as unknown as VisitaParticipacaoEnriched[]);
+                    if (!cancelled) {
+                        setParticipantes([...(activeData || []), ...transformedCanceled] as unknown as VisitaParticipacaoEnriched[]);
+                    }
                 } else {
-                    setParticipantes([]);
+                    if (!cancelled) setParticipantes([]);
                 }
             } catch (error) {
+                if (cancelled) return;
                 console.error('Erro ao buscar participantes da visita:', error);
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         }
 
         loadParticipants();
-    }, [encontroSelecionadoId, userParticipacao, isCoordinator, selectedGrupoId, grupos, reloadKey]);
+
+        return () => {
+            cancelled = true;
+        };
+    }, [encontroSelecionadoId, profile?.email, isCoordinator, selectedGrupoId, grupos, reloadKey]);
 
     const handleRestoreParticipation = async () => {
         if (!cancelamentoParaRestaurar) return;

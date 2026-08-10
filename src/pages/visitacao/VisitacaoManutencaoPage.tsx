@@ -250,6 +250,7 @@ export function VisitacaoManutencaoPage() {
     const [showCareErrors, setShowCareErrors] = useState(false);
 
     const [isHistory, setIsHistory] = useState(false);
+    const [readOnlyReason, setReadOnlyReason] = useState<'cancelled' | 'historical' | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isDraggingFamilyPhoto, setIsDraggingFamilyPhoto] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -461,6 +462,9 @@ export function VisitacaoManutencaoPage() {
         async function loadVisita() {
             if (!id) return;
             try {
+                setIsHistory(false);
+                setReadOnlyReason(null);
+
                 // 1. Try to fetch from active visits
                 let { data } = await supabase
                     .from('visita_participacao')
@@ -479,9 +483,20 @@ export function VisitacaoManutencaoPage() {
                 let isHistoryRecord = false;
 
                 if (data) {
+                    const participacao = data.participacoes as ParticipacaoComPessoa | null;
+                    const { data: encontroDaVisita, error: encontroError } = await supabase
+                        .from('encontros')
+                        .select('ativo')
+                        .eq('id', participacao?.encontro_id || '')
+                        .maybeSingle();
+
+                    if (encontroError) throw encontroError;
+
+                    const isHistoricalEncounter = encontroDaVisita?.ativo !== true;
                     setVisita(data);
-                    setIsHistory(false);
-                    isHistoryRecord = false;
+                    setIsHistory(isHistoricalEncounter);
+                    setReadOnlyReason(isHistoricalEncounter ? 'historical' : null);
+                    isHistoryRecord = isHistoricalEncounter;
                 } else {
                     // 2. Try to fetch from canceled history
                     const { data: historyData, error: historyError } = await supabase
@@ -498,6 +513,7 @@ export function VisitacaoManutencaoPage() {
                     if (historyData) {
                         isHistoryRecord = true;
                         setIsHistory(true);
+                        setReadOnlyReason('cancelled');
                         // Map history data to match expected structure
                         const mappedData: VisitaParticipacaoEnriched = {
                             id: historyData.id,
@@ -650,6 +666,12 @@ export function VisitacaoManutencaoPage() {
 
     const handleSave = async () => {
         if (!id || !visita) return;
+        if (isHistory) {
+            toast.error(readOnlyReason === 'historical'
+                ? 'Encontros históricos são somente para consulta.'
+                : 'Participações canceladas são somente para consulta.');
+            return;
+        }
 
         if (status === 'cancelada') {
             setMotivoDesistencia('');
@@ -685,6 +707,7 @@ export function VisitacaoManutencaoPage() {
 
     const executeSave = async () => {
         if (!id || !visita) return;
+        if (isHistory) return;
         setShowCareErrors(true);
 
         const cuidadosObrigatorios = [
@@ -709,23 +732,11 @@ export function VisitacaoManutencaoPage() {
         setShowCareErrors(false);
         setSaving(true);
         try {
-            await visitacaoService.atualizarVisita(id, {
-                status,
-                observacoes,
-                foto_familia_url: fotoFamiliaUrl,
-                taxa_paga: taxaPaga,
-                data_visita: status === 'realizada' ? new Date().toISOString() : (visita.data_visita || undefined)
-            });
+            const pessoaAtual = (visita.participacoes as ParticipacaoComPessoa | null)?.pessoas;
+            if (!pessoaAtual?.id) {
+                throw new Error('Encontrista não encontrado para esta visita.');
+            }
 
-            // Update Participation record (Photo is here now)
-            await visitacaoService.atualizarParticipacao(visita.participacao_id, {
-                foto_url: fotoUrl
-            });
-
-            // Update Person record (Correction)
-            const pessoaId = (visita.participacoes as ParticipacaoComPessoa | null)?.pessoas?.id;
-            if (pessoaId) {
-                const pessoaAtual = (visita.participacoes as ParticipacaoComPessoa | null)?.pessoas;
                 const normalizeAddressValue = (value: string | null | undefined) => (value || '').trim().toLowerCase();
                 const addressChanged = [
                     [endereco, pessoaAtual?.endereco],
@@ -744,7 +755,14 @@ export function VisitacaoManutencaoPage() {
                     pessoaAtual?.longitude,
                 );
 
-                await visitacaoService.atualizarPessoa(pessoaId, {
+                await visitacaoService.salvarVisitaCompleta(id, {
+                    status,
+                    observacoes,
+                    fotoFamiliaUrl,
+                    taxaPaga,
+                    dataVisita: status === 'realizada' ? new Date().toISOString() : visita.data_visita,
+                    fotoParticipacaoUrl: fotoUrl,
+                    pessoa: {
                     nome_completo: nomeCompleto,
                     telefone,
                     endereco,
@@ -769,11 +787,9 @@ export function VisitacaoManutencaoPage() {
                     possui_alergia: possuiAlergia,
                     usa_medicamento_continuo: usaMedicamentoContinuo,
                     possui_observacao_saude: possuiObservacaoSaude
+                    },
+                    intencoes,
                 });
-            }
-
-            // Save shirt intentions
-            await visitacaoService.salvarIntencoes(id, intencoes);
 
             toast.success('Dados salvos com sucesso!');
             navigate('/visitacao/meus-participantes');
@@ -881,10 +897,12 @@ export function VisitacaoManutencaoPage() {
             </div>
 
             {isHistory && (
-                <div className="card" style={{ marginBottom: '1.5rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#ef4444' }}>
+                <div className="card" style={{ marginBottom: '1.5rem', backgroundColor: readOnlyReason === 'historical' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)', border: `1px solid ${readOnlyReason === 'historical' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(239, 68, 68, 0.2)'}`, padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', color: readOnlyReason === 'historical' ? '#f59e0b' : '#ef4444' }}>
                     <Info size={20} />
                     <p style={{ margin: 0, fontWeight: 600 }}>
-                        Esta pessoa foi marcada como DESISTENTE e arquivada no histórico. Os dados abaixo são apenas para consulta.
+                        {readOnlyReason === 'historical'
+                            ? 'Este encontro está encerrado. Os dados abaixo são apenas para consulta.'
+                            : 'Esta pessoa foi marcada como DESISTENTE e arquivada no histórico. Os dados abaixo são apenas para consulta.'}
                     </p>
                 </div>
             )}
