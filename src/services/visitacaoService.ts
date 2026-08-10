@@ -19,6 +19,15 @@ export interface IntencaoCamisetaItem {
     camiseta_modelos?: { id: string; nome: string };
 }
 
+/**
+ * Campos que a coordenação da Visitação pode ajustar ao validar a rota.
+ * Informações pessoais, familiares e de saúde continuam no fluxo operacional
+ * da dupla de visitação e na revisão da equipe responsável.
+ */
+export type EnderecoVisitacaoUpdate = Pick<PessoaUpdateData,
+    'endereco' | 'numero' | 'complemento' | 'cep' | 'bairro' | 'cidade' | 'estado' | 'latitude' | 'longitude'
+>;
+
 const GRUPOS_TABLE = 'visita_grupos';
 const PARTICIPACAO_TABLE = 'visita_participacao';
 
@@ -191,6 +200,23 @@ export const visitacaoService = {
 
     async atualizarPessoa(id: string, updates: PessoaUpdateData): Promise<void> {
         await pessoaService.atualizar(id, updates);
+    },
+
+    async atualizarEnderecoParticipante(participacaoId: string, updates: EnderecoVisitacaoUpdate): Promise<void> {
+        const { error } = await supabase.rpc('atualizar_endereco_visitacao', {
+            p_participacao_id: participacaoId,
+            p_endereco: updates.endereco ?? null,
+            p_numero: updates.numero ?? null,
+            p_complemento: updates.complemento ?? null,
+            p_cep: updates.cep ?? null,
+            p_bairro: updates.bairro ?? null,
+            p_cidade: updates.cidade ?? null,
+            p_estado: updates.estado ?? null,
+            p_latitude: updates.latitude ?? null,
+            p_longitude: updates.longitude ?? null,
+        });
+
+        if (error) throw error;
     },
 
     async atualizarParticipacao(id: string, updates: Record<string, unknown>): Promise<void> {

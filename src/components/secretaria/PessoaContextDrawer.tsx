@@ -7,6 +7,7 @@ import {
   CircleDot,
   ClipboardCheck,
   MapPin,
+  Pencil,
   Phone,
   User,
   X,
@@ -24,6 +25,9 @@ interface PessoaContextDrawerProps {
   participacaoId: string | null;
   encontroId: string | null;
   onClose: () => void;
+  /** Edição explícita e sem confirmação; habilitada pela tela que abriu a gaveta. */
+  canEditPessoa?: boolean;
+  onEditPessoa?: (pessoaId: string) => void;
 }
 
 const CIRCLE_PERMISSIONS = [
@@ -60,7 +64,13 @@ function ContextStatus({
   );
 }
 
-export function PessoaContextDrawer({ participacaoId, encontroId, onClose }: PessoaContextDrawerProps) {
+export function PessoaContextDrawer({
+  participacaoId,
+  encontroId,
+  onClose,
+  canEditPessoa = false,
+  onEditPessoa,
+}: PessoaContextDrawerProps) {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const [participacao, setParticipacao] = useState<InscricaoEnriched | null>(null);
@@ -175,6 +185,18 @@ export function PessoaContextDrawer({ participacaoId, encontroId, onClose }: Pes
         </header>
 
         <div className="pessoa-context-body">
+          {canEditPessoa && pessoa?.id && onEditPessoa && (
+            <button
+              type="button"
+              className="pessoa-context-edit"
+              onClick={() => {
+                onClose();
+                onEditPessoa(pessoa.id);
+              }}
+            >
+              <Pencil size={16} /> Editar dados
+            </button>
+          )}
           <section className="pessoa-context-section">
             <h3><User size={17} /> Identificação</h3>
             <div className="pessoa-context-contact">

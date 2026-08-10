@@ -12,6 +12,11 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
+import { useAuth } from '../../hooks/useAuth';
+import { pessoaService } from '../../services/pessoaService';
+import type { Pessoa, PessoaFormData } from '../../types/pessoa';
+import { Modal } from '../../components/ui/Modal';
+import { PessoaForm } from '../../components/pessoa/PessoaForm';
 
 function formatTelefone(tel: string | null | undefined) {
   if (!tel) return '—';
@@ -34,6 +39,7 @@ function formatEnderecoCompleto(pessoa: InscricaoEnriched['pessoas']) {
 export function SecretariaEncontreirosPage() {
   const navigate = useNavigate();
   const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
+  const { hasPermission } = useAuth();
   const { equipes } = useEquipes();
 
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
@@ -47,6 +53,9 @@ export function SecretariaEncontreirosPage() {
   const [motivoCancelamento, setMotivoCancelamento] = useState('');
   const [contextParticipantId, setContextParticipantId] = useState<string | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
+  const [editingPessoa, setEditingPessoa] = useState<Pessoa | null>(null);
+  const [isLoadingPessoaEdit, setIsLoadingPessoaEdit] = useState(false);
+  const [isSavingPessoaEdit, setIsSavingPessoaEdit] = useState(false);
 
   const loadParticipantes = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -83,6 +92,41 @@ export function SecretariaEncontreirosPage() {
   };
 
   const selectedEncontro = encontroSelecionado;
+  const canEditPessoa = Boolean(selectedEncontro?.ativo)
+    && (hasPermission('modulo_secretaria') || hasPermission('modulo_admin'));
+
+  const handleOpenPessoaEdit = async (pessoaId: string) => {
+    setIsLoadingPessoaEdit(true);
+    try {
+      const pessoa = await pessoaService.buscarPorId(pessoaId);
+      setEditingPessoa(pessoa);
+    } catch (error) {
+      console.error('Erro ao carregar dados da pessoa:', error);
+      toast.error('Não foi possível carregar os dados para edição.');
+    } finally {
+      setIsLoadingPessoaEdit(false);
+    }
+  };
+
+  const handlePessoaEditSubmit = async (data: PessoaFormData) => {
+    if (!editingPessoa) return;
+    setIsSavingPessoaEdit(true);
+    try {
+      const updatedPessoa = await pessoaService.atualizar(editingPessoa.id, data);
+      setParticipantes(prev => prev.map(participacao => (
+        participacao.pessoa_id === updatedPessoa.id
+          ? { ...participacao, pessoas: { ...participacao.pessoas, ...updatedPessoa } }
+          : participacao
+      )));
+      setEditingPessoa(null);
+      toast.success('Dados atualizados. A confirmação da equipe não foi alterada.');
+    } catch (error) {
+      console.error('Erro ao salvar dados da pessoa:', error);
+      toast.error('Erro ao salvar alterações.');
+    } finally {
+      setIsSavingPessoaEdit(false);
+    }
+  };
 
   const filteredParticipantes = useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
@@ -409,7 +453,30 @@ export function SecretariaEncontreirosPage() {
         participacaoId={contextParticipantId}
         encontroId={selectedEncontroId || null}
         onClose={() => setContextParticipantId(null)}
+        canEditPessoa={canEditPessoa}
+        onEditPessoa={handleOpenPessoaEdit}
       />
+
+      <Modal
+        isOpen={!!editingPessoa || isLoadingPessoaEdit}
+        onClose={() => {
+          if (!isSavingPessoaEdit) setEditingPessoa(null);
+        }}
+        title={`Editar dados — ${editingPessoa?.nome_completo || 'Encontreiro'}`}
+        maxWidth="920px"
+      >
+        {isLoadingPessoaEdit && !editingPessoa ? (
+          <div style={{ padding: '2rem', textAlign: 'center' }}><Loader className="animate-spin" /></div>
+        ) : editingPessoa ? (
+          <PessoaForm
+            initialData={editingPessoa}
+            onSubmit={handlePessoaEditSubmit}
+            onCancel={() => setEditingPessoa(null)}
+            isLoading={isSavingPessoaEdit}
+            hideConfirmAction
+          />
+        ) : null}
+      </Modal>
 
       <ConfirmDialog
         isOpen={!!participantToUnlink}

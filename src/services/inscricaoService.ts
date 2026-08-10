@@ -246,15 +246,9 @@ export const inscricaoService = {
     },
 
     async confirmarDados(id: string): Promise<Inscricao> {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .update({
-                dados_confirmados: true,
-                confirmado_em: new Date().toISOString()
-            })
-            .eq('id', id)
-            .select()
-            .single();
+        const { data, error } = await supabase.rpc('confirmar_dados_integrante_equipe', {
+            p_participacao_id: id,
+        });
 
         if (error) throw error;
         return data as Inscricao;

@@ -45,7 +45,6 @@ import type { InscricaoEnriched } from '../../types/inscricao';
 import type { VisitaGrupo, VisitaGrupoDeleteImpact, VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
 import type { ParticipacaoCancelada } from '../../services/inscricaoService';
 import { normalizeString, formatPhone } from '../../utils/stringUtils';
-import { pessoaService } from '../../services/pessoaService';
 import { geocodeWithFallback, getAddressByCEP } from '../../utils/geocoding';
 import { resolveAddressCoordinates } from '../../utils/addressCoordinates';
 
@@ -430,7 +429,7 @@ export function CoordenadorVisitacaoPage() {
       };
 
       // 2. Atualiza no banco
-      await pessoaService.atualizar(editingAddressPessoa.pessoa_id, updateData);
+      await visitacaoService.atualizarEnderecoParticipante(editingAddressPessoa.id, updateData);
 
       // 3. Atualiza localmente o estado de participantes para refletir a mudança
       setParticipantes(prev => prev.map(p => {

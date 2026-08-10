@@ -468,13 +468,13 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         <button
                             type="button"
                             className="btn-primary-secondary"
-                            onClick={(e) => handleSubmit(e, hideConfirmAction ? false : true)}
+                            onClick={(e) => handleSubmit(e, false)}
                             disabled={isLoading || isSubmitting}
                             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                         >
-                            {isLoading || isSubmitting ? (
-                                <><Loader size={18} className="animate-spin" /> Salvando...</>
-                            ) : (
+                                {isLoading || isSubmitting ? (
+                                    <><Loader size={18} className="animate-spin" /> Salvando...</>
+                                ) : (
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                                     <Save size={18} />
                                     Salvar
@@ -483,9 +483,9 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         </button>
                         {!hideConfirmAction && (
                             <button
-                                type="button"
-                                className="btn-primary"
-                                onClick={(e) => handleSubmit(e, false)}
+                            type="button"
+                            className="btn-primary"
+                            onClick={(e) => handleSubmit(e, true)}
                                 disabled={isLoading || isSubmitting}
                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                             >
