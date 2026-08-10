@@ -187,19 +187,18 @@ export function PessoaContextDrawer({ participacaoId, encontroId, onClose }: Pes
             </div>
           </section>
 
+          {!isEncontrista && (
           <section className="pessoa-context-section">
-            <h3><ClipboardCheck size={17} /> {isEncontrista ? 'Participação no encontro' : 'Equipe e atuação'}</h3>
-            <div className={`pessoa-context-status-grid ${isEncontrista ? 'is-single' : ''}`}>
+            <h3><ClipboardCheck size={17} /> Equipe e atuação</h3>
+            <div className="pessoa-context-status-grid">
               <ContextStatus
                 label="Dados cadastrais"
                 value={participacao.dados_confirmados === null ? 'Não informado neste módulo' : participacao.dados_confirmados ? 'Confirmados' : 'Aguardando confirmação'}
                 tone={participacao.dados_confirmados === null ? 'neutral' : participacao.dados_confirmados ? 'success' : 'warning'}
               />
-              {!isEncontrista && (
-                <ContextStatus label="Equipe de trabalho" value={participacao.equipes?.nome || 'Sem equipe'} />
-              )}
+              <ContextStatus label="Equipe de trabalho" value={participacao.equipes?.nome || 'Sem equipe'} />
             </div>
-            {!isEncontrista && participacao.equipe_id && (
+            {participacao.equipe_id && (
               <button
                 type="button"
                 className="pessoa-context-link"
@@ -209,6 +208,7 @@ export function PessoaContextDrawer({ participacaoId, encontroId, onClose }: Pes
               </button>
             )}
           </section>
+          )}
 
           <section className="pessoa-context-section">
             <h3><Banknote size={17} /> Financeiro</h3>

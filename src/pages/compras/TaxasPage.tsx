@@ -8,6 +8,7 @@ import { TaxaParticipanteItem } from '../../components/compras/taxas/TaxaPartici
 import { TaxaEquipeSummaryCard } from '../../components/compras/taxas/TaxaEquipeSummaryCard';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
+import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
 
 export function TaxasPage() {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ export function TaxasPage() {
   const initialSearchTerm = searchParams.get('busca') || '';
   const initialActiveTab = searchParams.get('tipo') === 'encontreiro' ? 'equipes' : 'encontristas';
   const [proofGallery, setProofGallery] = useState<{ equipeNome: string; urls: string[] } | null>(null);
+  const [contextParticipacaoId, setContextParticipacaoId] = useState<string | null>(null);
   const encontroData = encontros.find(e => e.id === encontroSelecionadoId);
   const valorTaxa = encontroData?.valor_taxa || 0;
 
@@ -247,6 +249,7 @@ export function TaxasPage() {
               activeTab={activeTab}
               isUpdating={updatingId === p.id}
               onToggle={actions.togglePagamento}
+              onViewContext={setContextParticipacaoId}
             />
           ))
         )}
@@ -259,6 +262,11 @@ export function TaxasPage() {
           onClose={() => setProofGallery(null)}
         />
       )}
+      <PessoaContextDrawer
+        participacaoId={contextParticipacaoId}
+        encontroId={encontroSelecionadoId || null}
+        onClose={() => setContextParticipacaoId(null)}
+      />
     </div>
   );
 }

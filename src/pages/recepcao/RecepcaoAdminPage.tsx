@@ -3,6 +3,7 @@ import {
   CarFrontIcon,
   ChevronLeft,
   Edit2,
+  Eye,
   Loader,
   Palette,
   Plus,
@@ -21,6 +22,7 @@ import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
 import { GroupedDropdown, type GroupedDropdownItem } from '../../components/ui/GroupedDropdown';
+import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { recepcaoService } from '../../services/recepcaoService';
 import { formatPlate } from '../../utils/plateUtils';
@@ -107,6 +109,7 @@ export function RecepcaoAdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedParticipacaoId, setSelectedParticipacaoId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [contextParticipacaoId, setContextParticipacaoId] = useState<string | null>(null);
 
   // Delete state
   const [registroToDelete, setRegistroToDelete] = useState<RecepcaoDados | null>(null);
@@ -515,6 +518,9 @@ export function RecepcaoAdminPage() {
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem', marginLeft: 'auto' }} className="admin-card-actions">
+                  <button onClick={() => setContextParticipacaoId(reg.participacao_id)} className="icon-btn" title="Resumo da pessoa" style={{ padding: '0.6rem' }}>
+                    <Eye size={18} />
+                  </button>
                   <button onClick={() => handleEdit(reg)} className="icon-btn" title="Editar" style={{ padding: '0.6rem' }}>
                     <Edit2 size={18} />
                   </button>
@@ -546,6 +552,12 @@ export function RecepcaoAdminPage() {
           encontroId={selectedEncontroId}
         />
       )}
+
+      <PessoaContextDrawer
+        participacaoId={contextParticipacaoId}
+        encontroId={selectedEncontroId || null}
+        onClose={() => setContextParticipacaoId(null)}
+      />
 
       {selectedDuplaRegistro && (
         <div className="modal-overlay" onClick={handleCloseDuplaContacts}>

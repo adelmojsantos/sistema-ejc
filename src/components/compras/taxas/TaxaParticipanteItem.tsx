@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle, Loader, Users, XCircle } from 'lucide-react';
+import { CheckCircle, Eye, Loader, Users, XCircle } from 'lucide-react';
 import type { InscricaoEnriched } from '../../../types/inscricao';
 
 interface TaxaParticipanteItemProps {
@@ -7,13 +7,15 @@ interface TaxaParticipanteItemProps {
   isUpdating: boolean;
   activeTab: 'encontristas' | 'equipes';
   onToggle: (id: string, currentStatus: boolean) => void;
+  onViewContext: (participacaoId: string) => void;
 }
 
 export const TaxaParticipanteItem: React.FC<TaxaParticipanteItemProps> = ({
   participante,
   isUpdating,
   activeTab,
-  onToggle
+  onToggle,
+  onViewContext,
 }) => {
   const isPago = participante.pago_taxa;
   const duplaVisitante = participante.visita_participacao
@@ -93,6 +95,14 @@ export const TaxaParticipanteItem: React.FC<TaxaParticipanteItemProps> = ({
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', minWidth: '180px' }}>
+        <button
+          type="button"
+          className="btn-secondary"
+          style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem', marginRight: '0.5rem' }}
+          onClick={() => onViewContext(participante.id)}
+        >
+          <Eye size={16} /> Resumo
+        </button>
         <button
           className={isPago ? "btn-secondary" : "btn-primary"}
           style={{

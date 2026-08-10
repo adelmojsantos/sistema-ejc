@@ -5,10 +5,11 @@ import {
   ChevronLeft, ChevronDown, Loader,
   Users, Shield, UserCircle, Eraser, AlertCircle,
   X,
-  UserPlus, Dices, CheckSquare, Square, Camera, ImageOff
+  UserPlus, Dices, CheckSquare, Square, Camera, ImageOff, Eye
 } from 'lucide-react';
 
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
 import { circuloService } from '../../services/circuloService';
 import { circuloParticipacaoService } from '../../services/circuloParticipacaoService';
 import { circuloMediadoresFotoService, type CirculoMediadoresFoto } from '../../services/circuloMediadoresFotoService';
@@ -67,6 +68,7 @@ export function MontagemCirculos() {
 
   // Operações pontuais (add/remove participante)
   const [isOperating, setIsOperating] = useState(false);
+  const [contextParticipacaoId, setContextParticipacaoId] = useState<string | null>(null);
 
   // ── Equipe círculo: busca inteligente e prioritária ──────────────
   const equipeCirculoId = useMemo(() => {
@@ -681,6 +683,15 @@ export function MontagemCirculos() {
                                 <Shield size={12} />
                                 {v.participacoes?.pessoas?.nome_completo ?? '—'}
                                 <button
+                                  type="button"
+                                  className="mc-chip__remove"
+                                  onClick={() => setContextParticipacaoId(v.participacao)}
+                                  title="Resumo da pessoa"
+                                  aria-label={`Abrir resumo de ${v.participacoes?.pessoas?.nome_completo}`}
+                                >
+                                  <Eye size={11} />
+                                </button>
+                                <button
                                   className="mc-chip__remove"
                                   onClick={() => handleDesvincular(v.id)}
                                   disabled={isOperating}
@@ -832,6 +843,15 @@ export function MontagemCirculos() {
                               <span key={v.id} className="mc-chip mc-chip--participant">
                                 {v.participacoes?.pessoas?.nome_completo ?? '—'}
                                 <button
+                                  type="button"
+                                  className="mc-chip__remove"
+                                  onClick={() => setContextParticipacaoId(v.participacao)}
+                                  title="Resumo da pessoa"
+                                  aria-label={`Abrir resumo de ${v.participacoes?.pessoas?.nome_completo}`}
+                                >
+                                  <Eye size={11} />
+                                </button>
+                                <button
                                   className="mc-chip__remove"
                                   onClick={() => handleDesvincular(v.id)}
                                   disabled={isOperating}
@@ -877,6 +897,11 @@ export function MontagemCirculos() {
         )}
 
       </main>
+      <PessoaContextDrawer
+        participacaoId={contextParticipacaoId}
+        encontroId={selectedEncontroId || null}
+        onClose={() => setContextParticipacaoId(null)}
+      />
     </div>
   );
 }
