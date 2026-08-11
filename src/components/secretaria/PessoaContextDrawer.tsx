@@ -73,20 +73,31 @@ export function PessoaContextDrawer({
 }: PessoaContextDrawerProps) {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
-  const [participacao, setParticipacao] = useState<InscricaoEnriched | null>(null);
+  const contextKey = participacaoId && encontroId ? `${participacaoId}:${encontroId}` : null;
+  const [loadedContext, setLoadedContext] = useState<{
+    key: string;
+    participacao: InscricaoEnriched | null;
+  } | null>(null);
+  const participacao = contextKey && loadedContext?.key === contextKey
+    ? loadedContext.participacao
+    : null;
 
   useEffect(() => {
     let cancelled = false;
-    setParticipacao(null);
     if (!participacaoId || !encontroId) return;
+    const requestedContextKey = `${participacaoId}:${encontroId}`;
 
     carregarPessoaContexto(participacaoId, encontroId)
       .then((data) => {
-        if (!cancelled) setParticipacao(data);
+        if (!cancelled) {
+          setLoadedContext({ key: requestedContextKey, participacao: data });
+        }
       })
       .catch((error) => {
         console.error('Erro ao carregar resumo contextual:', error);
-        if (!cancelled) setParticipacao(null);
+        if (!cancelled) {
+          setLoadedContext({ key: requestedContextKey, participacao: null });
+        }
       });
 
     return () => { cancelled = true; };
