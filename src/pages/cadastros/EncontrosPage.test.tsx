@@ -27,6 +27,15 @@ const encontro: Encontro = {
 
 const listar = vi.fn();
 
+vi.mock('../../components/encontro/EncontroForm', () => ({
+  EncontroForm: ({ title, initialData }: { title: string; initialData?: Encontro }) => (
+    <div>
+      <h2>{title}</h2>
+      <input aria-label="Tema" value={initialData?.tema ?? ''} readOnly />
+    </div>
+  ),
+}));
+
 vi.mock('../../services/encontroService', () => ({
   encontroService: {
     listar: (...args: unknown[]) => listar(...args),
