@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { useDebounce } from '../../hooks/useDebounce';
 import logoEjc from '../../assets/logo-ejc.svg';
@@ -22,7 +22,6 @@ import { Modal } from '../../components/ui/Modal';
 
 import { Gear, WhatsappLogo } from 'phosphor-react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
@@ -47,31 +46,17 @@ export function RecreacaoAdminPage() {
 
   const canPrintBadges = hasPermission('modulo_secretaria') || hasPermission('modulo_admin');
 
-  const { encontros, encontroSelecionadoId: selectedEncontroId, encontroSelecionado, selecionarEncontro } = useEncontros();
-  const [searchParams] = useSearchParams();
+  const { encontros, encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
   const [registros, setRegistros] = useState<RecreacaoDados[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 400);
-
-  useEffect(() => {
-    const encontroParam = searchParams.get('encontro');
-    if (encontroParam && encontros.some((encontro) => encontro.id === encontroParam) && encontroParam !== selectedEncontroId) {
-      selecionarEncontro(encontroParam);
-    }
-  }, [encontros, searchParams, selectedEncontroId, selecionarEncontro]);
-
-  useEffect(() => {
-    const responsavelNome = searchParams.get('responsavelNome');
-    if (responsavelNome) setSearchTerm(responsavelNome);
-  }, [searchParams]);
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedParticipacaoId, setSelectedParticipacaoId] = useState<string | null>(null);
   const [selectedChildId, setSelectedChildId] = useState<string | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
-  const [contextParticipacaoId, setContextParticipacaoId] = useState<string | null>(null);
   const [obsToShow, setObsToShow] = useState<string | null>(null);
   const [registroToDelete, setRegistroToDelete] = useState<RecreacaoDados | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -482,16 +467,8 @@ export function RecreacaoAdminPage() {
                       {/* Primeiro Responsável */}
                       <div className="resp-item" style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                         <div className="resp-name" style={{ fontSize: '0.85rem', fontWeight: 700 }}>{reg.participacoes?.pessoas?.nome_completo}</div>
-                        <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>({reg.participacoes?.equipes?.nome || 'Sem Equipe'})</div>
-                        <button
-                          type="button"
-                          className="recreacao-summary-link"
-                          onClick={() => setContextParticipacaoId(reg.participacao_id)}
-                          style={{ alignSelf: 'flex-start', marginTop: '0.25rem' }}
-                        >
-                          Ver resumo
-                        </button>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>({reg.participacoes?.equipes?.nome || 'Sem Equipe'})</div>
                           {reg.participacoes?.pessoas?.telefone && (
                             <a
                               href={`https://wa.me/55${reg.participacoes.pessoas.telefone.replace(/\D/g, '')}`}
@@ -524,16 +501,8 @@ export function RecreacaoAdminPage() {
                           paddingLeft: '1.5rem'
                         }}>
                           <div className="resp-name" style={{ fontSize: '0.85rem', fontWeight: 700 }}>{reg.outro_responsavel.pessoas?.nome_completo}</div>
-                          <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>({reg.outro_responsavel.equipes?.nome})</div>
-                          <button
-                            type="button"
-                            className="recreacao-summary-link"
-                            onClick={() => setContextParticipacaoId(reg.outro_responsavel!.id)}
-                            style={{ alignSelf: 'flex-start', marginTop: '0.25rem' }}
-                          >
-                            Ver resumo
-                          </button>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>({reg.outro_responsavel.equipes?.nome})</div>
                             {reg.outro_responsavel.pessoas?.telefone && (
                               <a
                                 href={`https://wa.me/55${reg.outro_responsavel.pessoas.telefone.replace(/\D/g, '')}`}
@@ -656,12 +625,6 @@ export function RecreacaoAdminPage() {
         />
       )}
 
-      <PessoaContextDrawer
-        participacaoId={contextParticipacaoId}
-        encontroId={selectedEncontroId || null}
-        onClose={() => setContextParticipacaoId(null)}
-      />
-
       <Modal
         isOpen={!!obsToShow}
         onClose={() => setObsToShow(null)}
@@ -724,28 +687,6 @@ export function RecreacaoAdminPage() {
           box-shadow: 0 2px 4px rgba(var(--primary-rgb), 0.2);
           text-transform: uppercase;
           margin-top: 4px;
-        }
-        .recreacao-summary-link {
-          appearance: none;
-          background: transparent;
-          border: 0;
-          box-shadow: none;
-          color: var(--primary-color);
-          cursor: pointer;
-          font: inherit;
-          font-size: 0.75rem;
-          font-weight: 700;
-          line-height: 1.3;
-          padding: 0;
-          text-align: left;
-          text-decoration: underline;
-          text-decoration-thickness: 1px;
-          text-underline-offset: 0.2em;
-        }
-        .recreacao-summary-link:hover {
-          background: transparent;
-          color: var(--primary-hover);
-          transform: none;
         }
         @media (max-width: 768px) {
           .admin-card-content {

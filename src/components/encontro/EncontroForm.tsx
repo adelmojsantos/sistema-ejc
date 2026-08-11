@@ -7,6 +7,7 @@ import { CurrencyFormField } from '../ui/CurrencyFormField';
 import { FormRow } from '../ui/FormRow';
 import { FormSection } from '../ui/FormSection';
 import toast from 'react-hot-toast';
+import { buildPublicFormUrl } from '../../utils/publicFormUrl';
 
 interface EncontroFormProps {
     title: string;
@@ -80,7 +81,8 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
 
     const handleCopy = (e: React.MouseEvent) => {
         e.stopPropagation();
-        const url = `${window.location.origin}/formulario?encontro=${initialData?.id}`;
+        if (!initialData?.id) return;
+        const url = buildPublicFormUrl(initialData.id);
         navigator.clipboard.writeText(url);
 
         setCopied(true);

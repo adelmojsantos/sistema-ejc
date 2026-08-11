@@ -25,6 +25,7 @@ import {
   Baby,
   Car,
   ClipboardCheck,
+  Copy,
   LayoutGrid,
   ArrowRight,
   ExternalLink
@@ -60,6 +61,7 @@ import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
 import { EquipeMapaModal } from '../../components/coordenador/EquipeMapaModal';
 import { Minus, Plus } from 'phosphor-react';
+import { buildPublicFormUrl } from '../../utils/publicFormUrl';
 
 interface EquipeMember {
   id: string;
@@ -195,6 +197,8 @@ export function CoordenadorMinhaEquipePage() {
     totalEnviados: number;
   } | null>(null);
   const [isLoadingAvaliacao, setIsLoadingAvaliacao] = useState(false);
+  const [publicFormPublished, setPublicFormPublished] = useState(false);
+  const [publicFormLinkCopied, setPublicFormLinkCopied] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -263,6 +267,7 @@ export function CoordenadorMinhaEquipePage() {
 
   const loadMembers = useCallback(async () => {
     if (!userParticipacao) {
+      setPublicFormPublished(false);
       setLoading(false);
       return;
     }
@@ -295,13 +300,15 @@ export function CoordenadorMinhaEquipePage() {
       }
 
       // Get encounter fee and PIX info
+      setPublicFormPublished(false);
       const { data: encData } = await supabase
         .from('encontros')
-        .select('valor_taxa, pix_taxa_chave, pix_taxa_tipo, pix_taxa_qrcode_url, pix_camisetas_chave, pix_camisetas_tipo, pix_camisetas_qrcode_url')
+        .select('valor_taxa, pix_taxa_chave, pix_taxa_tipo, pix_taxa_qrcode_url, pix_camisetas_chave, pix_camisetas_tipo, pix_camisetas_qrcode_url, formulario_publico_ativo')
         .eq('id', userParticipacao.encontro_id)
         .single();
 
       if (encData) {
+        setPublicFormPublished(Boolean(encData.formulario_publico_ativo));
         setValorTaxa(encData.valor_taxa || 0);
         setPixTaxa({
           chave: encData.pix_taxa_chave,
@@ -360,6 +367,21 @@ export function CoordenadorMinhaEquipePage() {
       toast.error('Erro ao desvincular integrante.');
     } finally {
       setIsConfirmingDelete(false);
+    }
+  };
+
+  const handleCopyPublicFormLink = async () => {
+    if (!userParticipacao?.coordenador || !userParticipacao.encontro_id || !publicFormPublished) return;
+
+    const url = buildPublicFormUrl(userParticipacao.encontro_id);
+    try {
+      await navigator.clipboard.writeText(url);
+      setPublicFormLinkCopied(true);
+      toast.success('Link de Recepção e Recreação copiado.');
+      window.setTimeout(() => setPublicFormLinkCopied(false), 2000);
+    } catch (error) {
+      console.error('Erro ao copiar link dos formulários públicos:', error);
+      toast.error('Não foi possível copiar o link.');
     }
   };
 
@@ -830,6 +852,18 @@ export function CoordenadorMinhaEquipePage() {
         </div>
 
         <div className="team-header-actions" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto', justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
+          {userParticipacao?.coordenador && publicFormPublished && (
+            <button
+              type="button"
+              onClick={() => void handleCopyPublicFormLink()}
+              className="btn-secondary flex items-center gap-2"
+              style={{ fontSize: '0.85rem', padding: '0.5rem 1rem', width: isMobile ? '100%' : 'auto' }}
+              title="Copiar o link publicado para cadastro de veículos e crianças"
+            >
+              {publicFormLinkCopied ? <Check size={16} /> : <Copy size={16} />}
+              <span>{publicFormLinkCopied ? 'Link copiado' : 'Link Recepção e Recreação'}</span>
+            </button>
+          )}
           {members.length > 0 && (
             <button
               onClick={() => setShowTeamMapModal(true)}

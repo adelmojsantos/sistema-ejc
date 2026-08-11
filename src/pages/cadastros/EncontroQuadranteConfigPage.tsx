@@ -1,4 +1,5 @@
 import {
+    AlertTriangle,
     Check,
     Copy,
     Download,
@@ -41,6 +42,12 @@ const sanitizeFileName = (value: string) =>
         .replace(/[^a-zA-Z0-9_-]+/g, '_')
         .replace(/^_+|_+$/g, '');
 
+const isHistoricalEncounter = (encontro: Encontro | null) => {
+    if (!encontro?.data_fim || encontro.ativo) return false;
+    const endOfEncounter = new Date(`${encontro.data_fim}T23:59:59`);
+    return !Number.isNaN(endOfEncounter.getTime()) && endOfEncounter < new Date();
+};
+
 export function EncontroQuadranteConfigPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -64,6 +71,7 @@ export function EncontroQuadranteConfigPage() {
     const [musicaLetra, setMusicaLetra] = useState('');
     const [visibilityConfig, setVisibilityConfig] = useState<QuadranteVisibilityConfig>(quadranteVisibilityDefault);
     const [uploadingLogo, setUploadingLogo] = useState(false);
+    const isHistorical = isHistoricalEncounter(encontro);
 
 
     useEffect(() => {
@@ -103,12 +111,32 @@ export function EncontroQuadranteConfigPage() {
 
     const handleSaveAcesso = async () => {
         if (!id) return;
+        if (isHistorical && !encontro?.quadrante_ativo) {
+            toast.error('O acesso de um Quadrante histórico desativado não pode ser reaberto.');
+            return;
+        }
+        if (isHistorical && ativo) {
+            const isOnlyPinChange = encontro?.quadrante_ativo && pin !== (encontro.quadrante_pin || '');
+            if (!isOnlyPinChange) return;
+        }
+        if (
+            isHistorical
+            && encontro?.quadrante_ativo
+            && !ativo
+            && !window.confirm('Desativar o Quadrante histórico? O link público deixará de funcionar imediatamente e não poderá ser reativado por esta tela.')
+        ) return;
+
         setSaving(true);
         try {
             await encontroService.configurarQuadrante(id, {
                 ativo,
                 pin: pin || null
             });
+            setEncontro(prev => prev ? {
+                ...prev,
+                quadrante_ativo: ativo,
+                quadrante_pin: pin || null
+            } : prev);
             toast.success('Configurações de acesso salvas!');
         } catch (error) {
             console.error('Erro ao salvar acesso:', error);
@@ -120,6 +148,10 @@ export function EncontroQuadranteConfigPage() {
 
     const handleSaveEditorial = async () => {
         if (!id) return;
+        if (isHistorical) {
+            toast.error('O conteúdo de um Quadrante histórico é somente leitura.');
+            return;
+        }
         setSaving(true);
         try {
             await encontroService.salvarDadosEditoriais(id, {
@@ -148,6 +180,10 @@ export function EncontroQuadranteConfigPage() {
 
     const handleLogoUpload = async (file?: File) => {
         if (!id || !file) return;
+        if (isHistorical) {
+            toast.error('A logo de um Quadrante histórico não pode ser alterada.');
+            return;
+        }
         if (!file.type.startsWith('image/')) {
             toast.error('Selecione um arquivo de imagem.');
             return;
@@ -168,6 +204,7 @@ export function EncontroQuadranteConfigPage() {
     };
 
     const updateVisibility = (key: keyof QuadranteVisibilityConfig, value: boolean) => {
+        if (isHistorical) return;
         setVisibilityConfig(prev => ({ ...prev, [key]: value }));
     };
 
@@ -301,6 +338,19 @@ export function EncontroQuadranteConfigPage() {
                 }
             />
 
+            {isHistorical && (
+                <div className="historical-quadrante-notice" role="status">
+                    <AlertTriangle size={20} aria-hidden="true" />
+                    <div>
+                        <strong>Quadrante histórico em modo somente leitura</strong>
+                        <span>
+                            O conteúdo publicado foi preservado. Ainda é possível copiar e visualizar o link,
+                            alterar o PIN enquanto estiver publicado, desativar o acesso ou rotacionar o token.
+                        </span>
+                    </div>
+                </div>
+            )}
+
             {/* Abas de Navegação */}
             <div className="tabs-container">
                 <button
@@ -313,7 +363,7 @@ export function EncontroQuadranteConfigPage() {
                     className={`tab-link ${activeTab === 'conteudo' ? 'active' : ''}`}
                     onClick={() => setActiveTab('conteudo')}
                 >
-                    <Type size={18} /> 2. Conteúdo Visual
+                    <Type size={18} /> 2. {isHistorical ? 'Conteúdo publicado' : 'Conteúdo Visual'}
                 </button>
             </div>
 
@@ -342,12 +392,14 @@ export function EncontroQuadranteConfigPage() {
                                                 <button
                                                     className={`toggle-btn ${!ativo ? 'active-nao' : ''}`}
                                                     onClick={() => setAtivo(false)}
+                                                    disabled={isHistorical && !encontro.quadrante_ativo}
                                                 >
                                                     Não
                                                 </button>
                                                 <button
                                                     className={`toggle-btn ${ativo ? 'active-sim' : ''}`}
                                                     onClick={() => setAtivo(true)}
+                                                    disabled={isHistorical}
                                                 >
                                                     Sim
                                                 </button>
@@ -376,18 +428,30 @@ export function EncontroQuadranteConfigPage() {
                                                 onChange={e => setPin(e.target.value)}
                                                 maxLength={6}
                                                 inputMode="numeric"
+                                                disabled={isHistorical && !encontro.quadrante_ativo}
                                                 style={{ letterSpacing: (showPin || !pin) ? 'normal' : '0.35em' }}
                                             />
                                             <button
                                                 type="button"
                                                 onClick={() => setShowPin(!showPin)}
                                                 className="pin-toggle-btn"
+                                                disabled={isHistorical && !encontro.quadrante_ativo}
                                                 title={showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
                                             >
                                                 {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
                                             </button>
                                         </div>
-                                        <button className="btn-primary pin-save-btn" onClick={handleSaveAcesso} disabled={saving}>
+                                        <button
+                                            className="btn-primary pin-save-btn"
+                                            onClick={handleSaveAcesso}
+                                            disabled={
+                                                saving
+                                                || (isHistorical && !encontro.quadrante_ativo)
+                                                || (isHistorical
+                                                    && ativo
+                                                    && pin === (encontro.quadrante_pin || ''))
+                                            }
+                                        >
                                             {saving ? 'Salvando...' : <><RefreshCw size={18} /> Atualizar Acesso</>}
                                         </button>
                                     </div>
@@ -513,7 +577,7 @@ export function EncontroQuadranteConfigPage() {
                                         type="button"
                                         className="btn-secondary"
                                         onClick={() => logoInputRef.current?.click()}
-                                        disabled={uploadingLogo}
+                                        disabled={uploadingLogo || isHistorical}
                                     >
                                         <Upload size={16} /> {uploadingLogo ? 'Enviando...' : logoUrl ? 'Trocar logo' : 'Enviar logo'}
                                     </button>
@@ -533,13 +597,15 @@ export function EncontroQuadranteConfigPage() {
                                             >
                                                 <Download size={16} /> Baixar
                                             </button>
-                                            <button
-                                                type="button"
-                                                className="btn-outline compact-danger"
-                                                onClick={() => setLogoUrl('')}
-                                            >
-                                                <X size={16} /> Remover
-                                            </button>
+                                            {!isHistorical && (
+                                                <button
+                                                    type="button"
+                                                    className="btn-outline compact-danger"
+                                                    onClick={() => setLogoUrl('')}
+                                                >
+                                                    <X size={16} /> Remover
+                                                </button>
+                                            )}
                                         </>
                                     )}
                                     <p className="field-hint">Use uma imagem quadrada ou com fundo transparente para melhor resultado.</p>
@@ -570,6 +636,7 @@ export function EncontroQuadranteConfigPage() {
                                                 type="button"
                                                 className={`toggle-btn ${!visibilityConfig[option.key] ? 'active-nao' : ''}`}
                                                 onClick={() => updateVisibility(option.key, false)}
+                                                disabled={isHistorical}
                                             >
                                                 Não
                                             </button>
@@ -577,6 +644,7 @@ export function EncontroQuadranteConfigPage() {
                                                 type="button"
                                                 className={`toggle-btn ${visibilityConfig[option.key] ? 'active-sim' : ''}`}
                                                 onClick={() => updateVisibility(option.key, true)}
+                                                disabled={isHistorical}
                                             >
                                                 Sim
                                             </button>
@@ -606,7 +674,7 @@ export function EncontroQuadranteConfigPage() {
                                         <RichTextEditor
                                             content={simbologiaTexto}
                                             onChange={setSimbologiaTexto}
-                                            disabled={saving}
+                                            disabled={saving || isHistorical}
                                             minHeight="180px"
                                         />
                                     </div>
@@ -619,7 +687,7 @@ export function EncontroQuadranteConfigPage() {
                                         <RichTextEditor
                                             content={tematicaTexto}
                                             onChange={setTematicaTexto}
-                                            disabled={saving}
+                                            disabled={saving || isHistorical}
                                             minHeight="180px"
                                         />
                                     </div>
@@ -632,23 +700,62 @@ export function EncontroQuadranteConfigPage() {
                                         <RichTextEditor
                                             content={musicaLetra}
                                             onChange={setMusicaLetra}
-                                            disabled={saving}
+                                            disabled={saving || isHistorical}
                                             minHeight="220px"
                                         />
                                     </div>
                                 </div>
 
-                            <div className="card-footer-actions">
-                                <button className="btn-primary" onClick={handleSaveEditorial} disabled={saving || uploadingLogo}>
-                                    {saving ? 'Salvando...' : <><Check size={18} /> Salvar conteúdo e seções</>}
-                                </button>
-                            </div>
+                            {!isHistorical && (
+                                <div className="card-footer-actions">
+                                    <button className="btn-primary" onClick={handleSaveEditorial} disabled={saving || uploadingLogo}>
+                                        {saving ? 'Salvando...' : <><Check size={18} /> Salvar conteúdo e seções</>}
+                                    </button>
+                                </div>
+                            )}
                         </section>
                     </div>
                 )}
             </div>
 
             <style>{`
+                .historical-quadrante-notice {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 0.8rem;
+                    margin-bottom: 1.25rem;
+                    padding: 1rem 1.15rem;
+                    border: 1px solid rgba(245, 158, 11, 0.38);
+                    border-radius: 12px;
+                    background: rgba(245, 158, 11, 0.09);
+                    color: var(--text-color);
+                }
+
+                .historical-quadrante-notice > svg {
+                    flex: 0 0 auto;
+                    margin-top: 0.1rem;
+                    color: #f59e0b;
+                }
+
+                .historical-quadrante-notice div {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.25rem;
+                    min-width: 0;
+                }
+
+                .historical-quadrante-notice span {
+                    color: var(--muted-text);
+                    font-size: 0.86rem;
+                    line-height: 1.5;
+                }
+
+                .toggle-btn:disabled,
+                .pin-toggle-btn:disabled {
+                    cursor: not-allowed;
+                    opacity: 0.5;
+                }
+
                 /* Tabs Style - Pill Pattern (Image 1) */
                 .tabs-container {
                     display: flex;

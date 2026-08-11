@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Variants } from 'framer-motion';
 import { motion } from 'framer-motion';
-import { AlertCircle, ArrowRight, CheckCircle2, RefreshCw } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, ClipboardCheck, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getDashboardMetrics } from '../config/dashboard';
 import { getNavigationModules } from '../config/navigation';
@@ -97,22 +97,34 @@ export function Home() {
               <h2 id="dashboard-work-title">Meu trabalho</h2>
               <p>Prioridades e números essenciais para sua função.</p>
             </div>
-            <button
-              type="button"
-              className="dashboard-work__refresh"
-              onClick={loadSummary}
-              disabled={summaryLoading}
-              aria-label="Atualizar resumo do dashboard"
-            >
-              <RefreshCw
-                size={17}
-                strokeWidth={2.25}
-                aria-hidden="true"
-                className={summaryLoading ? 'is-spinning' : undefined}
-                style={{ color: 'var(--text-color)', stroke: 'currentColor', opacity: 1 }}
-              />
-              Atualizar
-            </button>
+            <div className="dashboard-work__actions">
+              {hasPermission('modulo_admin') && (
+                <button
+                  type="button"
+                  className="dashboard-work__preparation"
+                  onClick={() => navigate('/cadastros/preparacao')}
+                >
+                  <ClipboardCheck size={17} aria-hidden="true" />
+                  <span>Preparação do encontro</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="dashboard-work__refresh"
+                onClick={loadSummary}
+                disabled={summaryLoading}
+                aria-label="Atualizar resumo do dashboard"
+              >
+                <RefreshCw
+                  size={17}
+                  strokeWidth={2.25}
+                  aria-hidden="true"
+                  className={summaryLoading ? 'is-spinning' : undefined}
+                  style={{ color: 'var(--text-color)', stroke: 'currentColor', opacity: 1 }}
+                />
+                Atualizar
+              </button>
+            </div>
           </div>
 
           {(summaryLoading || encontroLoading) && !summary && (

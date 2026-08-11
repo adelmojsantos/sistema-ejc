@@ -47,6 +47,38 @@ Quando houver dúvida, procure evidências nesta ordem:
 
 Se ainda existir ambiguidade relevante, explicite a hipótese adotada.
 
+### 1.1. Ciclo de proposta, aprovação e execução
+
+Para melhorias evolutivas, mudanças de UX, alterações de fluxo, regras de negócio,
+permissões, banco de dados ou qualquer trabalho cujo resultado admita decisões de
+produto, siga obrigatoriamente este ciclo:
+
+1. analise o comportamento atual e as dependências envolvidas;
+2. apresente o que pretende alterar, por que a mudança é necessária, o impacto
+   esperado, os riscos e como ela será validada;
+3. aguarde a aprovação explícita do usuário antes de editar código ou banco;
+4. se o usuário corrigir uma premissa ou regra de negócio, revise a proposta e
+   volte a aguardar aprovação;
+5. após a aprovação, implemente somente o escopo aprovado;
+6. valide localmente e apresente o resultado para homologação;
+7. trate commit, push, criação ou atualização de PR, merge, migration remota e
+   deploy como autorizações separadas. Não presuma que aprovar a implementação
+   autoriza publicação ou alteração de ambiente remoto.
+
+Em ciclos iterativos de layout e UX, faça primeiro a validação visual/local
+necessária para a homologação do resultado. Não execute novamente toda a suíte,
+lint e build após cada pequeno ajuste visual, salvo quando houver risco funcional
+imediato. Depois que o usuário aprovar o layout local e antes de criar ou atualizar
+o PR, execute em conjunto todas as verificações funcionais, testes, lint e build
+aplicáveis ao fluxo concluído.
+
+Uma aprovação vale apenas para a proposta apresentada. Descobertas que mudem
+materialmente o comportamento, a segurança, o escopo ou as regras de negócio
+exigem nova proposta e nova aprovação.
+
+Correções específicas que o usuário autorizar antecipadamente podem ser
+executadas sem repetir o ciclo, mas apenas dentro dos limites dessa autorização.
+
 ---
 
 ## 2. Stack principal
