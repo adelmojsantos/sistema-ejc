@@ -1,50 +1,35 @@
-import { CheckCircle, ChevronDown, ChevronLeft, ChevronUp, Copy, Download, FileText, Loader, Plus, Search, Shirt, Trash2, X } from 'lucide-react';
+import { CheckCircle, ChevronDown, ChevronLeft, Copy, Download, FileText, Loader, Plus, Search, Shirt, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { CamisetaSeparationPanel, type CamisetaSeparationItem } from '../../components/compras/CamisetaSeparationPanel';
 import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
-import { StorageLink } from '../../components/storage/StorageLink';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useDebounce } from '../../hooks/useDebounce';
 import { supabase } from '../../lib/supabase';
 import { camisetaService } from '../../services/camisetaService';
-import { comprasService, type CamisetaEquipeReport, type IntencaoCamisetaDetalhe, type ResumoCamisetas, type ResumoIntencoes } from '../../services/comprasService';
+import { comprasService, type CamisetaEquipeReport, type IntencaoCamisetaDetalhe } from '../../services/comprasService';
 import { equipeService } from '../../services/equipeService';
 import type { CamisetaModelo, CamisetaTamanho } from '../../types/camiseta';
 import type { Equipe } from '../../types/equipe';
 
 type PedidoDetalhado = Awaited<ReturnType<typeof comprasService.listarPedidosDetalhados>>[number];
-type DetailsConfig = {
-  origem: 'pedido' | 'intencao';
-  modeloId: string;
-  tamanho: string;
-  modeloNome: string;
-};
-
 export function PedidosCamisetasPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { encontros, encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const encontroData = encontros.find(e => e.id === selectedEncontroId);
   const [pedidos, setPedidos] = useState<PedidoDetalhado[]>([]);
-  const [resumo, setResumo] = useState<ResumoCamisetas[]>([]);
   const [relatorioEquipes, setRelatorioEquipes] = useState<CamisetaEquipeReport[]>([]);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
 
   const [selectedEquipeId, setSelectedEquipeId] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('busca') || '');
-  const [showResumo, setShowResumo] = useState(false);
-  const [showIntencoes, setShowIntencoes] = useState(false);
-  const [resumoIntencoes, setResumoIntencoes] = useState<ResumoIntencoes[]>([]);
   const [intencoesDetalhadas, setIntencoesDetalhadas] = useState<IntencaoCamisetaDetalhe[]>([]);
-  const [viewDetailsConfig, setViewDetailsConfig] = useState<DetailsConfig | null>(null);
-  const [showPaidIntentions, setShowPaidIntentions] = useState(false);
-  const [paidIntentionsSearch, setPaidIntentionsSearch] = useState('');
   const [proofGallery, setProofGallery] = useState<{ equipeNome: string; urls: string[] } | null>(null);
-  const [intencaoPaymentFilter, setIntencaoPaymentFilter] = useState<'todos' | 'pagos' | 'pendentes'>('todos');
   const debouncedSearch = useDebounce(searchTerm, 400);
 
   // Estados para Novo Pedido
@@ -65,7 +50,7 @@ export function PedidosCamisetasPage() {
 
   // Bloqueia a rolagem do corpo da página quando um modal está aberto
   useEffect(() => {
-    if (viewDetailsConfig || showPaidIntentions || isAddingOrder) {
+    if (isAddingOrder) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -73,31 +58,23 @@ export function PedidosCamisetasPage() {
     return () => {
       document.body.style.overflow = '';
     };
-  }, [viewDetailsConfig, showPaidIntentions, isAddingOrder]);
-
-  useEffect(() => {
-    setIntencaoPaymentFilter('todos');
-  }, [viewDetailsConfig]);
+  }, [isAddingOrder]);
 
   const loadData = useCallback(async () => {
     if (!selectedEncontroId) return;
     setLoading(true);
     try {
-      const [pedData, resData, eqData, relEqData, modsData, tamsData, intData, intDetailsData] = await Promise.all([
+      const [pedData, eqData, relEqData, modsData, tamsData, intDetailsData] = await Promise.all([
         comprasService.listarPedidosDetalhados(selectedEncontroId),
-        comprasService.listarResumoCamisetas(selectedEncontroId),
         equipeService.listar(),
         comprasService.listarRelatorioCamisetasPorEquipe(selectedEncontroId),
         camisetaService.listarModelos(selectedEncontroId),
         camisetaService.listarTamanhos(),
-        comprasService.listarResumoIntencoes(selectedEncontroId).catch(() => [] as ResumoIntencoes[]),
         comprasService.listarDetalhesIntencoes(selectedEncontroId).catch(() => [] as IntencaoCamisetaDetalhe[])
       ]);
       setPedidos(pedData);
-      setResumo(resData);
       setEquipes(eqData);
       setRelatorioEquipes(relEqData);
-      setResumoIntencoes(intData);
       setIntencoesDetalhadas(intDetailsData);
       // Filtra apenas modelos ativos para este encontro
       setModelosCamiseta(modsData.filter(m => m.esta_ativo_no_encontro !== false));
@@ -184,293 +161,171 @@ export function PedidosCamisetasPage() {
     }));
   }, [filteredPedidos, tamanhosCamiseta]);
 
-  const detailsItems = useMemo(() => {
-    if (!viewDetailsConfig) return [];
+  const teamSeparationItems = useMemo<CamisetaSeparationItem[]>(() => pedidos.map(pedido => ({
+    id: `equipe-${pedido.id}`,
+    groupKey: pedido.equipe_id || 'sem-equipe',
+    groupName: pedido.equipe_nome || 'Sem equipe de trabalho',
+    personName: pedido.pessoa_nome,
+    modelName: pedido.camiseta_modelos?.nome || 'Modelo não identificado',
+    size: pedido.tamanho || 'Não informado',
+    quantity: pedido.quantidade,
+    paid: pedido.pago_camiseta,
+    missingGroup: !pedido.equipe_id,
+  })), [pedidos]);
 
-    if (viewDetailsConfig.origem === 'intencao') {
-      return intencoesDetalhadas
-        .filter(item => item.modelo_id === viewDetailsConfig.modeloId && item.tamanho === viewDetailsConfig.tamanho)
-        .filter(item => intencaoPaymentFilter === 'todos'
-          || (intencaoPaymentFilter === 'pagos' && item.pago)
-          || (intencaoPaymentFilter === 'pendentes' && !item.pago))
-        .sort((a, b) => a.encontrista_nome.localeCompare(b.encontrista_nome))
-        .map(item => ({
-          id: item.id,
-          nome: item.encontrista_nome,
-          referencia: item.dupla_nome ? `Visitado por ${item.dupla_nome}` : 'Dupla não informada',
-          quantidade: item.quantidade,
-          pago: item.pago,
-          comprovante_url: item.comprovante_url,
-          pago_em: item.pago_em
-        }));
-    }
-
-    return pedidos
-      .filter(p => p.modelo_id === viewDetailsConfig.modeloId && p.tamanho === viewDetailsConfig.tamanho)
-      .sort((a, b) => a.pessoa_nome.localeCompare(b.pessoa_nome))
-      .map(p => ({
-        id: p.id,
-        nome: p.pessoa_nome,
-        referencia: p.dupla_visitante_nome ? `Visitado por ${p.dupla_visitante_nome}` : p.equipe_nome,
-        quantidade: p.quantidade,
-        pago: undefined,
-        comprovante_url: null,
-        pago_em: null
-      }));
-  }, [intencaoPaymentFilter, intencoesDetalhadas, pedidos, viewDetailsConfig]);
-
-  const paidIntentions = useMemo(() => (
-    intencoesDetalhadas
-      .filter(item => item.pago)
-      .sort((a, b) => {
-        const nameCompare = a.encontrista_nome.localeCompare(b.encontrista_nome);
-        return nameCompare !== 0 ? nameCompare : a.modelo_nome.localeCompare(b.modelo_nome);
-      })
-  ), [intencoesDetalhadas]);
-
-  const filteredPaidIntentions = useMemo(() => {
-    const normalizedSearch = paidIntentionsSearch.trim().toLocaleLowerCase('pt-BR');
-    if (!normalizedSearch) return paidIntentions;
-
-    return paidIntentions.filter(item =>
-      item.encontrista_nome.toLocaleLowerCase('pt-BR').includes(normalizedSearch)
-    );
-  }, [paidIntentions, paidIntentionsSearch]);
+  const encounteredSeparationItems = useMemo<CamisetaSeparationItem[]>(() => intencoesDetalhadas.map(pedido => ({
+    id: `encontrista-${pedido.id}`,
+    groupKey: pedido.dupla_nome || 'sem-dupla',
+    groupName: pedido.dupla_nome || 'Sem dupla de visitação',
+    personName: pedido.encontrista_nome,
+    modelName: pedido.modelo_nome || 'Modelo não identificado',
+    size: pedido.tamanho || 'Não informado',
+    quantity: pedido.quantidade,
+    paid: pedido.pago,
+    missingGroup: !pedido.dupla_nome,
+    proofReference: pedido.comprovante_url,
+  })), [intencoesDetalhadas]);
 
   const handleCopySummary = () => {
-    if (resumo.length === 0) {
+    const allItems = [...teamSeparationItems, ...encounteredSeparationItems];
+    if (allItems.length === 0) {
       toast.error('Não há dados para copiar.');
       return;
     }
 
-    let text = `👕 *RESUMO DE CAMISETAS*\n`;
-    text += `Encontro: ${encontros.find(e => e.id === selectedEncontroId)?.nome}\n\n`;
+    const summary = new Map<string, {
+      modelName: string;
+      size: string;
+      team: number;
+      encountered: number;
+      paid: number;
+    }>();
+    const addItem = (item: CamisetaSeparationItem, source: 'team' | 'encountered') => {
+      const key = `${item.modelName}__${item.size}`;
+      const current = summary.get(key) ?? {
+        modelName: item.modelName,
+        size: item.size,
+        team: 0,
+        encountered: 0,
+        paid: 0,
+      };
+      current[source] += item.quantity;
+      if (item.paid) current.paid += item.quantity;
+      summary.set(key, current);
+    };
+    teamSeparationItems.forEach(item => addItem(item, 'team'));
+    encounteredSeparationItems.forEach(item => addItem(item, 'encountered'));
 
-    resumo.forEach(m => {
-      text += `📦 *${m.modelo_nome.toUpperCase()}*\n`;
-      Object.entries(m.tamanhos)
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .forEach(([tam, qtd]) => {
-          text += `• ${tam}: ${qtd}\n`;
-        });
-      text += `👉 *Total: ${m.total}*\n\n`;
-    });
+    let text = `👕 *PEDIDOS DE CAMISETAS*\n`;
+    text += `Encontro: ${encontros.find(e => e.id === selectedEncontroId)?.nome}\n\n`;
+    Array.from(summary.values())
+      .sort((a, b) => a.modelName.localeCompare(b.modelName, 'pt-BR') || a.size.localeCompare(b.size, 'pt-BR'))
+      .forEach(item => {
+        const total = item.team + item.encountered;
+        text += `• *${item.modelName} · ${item.size}*: ${total} `;
+        text += `(equipes ${item.team}, encontristas ${item.encountered}, pagas ${item.paid})\n`;
+      });
 
     navigator.clipboard.writeText(text);
-    toast.success('Resumo copiado para o clipboard!');
+    toast.success('Resumo copiado.');
   };
 
-  const sanitizeSheetName = (name: string) => {
-    const sanitized = name.replace(/[:\\/?*[\]]/g, ' ').replace(/\s+/g, ' ').trim();
-    return (sanitized || 'Equipe').slice(0, 31);
-  };
+  const handleExportSeparacaoExcel = (onlyPaid: boolean) => {
+    const filterItems = (items: CamisetaSeparationItem[]) => onlyPaid
+      ? items.filter(item => item.paid)
+      : items;
+    const teamItems = filterItems(teamSeparationItems);
+    const encounteredItems = filterItems(encounteredSeparationItems);
+    const allItems = [...teamItems, ...encounteredItems];
 
-  const handleExportTotaisExcel = () => {
-    const getSizeOrder = (modeloId: string, tamanho: string) => {
-      return tamanhosCamiseta.find(t => t.sigla === tamanho && (t.modelo_id === modeloId || !t.modelo_id))?.ordem ?? 999;
-    };
-
-    const makeKey = (modeloId: string, tamanho: string) => `${modeloId}__${tamanho}`;
+    if (allItems.length === 0) {
+      toast.error(onlyPaid ? 'Não há pedidos pagos para exportar.' : 'Não há pedidos para exportar.');
+      return;
+    }
 
     const totalsMap = new Map<string, {
-      modelo_id: string;
-      modelo_nome: string;
-      tamanho: string;
-      pedidos: number;
-      intencoes: number;
+      modelName: string;
+      size: string;
+      teamTotal: number;
+      encounteredTotal: number;
+      paidTotal: number;
+      pendingTotal: number;
     }>();
 
-    pedidos.forEach(p => {
-      const tamanho = p.tamanho || 'Não Informado';
-      const key = makeKey(p.modelo_id, tamanho);
-      if (!totalsMap.has(key)) {
-        totalsMap.set(key, {
-          modelo_id: p.modelo_id,
-          modelo_nome: p.camiseta_modelos?.nome || 'Modelo não identificado',
-          tamanho,
-          pedidos: 0,
-          intencoes: 0
-        });
-      }
-      totalsMap.get(key)!.pedidos += p.quantidade;
-    });
-
-    intencoesDetalhadas.forEach(item => {
-      const tamanho = item.tamanho || 'Não Informado';
-      const key = makeKey(item.modelo_id, tamanho);
-      if (!totalsMap.has(key)) {
-        totalsMap.set(key, {
-          modelo_id: item.modelo_id,
-          modelo_nome: item.modelo_nome || 'Modelo não identificado',
-          tamanho,
-          pedidos: 0,
-          intencoes: 0
-        });
-      }
-      totalsMap.get(key)!.intencoes += item.quantidade;
-    });
-
-    const sortedTotals = Array.from(totalsMap.values()).sort((a, b) => {
-      const modelCompare = a.modelo_nome.localeCompare(b.modelo_nome);
-      if (modelCompare !== 0) return modelCompare;
-      return getSizeOrder(a.modelo_id, a.tamanho) - getSizeOrder(b.modelo_id, b.tamanho);
-    });
-
-    const totalRows = sortedTotals.map(item => ({
-      'Modelo': item.modelo_nome,
-      'Tamanho': item.tamanho,
-      'Equipes': item.pedidos,
-      'Intenção encontristas': item.intencoes,
-      'Total': item.pedidos + item.intencoes
-    }));
-
-    totalRows.push({
-      'Modelo': 'TOTAL GERAL',
-      'Tamanho': '',
-      'Equipes': totalRows.reduce((sum, row) => sum + row.Equipes, 0),
-      'Intenção encontristas': totalRows.reduce((sum, row) => sum + row['Intenção encontristas'], 0),
-      'Total': totalRows.reduce((sum, row) => sum + row.Total, 0)
-    });
-
-    const wb = XLSX.utils.book_new();
-    const wsTotais = XLSX.utils.json_to_sheet(totalRows);
-    wsTotais['!cols'] = [
-      { wch: 18 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 22 },
-      { wch: 16 }
-    ];
-    XLSX.utils.book_append_sheet(wb, wsTotais, 'Total Geral');
-
-    const pedidosPorEquipe = new Map<string, PedidoDetalhado[]>();
-    pedidos.forEach(p => {
-      const equipeNome = p.equipe_nome || 'Sem Equipe';
-      if (!pedidosPorEquipe.has(equipeNome)) pedidosPorEquipe.set(equipeNome, []);
-      pedidosPorEquipe.get(equipeNome)!.push(p);
-    });
-
-    Array.from(pedidosPorEquipe.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .forEach(([equipeNome, teamPedidos], index) => {
-        const teamMap = new Map<string, {
-          modelo_id: string;
-          modelo_nome: string;
-          tamanho: string;
-          quantidade: number;
-        }>();
-
-        teamPedidos.forEach(p => {
-          const tamanho = p.tamanho || 'Não Informado';
-          const key = makeKey(p.modelo_id, tamanho);
-          if (!teamMap.has(key)) {
-            teamMap.set(key, {
-              modelo_id: p.modelo_id,
-              modelo_nome: p.camiseta_modelos?.nome || 'Modelo não identificado',
-              tamanho,
-              quantidade: 0
-            });
-          }
-          teamMap.get(key)!.quantidade += p.quantidade;
-        });
-
-        const teamRows = Array.from(teamMap.values())
-          .sort((a, b) => {
-            const modelCompare = a.modelo_nome.localeCompare(b.modelo_nome);
-            if (modelCompare !== 0) return modelCompare;
-            return getSizeOrder(a.modelo_id, a.tamanho) - getSizeOrder(b.modelo_id, b.tamanho);
-          })
-          .map(item => ({
-            'Modelo': item.modelo_nome,
-            'Tamanho': item.tamanho,
-            'Quantidade': item.quantidade
-          }));
-
-        teamRows.push({
-          'Modelo': 'TOTAL',
-          'Tamanho': '',
-          'Quantidade': teamRows.reduce((sum, row) => sum + row.Quantidade, 0)
-        });
-
-        const sheetName = sanitizeSheetName(equipeNome) || `Equipe ${index + 1}`;
-        const uniqueSheetName = wb.SheetNames.includes(sheetName)
-          ? sanitizeSheetName(`${sheetName} ${index + 1}`)
-          : sheetName;
-        const wsEquipe = XLSX.utils.json_to_sheet(teamRows);
-        XLSX.utils.book_append_sheet(wb, wsEquipe, uniqueSheetName);
-      });
-
-    XLSX.writeFile(wb, `camisetas_total_geral_e_por_equipes_${new Date().getTime()}.xlsx`);
-  };
-
-  const handleExportPedidosPorEquipeExcel = () => {
-    const sortPedidos = (a: PedidoDetalhado, b: PedidoDetalhado) => {
-      const equipeCompare = (a.equipe_nome || 'Sem Equipe').localeCompare(b.equipe_nome || 'Sem Equipe');
-      if (equipeCompare !== 0) return equipeCompare;
-      const pessoaCompare = (a.pessoa_nome || '').localeCompare(b.pessoa_nome || '');
-      if (pessoaCompare !== 0) return pessoaCompare;
-      const modeloCompare = (a.camiseta_modelos?.nome || '').localeCompare(b.camiseta_modelos?.nome || '');
-      if (modeloCompare !== 0) return modeloCompare;
-      return a.tamanho.localeCompare(b.tamanho);
+    const addToTotals = (item: CamisetaSeparationItem, source: 'team' | 'encountered') => {
+      const key = `${item.modelName}__${item.size}`;
+      const current = totalsMap.get(key) ?? {
+        modelName: item.modelName,
+        size: item.size,
+        teamTotal: 0,
+        encounteredTotal: 0,
+        paidTotal: 0,
+        pendingTotal: 0,
+      };
+      if (source === 'team') current.teamTotal += item.quantity;
+      else current.encounteredTotal += item.quantity;
+      if (item.paid) current.paidTotal += item.quantity;
+      else current.pendingTotal += item.quantity;
+      totalsMap.set(key, current);
     };
 
-    const data = [...pedidos].sort(sortPedidos).map(p => ({
-        'Equipe': p.equipe_nome || 'Sem Equipe',
-        'Pessoa': p.pessoa_nome,
-        'Modelo': p.camiseta_modelos?.nome || 'Modelo não identificado',
-        'Tamanho': p.tamanho,
-        'Quantidade': p.quantidade
+    teamItems.forEach(item => addToTotals(item, 'team'));
+    encounteredItems.forEach(item => addToTotals(item, 'encountered'));
+
+    const summaryRows = Array.from(totalsMap.values())
+      .sort((a, b) => a.modelName.localeCompare(b.modelName, 'pt-BR') || a.size.localeCompare(b.size, 'pt-BR'))
+      .map(item => ({
+        'Modelo': item.modelName,
+        'Tamanho': item.size,
+        'Equipes': item.teamTotal,
+        'Encontristas': item.encounteredTotal,
+        'Total pedido': item.teamTotal + item.encounteredTotal,
+        'Pago': item.paidTotal,
+        'Pendente': item.pendingTotal,
       }));
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(data);
-    ws['!cols'] = [
-      { wch: 24 },
-      { wch: 34 },
-      { wch: 18 },
-      { wch: 12 },
-      { wch: 12 }
+    const sortItems = (a: CamisetaSeparationItem, b: CamisetaSeparationItem) => (
+      a.groupName.localeCompare(b.groupName, 'pt-BR')
+      || a.personName.localeCompare(b.personName, 'pt-BR')
+      || a.modelName.localeCompare(b.modelName, 'pt-BR')
+      || a.size.localeCompare(b.size, 'pt-BR')
+    );
+    const toRows = (items: CamisetaSeparationItem[], groupLabel: 'Equipe' | 'Dupla de visitação') => (
+      [...items].sort(sortItems).map(item => ({
+        [groupLabel]: item.groupName,
+        'Pessoa': item.personName,
+        'Modelo': item.modelName,
+        'Tamanho': item.size,
+        'Quantidade': item.quantity,
+        'Pagamento': item.paid ? 'Pago' : 'Pendente',
+      }))
+    );
+
+    const workbook = XLSX.utils.book_new();
+    const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+    summarySheet['!cols'] = [
+      { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 12 },
     ];
-    if (data.length > 0) {
-      ws['!autofilter'] = { ref: `A1:E${data.length + 1}` };
-    }
-    XLSX.utils.book_append_sheet(wb, ws, 'Todos os pedidos');
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Resumo geral');
 
-    const pedidosPorEquipe = new Map<string, PedidoDetalhado[]>();
-    pedidos.forEach(p => {
-      const equipeNome = p.equipe_nome || 'Sem Equipe';
-      if (!pedidosPorEquipe.has(equipeNome)) pedidosPorEquipe.set(equipeNome, []);
-      pedidosPorEquipe.get(equipeNome)!.push(p);
-    });
+    const teamRows = toRows(teamItems, 'Equipe');
+    const teamSheet = XLSX.utils.json_to_sheet(teamRows);
+    teamSheet['!cols'] = [
+      { wch: 26 }, { wch: 34 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
+    ];
+    if (teamRows.length > 0) teamSheet['!autofilter'] = { ref: `A1:F${teamRows.length + 1}` };
+    XLSX.utils.book_append_sheet(workbook, teamSheet, 'Pedidos das equipes');
 
-    Array.from(pedidosPorEquipe.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .forEach(([equipeNome, teamPedidos], index) => {
-        const teamRows = [...teamPedidos].sort(sortPedidos).map(p => ({
-          'Pessoa': p.pessoa_nome,
-          'Modelo': p.camiseta_modelos?.nome || 'Modelo não identificado',
-          'Tamanho': p.tamanho,
-          'Quantidade': p.quantidade
-        }));
+    const encounteredRows = toRows(encounteredItems, 'Dupla de visitação');
+    const encounteredSheet = XLSX.utils.json_to_sheet(encounteredRows);
+    encounteredSheet['!cols'] = [
+      { wch: 28 }, { wch: 34 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
+    ];
+    if (encounteredRows.length > 0) encounteredSheet['!autofilter'] = { ref: `A1:F${encounteredRows.length + 1}` };
+    XLSX.utils.book_append_sheet(workbook, encounteredSheet, 'Encontristas por dupla');
 
-        const sheetName = sanitizeSheetName(equipeNome) || `Equipe ${index + 1}`;
-        const uniqueSheetName = wb.SheetNames.includes(sheetName)
-          ? sanitizeSheetName(`${sheetName} ${index + 1}`)
-          : sheetName;
-        const wsEquipe = XLSX.utils.json_to_sheet(teamRows);
-        wsEquipe['!cols'] = [
-          { wch: 34 },
-          { wch: 18 },
-          { wch: 12 },
-          { wch: 12 }
-        ];
-        if (teamRows.length > 0) {
-          wsEquipe['!autofilter'] = { ref: `A1:D${teamRows.length + 1}` };
-        }
-        XLSX.utils.book_append_sheet(wb, wsEquipe, uniqueSheetName);
-      });
-
-    XLSX.writeFile(wb, `camisetas_pedidos_por_equipe_${new Date().getTime()}.xlsx`);
+    const suffix = onlyPaid ? 'somente_pagos' : 'todos_os_pedidos';
+    XLSX.writeFile(workbook, `camisetas_separacao_${suffix}_${new Date().getTime()}.xlsx`);
   };
 
   const loadTeamMembers = async (equipeId: string) => {
@@ -563,7 +418,7 @@ export function PedidosCamisetasPage() {
             <Plus size={16} style={{ marginRight: '0.4rem' }} /> Novo Pedido
           </button>
           <button className="btn-secondary" onClick={handleCopySummary} disabled={loading}>
-            <Copy size={16} style={{ marginRight: '0.4rem' }} /> Copiar
+            <Copy size={16} style={{ marginRight: '0.4rem' }} /> Copiar resumo
           </button>
           <div style={{ position: 'relative' }}>
             <button
@@ -595,7 +450,7 @@ export function PedidosCamisetasPage() {
                   type="button"
                   onClick={() => {
                     setIsExportMenuOpen(false);
-                    handleExportTotaisExcel();
+                    handleExportSeparacaoExcel(false);
                   }}
                   style={{
                     width: '100%',
@@ -609,13 +464,13 @@ export function PedidosCamisetasPage() {
                     fontWeight: 600
                   }}
                 >
-                  Total Geral e Por Equipes
+                  Todos os pedidos
                 </button>
                 <button
                   type="button"
                   onClick={() => {
                     setIsExportMenuOpen(false);
-                    handleExportPedidosPorEquipeExcel();
+                    handleExportSeparacaoExcel(true);
                   }}
                   style={{
                     width: '100%',
@@ -629,7 +484,7 @@ export function PedidosCamisetasPage() {
                     fontWeight: 600
                   }}
                 >
-                  Pedidos por Equipe
+                  Somente pedidos pagos
                 </button>
               </div>
             )}
@@ -652,242 +507,11 @@ export function PedidosCamisetasPage() {
           </div>
         )}
 
-        {/* Resumo de Pedidos */}
-        <section style={{ marginBottom: '1.5rem' }}>
-          <div style={{
-            border: '1px solid rgba(37, 99, 235, 0.22)',
-            borderRadius: '14px',
-            backgroundColor: 'rgba(37, 99, 235, 0.04)',
-            overflow: 'hidden'
-          }}>
-          <button
-            className="compras-summary-trigger"
-            onClick={() => setShowResumo(!showResumo)}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '1rem',
-              cursor: 'pointer',
-              backgroundColor: 'rgba(37, 99, 235, 0.05)',
-              border: 'none',
-              borderRadius: 0,
-              transition: 'all 0.2s ease-in-out'
-            }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.1)'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(37, 99, 235, 0.05)'}
-          >
-            <div className="compras-summary-trigger__main">
-              <div className="compras-summary-trigger__icon" style={{ backgroundColor: 'var(--primary-color)' }}>
-                <Shirt size={20} />
-              </div>
-              <div className="compras-summary-trigger__content">
-                <h2 style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-color)', fontWeight: 600 }}>
-                  Resumo de Pedidos (Equipes)
-                </h2>
-                <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6, marginTop: '2px' }}>
-                  {showResumo ? 'Clique para ocultar o quadro de totais' : 'Clique para expandir e ver o total de produção por modelo e tamanho'}
-                </p>
-              </div>
-            </div>
-            <div className="compras-summary-trigger__action" style={{ color: 'var(--primary-color)' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase' }}>
-                {showResumo ? 'Ocultar' : 'Expandir'}
-              </span>
-              {showResumo ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-            </div>
-          </button>
-
-          {showResumo && (
-            <div className="grid-container animate-fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem', padding: '1rem', borderTop: '1px solid rgba(37, 99, 235, 0.14)' }}>
-              {resumo.map(m => (
-                <div key={m.modelo_id} className="card" style={{ padding: '1.25rem' }}>
-                  <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ fontSize: '1rem', margin: 0 }}>{m.modelo_nome}</h3>
-                    <span className="badge badge-primary">{m.total} total</span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
-                    {Object.entries(m.tamanhos)
-                      .sort(([tamA], [tamB]) => {
-                        const orderA = tamanhosCamiseta.find(t => t.sigla === tamA && (t.modelo_id === m.modelo_id || !t.modelo_id))?.ordem ?? 999;
-                        const orderB = tamanhosCamiseta.find(t => t.sigla === tamB && (t.modelo_id === m.modelo_id || !t.modelo_id))?.ordem ?? 999;
-                        return orderA - orderB;
-                      })
-                      .map(([tam, qtd]) => (
-                        <div
-                          key={`${m.modelo_id}-${tam}`}
-                          className="card--clickable"
-                          onClick={() => setViewDetailsConfig({ origem: 'pedido', modeloId: m.modelo_id, tamanho: tam, modeloNome: m.modelo_nome })}
-                          title="Ver quem fez este pedido formal"
-                          style={{ textAlign: 'center', padding: '0.5rem', background: 'var(--surface-1)', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s' }}
-                        >
-                          <div style={{ fontSize: '0.7rem', opacity: 0.5, fontWeight: 700 }}>{tam}</div>
-                          <div style={{ fontSize: '1.1rem', fontWeight: 600 }}>{qtd}</div>
-                        </div>
-                      ))}
-                  </div>
-                  <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px dashed var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Valor Unit.: {m.valor_unitario > 0 ? m.valor_unitario.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a confirmar'}</span>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary-color)' }}>
-                      Total: {m.valor_total > 0 ? m.valor_total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Valor a confirmar'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {resumo.length === 0 && !loading && (
-                <div className="card" style={{ padding: '2rem', textAlign: 'center', opacity: 0.5, gridColumn: '1 / -1' }}>
-                  Nenhum pedido registrado para este encontro.
-                </div>
-              )}
-            </div>
-          )}
-          </div>
-        </section>
-
-        {/* ---- INTENÇÕES DE VISITA ---- */}
-        <section style={{ marginBottom: '1.5rem' }}>
-          <div style={{
-            border: '1px solid rgba(99, 102, 241, 0.24)',
-            borderRadius: '14px',
-            backgroundColor: 'rgba(99, 102, 241, 0.04)',
-            overflow: 'hidden'
-          }}>
-          <button
-            className="compras-summary-trigger"
-            onClick={() => setShowIntencoes(!showIntencoes)}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '1rem',
-              cursor: 'pointer',
-              backgroundColor: 'rgba(99, 102, 241, 0.05)',
-              border: 'none',
-              borderRadius: 0,
-              transition: 'all 0.2s ease-in-out'
-            }}
-            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.1)'}
-            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.05)'}
-          >
-            <div className="compras-summary-trigger__main">
-              <div className="compras-summary-trigger__icon" style={{ backgroundColor: '#6366f1' }}>
-                <Shirt size={20} />
-              </div>
-              <div className="compras-summary-trigger__content">
-                <h2 className="compras-summary-trigger__title-with-badges" style={{ fontSize: '1.1rem', margin: 0, color: 'var(--text-color)', fontWeight: 600 }}>
-                  Intenções de Compra (Encontristas)
-                  {resumoIntencoes.length > 0 && (
-                    <span style={{
-                      fontSize: '0.72rem', fontWeight: 700,
-                      background: '#6366f1', color: 'white', padding: '2px 8px', borderRadius: '999px'
-                    }}>
-                      {resumoIntencoes.reduce((s, m) => s + m.total, 0)} un. estimadas
-                    </span>
-                  )}
-                  {intencoesDetalhadas.some(item => item.pago) && (
-                    <span style={{
-                      fontSize: '0.72rem', fontWeight: 700,
-                      background: 'rgba(22,163,74,0.12)', color: '#16a34a', padding: '2px 8px', borderRadius: '999px'
-                    }}>
-                      {intencoesDetalhadas.filter(item => item.pago).reduce((sum, item) => sum + item.quantidade, 0)} un. pagas
-                    </span>
-                  )}
-                </h2>
-                <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.6, marginTop: '2px' }}>
-                  Estimativa coletada durante as visitas — não são pedidos formais
-                </p>
-              </div>
-            </div>
-            <div className="compras-summary-trigger__action" style={{ color: '#6366f1' }}>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase' }}>
-                {showIntencoes ? 'Ocultar' : 'Expandir'}
-              </span>
-              {showIntencoes ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-            </div>
-          </button>
-
-          {showIntencoes && (
-            <div style={{ padding: '1rem', borderTop: '1px solid rgba(99, 102, 241, 0.16)' }}>
-              {paidIntentions.length > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowPaidIntentions(true)}
-                  style={{
-                    border: '1px solid rgba(22,163,74,0.35)',
-                    background: 'rgba(22,163,74,0.1)',
-                    color: '#16a34a',
-                    borderRadius: '8px',
-                    padding: '0.55rem 0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <CheckCircle size={16} />
-                  Ver todas as pagas ({paidIntentions.length})
-                </button>
-              </div>
-              )}
-              {resumoIntencoes.length === 0 ? (
-                <div className="card" style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>
-                  Nenhuma intenção registrada nas visitas deste encontro.
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
-                  {resumoIntencoes.map(m => (
-                    <div key={m.modelo_id} className="card" style={{ padding: '1.25rem', border: '1px solid rgba(99,102,241,0.2)' }}>
-                      <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Shirt size={16} color="#6366f1" />
-                          <h3 style={{ fontSize: '1rem', margin: 0 }}>{m.modelo_nome}</h3>
-                        </div>
-                        <span style={{
-                          fontSize: '0.8rem', fontWeight: 700, padding: '3px 10px',
-                          background: 'rgba(99,102,241,0.1)', color: '#6366f1', borderRadius: '999px'
-                        }}>
-                          {m.total} estimadas
-                        </span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
-                        {Object.entries(m.tamanhos)
-                          .sort(([tamA], [tamB]) => {
-                            const orderA = tamanhosCamiseta.find(t => t.sigla === tamA && (t.modelo_id === m.modelo_id || !t.modelo_id))?.ordem ?? 999;
-                            const orderB = tamanhosCamiseta.find(t => t.sigla === tamB && (t.modelo_id === m.modelo_id || !t.modelo_id))?.ordem ?? 999;
-                            return orderA - orderB;
-                          })
-                          .map(([tam, qtd]) => (
-                            <div
-                              key={`${m.modelo_id}-${tam}`}
-                              className="card--clickable"
-                              onClick={() => setViewDetailsConfig({ origem: 'intencao', modeloId: m.modelo_id, tamanho: tam, modeloNome: m.modelo_nome })}
-                              title="Ver quem informou esta intenção"
-                              style={{
-                              textAlign: 'center', padding: '0.5rem',
-                              background: 'rgba(99,102,241,0.06)',
-                              border: '1px solid rgba(99,102,241,0.15)',
-                              borderRadius: '8px',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s'
-                            }}>
-                              <div style={{ fontSize: '0.7rem', opacity: 0.5, fontWeight: 700 }}>{tam}</div>
-                              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#6366f1' }}>{qtd}</div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          </div>
-        </section>
+        <CamisetaSeparationPanel
+          teamItems={teamSeparationItems}
+          encounteredItems={encounteredSeparationItems}
+          loading={loading}
+        />
 
         {/* Resumo por Equipe */}
         <section className="grid-container compras-team-filter-grid" style={{ marginBottom: '2rem' }}>
@@ -970,7 +594,12 @@ export function PedidosCamisetasPage() {
             gap: '1rem',
             flexWrap: 'wrap'
           }}>
-            <h2 style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>Listagem de Pedidos</h2>
+            <div>
+              <h2 style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>Gerenciar pedidos das equipes</h2>
+              <p style={{ margin: '0.25rem 0 0', color: 'var(--muted-text)', fontSize: '0.8rem' }}>
+                Adicione, ajuste ou remova os pedidos registrados pelos integrantes das equipes.
+              </p>
+            </div>
 
             <div style={{ display: 'flex', gap: '0.75rem', flex: 1, justifyContent: 'flex-end', maxWidth: '600px', minWidth: '300px' }}>
               <div className="form-input-wrapper" style={{ position: 'relative', flex: 1 }}>
@@ -1156,175 +785,6 @@ export function PedidosCamisetasPage() {
             onClose={() => setProofGallery(null)}
           />
         )}
-        {/* Modal de todas as intenções pagas */}
-        {showPaidIntentions && (
-          <div className="modal-overlay compras-paid-modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)' }}>
-            <div className="modal-content animate-fade-in compras-paid-modal">
-              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1rem' }}>
-                <div>
-                  <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Camisetas pagas</h2>
-                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', opacity: 0.62 }}>
-                    {paidIntentions.length} intenções pagas.
-                  </p>
-                </div>
-                <button
-                  className="btn-icon"
-                  onClick={() => {
-                    setShowPaidIntentions(false);
-                    setPaidIntentionsSearch('');
-                  }}
-                  style={{ margin: 0, display: 'flex' }}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="modal-body" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
-                <div style={{ position: 'relative', marginBottom: '1rem' }}>
-                  <Search
-                    size={17}
-                    style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.55 }}
-                  />
-                  <input
-                    type="search"
-                    className="form-input"
-                    value={paidIntentionsSearch}
-                    onChange={event => setPaidIntentionsSearch(event.target.value)}
-                    placeholder="Buscar por nome"
-                    autoFocus
-                    style={{ paddingLeft: '2.4rem' }}
-                  />
-                </div>
-                {paidIntentionsSearch.trim() && (
-                  <div style={{ fontSize: '0.75rem', opacity: 0.62, marginBottom: '0.75rem' }}>
-                    {filteredPaidIntentions.length} resultado(s) encontrado(s)
-                  </div>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {filteredPaidIntentions.length === 0 ? (
-                    <div className="compras-paid-modal__empty">
-                      Nenhuma camiseta paga encontrada para este nome.
-                    </div>
-                  ) : filteredPaidIntentions.map(item => (
-                    <div
-                      key={item.id}
-                      className="compras-paid-modal__item"
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700 }}>{item.encontrista_nome}</div>
-                        <div style={{ fontSize: '0.78rem', opacity: 0.7, marginTop: '0.15rem' }}>
-                          {item.modelo_nome} · Tamanho {item.tamanho}
-                        </div>
-                        {item.comprovante_url && (
-                          <StorageLink
-                            reference={item.comprovante_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginTop: '0.4rem', fontSize: '0.75rem', fontWeight: 600 }}
-                          >
-                            <FileText size={14} /> Ver recibo
-                          </StorageLink>
-                        )}
-                      </div>
-                      <span className="badge badge-primary" style={{ flexShrink: 0 }}>
-                        {item.quantidade} un
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* Modal de Detalhes do Resumo */}
-        {viewDetailsConfig && (
-          <div className="modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)' }}>
-            <div className="modal-content animate-fade-in" style={{ maxWidth: '560px', width: '95%' }}>
-              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1rem' }}>
-                <div>
-                  <h2 style={{ fontSize: '1.25rem', margin: 0 }}>
-                    {viewDetailsConfig.modeloNome} <span style={{ opacity: 0.6 }}>&ndash;</span> {viewDetailsConfig.tamanho}
-                  </h2>
-                  <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', opacity: 0.62 }}>
-                    {viewDetailsConfig.origem === 'intencao'
-                      ? 'Encontristas que informaram intenção durante a visita'
-                      : 'Participantes com pedido formal registrado'}
-                  </p>
-                </div>
-                <button className="btn-icon" onClick={() => setViewDetailsConfig(null)} style={{ margin: 0, display: 'flex' }}>
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                {viewDetailsConfig.origem === 'intencao' && (
-                  <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                    {([
-                      ['todos', 'Todos'],
-                      ['pagos', 'Pagos'],
-                      ['pendentes', 'Pendentes']
-                    ] as const).map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setIntencaoPaymentFilter(value)}
-                        style={{
-                          border: `1px solid ${intencaoPaymentFilter === value ? '#6366f1' : 'var(--border-color)'}`,
-                          background: intencaoPaymentFilter === value ? 'rgba(99,102,241,0.12)' : 'var(--card-bg)',
-                          color: intencaoPaymentFilter === value ? '#6366f1' : 'var(--text-color)',
-                          borderRadius: '8px', padding: '0.45rem 0.75rem',
-                          cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700
-                        }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {detailsItems.length === 0 ? (
-                    <div className="card" style={{ padding: '2rem', textAlign: 'center', opacity: 0.6 }}>
-                      Nenhum registro encontrado para este tamanho.
-                    </div>
-                  ) : (
-                    detailsItems.map(item => (
-                      <div key={item.id} className="card" style={{ padding: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                        <div>
-                          <div style={{ fontWeight: 600 }}>{item.nome}</div>
-                          <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{item.referencia}</div>
-                          {viewDetailsConfig.origem === 'intencao' && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
-                              <span style={{
-                                display: 'flex', alignItems: 'center', gap: '0.25rem',
-                                fontSize: '0.72rem', fontWeight: 700,
-                                color: item.pago ? '#16a34a' : '#d97706'
-                              }}>
-                                {item.pago && <CheckCircle size={13} />}
-                                {item.pago ? 'Pago' : 'Pagamento pendente'}
-                              </span>
-                              {item.comprovante_url && (
-                                <StorageLink
-                                  reference={item.comprovante_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 600 }}
-                                >
-                                  <FileText size={13} /> Ver comprovante
-                                </StorageLink>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <span className="badge badge-primary" style={{ flexShrink: 0 }}>
-                          {item.quantidade} un
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Modal Novo Pedido */}
         {isAddingOrder && (
           <div className="modal-overlay" style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)' }}>
