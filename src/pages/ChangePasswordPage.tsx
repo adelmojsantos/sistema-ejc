@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { PasswordInput } from '../components/ui/PasswordInput';
+import { motion } from 'framer-motion';
 import logoEjc from '../assets/logo-ejc.svg';
 
 export function ChangePasswordPage() {
@@ -110,13 +111,18 @@ export function ChangePasswordPage() {
             <aside className="auth-sidebar">
                 <div className="auth-sidebar-content">
                     <div className="auth-sidebar-logo">
-                        <img
-                            src={logoEjc}
-                            alt="Logo EJC Capelinha"
-                            width="220"
-                            height="60"
-                            className="auth-logo-sidebar"
-                        />
+                        <motion.div
+                            animate={{ y: [0, -15, 0] }}
+                            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                        >
+                            <img
+                                src={logoEjc}
+                                alt="Logo EJC"
+                                width="280"
+                                height="296"
+                                className="auth-logo-sidebar auth-logo-sidebar--complete"
+                            />
+                        </motion.div>
                     </div>
                     <h1 className="auth-sidebar-title">Proteja seu acesso</h1>
                     <p className="auth-sidebar-text">
@@ -130,13 +136,19 @@ export function ChangePasswordPage() {
                     <div className="auth-card card fade-in">
                         <div className="auth-brand">
                             <div className="auth-header-logo">
-                                <img
-                                    src={logoEjc}
-                                    alt="Logo EJC Capelinha"
-                                    width="140"
-                                    height="40"
-                                    className="auth-logo-header"
-                                />
+                                <motion.div
+                                    animate={{ y: [0, -10, 0] }}
+                                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                                >
+                                    <img
+                                        src={logoEjc}
+                                        alt="Logo EJC"
+                                        width="168"
+                                        height="178"
+                                        fetchPriority="high"
+                                        className="auth-logo-header auth-logo-header--complete"
+                                    />
+                                </motion.div>
                             </div>
                             <div>
                                 <h1 className="auth-title">{mustChangePassword ? 'Troca obrigatória de senha' : 'Alterar senha'}</h1>

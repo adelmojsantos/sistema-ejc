@@ -65,9 +65,9 @@ export function Login() {
                 <img
                   src={logoEjc}
                   alt="Logo EJC"
-                  width="220"
-                  height="60"
-                  className="auth-logo-sidebar"
+                  width="280"
+                  height="296"
+                  className="auth-logo-sidebar auth-logo-sidebar--complete"
                 />
               </motion.div>
             </div>
@@ -97,10 +97,10 @@ export function Login() {
                   <img
                     src={logoEjc}
                     alt="Logo EJC"
-                    width="140"
-                    height="40"
+                    width="168"
+                    height="178"
                     fetchPriority="high"
-                    className="auth-logo-header"
+                    className="auth-logo-header auth-logo-header--complete"
                   />
                 </motion.div>
               </div>

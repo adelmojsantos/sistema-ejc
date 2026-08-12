@@ -957,6 +957,15 @@ input[type="number"] {
   flex: 0 0 auto;
 }
 
+.tablet-topbar-logo.brand-experiment-mark,
+.sidebar-logo img.brand-experiment-mark {
+  box-sizing: border-box;
+  padding: 0.3rem;
+  border-radius: 12px;
+  background: #457ef6;
+  filter: none;
+}
+
 .user-menu-container {
   position: relative;
   display: flex;
@@ -5143,9 +5152,19 @@ tbody tr:hover {
   filter: invert(1) brightness(2) drop-shadow(0 20px 30px rgba(0, 0, 0, 0.3));
 }
 
+.auth-logo-sidebar--complete {
+  width: min(280px, 62vw);
+  height: auto;
+}
+
 .auth-logo-header {
   height: auto;
   filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.1));
+}
+
+.auth-logo-header--complete {
+  width: min(168px, 42vw);
+  height: auto;
 }
 
 .dark .auth-logo-header {

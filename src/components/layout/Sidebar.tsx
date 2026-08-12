@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { getNavigationModules } from '../../config/navigation';
 import { NavItem } from './NavItem';
+import compactEjcMark from '../../assets/brand-experiments/ejc-mark-white.png';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -75,7 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         aria-label="Menu principal"
       >
         <div className="sidebar-logo">
-          <img src="/logo-160.webp" alt="Logo" />
+          <img src={compactEjcMark} alt="Símbolo EJC" className="brand-experiment-mark" />
           {(!collapsed || mobileOpen) && <span>EJC <strong>Capelinha</strong></span>}
           {mobileOpen && (
             <button
