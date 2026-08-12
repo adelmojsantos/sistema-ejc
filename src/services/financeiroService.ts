@@ -5,6 +5,11 @@ import type {
   FinanceiroCategoria,
   FinanceiroLancamento,
   FinanceiroLancamentoManualFormData,
+  FinanceiroReconciliacao,
+  FinanceiroReconciliacaoFormData,
+  FinanceiroReconciliacaoItem,
+  FinanceiroReconciliacaoPendencias,
+  FinanceiroReconciliacaoPendente,
   FinanceiroResumo,
 } from '../types/financeiro';
 
@@ -27,6 +32,29 @@ function normalizeLancamento(row: FinanceiroLancamento): FinanceiroLancamento {
     ...row,
     valor: normalizeNumber(row.valor),
     comprovantes_urls: normalizeComprovantes(row.comprovantes_urls),
+  };
+}
+
+function normalizeReconciliacaoPendente(row: FinanceiroReconciliacaoPendente): FinanceiroReconciliacaoPendente {
+  return {
+    ...row,
+    publico: row.publico || (row.fonte === 'visita_camiseta' ? 'encontrista' : 'encontreiro'),
+    valor_esperado: normalizeNumber(row.valor_esperado),
+    comprovantes_urls: normalizeComprovantes(row.comprovantes_urls),
+  };
+}
+
+function normalizeReconciliacao(row: FinanceiroReconciliacao): FinanceiroReconciliacao {
+  return {
+    ...row,
+    valor_esperado: normalizeNumber(row.valor_esperado),
+    valor_recebido: normalizeNumber(row.valor_recebido),
+    comprovantes_urls: normalizeComprovantes(row.comprovantes_urls),
+    itens: (row.itens || []).map((item: FinanceiroReconciliacaoItem) => ({
+      ...item,
+      valor_esperado: normalizeNumber(item.valor_esperado),
+      comprovantes_urls: normalizeComprovantes(item.comprovantes_urls),
+    })),
   };
 }
 
@@ -162,6 +190,53 @@ export const financeiroService = {
       ...normalizeComprovantes(lancamento.comprovantes_urls),
       ...uploadedReferences,
     ]);
+  },
+
+  async listarPendenciasReconciliacao(encontroId: string): Promise<FinanceiroReconciliacaoPendencias> {
+    const { data, error } = await supabase.rpc('listar_financeiro_reconciliacao_pendencias_v2', {
+      p_encontro_id: encontroId,
+    });
+
+    if (error) throw error;
+    const payload = (data || {}) as Partial<FinanceiroReconciliacaoPendencias>;
+    return {
+      taxas: (payload.taxas || []).map(normalizeReconciliacaoPendente),
+      camisetas: (payload.camisetas || []).map(normalizeReconciliacaoPendente),
+    };
+  },
+
+  async listarReconciliacoes(encontroId: string): Promise<FinanceiroReconciliacao[]> {
+    const { data, error } = await supabase
+      .from('financeiro_reconciliacoes')
+      .select('*, itens:financeiro_reconciliacao_itens(*)')
+      .eq('encontro_id', encontroId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return ((data || []) as FinanceiroReconciliacao[]).map(normalizeReconciliacao);
+  },
+
+  async criarReconciliacao(formData: FinanceiroReconciliacaoFormData): Promise<FinanceiroReconciliacao> {
+    const { data, error } = await supabase.rpc('criar_financeiro_reconciliacao', {
+      p_encontro_id: formData.encontro_id,
+      p_tipo: formData.tipo,
+      p_itens: formData.itens,
+      p_valor_recebido: formData.valor_recebido,
+      p_data_recebimento: formData.data_recebimento,
+      p_justificativa: formData.justificativa || null,
+    });
+
+    if (error) throw error;
+    return normalizeReconciliacao({ ...(data as FinanceiroReconciliacao), itens: [] });
+  },
+
+  async cancelarReconciliacao(id: string): Promise<FinanceiroReconciliacao> {
+    const { data, error } = await supabase.rpc('cancelar_financeiro_reconciliacao', {
+      p_reconciliacao_id: id,
+    });
+
+    if (error) throw error;
+    return normalizeReconciliacao({ ...(data as FinanceiroReconciliacao), itens: [] });
   },
 
   async cancelarLancamentoManual(id: string): Promise<FinanceiroLancamento> {

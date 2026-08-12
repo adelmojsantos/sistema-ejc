@@ -366,12 +366,20 @@
 
 .almox-proof-link {
   align-items: center;
+  padding: 0;
+  border: 0;
   color: var(--primary-color);
   display: inline-flex;
+  background: transparent;
   font-size: 0.82rem;
   font-weight: 800;
   gap: 0.35rem;
   text-decoration: none;
+  cursor: pointer;
+}
+
+.almox-proof-link:hover {
+  text-decoration: underline;
 }
 
 .almox-proof-pill {
@@ -499,6 +507,61 @@
   display: block;
   font-size: 0.88rem;
   margin-top: 0.15rem;
+}
+
+.financeiro-mobile-card {
+  gap: 0.55rem;
+  padding: 0.85rem 0.95rem;
+}
+
+.financeiro-mobile-card header {
+  align-items: center;
+}
+
+.financeiro-mobile-card__value {
+  font-size: 1.25rem;
+}
+
+.financeiro-mobile-card__summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.financeiro-mobile-card__summary > span,
+.financeiro-mobile-card__meta {
+  color: var(--muted-text);
+  font-size: 0.78rem;
+}
+
+.financeiro-mobile-card__meta {
+  margin: 0;
+  font-weight: 700;
+}
+
+.financeiro-mobile-card__note {
+  margin: 0;
+  padding: 0.5rem 0 0;
+  border-top: 1px solid var(--border-color);
+  color: var(--muted-text);
+  font-size: 0.76rem;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.financeiro-mobile-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.financeiro-mobile-card__footer .almox-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .almox-form-grid {
@@ -902,6 +965,17 @@
   .almox-modal-actions {
     flex-direction: column;
     align-items: stretch;
+    width: 100%;
+  }
+
+  .financeiro-mobile-card__footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .financeiro-mobile-card__footer .almox-proof-link,
+  .financeiro-mobile-card__footer .almox-actions > button {
+    justify-content: center;
     width: 100%;
   }
 

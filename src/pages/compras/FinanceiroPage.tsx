@@ -3,8 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
 import { FinanceiroCategoriaModal, type FinanceiroCategoriaFormState } from '../../components/financeiro/FinanceiroCategoriaModal';
-import { StorageLink } from '../../components/storage/StorageLink';
+import { FinanceiroReconciliationPanel } from '../../components/financeiro/FinanceiroReconciliationPanel';
 import { CurrencyFormField } from '../../components/ui/CurrencyFormField';
 import { FormField } from '../../components/ui/FormField';
 import { GroupedDropdown, type GroupedDropdownItem } from '../../components/ui/GroupedDropdown';
@@ -13,7 +14,15 @@ import { Modal } from '../../components/ui/Modal';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
 import { financeiroService } from '../../services/financeiroService';
-import type { FinanceiroCategoria, FinanceiroLancamento, FinanceiroLancamentoManualFormData, FinanceiroTipo } from '../../types/financeiro';
+import type {
+  FinanceiroCategoria,
+  FinanceiroLancamento,
+  FinanceiroLancamentoManualFormData,
+  FinanceiroReconciliacao,
+  FinanceiroReconciliacaoFormData,
+  FinanceiroReconciliacaoPendencias,
+  FinanceiroTipo,
+} from '../../types/financeiro';
 import './AlmoxarifadoPage.css';
 
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -34,12 +43,54 @@ const money = (value: number | null | undefined) =>
 const origemLabel = (origem: string) => {
   const labels: Record<string, string> = {
     manual: 'Manual',
-    taxa: 'Taxa',
-    camiseta: 'Camiseta',
+    taxa: 'Conciliação',
+    camiseta: 'Conciliação',
     almoxarifado_compra: 'Almoxarifado',
     minimercado: 'Minimercado',
   };
   return labels[origem] || origem;
+};
+
+const normalizeComparableLabel = (value: string) => value
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .trim()
+  .toLocaleLowerCase('pt-BR')
+  .replace(/s$/, '');
+
+const parseDatabaseMoney = (value: string) => {
+  const normalized = value.includes(',')
+    ? value.replace(/\./g, '').replace(',', '.')
+    : value;
+  return Number(normalized);
+};
+
+const visibleLancamentoNote = (lancamento: FinanceiroLancamento) => {
+  if (!lancamento.observacoes) return '';
+  if (lancamento.origem === 'manual') return lancamento.observacoes;
+
+  return lancamento.observacoes
+    .split('\n')
+    .filter((line) => {
+      const expectedMatch = line.match(/^Valor esperado:\s*([+-]?[\d.,]+)/i);
+      if (!expectedMatch) return true;
+      const expectedValue = parseDatabaseMoney(expectedMatch[1]);
+      return !Number.isFinite(expectedValue) || Math.abs(expectedValue - lancamento.valor) >= 0.01;
+    })
+    .join('\n')
+    .trim();
+};
+
+const emptyReconciliationPendencies: FinanceiroReconciliacaoPendencias = {
+  taxas: [],
+  camisetas: [],
+};
+
+const errorMessage = (error: unknown, fallback: string) => {
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+  return fallback;
 };
 
 const tipoLancamentoOptions: GroupedDropdownItem<FinanceiroTipo>[] = [
@@ -92,15 +143,21 @@ export function FinanceiroPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const { encontroSelecionadoId } = useEncontros();
-  const canManageFinanceiro = hasPermission('modulo_admin') || hasPermission('financeiro_gerenciar');
+  const canManageFinanceiro = hasPermission('modulo_admin')
+    || hasPermission('modulo_compras')
+    || hasPermission('financeiro_gerenciar');
   const [lancamentos, setLancamentos] = useState<FinanceiroLancamento[]>([]);
   const [categorias, setCategorias] = useState<FinanceiroCategoria[]>([]);
+  const [reconciliationPendencies, setReconciliationPendencies] = useState<FinanceiroReconciliacaoPendencias>(emptyReconciliationPendencies);
+  const [reconciliacoes, setReconciliacoes] = useState<FinanceiroReconciliacao[]>([]);
+  const [reconciliationLoadError, setReconciliationLoadError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lancamentoModalOpen, setLancamentoModalOpen] = useState(false);
   const [categoriaModalOpen, setCategoriaModalOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<FinanceiroLancamento | null>(null);
   const [editTarget, setEditTarget] = useState<FinanceiroLancamento | null>(null);
+  const [proofGallery, setProofGallery] = useState<FinanceiroLancamento | null>(null);
   const [lancamentoForm, setLancamentoForm] = useState<FinanceiroLancamentoManualFormData>(lancamentoFormInicial);
   const [comprovanteFiles, setComprovanteFiles] = useState<File[]>([]);
 
@@ -108,13 +165,29 @@ export function FinanceiroPage() {
     if (!encontroSelecionadoId) return;
 
     setLoading(true);
+    setReconciliationLoadError(false);
     try {
-      const [lancamentosData, categoriasData] = await Promise.all([
+      const [lancamentosData, categoriasData, reconciliationData] = await Promise.all([
         financeiroService.listarLancamentos(encontroSelecionadoId),
         financeiroService.listarCategorias(encontroSelecionadoId, true),
+        Promise.all([
+          financeiroService.listarPendenciasReconciliacao(encontroSelecionadoId),
+          financeiroService.listarReconciliacoes(encontroSelecionadoId),
+        ]).catch((error) => {
+          console.error('Erro ao carregar conciliações financeiras:', error);
+          return null;
+        }),
       ]);
       setLancamentos(lancamentosData);
       setCategorias(categoriasData);
+      if (reconciliationData) {
+        setReconciliationPendencies(reconciliationData[0]);
+        setReconciliacoes(reconciliationData[1]);
+      } else {
+        setReconciliationPendencies(emptyReconciliationPendencies);
+        setReconciliacoes([]);
+        setReconciliationLoadError(true);
+      }
     } catch (error) {
       console.error('Erro ao carregar financeiro:', error);
       toast.error('Não foi possível carregar o financeiro.');
@@ -287,6 +360,36 @@ export function FinanceiroPage() {
     }
   };
 
+  const handleCreateReconciliation = async (formData: FinanceiroReconciliacaoFormData) => {
+    setSaving(true);
+    try {
+      await financeiroService.criarReconciliacao(formData);
+      toast.success('Recebimento conciliado e lançado no financeiro.');
+      await loadLancamentos();
+    } catch (error) {
+      console.error('Erro ao conciliar recebimento:', error);
+      toast.error(errorMessage(error, 'Não foi possível conciliar o recebimento.'));
+      throw error;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelReconciliation = async (id: string) => {
+    setSaving(true);
+    try {
+      await financeiroService.cancelarReconciliacao(id);
+      toast.success('Conciliação cancelada. Os pagamentos voltaram a ficar disponíveis.');
+      await loadLancamentos();
+    } catch (error) {
+      console.error('Erro ao cancelar conciliação:', error);
+      toast.error(errorMessage(error, 'Não foi possível cancelar a conciliação.'));
+      throw error;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <section className="almox-page fade-in">
       <div className="page-header">
@@ -309,9 +412,11 @@ export function FinanceiroPage() {
               Categorias
             </button>
           )}
-          <button type="button" className="btn-primary" onClick={openNovoLancamento}>
-            <Plus size={17} /> Novo lançamento
-          </button>
+          {canManageFinanceiro && (
+            <button type="button" className="btn-primary" onClick={openNovoLancamento}>
+              <Plus size={17} /> Novo lançamento
+            </button>
+          )}
         </div>
       </div>
 
@@ -330,12 +435,33 @@ export function FinanceiroPage() {
         </div>
       </section>
 
+      {reconciliationLoadError ? (
+        <div className="card empty-state">
+          Não foi possível carregar a conferência de recebimentos.
+          <button type="button" className="btn-secondary btn-sm" onClick={loadLancamentos}>
+            Tentar novamente
+          </button>
+        </div>
+      ) : (
+        <FinanceiroReconciliationPanel
+          encontroId={encontroSelecionadoId}
+          canManage={canManageFinanceiro}
+          loading={loading}
+          saving={saving}
+          pendencias={reconciliationPendencies}
+          reconciliacoes={reconciliacoes}
+          onCreate={handleCreateReconciliation}
+          onCancel={handleCancelReconciliation}
+        />
+      )}
+
       {loading ? (
         <div className="card empty-state"><Loader className="animate-spin" /> Carregando lançamentos...</div>
       ) : lancamentos.length === 0 ? (
         <div className="card empty-state">Nenhum lançamento financeiro para este encontro.</div>
       ) : (
-        <section className="almox-table-card">
+        <>
+          <section className="almox-table-card">
           <div className="almox-table-wrap">
             <table className="almox-table">
               <thead>
@@ -369,9 +495,13 @@ export function FinanceiroPage() {
                     <td>{origemLabel(lancamento.origem)}</td>
                     <td>
                       {lancamento.comprovantes_urls.length > 0 ? (
-                        <StorageLink reference={lancamento.comprovantes_urls[0]} target="_blank" rel="noreferrer" className="almox-proof-link">
+                        <button
+                          type="button"
+                          className="almox-proof-link"
+                          onClick={() => setProofGallery(lancamento)}
+                        >
                           <FileText size={15} /> {lancamento.comprovantes_urls.length} arquivo(s)
-                        </StorageLink>
+                        </button>
                       ) : <span className="almox-muted">Nenhum</span>}
                     </td>
                     <td><strong>{money(lancamento.valor)}</strong></td>
@@ -400,7 +530,74 @@ export function FinanceiroPage() {
               </tbody>
             </table>
           </div>
-        </section>
+          </section>
+
+          <section className="almox-mobile-list financeiro-mobile-list" aria-label="Lançamentos financeiros">
+            {lancamentos.map((lancamento) => {
+              const categoryLabel = lancamento.categoria?.nome || 'Sem categoria';
+              const sourceLabel = origemLabel(lancamento.origem);
+              const showSource = normalizeComparableLabel(categoryLabel) !== normalizeComparableLabel(sourceLabel);
+              const note = visibleLancamentoNote(lancamento);
+
+              return (
+                <article key={lancamento.id} className="almox-mobile-card financeiro-mobile-card">
+                <header>
+                  <div>
+                    <h3>{lancamento.descricao}</h3>
+                  </div>
+                  <span className={lancamento.tipo === 'receita' ? 'almox-status-pill success' : 'almox-status-pill warning'}>
+                    {lancamento.tipo === 'receita' ? 'Entrada' : 'Saída'}
+                  </span>
+                </header>
+
+                <div className="financeiro-mobile-card__summary">
+                  <strong className="financeiro-mobile-card__value">{money(lancamento.valor)}</strong>
+                  <span>{new Date(`${lancamento.data_lancamento}T00:00:00`).toLocaleDateString('pt-BR')}</span>
+                </div>
+
+                <p className="financeiro-mobile-card__meta">
+                  {categoryLabel}{showSource ? ` · ${sourceLabel}` : ''}
+                </p>
+
+                {note && (
+                  <p className="financeiro-mobile-card__note">{note}</p>
+                )}
+
+                <div className="financeiro-mobile-card__footer">
+                  {lancamento.comprovantes_urls.length > 0 ? (
+                    <button
+                      type="button"
+                      className="almox-proof-link"
+                      onClick={() => setProofGallery(lancamento)}
+                    >
+                      <FileText size={15} /> Ver comprovantes ({lancamento.comprovantes_urls.length})
+                    </button>
+                  ) : <span />}
+
+                  {lancamento.origem === 'manual' ? (
+                    <div className="almox-actions">
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => openEditarLancamento(lancamento)}
+                      >
+                        <Edit2 size={15} /> Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => setCancelTarget(lancamento)}
+                      >
+                        <Ban size={15} /> Cancelar
+                      </button>
+                    </div>
+                  ) : <span className="almox-muted">Automático</span>}
+                </div>
+                </article>
+              );
+            })}
+          </section>
+        </>
       )}
 
       <Modal isOpen={lancamentoModalOpen} onClose={closeLancamentoModal} title={editTarget ? 'Editar lançamento financeiro' : 'Novo lançamento financeiro'} maxWidth="720px">
@@ -512,6 +709,15 @@ export function FinanceiroPage() {
         onSave={handleSaveCategoria}
         onToggle={handleToggleCategoria}
       />
+
+      {proofGallery && (
+        <PaymentProofGalleryModal
+          title="Comprovantes do lançamento"
+          entityName={proofGallery.descricao}
+          urls={proofGallery.comprovantes_urls}
+          onClose={() => setProofGallery(null)}
+        />
+      )}
     </section>
   );
 }
