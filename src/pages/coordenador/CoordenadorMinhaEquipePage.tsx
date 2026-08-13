@@ -358,7 +358,7 @@ export function CoordenadorMinhaEquipePage() {
     if (!deleteTarget) return;
     setIsConfirmingDelete(true);
     try {
-      await inscricaoService.excluir(deleteTarget.id);
+      await inscricaoService.desvincularDoEncontro(deleteTarget.id);
       setMembers(prev => prev.filter(m => m.id !== deleteTarget.id));
       toast.success('Integrante desvinculado com sucesso!');
       setDeleteTarget(null);

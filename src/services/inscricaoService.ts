@@ -200,21 +200,11 @@ export const inscricaoService = {
         return data as Inscricao;
     },
 
-    async excluir(id: string): Promise<void> {
-        const { error } = await supabase
-            .from(TABLE)
-            .delete()
-            .eq('id', id);
-
-        if (error) throw error;
-    },
-
-    /** Remove o vínculo de uma pessoa com um encontro (apaga a participação). */
+    /** Remove um encontreiro do encontro ativo e trata vínculos operacionais relacionados. */
     async desvincularDoEncontro(participacaoId: string): Promise<void> {
-        const { error } = await supabase
-            .from(TABLE)
-            .delete()
-            .eq('id', participacaoId);
+        const { error } = await supabase.rpc('desvincular_integrante_encontro', {
+            p_participacao_id: participacaoId,
+        });
 
         if (error) throw error;
     },

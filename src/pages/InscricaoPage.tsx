@@ -1,25 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { AlertTriangle, CheckCircle2, Users, Search, History } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { PessoaForm } from '../components/pessoa/PessoaForm';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import { encontroService } from '../services/encontroService';
 import { pessoaService } from '../services/pessoaService';
 import { inscricaoService } from '../services/inscricaoService';
 import { preCadastroService } from '../services/preCadastroService';
 import { maskCpf } from '../utils/cpfUtils';
-import type { Encontro } from '../types/encontro';
 import type { Pessoa, PessoaFormData } from '../types/pessoa';
 import type { PreCadastroEntry } from '../types/preCadastro';
 import { calculateAge } from '../utils/dateUtils';
+import { useEncontros } from '../contexts/EncontroContext';
 
 export function InscricaoPage() {
   const navigate = useNavigate();
-  const [encontros, setEncontros] = useState<Encontro[]>([]);
-  const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
-  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+  const {
+    encontros,
+    encontroAtivo,
+    encontroSelecionado,
+    encontroSelecionadoId,
+    selecionarEncontro,
+    selecaoBloqueada,
+    isLoading: isLoadingEvents,
+  } = useEncontros();
   const [isSaving, setIsSaving] = useState(false);
 
   // Similarity Check State
@@ -39,34 +44,17 @@ export function InscricaoPage() {
   const [showAgeModal, setShowAgeModal] = useState(false);
   const [userAge, setUserAge] = useState<number | null>(null);
 
-  useEffect(() => {
-    const loadEncontros = async () => {
-      try {
-        const data = await encontroService.listar();
-        setEncontros(data);
-        const active = data.find(e => e.ativo);
-        if (active) setSelectedEncontroId(active.id);
-        else toast.error('Não há encontro ativo disponível para inscrição.');
-      } catch {
-        toast.error('Erro ao carregar encontros.');
-      } finally {
-        setIsLoadingEvents(false);
-      }
-    };
-    loadEncontros();
-  }, []);
-
   const performRegistration = async (pessoaId: string, isNew: boolean) => {
     setIsSaving(true);
     try {
-      if (!selectedEncontroId || !encontroAtivo) {
+      if (!encontroAtivo || encontroSelecionadoId !== encontroAtivo.id) {
         throw new Error('Não há encontro ativo disponível para inscrição.');
       }
 
       // 2. Vincular ao encontro
       await inscricaoService.criar({
         pessoa_id: pessoaId,
-        encontro_id: selectedEncontroId,
+        encontro_id: encontroAtivo.id,
         participante: true,
         equipe_id: null,
         coordenador: false,
@@ -100,7 +88,7 @@ export function InscricaoPage() {
     setIsSaving(true);
     try {
       // 0. Verificar idade (Mínimo 15 anos na data do encontro)
-      const encontro = encontros.find(e => e.id === selectedEncontroId);
+      const encontro = encontroAtivo;
       if (encontro && data.data_nascimento) {
         const age = calculateAge(data.data_nascimento, encontro.data_inicio);
         if (age !== null && age < 15) {
@@ -131,8 +119,6 @@ export function InscricaoPage() {
       setIsSaving(false);
     }
   };
-
-  const encontroAtivo = encontros.find((encontro) => encontro.id === selectedEncontroId && encontro.ativo);
 
   const handleSearchPreCadastro = async () => {
     if (!preCadastroSearch.trim()) return;
@@ -190,13 +176,142 @@ export function InscricaoPage() {
     }
   };
 
+  const pageHeader = (
+    <PageHeader
+      title="Nova Inscrição"
+      subtitle="Portal / Inscrição"
+      backPath="/dashboard"
+    />
+  );
+
+  const contextIsInitializing = isLoadingEvents || (encontros.length > 0 && !encontroSelecionadoId);
+
+  if (contextIsInitializing) {
+    return (
+      <>
+        {pageHeader}
+        <div className="card text-center py-4">Carregando encontro...</div>
+      </>
+    );
+  }
+
+  if (!encontroAtivo) {
+    return (
+      <>
+        {pageHeader}
+        <div className="card text-center py-4">
+          <strong>Inscrições indisponíveis</strong>
+          <p style={{ marginBottom: 0, opacity: 0.7 }}>Não há encontro ativo disponível para uma nova inscrição.</p>
+        </div>
+      </>
+    );
+  }
+
+  if (encontroSelecionadoId !== encontroAtivo.id) {
+    return (
+      <>
+        {pageHeader}
+        <section className="card inscription-context-warning">
+          <div className="inscription-context-warning__icon" aria-hidden="true">
+            <AlertTriangle size={24} />
+          </div>
+          <div className="inscription-context-warning__content">
+            <span className="inscription-context-warning__eyebrow">Contexto histórico selecionado</span>
+            <h2>Você está consultando o {encontroSelecionado?.nome ?? 'encontro histórico'}</h2>
+            <p>
+              Novas inscrições só podem ser realizadas no encontro ativo. Para continuar, altere o contexto para <strong>{encontroAtivo.nome}</strong>.
+            </p>
+            {selecaoBloqueada && (
+              <p className="inscription-context-warning__blocked">
+                Seu perfil não permite alterar a edição selecionada. Retorne à tela anterior ou solicite acesso a um administrador.
+              </p>
+            )}
+            <div className="inscription-context-warning__actions">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => selecionarEncontro(encontroAtivo.id)}
+                disabled={selecaoBloqueada}
+              >
+                Trocar para {encontroAtivo.nome} e continuar
+              </button>
+              <button type="button" className="btn-outline" onClick={() => navigate(-1)}>
+                Voltar
+              </button>
+            </div>
+          </div>
+        </section>
+        <style>{`
+          .inscription-context-warning {
+            max-width: 760px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            border-color: rgba(245, 158, 11, 0.35);
+            background: color-mix(in srgb, #f59e0b 7%, var(--card-bg));
+          }
+          .inscription-context-warning__icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: grid;
+            place-items: center;
+            flex: 0 0 auto;
+            color: #f59e0b;
+            background: rgba(245, 158, 11, 0.14);
+          }
+          .inscription-context-warning__content {
+            min-width: 0;
+          }
+          .inscription-context-warning__eyebrow {
+            color: #f59e0b;
+            font-size: 0.75rem;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+          }
+          .inscription-context-warning h2 {
+            margin: 0.25rem 0 0.65rem;
+            color: var(--text-color);
+            font-size: 1.3rem;
+          }
+          .inscription-context-warning p {
+            margin: 0;
+            color: var(--muted-text);
+            line-height: 1.55;
+          }
+          .inscription-context-warning__blocked {
+            margin-top: 0.75rem !important;
+            color: #ef4444 !important;
+            font-weight: 700;
+          }
+          .inscription-context-warning__actions {
+            margin-top: 1.25rem;
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+          }
+          @media (max-width: 640px) {
+            .inscription-context-warning {
+              flex-direction: column;
+              padding: 1.1rem;
+            }
+            .inscription-context-warning__actions button {
+              width: 100%;
+              min-height: 44px;
+              justify-content: center;
+            }
+          }
+        `}</style>
+      </>
+    );
+  }
+
   return (
     <>
-      <PageHeader 
-        title="Nova Inscrição"
-        subtitle="Portal / Inscrição"
-        backPath="/dashboard"
-      />
+      {pageHeader}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', margin: '0 auto' }}>
           {/* Step 1: Event Selection */}
@@ -204,14 +319,14 @@ export function InscricaoPage() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
               <div>
                 <span style={{ display: 'block', color: 'var(--muted-text)', fontSize: '0.78rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                  Encontro ativo
+                  Inscrição para
                 </span>
                 <h3 style={{ margin: '0.25rem 0 0', color: 'var(--text-color)', fontSize: '1.35rem' }}>
-                  {encontroAtivo?.nome ?? 'Inscrições indisponíveis'}
+                  {encontroAtivo.nome} <span style={{ color: '#10b981', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>Ativo</span>
                 </h3>
               </div>
               <button
-                onClick={() => navigate(`/inscricao/participantes${selectedEncontroId ? `?encontro=${selectedEncontroId}` : ''}`)}
+                onClick={() => navigate(`/inscricao/participantes?encontro=${encontroAtivo.id}`)}
                 className="btn-text"
                 style={{
                   fontSize: '0.85rem',
@@ -229,11 +344,6 @@ export function InscricaoPage() {
               </button>
             </div>
 
-            {isLoadingEvents ? (
-              <div className="text-center py-4">Carregando encontros...</div>
-            ) : !encontroAtivo ? (
-              <div className="text-center py-4">Não há encontro ativo disponível para inscrição.</div>
-            ) : null}
           </div>
 
           {/* Step 1.5: Pre-Cadastro Search (Optional/Toggle) */}
@@ -349,7 +459,7 @@ export function InscricaoPage() {
           </div>
 
           {/* Step 2: Person Data */}
-          {encontroAtivo ? <div className="card">
+          <div className="card">
             <h2 style={{ marginTop: 0, marginBottom: '1.5rem', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               Dados do Encontrista
             </h2>
@@ -362,12 +472,7 @@ export function InscricaoPage() {
               requireBirthDate={true}
               requireFezEjc={true}
             />
-          </div> : (
-            <div className="card text-center py-4">
-              <strong>Inscrições indisponíveis</strong>
-              <p style={{ marginBottom: 0, opacity: 0.7 }}>A inscrição direta só pode ser feita para uma edição ativa.</p>
-            </div>
-          )}
+          </div>
         </div>
 
       <ConfirmDialog

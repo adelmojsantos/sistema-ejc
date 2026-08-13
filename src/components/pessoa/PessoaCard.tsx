@@ -4,7 +4,7 @@ import type { Pessoa } from '../../types/pessoa';
 interface PessoaCardProps {
     pessoa: Pessoa;
     onEdit: (pessoa: Pessoa) => void;
-    onDelete: (pessoa: Pessoa) => void;
+    onDelete?: (pessoa: Pessoa) => void;
     onHistory?: (pessoa: Pessoa) => void;
 }
 
@@ -129,15 +129,17 @@ export function PessoaCard({ pessoa, onEdit, onDelete, onHistory }: PessoaCardPr
                         <Pencil size={15} />
                         <span className="pessoa-action-label">Editar</span>
                 </button>
-                <button
-                    className="icon-btn icon-btn-danger"
-                    onClick={() => onDelete(pessoa)}
-                    title="Excluir"
-                    aria-label="Excluir pessoa"
-                    >
-                        <Trash2 size={15} />
-                        <span className="pessoa-action-label">Excluir</span>
-                </button>
+                {onDelete && (
+                    <button
+                        className="icon-btn icon-btn-danger"
+                        onClick={() => onDelete(pessoa)}
+                        title="Excluir definitivamente"
+                        aria-label="Excluir pessoa definitivamente"
+                        >
+                            <Trash2 size={15} />
+                            <span className="pessoa-action-label">Excluir</span>
+                    </button>
+                )}
             </div>
         </div>
     );

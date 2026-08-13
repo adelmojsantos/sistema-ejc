@@ -88,9 +88,11 @@ export function ChangePasswordPage() {
                 navigate('/dashboard', { replace: true });
             }, 1000);
 
-        } catch (submitError: any) {
+        } catch (submitError: unknown) {
             console.error('Erro crítico na troca de senha:', submitError);
-            const message = submitError.message || 'Erro ao processar alteração de senha.';
+            const message = submitError instanceof Error
+                ? submitError.message
+                : 'Erro ao processar alteração de senha.';
             setError(message);
             
             // Se for erro de sessão, limpa tudo e manda pro login após 3 segundos

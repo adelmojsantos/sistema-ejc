@@ -778,8 +778,12 @@ export function SecretariaParticipantesPage() {
               <button
                 onClick={() => navigate('/inscricao')}
                 className="btn-secondary secretaria-header-action"
+                title={encontroSelecionado?.ativo ? 'Nova inscrição' : 'Nova inscrição no encontro ativo'}
               >
-                <Plus size={16} /> <span className="hide-mobile">Nova Inscrição</span>
+                <Plus size={16} />
+                <span className="hide-mobile">
+                  {encontroSelecionado?.ativo ? 'Nova inscrição' : 'Nova inscrição no encontro ativo'}
+                </span>
               </button>
 
               <button

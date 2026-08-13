@@ -1,7 +1,28 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ConfirmDialog } from './ConfirmDialog';
+
+function ControlledDialog() {
+  const [value, setValue] = useState('');
+
+  return (
+    <ConfirmDialog
+      isOpen
+      title="Cancelar participação"
+      message={(
+        <textarea
+          aria-label="Motivo do cancelamento"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      )}
+      onConfirm={vi.fn()}
+      onCancel={() => undefined}
+    />
+  );
+}
 
 describe('ConfirmDialog', () => {
   it('expõe semântica de diálogo e posiciona o foco na ação principal', async () => {
@@ -41,5 +62,17 @@ describe('ConfirmDialog', () => {
     await user.keyboard('{Escape}');
 
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantém o foco em um campo controlado durante a digitação', async () => {
+    const user = userEvent.setup();
+    render(<ControlledDialog />);
+
+    const textarea = screen.getByLabelText('Motivo do cancelamento');
+    await user.click(textarea);
+    await user.type(textarea, 'Teste de cancelamento');
+
+    expect(textarea).toHaveValue('Teste de cancelamento');
+    expect(textarea).toHaveFocus();
   });
 });

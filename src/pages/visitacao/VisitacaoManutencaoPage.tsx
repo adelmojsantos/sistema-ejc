@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Save, Camera, Loader, Info, DollarSign, User, Phone, UsersRound, Home, Heart, UtensilsCrossed, Pill, AlertTriangle, Upload, ImagePlus, Calendar, Shirt, Plus, Trash2, X, Car, Pencil, CheckCircle, FileText, Eye } from 'lucide-react';
 import { visitacaoService, type IntencaoCamisetaItem } from '../../services/visitacaoService';
@@ -20,6 +20,14 @@ import { formatTelefone, formatCpf } from '../../utils/cpfUtils';
 import { cleanPlate, formatPlate } from '../../utils/plateUtils';
 import { geocodeWithFallback } from '../../utils/geocoding';
 import { resolveAddressCoordinates } from '../../utils/addressCoordinates';
+import {
+    countVisitFormPendingSections,
+    getCancelledVisitIntentions,
+    getVisitFormSectionStatuses,
+    serializeVisitForm,
+    type VisitFormSectionId,
+    type VisitFormSnapshot,
+} from '../../utils/visitFormProgress';
 
 /** Local type for the Supabase-joined participacoes field on this page's query */
 type ParticipacaoComPessoa = {
@@ -105,6 +113,16 @@ const inferCareFlag = (flag: boolean | null | undefined, description: string | n
 };
 
 const MIN_DESISTENCIA_MOTIVO_LENGTH = 50;
+const VISIT_LIST_PATH = '/visitacao/meus-participantes';
+
+const VISIT_FORM_SECTIONS: Array<{ id: VisitFormSectionId; label: string }> = [
+    { id: 'visit', label: 'Visita e fotos' },
+    { id: 'operation', label: 'Taxa, veículo e camiseta' },
+    { id: 'personal', label: 'Dados cadastrais' },
+    { id: 'family', label: 'Filiação e contatos' },
+    { id: 'health', label: 'Saúde' },
+    { id: 'notes', label: 'Observações' },
+];
 
 const getCareQuestionError = (
     shouldShow: boolean,
@@ -272,6 +290,106 @@ export function VisitacaoManutencaoPage() {
     const [removingProofId, setRemovingProofId] = useState<string | null>(null);
     const [proofTargetId, setProofTargetId] = useState<string | null>(null);
     const proofInputRef = useRef<HTMLInputElement>(null);
+    const initialFormSnapshotRef = useRef<string | null>(null);
+    const allowNavigationRef = useRef(false);
+    const [pendingNavigationPath, setPendingNavigationPath] = useState<string | null>(null);
+
+    const formSnapshot = useMemo<VisitFormSnapshot>(() => ({
+        status,
+        observacoes,
+        taxaPaga,
+        nomeCompleto,
+        telefone,
+        endereco,
+        numero,
+        complemento,
+        cep,
+        bairro,
+        cidade,
+        estado,
+        dataNascimento,
+        nomePai,
+        telefonePai,
+        nomeMae,
+        telefoneMae,
+        restricaoAlimentar,
+        medicamentoContinuo,
+        alergia,
+        observacoesSaude,
+        possuiRestricaoAlimentar,
+        possuiAlergia,
+        usaMedicamentoContinuo,
+        possuiObservacaoSaude,
+        intencoes,
+    }), [
+        alergia, bairro, cep, cidade, complemento, dataNascimento, endereco, estado,
+        intencoes, medicamentoContinuo, nomeCompleto, nomeMae, nomePai, numero,
+        observacoes, observacoesSaude, possuiAlergia, possuiObservacaoSaude,
+        possuiRestricaoAlimentar, restricaoAlimentar, status, taxaPaga, telefone,
+        telefoneMae, telefonePai, usaMedicamentoContinuo,
+    ]);
+    const serializedForm = useMemo(() => serializeVisitForm(formSnapshot), [formSnapshot]);
+    const hasUnsavedChanges = !loading
+        && !isHistory
+        && initialFormSnapshotRef.current !== null
+        && serializedForm !== initialFormSnapshotRef.current;
+    const sectionStatuses = useMemo(
+        () => getVisitFormSectionStatuses(formSnapshot, showCareErrors),
+        [formSnapshot, showCareErrors],
+    );
+    const pendingSectionCount = countVisitFormPendingSections(sectionStatuses);
+
+    const scrollToSection = useCallback((sectionId: VisitFormSectionId, focusInvalid = false) => {
+        const section = document.getElementById(`visit-section-${sectionId}`);
+        section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (focusInvalid) {
+            window.setTimeout(() => {
+                const invalidControl = section?.querySelector<HTMLElement>(
+                    '.visit-care-question--error textarea, .visit-care-question--error button, [aria-invalid="true"]',
+                );
+                invalidControl?.focus({ preventScroll: true });
+            }, 350);
+        }
+    }, []);
+
+    const requestNavigation = useCallback((path: string) => {
+        if (hasUnsavedChanges && !allowNavigationRef.current) {
+            setPendingNavigationPath(path);
+            return;
+        }
+        navigate(path);
+    }, [hasUnsavedChanges, navigate]);
+
+    useEffect(() => {
+        if (loading || isHistory || initialFormSnapshotRef.current !== null) return;
+        initialFormSnapshotRef.current = serializedForm;
+    }, [isHistory, loading, serializedForm]);
+
+    useEffect(() => {
+        if (!hasUnsavedChanges) return;
+
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = '';
+        };
+        const handleDocumentClick = (event: MouseEvent) => {
+            if (allowNavigationRef.current || event.defaultPrevented || event.button !== 0) return;
+            const anchor = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[href]');
+            if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+            const targetUrl = new URL(anchor.href, window.location.href);
+            if (targetUrl.origin !== window.location.origin) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setPendingNavigationPath(`${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        document.addEventListener('click', handleDocumentClick, true);
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            document.removeEventListener('click', handleDocumentClick, true);
+        };
+    }, [hasUnsavedChanges]);
 
     const processFile = useCallback(async (file: File) => {
         if (!file || !visita || !file.type.startsWith('image/')) return;
@@ -462,8 +580,12 @@ export function VisitacaoManutencaoPage() {
         async function loadVisita() {
             if (!id) return;
             try {
+                initialFormSnapshotRef.current = null;
+                allowNavigationRef.current = false;
+                setLoading(true);
                 setIsHistory(false);
                 setReadOnlyReason(null);
+                setIntencoes([]);
 
                 // 1. Try to fetch from active visits
                 let { data } = await supabase
@@ -481,6 +603,7 @@ export function VisitacaoManutencaoPage() {
                     .maybeSingle();
 
                 let isHistoryRecord = false;
+                let isCancelledRecord = false;
 
                 if (data) {
                     const participacao = data.participacoes as ParticipacaoComPessoa | null;
@@ -512,6 +635,7 @@ export function VisitacaoManutencaoPage() {
 
                     if (historyData) {
                         isHistoryRecord = true;
+                        isCancelledRecord = true;
                         setIsHistory(true);
                         setReadOnlyReason('cancelled');
                         // Map history data to match expected structure
@@ -536,6 +660,7 @@ export function VisitacaoManutencaoPage() {
                         };
                         setVisita(mappedData);
                         data = mappedData;
+                        setIntencoes(getCancelledVisitIntentions(historyData.dados_snapshot));
                     }
                 }
 
@@ -575,8 +700,9 @@ export function VisitacaoManutencaoPage() {
                         setPossuiObservacaoSaude(inferCareFlag(p.possui_observacao_saude, p.observacoes_saude));
                     }
 
-                    // Load shirt intentions (only for real visits, not history)
-                    if (!isHistoryRecord && data.id) {
+                    // Registros ainda existentes, ativos ou encerrados, mantêm as intenções vinculadas à visita.
+                    // Cancelamentos usam o snapshot carregado acima, pois os vínculos originais foram removidos.
+                    if (!isCancelledRecord && data.id) {
                         try {
                             const intData = await visitacaoService.listarIntencoes(data.id);
                             setIntencoes(intData);
@@ -608,7 +734,9 @@ export function VisitacaoManutencaoPage() {
                                 camisetaService.listarModelos(encontroId),
                                 camisetaService.listarTamanhos()
                             ]);
-                            setModelosCamiseta((mods as CamisetaModeloComStatus[]).filter(m => m.esta_ativo_no_encontro !== false));
+                            setModelosCamiseta(isHistoryRecord
+                                ? mods
+                                : (mods as CamisetaModeloComStatus[]).filter(m => m.esta_ativo_no_encontro !== false));
                             setTamanhosCamiseta(tams);
                         } catch { /* silently ignore */ }
                     }
@@ -697,7 +825,8 @@ export function VisitacaoManutencaoPage() {
             await inscricaoService.cancelarParticipacao(visita.participacao_id, motivo);
 
             toast.success('Desistência registrada e participação removida do encontro.');
-            navigate('/visitacao/meus-participantes');
+            allowNavigationRef.current = true;
+            navigate(VISIT_LIST_PATH);
         } catch (error) {
             console.error('Erro ao cancelar:', error);
             toast.error('Erro ao processar cancelamento.');
@@ -720,12 +849,14 @@ export function VisitacaoManutencaoPage() {
         const respostaPendente = cuidadosObrigatorios.find((item) => item.flag === null);
         if (respostaPendente) {
             toast.error(`Responda Sim ou Não para ${respostaPendente.label}.`);
+            scrollToSection('health', true);
             return;
         }
 
         const descricaoPendente = cuidadosObrigatorios.find((item) => item.flag === true && !item.description.trim());
         if (descricaoPendente) {
             toast.error(`Informe a descrição de ${descricaoPendente.label}.`);
+            scrollToSection('health', true);
             return;
         }
 
@@ -792,7 +923,9 @@ export function VisitacaoManutencaoPage() {
                 });
 
             toast.success('Dados salvos com sucesso!');
-            navigate('/visitacao/meus-participantes');
+            initialFormSnapshotRef.current = serializedForm;
+            allowNavigationRef.current = true;
+            navigate(VISIT_LIST_PATH);
         } catch (error) {
             console.error('Erro ao salvar:', error);
             toast.error('Erro ao salvar alterações.');
@@ -886,7 +1019,7 @@ export function VisitacaoManutencaoPage() {
         <>
             <div className="page-header" style={{ marginBottom: '2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <button onClick={() => navigate('/visitacao/meus-participantes')} className="icon-btn"><ChevronLeft size={20} /></button>
+                    <button onClick={() => requestNavigation(VISIT_LIST_PATH)} className="icon-btn" aria-label="Voltar para meus encontristas"><ChevronLeft size={20} /></button>
                     <div>
                         <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Registro de Visita</h1>
                         <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6 }}>
@@ -907,8 +1040,48 @@ export function VisitacaoManutencaoPage() {
                 </div>
             )}
 
+            {!isHistory && (
+                <nav className="visit-form-progress" aria-label="Seções do registro da visita">
+                    <div className="visit-form-progress__summary">
+                        <div>
+                            <strong>Navegar pelo formulário</strong>
+                            <span>
+                                {pendingSectionCount > 0
+                                    ? `${pendingSectionCount} ${pendingSectionCount === 1 ? 'pendência obrigatória' : 'pendências obrigatórias'}`
+                                    : 'Campos obrigatórios preenchidos'}
+                            </span>
+                        </div>
+                        {hasUnsavedChanges && <span className="visit-form-progress__unsaved">Alterações não salvas</span>}
+                    </div>
+                    <div className="visit-form-progress__items">
+                        {VISIT_FORM_SECTIONS.map((section, index) => {
+                            const sectionStatus = sectionStatuses[section.id];
+                            return (
+                                <button
+                                    key={section.id}
+                                    type="button"
+                                    className={`visit-form-progress__item visit-form-progress__item--${sectionStatus}`}
+                                    onClick={() => scrollToSection(section.id)}
+                                    aria-label={`Ir para ${section.label}`}
+                                >
+                                    <span className="visit-form-progress__number">{index + 1}</span>
+                                    <span className="visit-form-progress__label">{section.label}</span>
+                                    {section.id === 'health' && (
+                                        <span className={`visit-form-progress__requirement visit-form-progress__requirement--${sectionStatus}`}>
+                                            {sectionStatus === 'complete'
+                                                ? <><CheckCircle size={14} aria-hidden="true" /> Preenchido</>
+                                                : <><AlertTriangle size={14} aria-hidden="true" /> {sectionStatus === 'attention' ? 'Revisar' : 'Obrigatório'}</>}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </nav>
+            )}
+
             {/* HERO CARD: Photo + Person Info */}
-            <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem', overflow: 'hidden' }}>
+            <div id="visit-section-visit" className="card visit-form-anchor" style={{ padding: '1.5rem', marginBottom: '1.5rem', overflow: 'hidden' }}>
                 <div className="visita-hero-row">
                     {/* Photo Area with Drag & Drop */}
                     <div
@@ -1040,7 +1213,7 @@ export function VisitacaoManutencaoPage() {
 
             {/* FORM CONTENT */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                <div className="card" style={{ padding: '2rem' }}>
+                <div id="visit-section-operation" className="card visit-form-anchor" style={{ padding: '2rem' }}>
                     <div className="form-group">
                         <label>Status da Visita</label>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '0.75rem', marginTop: '0.5rem', padding: '0.5rem' }}>
@@ -1136,7 +1309,7 @@ export function VisitacaoManutencaoPage() {
                         </div>
                     </div>
 
-                    {!isHistory && (
+                    {(!isHistory || intencoes.length > 0) && (
                         <div style={{
                             marginTop: '2rem',
                             padding: '1.5rem',
@@ -1297,7 +1470,7 @@ export function VisitacaoManutencaoPage() {
                     )}
 
                     {/* ---- INTENÇÃO DE CAMISETA ---- */}
-                    {!isHistory && (
+                    {(!isHistory || intencoes.length > 0) && (
                         <div style={{
                             marginTop: '2rem',
                             borderRadius: '16px',
@@ -1338,11 +1511,13 @@ export function VisitacaoManutencaoPage() {
                                             )}
                                         </h4>
                                         <p style={{ margin: 0, fontSize: '0.78rem', opacity: 0.6 }}>
-                                            Registre o interesse — não é um pedido formal
+                                            {isHistory
+                                                ? 'Informação registrada durante a visita'
+                                                : 'Registre o interesse — não é um pedido formal'}
                                         </p>
                                     </div>
                                 </div>
-                                {!showAddIntencao && modelosCamiseta.length > 0 && (
+                                {!isHistory && !showAddIntencao && modelosCamiseta.length > 0 && (
                                     <button
                                         onClick={() => {
                                             const firstMod = modelosCamiseta[0];
@@ -1362,7 +1537,7 @@ export function VisitacaoManutencaoPage() {
                                         <Plus size={16} /> Adicionar
                                     </button>
                                 )}
-                                {!showAddIntencao && modelosCamiseta.length === 0 && (
+                                {!isHistory && !showAddIntencao && modelosCamiseta.length === 0 && (
                                     <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>Nenhum modelo disponível</span>
                                 )}
                             </div>
@@ -1397,7 +1572,7 @@ export function VisitacaoManutencaoPage() {
                                                         }}>{item.tamanho}</span>
                                                         <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>× {item.quantidade}</span>
                                                     </div>
-                                                    <button
+                                                    {!isHistory && <button
                                                         onClick={() => setIntencoes(prev => prev.filter((_, i) => i !== idx))}
                                                         style={{
                                                             background: 'none', border: 'none', cursor: 'pointer',
@@ -1409,9 +1584,9 @@ export function VisitacaoManutencaoPage() {
                                                         title="Remover"
                                                     >
                                                         <Trash2 size={15} />
-                                                    </button>
+                                                    </button>}
                                                 </div>
-                                                <div style={{
+                                                {!isHistory && <div style={{
                                                     display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap',
                                                     marginTop: '0.65rem', paddingTop: '0.6rem',
                                                     borderTop: '1px solid rgba(99,102,241,0.12)'
@@ -1485,7 +1660,7 @@ export function VisitacaoManutencaoPage() {
                                                             Salve a visita para registrar o pagamento.
                                                         </span>
                                                     )}
-                                                </div>
+                                                </div>}
                                             </div>
                                         );
                                     })}
@@ -1493,7 +1668,7 @@ export function VisitacaoManutencaoPage() {
                             )}
 
                             {/* Mini-form para adicionar */}
-                            {showAddIntencao && (
+                            {!isHistory && showAddIntencao && (
                                 <div style={{ padding: '1rem 1.5rem', background: 'rgba(99,102,241,0.04)' }}>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'flex-end' }}>
                                         <div className="form-group" style={{ marginBottom: 0, flex: '1 1 180px' }}>
@@ -1574,7 +1749,7 @@ export function VisitacaoManutencaoPage() {
                             )}
 
                             {/* Botão adicionar mais (quando já tem itens e não está no form) */}
-                            {!showAddIntencao && intencoes.length > 0 && modelosCamiseta.length > 0 && (
+                            {!isHistory && !showAddIntencao && intencoes.length > 0 && modelosCamiseta.length > 0 && (
                                 <div style={{ padding: '0.5rem 1.5rem 1rem' }}>
                                     <button
                                         onClick={() => {
@@ -1598,6 +1773,7 @@ export function VisitacaoManutencaoPage() {
                     )}
 
                     <div style={{ paddingTop: '2rem' }}>
+                        <div id="visit-section-personal" className="visit-form-anchor">
                         <FormSection title="Correção de Dados Cadastrais" icon={<Info size={20} />}>
                             <p style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '1.5rem', marginTop: '-0.5rem' }}>
                                 Caso encontre erros nos dados do encontrista durante a visita, corrija-os abaixo para atualizar o sistema.
@@ -1687,6 +1863,8 @@ export function VisitacaoManutencaoPage() {
                                 />
                             </FormRow>
                         </FormSection>
+                        </div>
+                        <div id="visit-section-family" className="visit-form-anchor">
                         <FormSection title="Filiação & Contatos" icon={<UsersRound size={18} />}>
                             <FormRow>
                                 <FormField
@@ -1723,7 +1901,9 @@ export function VisitacaoManutencaoPage() {
                                 />
                             </FormRow>
                         </FormSection>
+                        </div>
 
+                        <div id="visit-section-health" className="visit-form-anchor">
                         <FormSection title="Informações de Saúde" icon={<Heart size={18} />}>
                             <p style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '1.5rem', marginTop: '-0.5rem' }}>
                                 Registre informações importantes sobre a saúde do encontrista para que a equipe esteja preparada.
@@ -1783,7 +1963,9 @@ export function VisitacaoManutencaoPage() {
                                 />
                             </div>
                         </FormSection>
+                        </div>
 
+                        <div id="visit-section-notes" className="visit-form-anchor">
                         <FormSection title="Observações da Visita" icon={<Info size={20} />}>
                             <p style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '1.5rem', marginTop: '-0.5rem' }}>
                                 Registre aqui qualquer detalhe importante coletado durante a visita, impressões ou recados da família.
@@ -1882,10 +2064,13 @@ export function VisitacaoManutencaoPage() {
                                 )}
                             </div>
                         </FormSection>
+                        </div>
                     </div>
 
-                    <div style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
-                        <button onClick={() => navigate('/visitacao/meus-participantes')} className="btn-outline">Cancelar</button>
+                    <div className="visit-desktop-actions" style={{ marginTop: '2.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                        <button onClick={() => requestNavigation(VISIT_LIST_PATH)} className="btn-outline">
+                            {isHistory ? 'Voltar' : 'Cancelar'}
+                        </button>
                         <button
                             onClick={handleSave}
                             className="btn-primary"
@@ -1904,7 +2089,153 @@ export function VisitacaoManutencaoPage() {
                 </div>
             </div>
 
+            {!isHistory && (
+                <>
+                    <div className="visit-mobile-save-spacer" aria-hidden="true" />
+                    <div className="visit-mobile-save-bar">
+                        <div className="visit-mobile-save-bar__status">
+                            <strong>{hasUnsavedChanges ? 'Alterações não salvas' : 'Dados atualizados'}</strong>
+                            <span>
+                                {pendingSectionCount > 0
+                                    ? `${pendingSectionCount} ${pendingSectionCount === 1 ? 'seção pendente' : 'seções pendentes'}`
+                                    : 'Pronto para salvar'}
+                            </span>
+                        </div>
+                        <button type="button" className="btn-primary" onClick={handleSave} disabled={saving}>
+                            {saving ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
+                            Salvar
+                        </button>
+                    </div>
+                </>
+            )}
+
+            {isHistory && (
+                <>
+                    <div className="visit-mobile-save-spacer" aria-hidden="true" />
+                    <div className="visit-mobile-save-bar visit-mobile-save-bar--history">
+                        <div className="visit-mobile-save-bar__status">
+                            <strong>Modo de consulta</strong>
+                            <span>{readOnlyReason === 'historical' ? 'Encontro encerrado' : 'Participação cancelada'}</span>
+                        </div>
+                        <button type="button" className="btn-primary" onClick={() => requestNavigation(VISIT_LIST_PATH)}>
+                            <ChevronLeft size={18} />
+                            Voltar
+                        </button>
+                    </div>
+                </>
+            )}
+
             <style>{`
+                    .visit-form-anchor {
+                        scroll-margin-top: 7rem;
+                    }
+                    .visit-form-progress {
+                        margin-bottom: 1.5rem;
+                        padding: 1rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 16px;
+                        background: var(--card-bg);
+                    }
+                    .visit-form-progress__summary {
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        gap: 1rem;
+                        margin-bottom: 0.85rem;
+                    }
+                    .visit-form-progress__summary > div {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 0.15rem;
+                    }
+                    .visit-form-progress__summary strong {
+                        color: var(--text-color);
+                        font-size: 0.95rem;
+                    }
+                    .visit-form-progress__summary span {
+                        color: var(--muted-text);
+                        font-size: 0.78rem;
+                    }
+                    .visit-form-progress__unsaved {
+                        padding: 0.35rem 0.65rem;
+                        border-radius: 999px;
+                        background: rgba(245, 158, 11, 0.12);
+                        color: #f59e0b !important;
+                        font-weight: 800;
+                        white-space: nowrap;
+                    }
+                    .visit-form-progress__items {
+                        display: grid;
+                        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+                        gap: 0.5rem;
+                    }
+                    .visit-form-progress__item {
+                        min-width: 0;
+                        min-height: 44px;
+                        padding: 0.55rem 0.65rem;
+                        border: 1px solid var(--border-color);
+                        border-radius: 10px;
+                        background: var(--secondary-bg);
+                        color: var(--muted-text);
+                        display: flex;
+                        align-items: center;
+                        gap: 0.55rem;
+                        text-align: left;
+                        cursor: pointer;
+                        transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+                    }
+                    .visit-form-progress__item:hover,
+                    .visit-form-progress__item:focus-visible {
+                        border-color: var(--primary-color);
+                        color: var(--text-color);
+                    }
+                    .visit-form-progress__item--attention {
+                        border-color: rgba(239, 68, 68, 0.55);
+                        background: rgba(239, 68, 68, 0.08);
+                    }
+                    .visit-form-progress__number {
+                        width: 1.55rem;
+                        height: 1.55rem;
+                        border-radius: 999px;
+                        display: grid;
+                        place-items: center;
+                        flex: 0 0 auto;
+                        background: rgba(var(--primary-rgb), 0.12);
+                        color: var(--primary-color);
+                        font-size: 0.72rem;
+                        font-weight: 800;
+                    }
+                    .visit-form-progress__label {
+                        min-width: 0;
+                        flex: 1;
+                        font-size: 0.75rem;
+                        font-weight: 750;
+                        line-height: 1.2;
+                        overflow-wrap: anywhere;
+                    }
+                    .visit-form-progress__requirement {
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: flex-end;
+                        gap: 0.3rem;
+                        flex: 0 0 auto;
+                        font-size: 0.66rem;
+                        font-weight: 800;
+                        white-space: nowrap;
+                    }
+                    .visit-form-progress__requirement--complete {
+                        color: #10b981;
+                    }
+                    .visit-form-progress__requirement--pending {
+                        color: #f59e0b;
+                    }
+                    .visit-form-progress__requirement--attention {
+                        color: #ef4444;
+                    }
+                    .visit-mobile-save-bar,
+                    .visit-mobile-save-spacer {
+                        display: none;
+                    }
                     .visita-hero-row {
                         display: flex;
                         align-items: center;
@@ -2356,11 +2687,79 @@ export function VisitacaoManutencaoPage() {
                         border-color: #ef4444;
                     }
                     @media (max-width: 860px) {
+                        .visit-form-progress__items {
+                            grid-template-columns: repeat(2, minmax(0, 1fr));
+                        }
                         .visit-care-grid {
                             grid-template-columns: 1fr;
                         }
                     }
+                    @media (max-width: 768px) {
+                        .visit-form-progress {
+                            padding: 0.85rem;
+                        }
+                        .visit-form-progress__summary {
+                            align-items: flex-start;
+                        }
+                        .visit-form-progress__items {
+                            display: grid;
+                            grid-template-columns: repeat(2, minmax(0, 1fr));
+                        }
+                        .visit-form-progress__item {
+                            width: 100%;
+                        }
+                        .visit-desktop-actions {
+                            display: none !important;
+                        }
+                        .visit-mobile-save-spacer {
+                            display: block;
+                            height: 6.75rem;
+                        }
+                        .visit-mobile-save-bar {
+                            position: fixed;
+                            z-index: 1200;
+                            left: 0;
+                            right: 0;
+                            bottom: 0;
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            gap: 0.75rem;
+                            padding: 0.75rem max(1rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+                            border-top: 1px solid var(--border-color);
+                            background: color-mix(in srgb, var(--card-bg) 94%, transparent);
+                            backdrop-filter: blur(14px);
+                            box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.2);
+                        }
+                        .visit-mobile-save-bar__status {
+                            min-width: 0;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 0.1rem;
+                        }
+                        .visit-mobile-save-bar__status strong {
+                            color: var(--text-color);
+                            font-size: 0.82rem;
+                        }
+                        .visit-mobile-save-bar__status span {
+                            color: var(--muted-text);
+                            font-size: 0.7rem;
+                        }
+                        .visit-mobile-save-bar .btn-primary {
+                            min-height: 44px;
+                            padding: 0 1rem;
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 0.45rem;
+                            flex: 0 0 auto;
+                        }
+                    }
                     @media (max-width: 520px) {
+                        .visit-form-progress__summary {
+                            flex-direction: column;
+                            gap: 0.5rem;
+                        }
                         .visit-care-question__header {
                             flex-direction: column;
                         }
@@ -2369,6 +2768,11 @@ export function VisitacaoManutencaoPage() {
                         }
                         .visit-care-toggle__btn {
                             width: 100%;
+                        }
+                    }
+                    @media (max-width: 420px) {
+                        .visit-form-progress__items {
+                            grid-template-columns: 1fr;
                         }
                     }
                     /* Action Sheet Styles */
@@ -2478,6 +2882,22 @@ export function VisitacaoManutencaoPage() {
                         to { transform: scale(1); opacity: 1; }
                     }
                 `}</style>
+
+            <ConfirmDialog
+                isOpen={Boolean(pendingNavigationPath)}
+                title="Descartar alterações?"
+                message="Existem alterações desta visita que ainda não foram salvas. Se sair agora, elas serão perdidas."
+                confirmText="Sair sem salvar"
+                cancelText="Continuar editando"
+                onConfirm={() => {
+                    const destination = pendingNavigationPath;
+                    setPendingNavigationPath(null);
+                    allowNavigationRef.current = true;
+                    if (destination) navigate(destination);
+                }}
+                onCancel={() => setPendingNavigationPath(null)}
+                isDestructive={true}
+            />
 
             <ConfirmDialog
                 isOpen={isConfirmDialogOpen}

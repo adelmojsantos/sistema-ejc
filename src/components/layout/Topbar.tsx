@@ -15,7 +15,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { getNavigationTitle } from '../../config/navigation';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { useEncontros } from '../../contexts/EncontroContext';
-import compactEjcMark from '../../assets/brand-experiments/ejc-mark-white.png';
+import ejcLogo from '../../assets/brand-experiments/ejc-logo.png';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -103,7 +103,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
           <div className="tablet-topbar-brand" aria-label="EJC Capelinha">
-            <img src={compactEjcMark} alt="" className="tablet-topbar-logo brand-experiment-mark" />
+            <img src={ejcLogo} alt="" className="tablet-topbar-logo" />
             <span>EJC Capelinha</span>
           </div>
           <div className="topbar-heading-copy">

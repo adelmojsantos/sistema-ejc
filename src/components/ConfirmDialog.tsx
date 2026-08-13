@@ -32,8 +32,13 @@ export function ConfirmDialog({
     const overlayMouseDownRef = useRef(false);
     const confirmButtonRef = useRef<HTMLButtonElement>(null);
     const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+    const onCancelRef = useRef(onCancel);
     const titleId = useId();
     const descriptionId = useId();
+
+    useEffect(() => {
+        onCancelRef.current = onCancel;
+    }, [onCancel]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -41,21 +46,25 @@ export function ConfirmDialog({
         previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
         const focusTimer = window.setTimeout(() => confirmButtonRef.current?.focus(), 0);
 
+        return () => {
+            window.clearTimeout(focusTimer);
+            previouslyFocusedRef.current?.focus();
+        };
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape' && !isLoading) {
                 event.preventDefault();
-                onCancel();
+                onCancelRef.current();
             }
         };
 
         document.addEventListener('keydown', handleKeyDown);
-
-        return () => {
-            window.clearTimeout(focusTimer);
-            document.removeEventListener('keydown', handleKeyDown);
-            previouslyFocusedRef.current?.focus();
-        };
-    }, [isLoading, isOpen, onCancel]);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isLoading, isOpen]);
 
     if (!isOpen) return null;
 

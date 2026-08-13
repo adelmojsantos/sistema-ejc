@@ -203,7 +203,7 @@ export function MontagemPage() {
         if (!deleteTarget) return;
         setIsLoading(true);
         try {
-            await inscricaoService.excluir(deleteTarget.id);
+            await inscricaoService.desvincularDoEncontro(deleteTarget.id);
             setInscricoes(prev => prev.filter(i => i.id !== deleteTarget.id));
             setDeleteTarget(null);
             toast.success('Membro removido com sucesso!');

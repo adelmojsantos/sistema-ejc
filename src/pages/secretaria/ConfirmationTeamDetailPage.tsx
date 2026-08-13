@@ -336,7 +336,7 @@ export function ConfirmationTeamDetailPage() {
     if (!memberToRemove) return;
     setIsActionLoading(true);
     try {
-      await inscricaoService.excluir(memberToRemove.id);
+      await inscricaoService.desvincularDoEncontro(memberToRemove.id);
       toast.success(`${memberToRemove.pessoas?.nome_completo} removido(a) do encontro.`);
       setMemberToRemove(null);
       await loadData();

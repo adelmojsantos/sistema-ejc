@@ -6,6 +6,19 @@ const TABLE = 'pessoas';
 /** Campos pessoais aceitos pela edição. Vínculos de encontro pertencem a participacoes. */
 export type PessoaUpdateData = Partial<PessoaFormData>;
 
+export interface ExclusaoPessoaImpacto {
+    pessoa_id: string;
+    nome_completo: string;
+    usuario_vinculado: boolean;
+    participacoes: number;
+    cancelamentos: number;
+    visitas: number;
+    circulos: number;
+    recepcao: number;
+    recreacao: number;
+    dirigencia: number;
+}
+
 /**
  * Normaliza somente dados da pessoa, preservando campos omitidos em atualizações parciais.
  * Isso impede que telas de módulos diferentes enviem acidentalmente dados de participação.
@@ -134,11 +147,20 @@ export const pessoaService = {
         return data as Pessoa;
     },
 
-    async excluir(id: string): Promise<void> {
-        const { error } = await supabase
-            .from(TABLE)
-            .delete()
-            .eq('id', id);
+    async obterImpactoExclusao(id: string): Promise<ExclusaoPessoaImpacto> {
+        const { data, error } = await supabase.rpc('get_exclusao_pessoa_impacto', {
+            p_pessoa_id: id,
+        });
+
+        if (error) throw error;
+        return data as ExclusaoPessoaImpacto;
+    },
+
+    async excluirDefinitivamente(id: string, nomeConfirmacao: string): Promise<void> {
+        const { error } = await supabase.rpc('excluir_pessoa_definitivamente', {
+            p_pessoa_id: id,
+            p_nome_confirmacao: nomeConfirmacao,
+        });
 
         if (error) throw error;
     },
