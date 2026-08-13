@@ -29,7 +29,7 @@ const visibilityOptions: { key: keyof QuadranteVisibilityConfig; label: string; 
     { key: 'simbologia', label: 'Simbologia', description: 'Texto institucional e símbolo do EJC.' },
     { key: 'tematica', label: 'Temática', description: 'Logo e referências do tema do encontro.' },
     { key: 'musica', label: 'Música Tema', description: 'Letra e links de música/vídeo.' },
-    { key: 'encontristas', label: 'Encontristas', description: 'Cards dos participantes por círculo.' },
+    { key: 'encontristas', label: 'Encontristas', description: 'Cards dos encontristas por círculo.' },
     { key: 'fotosMediadores', label: 'Fotos dos mediadores', description: 'Foto dos mediadores no cabeçalho de cada círculo.' },
     { key: 'encontreiros', label: 'Encontreiros', description: 'Composição das equipes de trabalho.' },
     { key: 'palestras', label: 'Palestras', description: 'Lista de palestras e resumos.' },
@@ -406,7 +406,7 @@ export function EncontroQuadranteConfigPage() {
                                             </div>
                                         </div>
                                         <p style={{ margin: 0, fontSize: '0.85rem', opacity: 0.6 }}>
-                                            Exibir dados publicamente para os participantes?
+                                            Exibir dados publicamente para os encontristas?
                                         </p>
                                     </div>
                                 </div>

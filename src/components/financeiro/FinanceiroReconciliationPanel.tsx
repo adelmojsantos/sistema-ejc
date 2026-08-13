@@ -242,7 +242,7 @@ export function FinanceiroReconciliationPanel({
                 <article key={reconciliacao.id} className="finance-reconciliation-history__item">
                   <div className="finance-reconciliation-history__main">
                     <span className={`almox-status-pill ${reconciliacao.status === 'ativo' ? 'success' : 'warning'}`}>
-                      {reconciliacao.status === 'ativo' ? 'Lançado' : 'Cancelado'}
+                      {reconciliacao.status === 'ativo' ? 'Conciliação registrada' : 'Conciliação cancelada'}
                     </span>
                     <div>
                       <strong>{reconciliacao.tipo === 'taxa' ? 'Taxas' : 'Camisetas'} · {money(reconciliacao.valor_recebido)}</strong>

@@ -80,13 +80,13 @@ export function TrocaDuplasModal({ isOpen, onClose, grupos, vinculos, onSuccess 
             .filter(m => selectedIds.has(m.id))
             .map(m => visitacaoService.trocarGrupo(m.id, grupoBId));
           await Promise.all(ops);
-          toast.success(`${ops.length} participante(s) movido(s) com sucesso!`);
+          toast.success(`${ops.length} encontrista(s) movido(s) com sucesso!`);
           break;
         }
         case 'mover_todos': {
           const ops = membrosA.map(m => visitacaoService.trocarGrupo(m.id, grupoBId));
           await Promise.all(ops);
-          toast.success(`${ops.length} participante(s) movido(s) para ${grupoB?.nome}!`);
+          toast.success(`${ops.length} encontrista(s) movido(s) para ${grupoB?.nome}!`);
           break;
         }
         case 'swap_completo': {
@@ -103,7 +103,7 @@ export function TrocaDuplasModal({ isOpen, onClose, grupos, vinculos, onSuccess 
       onClose();
     } catch (err) {
       console.error('Erro na troca:', err);
-      toast.error('Erro ao realizar a troca de participantes.');
+      toast.error('Erro ao realizar a troca de encontristas.');
     } finally {
       setIsLoading(false);
     }
@@ -134,11 +134,11 @@ export function TrocaDuplasModal({ isOpen, onClose, grupos, vinculos, onSuccess 
   const getConfirmationMessage = () => {
     switch (mode) {
       case 'individual':
-        return `Mover ${selectedIds.size} participante(s) de "${grupoA?.nome}" para "${grupoB?.nome}"?`;
+        return `Mover ${selectedIds.size} encontrista(s) de "${grupoA?.nome}" para "${grupoB?.nome}"?`;
       case 'mover_todos':
-        return `Mover todos os ${membrosA.length} participante(s) de "${grupoA?.nome}" para "${grupoB?.nome}"?`;
+        return `Mover todos os ${membrosA.length} encontrista(s) de "${grupoA?.nome}" para "${grupoB?.nome}"?`;
       case 'swap_completo':
-        return `Trocar todos os participantes: ${membrosA.length} de "${grupoA?.nome}" ↔ ${membrosB.length} de "${grupoB?.nome}"?`;
+        return `Trocar todos os encontristas: ${membrosA.length} de "${grupoA?.nome}" ↔ ${membrosB.length} de "${grupoB?.nome}"?`;
     }
   };
 
@@ -146,7 +146,7 @@ export function TrocaDuplasModal({ isOpen, onClose, grupos, vinculos, onSuccess 
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Trocar Participantes entre Duplas"
+      title="Trocar Encontristas entre Duplas"
       maxWidth="720px"
     >
       <div className="swap-modal-content">
@@ -241,7 +241,7 @@ export function TrocaDuplasModal({ isOpen, onClose, grupos, vinculos, onSuccess 
                 <div className="swap-section-header">
                   <h4>
                     <Users size={16} />
-                    Selecione os participantes para mover
+                    Selecione os encontristas para mover
                   </h4>
                   {membrosA.length > 0 && (
                     <button className="swap-select-all-btn" onClick={handleSelectAll}>

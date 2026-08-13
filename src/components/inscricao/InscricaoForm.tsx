@@ -115,7 +115,7 @@ export function InscricaoForm({ initialData, onSubmit, onCancel, isLoading = fal
                                 onChange={e => setForm({ ...form, participante: e.target.checked })}
                                 style={{ width: '1.2rem', height: '1.2rem' }}
                             />
-                            <label htmlFor="is_participante" style={{ margin: 0, fontWeight: 500 }}>É Participante?</label>
+                            <label htmlFor="is_participante" style={{ margin: 0, fontWeight: 500 }}>É encontrista?</label>
                         </div>
 
                         {!form.participante && (

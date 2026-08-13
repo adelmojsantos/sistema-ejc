@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { History, Loader } from 'lucide-react';
 import { Modal } from '../ui/Modal';
-import { pessoaService } from '../../services/pessoaService';
+import { pessoaService, type PessoaHistoricoParticipacao } from '../../services/pessoaService';
 import type { Pessoa } from '../../types/pessoa';
 
 interface HistoricoModalProps {
@@ -11,7 +11,7 @@ interface HistoricoModalProps {
 }
 
 export function HistoricoModal({ pessoa, isOpen, onClose }: HistoricoModalProps) {
-    const [historico, setHistorico] = useState<any[]>([]);
+    const [historico, setHistorico] = useState<PessoaHistoricoParticipacao[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -21,7 +21,7 @@ export function HistoricoModal({ pessoa, isOpen, onClose }: HistoricoModalProps)
             try {
                 const data = await pessoaService.buscarHistorico(pessoa.id);
                 // Mover os encontros ativos / mais recentes para o topo
-                data.sort((a: any, b: any) => {
+                data.sort((a, b) => {
                     const aAtivo = a.encontros?.ativo || false;
                     const bAtivo = b.encontros?.ativo || false;
                     if (aAtivo && !bAtivo) return -1;
@@ -66,7 +66,7 @@ export function HistoricoModal({ pessoa, isOpen, onClose }: HistoricoModalProps)
                             const encontro = part.encontros?.nome || 'Encontro Desconhecido';
                             const tema = part.encontros?.tema || 'Tema não informado';
                             const isAtivo = part.encontros?.ativo;
-                            const papel = part.participante ? 'Encontrista' : (part.equipes?.nome || 'Equipe Trabalhando');
+                            const papel = part.participante ? 'Encontrista' : (part.equipes?.nome || 'Encontreiro');
                             const coordenador = part.coordenador;
 
                             return (

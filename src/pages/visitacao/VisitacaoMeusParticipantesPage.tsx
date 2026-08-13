@@ -71,7 +71,7 @@ export function VisitacaoMeusParticipantesPage() {
     const isCoordinator = hasPermission('modulo_visitacao_coordenar');
     const { encontroSelecionadoId, encontroSelecionado } = useEncontros();
 
-    const [participantes, setParticipantes] = useState<VisitaParticipacaoEnriched[]>([]);
+    const [participantes, setParticipantes] = useState<VisitaListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [grupos, setGrupos] = useState<VisitaGrupo[]>([]);
     const [selectedGrupoId, setSelectedGrupoId] = useState('');
@@ -221,7 +221,7 @@ export function VisitacaoMeusParticipantesPage() {
                     if (activeError) throw activeError;
 
                     // 2. Fetch canceled participants from history
-                    let transformedCanceled: any[] = [];
+                    let transformedCanceled: VisitaListItem[] = [];
                     try {
                         const canceledData = await inscricaoService.listarCanceladosPorGrupo(targetGrupoId, encontroId);
                         transformedCanceled = canceledData.map(c => {
@@ -231,13 +231,20 @@ export function VisitacaoMeusParticipantesPage() {
                             id: c.id,
                             grupo_id: c.grupo_id,
                             participacao_id: participacaoSnapshot?.id || c.dados_snapshot?.participacao_id || '',
-                            status: 'cancelada',
+                            visitante: false,
+                            created_at: c.data_cancelamento || '',
+                            status: 'cancelada' as const,
                             observacoes: c.observacoes,
+                            foto_url: null,
+                            foto_familia_url: null,
                             motivo_cancelamento: c.motivo_cancelamento,
                             taxa_paga: participacaoSnapshot?.pago_taxa || c.dados_snapshot?.taxa_paga || false,
+                            data_visita: null,
                             participacoes: {
                                 id: participacaoSnapshot?.id || c.dados_snapshot?.participacao_id || '',
-                                pessoas: c.pessoas
+                                encontro_id: encontroId,
+                                foto_url: null,
+                                pessoas: c.pessoas || null
                             },
                             is_history: true
                             };
@@ -247,7 +254,7 @@ export function VisitacaoMeusParticipantesPage() {
                     }
 
                     if (!cancelled) {
-                        setParticipantes([...(activeData || []), ...transformedCanceled] as unknown as VisitaParticipacaoEnriched[]);
+                        setParticipantes([...(activeData || []) as VisitaParticipacaoEnriched[], ...transformedCanceled]);
                     }
                 } else {
                     if (!cancelled) setParticipantes([]);
@@ -351,7 +358,7 @@ export function VisitacaoMeusParticipantesPage() {
     return (
         <>
             <PageHeader
-                title={grupoNome || 'Participantes da Visita'}
+                title={grupoNome || 'Encontristas da Visita'}
                 subtitle="Início / Visitação"
                 backPath="/visitacao"
             />
@@ -542,12 +549,14 @@ export function VisitacaoMeusParticipantesPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             {participantesFiltrados.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.6 }}>
-                                    Nenhum participante encontrado para este filtro.
+                                    Nenhum encontrista encontrado para este filtro.
                                 </div>
                             ) : (
-                                participantesFiltrados.map((p: any) => {
+                                participantesFiltrados.map((p) => {
                                     const status = getStatusInfo(p.status);
                                     const pessoa = p.participacoes?.pessoas;
+                                    const fotoUrl = p.participacoes?.foto_url;
+                                    const fotoPosicaoY = p.participacoes?.foto_posicao_y ?? 50;
                                     const veiculo = getVehicleData(p.participacoes?.recepcao_dados);
                                     return (
                                         <div key={p.id} className="card card-hover" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden', maxWidth: '100%' }}>
@@ -560,26 +569,26 @@ export function VisitacaoMeusParticipantesPage() {
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0, flex: 1 }}>
                                                         <button
                                                             type="button"
-                                                            className={`visita-participant-avatar${p.participacoes?.foto_url ? ' has-photo' : ''}`}
+                                                            className={`visita-participant-avatar${fotoUrl ? ' has-photo' : ''}`}
                                                             style={{ background: status.color + '20', color: status.color }}
-                                                            onClick={p.participacoes?.foto_url
+                                                            onClick={fotoUrl
                                                                 ? (event) => {
                                                                     event.stopPropagation();
                                                                     setPreviewPhoto({
-                                                                        url: p.participacoes.foto_url!,
-                                                                        nome: pessoa?.nome_completo || 'Participante',
+                                                                        url: fotoUrl,
+                                                                        nome: pessoa?.nome_completo || 'Encontrista',
                                                                     });
                                                                 }
                                                                 : undefined}
-                                                            aria-label={p.participacoes?.foto_url ? `Abrir foto de ${pessoa?.nome_completo || 'participante'}` : undefined}
+                                                            aria-label={fotoUrl ? `Abrir foto de ${pessoa?.nome_completo || 'encontrista'}` : undefined}
                                                         >
-                                                            {p.participacoes?.foto_url ? (
+                                                            {fotoUrl ? (
                                                                 <img
-                                                                    src={p.participacoes.foto_url}
-                                                                    alt={pessoa?.nome_completo || 'Participante'}
+                                                                    src={fotoUrl}
+                                                                    alt={pessoa?.nome_completo || 'Encontrista'}
                                                                     loading="lazy"
                                                                     decoding="async"
-                                                                    style={{ objectPosition: `center ${p.participacoes.foto_posicao_y ?? 50}%` }}
+                                                                    style={{ objectPosition: `center ${fotoPosicaoY}%` }}
                                                                 />
                                                             ) : (
                                                                 pessoa?.nome_completo?.charAt(0) || <Users size={24} />
@@ -828,7 +837,7 @@ export function VisitacaoMeusParticipantesPage() {
             <Modal
                 isOpen={!!previewPhoto}
                 onClose={() => setPreviewPhoto(null)}
-                title={previewPhoto?.nome || 'Foto do participante'}
+                title={previewPhoto?.nome || 'Foto do encontrista'}
                 maxWidth="min(92vw, 900px)"
             >
                 {previewPhoto && (

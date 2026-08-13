@@ -42,7 +42,7 @@ function getVisitaStatusLabel(status: string | null | undefined) {
     pendente: 'Visita pendente',
     realizada: 'Visita realizada',
     ausente: 'Ausente na visita',
-    cancelada: 'Visita cancelada',
+    cancelada: 'Desistente',
   };
   return labels[status || ''] || 'Visita sem status';
 }
@@ -70,7 +70,7 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, isEncontroA
     return (
       <div className="card text-center py-8">
         <Loader size={32} className="animate-spin" style={{ display: 'inline-block', marginBottom: '1rem' }} />
-        <p>Carregando cancelamentos...</p>
+        <p>Carregando histórico...</p>
       </div>
     );
   }
@@ -79,7 +79,7 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, isEncontroA
     return (
       <div className="empty-state">
         <UserMinus size={48} style={{ opacity: 0.3 }} />
-        <p>{total > 0 ? 'Nenhum cancelamento encontrado para a busca.' : 'Nenhum cancelamento registrado nesta edição.'}</p>
+        <p>{total > 0 ? 'Nenhum cancelamento encontrado para a busca.' : 'Nenhuma participação cancelada nesta edição.'}</p>
       </div>
     );
   }
@@ -110,7 +110,7 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, isEncontroA
                   <div className="secretaria-desistente-badges">
                     <span className={`secretaria-desistente-status ${isRevertida ? 'is-reverted' : 'is-active'}`}>
                       {isRevertida ? <CheckCircle size={12} /> : <UserMinus size={12} />}
-                      {isRevertida ? 'Cancelamento revertido' : 'Cancelamento ativo'}
+                      {isRevertida ? 'Cancelamento revertido' : 'Participação cancelada'}
                     </span>
                     {possuiDupla ? <span><Users size={12} /> {dupla}</span> : <span>Cancelamento administrativo</span>}
                     <span><Clock size={12} /> Cancelado em {formatDateTime(desistencia.data_cancelamento)}</span>
@@ -212,7 +212,7 @@ export function SecretariaParticipantesPage() {
       const data = await inscricaoService.listarParticipantesPorEncontro(selectedEncontroId);
       setParticipantes(data);
     } catch {
-      toast.error('Erro ao carregar participantes.');
+      toast.error('Erro ao carregar encontristas.');
     } finally {
       setIsLoading(false);
     }
@@ -226,7 +226,7 @@ export function SecretariaParticipantesPage() {
       setDesistentes(data);
     } catch (error) {
       console.error('Erro ao carregar desistentes:', error);
-      toast.error('Erro ao carregar desistentes.');
+      toast.error('Erro ao carregar o histórico de cancelamentos.');
     } finally {
       setIsLoadingDesistentes(false);
     }
@@ -303,7 +303,7 @@ export function SecretariaParticipantesPage() {
   const handleUpdateGeolocalizacao = () => {
     const pending = filteredParticipantes.filter(p => !p.pessoas?.latitude || !p.pessoas?.longitude);
     if (pending.length === 0) {
-      toast.success('Todos os participantes já possuem geolocalização!');
+      toast.success('Todos os encontristas já possuem geolocalização!');
       return;
     }
     setPendingGeoCount(pending.length);
@@ -451,13 +451,13 @@ export function SecretariaParticipantesPage() {
     }
 
     setUploadingPhotoId(participante.id);
-    const loadingToast = toast.loading('Enviando foto do participante...');
+    const loadingToast = toast.loading('Enviando foto do encontrista...');
 
     try {
       const fotoUrl = await inscricaoService.uploadFotoParticipante(participante.id, file);
       await inscricaoService.atualizarFotoParticipante(participante.id, fotoUrl);
       updateParticipantPhotoState(participante.id, { foto_url: fotoUrl, foto_posicao_y: 50 });
-      toast.success('Foto do participante atualizada!', { id: loadingToast });
+      toast.success('Foto do encontrista atualizada!', { id: loadingToast });
     } catch (error) {
       console.error('Erro ao enviar foto do participante:', error);
       toast.error('Erro ao enviar a foto.', { id: loadingToast });
@@ -468,7 +468,7 @@ export function SecretariaParticipantesPage() {
 
   const handleRestoreDesistencia = async () => {
     if (!desistenciaToRestore) return;
-    const restoredName = desistenciaToRestore.pessoas?.nome_completo || 'Participante';
+    const restoredName = desistenciaToRestore.pessoas?.nome_completo || 'Encontrista';
     setIsRestoringDesistencia(true);
     try {
       const result = await inscricaoService.restaurarParticipacaoCancelada(desistenciaToRestore.id);
@@ -477,12 +477,12 @@ export function SecretariaParticipantesPage() {
       await Promise.all([loadParticipantes(), loadDesistentes()]);
       handleTabChange('participantes');
       toast.success(result.already_reverted
-        ? `${restoredName} já estava com a desistência revertida.`
-        : `${restoredName} voltou para a listagem de participantes.`
+        ? `${restoredName} já estava com o cancelamento revertido.`
+        : `${restoredName} voltou para a listagem de encontristas.`
       );
     } catch (error) {
       console.error('Erro ao desfazer desistência:', error);
-      const message = error instanceof Error ? error.message : 'Erro ao desfazer desistência.';
+      const message = error instanceof Error ? error.message : 'Erro ao reverter cancelamento.';
       toast.error(message);
     } finally {
       setIsRestoringDesistencia(false);
@@ -578,7 +578,7 @@ export function SecretariaParticipantesPage() {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       
       doc.setFontSize(16);
-      doc.text(`Participantes: ${selectedEncontro?.nome || 'Encontro'}`, 14, 18);
+      doc.text(`Encontristas: ${selectedEncontro?.nome || 'Encontro'}`, 14, 18);
       
       autoTable(doc, {
         head: [['#', 'Nome', 'Nasc.', 'Idade', 'Telefone', 'Endereço', 'Bairro', 'Cidade', 'Dupla', 'Círculo', 'Veículo']],
@@ -603,7 +603,7 @@ export function SecretariaParticipantesPage() {
         }
       });
       
-      doc.save(`participantes_${selectedEncontro?.nome || 'encontro'}.pdf`);
+      doc.save(`encontristas_${selectedEncontro?.nome || 'encontro'}.pdf`);
       setShowExportMenu(false);
     } catch (error) {
       console.error('Erro ao exportar PDF:', error);
@@ -619,7 +619,7 @@ export function SecretariaParticipantesPage() {
       const data = getExportData();
       const worksheet = XLSX.utils.json_to_sheet(data);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Participantes');
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Encontristas');
       
       // Auto-size columns
       const maxWidths = Object.keys(data[0] || {}).map(key => {
@@ -630,7 +630,7 @@ export function SecretariaParticipantesPage() {
       });
       worksheet['!cols'] = maxWidths.map(w => ({ wch: w + 2 }));
 
-      XLSX.writeFile(workbook, `participantes_${selectedEncontro?.nome || 'encontro'}.xlsx`);
+      XLSX.writeFile(workbook, `encontristas_${selectedEncontro?.nome || 'encontro'}.xlsx`);
       setShowExportMenu(false);
     } catch (error) {
       console.error('Erro ao exportar Excel:', error);
@@ -740,12 +740,12 @@ export function SecretariaParticipantesPage() {
   };
   const participantSummary = (
     <p className="secretaria-result-summary secretaria-result-summary--with-actions">
-      <span>Mostrando <strong>{filteredParticipantes.length}</strong> de <strong>{participantes.length}</strong> {participantes.length === 1 ? 'participante encontrado' : 'participantes encontrados'}</span>
+      <span>Mostrando <strong>{filteredParticipantes.length}</strong> de <strong>{participantes.length}</strong> {participantes.length === 1 ? 'encontrista encontrado' : 'encontristas encontrados'}</span>
       <button
         type="button"
         onClick={() => setFilterSemFoto(v => !v)}
         className={`secretaria-summary-filter${filterSemFoto ? ' is-active' : ''}`}
-        title={filterSemFoto ? 'Remover filtro sem foto' : 'Mostrar apenas participantes sem foto'}
+        title={filterSemFoto ? 'Remover filtro sem foto' : 'Mostrar apenas encontristas sem foto'}
       >
         <ImageIcon size={13} />
         Sem foto
@@ -770,7 +770,7 @@ export function SecretariaParticipantesPage() {
               </button>
               <div>
                 <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Secretaria</p>
-                <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Participantes do Encontro</h1>
+                <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Encontristas do Encontro</h1>
               </div>
             </div>
 
@@ -857,7 +857,7 @@ export function SecretariaParticipantesPage() {
             </div>
           </div>
 
-          <div className="secretaria-tabs" role="tablist" aria-label="Participantes da edição">
+          <div className="secretaria-tabs" role="tablist" aria-label="Encontristas da edição">
             <button
               type="button"
               role="tab"
@@ -866,7 +866,7 @@ export function SecretariaParticipantesPage() {
               onClick={() => handleTabChange('participantes')}
             >
               <Users size={16} />
-              <span className="secretaria-tab-label">Participantes</span>
+              <span className="secretaria-tab-label">Encontristas</span>
               <span className="secretaria-tab-count">{participantes.length}</span>
             </button>
             <button
@@ -896,7 +896,7 @@ export function SecretariaParticipantesPage() {
           <div className="card" style={{ marginBottom: '2rem' }}>
             <div className="grid-container secretaria-filter-grid">
               <div className="form-group" style={{ marginBottom: 0, flex: 2 }}>
-                <label className="form-label">{activeTab === 'desistentes' ? 'Buscar no histórico' : activeTab === 'fotosFamilias' ? 'Buscar foto da família' : 'Buscar Participante'}</label>
+                <label className="form-label">{activeTab === 'desistentes' ? 'Buscar no histórico' : activeTab === 'fotosFamilias' ? 'Buscar foto da família' : 'Buscar encontrista'}</label>
                 <div className="form-input-wrapper">
                   <div className="form-input-icon">
                     <Search size={16} />
@@ -954,7 +954,7 @@ export function SecretariaParticipantesPage() {
                     justifyContent: 'center',
                     transition: 'all 0.2s ease',
                   }}
-                  title={filterVeiculo ? 'Remover filtro de veículo' : 'Mostrar apenas participantes com veículo'}
+                  title={filterVeiculo ? 'Remover filtro de veículo' : 'Mostrar apenas encontristas com veículo'}
                 >
                   <Car size={16} />
                   <span>Com veículo</span>
@@ -1073,7 +1073,7 @@ export function SecretariaParticipantesPage() {
           ) : isLoading ? (
             <div className="card text-center py-8">
               <Loader size={32} className="animate-spin" style={{ display: 'inline-block', marginBottom: '1rem' }} />
-              <p>Carregando participantes...</p>
+              <p>Carregando encontristas...</p>
             </div>
           ) : filteredParticipantes.length === 0 ? (
             <>
@@ -1082,8 +1082,8 @@ export function SecretariaParticipantesPage() {
                 <Users size={48} style={{ opacity: 0.3 }} />
                 <p>
                   {(filterVeiculo || filterSemFoto) && participantes.length > 0
-                    ? 'Nenhum participante encontrado para os filtros selecionados.'
-                    : 'Nenhum participante encontrado.'}
+                    ? 'Nenhum encontrista encontrado para os filtros selecionados.'
+                    : 'Nenhum encontrista encontrado.'}
                 </p>
                 {(filterVeiculo || filterSemFoto) && (
                   <button
@@ -1264,7 +1264,7 @@ export function SecretariaParticipantesPage() {
           </div>
           <h3 style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Atualizar coordenadas?</h3>
           <p style={{ opacity: 0.7, marginBottom: '2rem' }}>
-            Serão processados <strong>{pendingGeoCount}</strong> participante(s) sem geolocalização.
+            Serão processados <strong>{pendingGeoCount}</strong> encontrista(s) sem geolocalização.
             <br />O processo pode levar alguns minutos (1 req/s).
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
@@ -1398,12 +1398,12 @@ export function SecretariaParticipantesPage() {
 
       <ConfirmDialog
         isOpen={!!desistenciaToRestore}
-        title="Reverter desistência"
+        title="Reverter cancelamento"
         message={
           <>
             Deseja recolocar <strong style={{ color: 'var(--text-color)' }}>{desistenciaToRestore?.pessoas?.nome_completo}</strong> neste encontro e na dupla <strong style={{ color: 'var(--text-color)' }}>{desistenciaToRestore?.visita_grupos?.nome || 'original'}</strong>?
             <br /><br />
-            A desistência ficará registrada no histórico como revertida.
+            O cancelamento ficará registrado no histórico como revertido.
           </>
         }
         confirmText="Sim, reverter"
@@ -1418,7 +1418,7 @@ export function SecretariaParticipantesPage() {
         onClose={() => {
           if (!isSavingPessoaEdit) setEditingPessoa(null);
         }}
-        title={`Editar Dados - ${editingPessoa?.nome_completo || 'Participante'}`}
+        title={`Editar dados - ${editingPessoa?.nome_completo || 'Encontrista'}`}
         maxWidth="920px"
       >
         {editingPessoa && (
@@ -1441,7 +1441,7 @@ export function SecretariaParticipantesPage() {
       <Modal
         isOpen={!!previewPhoto}
         onClose={() => setPreviewPhoto(null)}
-        title={previewPhoto?.nome || 'Foto do participante'}
+        title={previewPhoto?.nome || 'Foto do encontrista'}
         maxWidth="720px"
       >
         {previewPhoto && (
@@ -1465,7 +1465,7 @@ export function SecretariaParticipantesPage() {
           setPhotoActionsParticipant(null);
           setAdjustingPhotoId(null);
         }}
-        title={photoActionsParticipant?.pessoas?.nome_completo || 'Foto do participante'}
+        title={photoActionsParticipant?.pessoas?.nome_completo || 'Foto do encontrista'}
         maxWidth="720px"
       >
         {photoActionsParticipant && (
@@ -1474,7 +1474,7 @@ export function SecretariaParticipantesPage() {
               {photoActionsParticipant.foto_url ? (
                 <img
                   src={photoActionsParticipant.foto_url}
-                  alt={photoActionsParticipant.pessoas?.nome_completo || 'Participante'}
+                  alt={photoActionsParticipant.pessoas?.nome_completo || 'Encontrista'}
                   className={adjustingPhotoId === photoActionsParticipant.id ? 'is-adjusting' : ''}
                   style={{
                     objectPosition: `center ${adjustingPhotoId === photoActionsParticipant.id ? tempPhotoPosition : (photoActionsParticipant.foto_posicao_y ?? 50)}%`,
@@ -1528,7 +1528,7 @@ export function SecretariaParticipantesPage() {
                       <button
                         type="button"
                         className="secretaria-photo-option"
-                        onClick={() => handleDownloadPhoto(photoActionsParticipant.foto_url!, photoActionsParticipant.pessoas?.nome_completo || 'Participante')}
+                        onClick={() => handleDownloadPhoto(photoActionsParticipant.foto_url!, photoActionsParticipant.pessoas?.nome_completo || 'Encontrista')}
                       >
                         <Download size={17} /> Baixar
                       </button>

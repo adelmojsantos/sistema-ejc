@@ -3,6 +3,18 @@ import type { Pessoa, PessoaFormData } from '../types/pessoa';
 
 const TABLE = 'pessoas';
 
+export interface PessoaHistoricoParticipacao {
+    id: string;
+    participante: boolean | null;
+    coordenador: boolean | null;
+    equipes: { nome: string | null } | null;
+    encontros: {
+        nome: string | null;
+        ativo: boolean | null;
+        tema: string | null;
+    } | null;
+}
+
 /** Campos pessoais aceitos pela edição. Vínculos de encontro pertencem a participacoes. */
 export type PessoaUpdateData = Partial<PessoaFormData>;
 
@@ -108,7 +120,7 @@ export const pessoaService = {
         return data as Pessoa;
     },
 
-    async buscarHistorico(pessoaId: string): Promise<Record<string, unknown>[]> {
+    async buscarHistorico(pessoaId: string): Promise<PessoaHistoricoParticipacao[]> {
         const { data, error } = await supabase
             .from('participacoes')
             .select(`
@@ -121,7 +133,20 @@ export const pessoaService = {
             .eq('pessoa_id', pessoaId);
 
         if (error) throw error;
-        return data || [];
+        return (data || []).map((row): PessoaHistoricoParticipacao => {
+            const equipe = row.equipes[0] ?? null;
+            const encontro = row.encontros[0] ?? null;
+
+            return {
+                id: row.id,
+                participante: row.participante,
+                coordenador: row.coordenador,
+                equipes: equipe ? { nome: equipe.nome } : null,
+                encontros: encontro
+                    ? { nome: encontro.nome, ativo: encontro.ativo, tema: encontro.tema }
+                    : null,
+            };
+        });
     },
 
     async criar(formData: PessoaFormData): Promise<Pessoa> {

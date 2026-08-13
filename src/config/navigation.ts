@@ -119,7 +119,7 @@ export const NAVIGATION_MODULES: readonly NavigationModule[] = [
   {
     id: 'inscricoes',
     label: 'Inscrições',
-    description: 'Cadastre participantes para o encontro.',
+    description: 'Cadastre encontristas e encontreiros no encontro.',
     path: '/inscricao',
     icon: UserPlus,
     accent: 'primary',
@@ -169,7 +169,7 @@ export const NAVIGATION_MODULES: readonly NavigationModule[] = [
   {
     id: 'circulos',
     label: 'Círculos',
-    description: 'Divisão dos participantes em grupos de estudo e partilha.',
+    description: 'Divisão dos encontristas em grupos de estudo e partilha.',
     path: '/circulos',
     icon: UsersRound,
     accent: 'violet',
@@ -390,7 +390,7 @@ const NAVIGATION_TITLES: readonly NavigationTitle[] = [
   { pathPrefix: '/secretaria/configuracoes-exportacao', title: 'Configurações de Exportação' },
   { pathPrefix: '/secretaria/confirmacoes', title: 'Confirmação Dados Equipes' },
   { pathPrefix: '/secretaria/lista-espera', title: 'Lista de Espera' },
-  { pathPrefix: '/secretaria/participantes', title: 'Participantes' },
+  { pathPrefix: '/secretaria/participantes', title: 'Encontristas' },
   { pathPrefix: '/secretaria/encontreiros', title: 'Encontreiros' },
   { pathPrefix: '/secretaria/impressos', title: 'Impressos' },
   { pathPrefix: '/secretaria/placas-equipes', title: 'Impressos' },

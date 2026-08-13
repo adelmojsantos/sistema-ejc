@@ -48,6 +48,22 @@ import { normalizeString, formatPhone } from '../../utils/stringUtils';
 import { geocodeWithFallback, getAddressByCEP } from '../../utils/geocoding';
 import { resolveAddressCoordinates } from '../../utils/addressCoordinates';
 
+type GrupoMonitoramento = VisitaGrupo & {
+  visitantes: VisitaParticipacaoEnriched[];
+  membrosVisita: VisitaParticipacaoEnriched[];
+  desistentes: ParticipacaoCancelada[];
+  stats: {
+    total: number;
+    realizadas: number;
+    ausentes: number;
+    canceladas: number;
+    pendentes: number;
+  };
+  progresso: number;
+};
+
+type GrupoComDesistentes = Pick<GrupoMonitoramento, 'nome' | 'desistentes'>;
+
 export function CoordenadorVisitacaoPage() {
   const { encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const { equipes } = useEquipes();
@@ -88,8 +104,8 @@ export function CoordenadorVisitacaoPage() {
   const [showOnlyLinkedToSelected, setShowOnlyLinkedToSelected] = useState(false);
   const [showOnlyUnlinkedGeral, setShowOnlyUnlinkedGeral] = useState(false);
   const [monitorFilter, setMonitorFilter] = useState<'todos' | 'pendentes' | 'concluidos' | 'nao_iniciados'>('todos');
-  const [selectedDuoForDetails, setSelectedDuoForDetails] = useState<any>(null);
-  const [selectedDuoForCanceled, setSelectedDuoForCanceled] = useState<any>(null);
+  const [selectedDuoForDetails, setSelectedDuoForDetails] = useState<GrupoMonitoramento | null>(null);
+  const [selectedDuoForCanceled, setSelectedDuoForCanceled] = useState<GrupoComDesistentes | null>(null);
   const [photoPreviewGroup, setPhotoPreviewGroup] = useState<VisitaGrupo | null>(null);
   const [photoTargetGroup, setPhotoTargetGroup] = useState<VisitaGrupo | null>(null);
   const [uploadingGroupId, setUploadingGroupId] = useState<string | null>(null);
@@ -427,7 +443,6 @@ export function CoordenadorVisitacaoPage() {
         latitude,
         longitude,
       };
-
       // 2. Atualiza no banco
       await visitacaoService.atualizarEnderecoParticipante(editingAddressPessoa.id, updateData);
 
@@ -436,10 +451,7 @@ export function CoordenadorVisitacaoPage() {
         if (p.pessoa_id === editingAddressPessoa.pessoa_id) {
           return {
             ...p,
-            pessoas: {
-              ...(p.pessoas as any),
-              ...updateData
-            }
+            pessoas: p.pessoas ? { ...p.pessoas, ...updateData } : undefined
           };
         }
         return p;
@@ -447,15 +459,14 @@ export function CoordenadorVisitacaoPage() {
 
       // 4. Se houver vínculos na tela, atualiza eles também
       setVinculos(prev => prev.map(v => {
-        if (v.participacao_id === editingAddressPessoa.id) {
+        if (v.participacao_id === editingAddressPessoa.id && v.participacoes) {
           return {
             ...v,
             participacoes: {
-              ...(v.participacoes as any),
-              pessoas: {
-                ...(v.participacoes?.pessoas as any),
-                ...updateData
-              }
+              ...v.participacoes,
+              pessoas: v.participacoes.pessoas
+                ? { ...v.participacoes.pessoas, ...updateData }
+                : null
             }
           };
         }
@@ -950,7 +961,7 @@ export function CoordenadorVisitacaoPage() {
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                {selectedDuoForDetails?.visitantes.map((v: any) => (
+                {selectedDuoForDetails?.visitantes.map((v) => (
                   <div key={v.id} style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
                     background: 'var(--primary-color)10', padding: '6px 12px',
@@ -986,7 +997,7 @@ export function CoordenadorVisitacaoPage() {
                 {selectedDuoForDetails?.membrosVisita.length === 0 ? (
                   <p style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>Nenhum encontrista vinculado a esta dupla.</p>
                 ) : (
-                  selectedDuoForDetails?.membrosVisita.map((m: any) => (
+                  selectedDuoForDetails?.membrosVisita.map((m) => (
                     <div key={m.id} className="card modal-participant-card" style={{ padding: '1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
                         <div style={{ flex: 1 }}>
@@ -1045,6 +1056,7 @@ export function CoordenadorVisitacaoPage() {
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
                 <button
                   onClick={() => {
+                    if (!selectedDuoForDetails) return;
                     setSelectedGrupoId(selectedDuoForDetails.id);
                     setVincularSubTab('lista');
                     setActiveTab('vincular');
@@ -1117,7 +1129,7 @@ export function CoordenadorVisitacaoPage() {
                           )}
                           {dataCancelamento && (
                             <span style={{ fontSize: '0.75rem', opacity: 0.65 }}>
-                              Cancelado em {dataCancelamento}
+                              Desistiu em {dataCancelamento}
                             </span>
                           )}
                         </div>

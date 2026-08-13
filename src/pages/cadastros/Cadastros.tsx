@@ -71,7 +71,7 @@ const CATEGORIES: CadastroCategory[] = [
     id: 'visitacao',
     path: '/visitacao',
     label: 'Visitação',
-    description: 'Vincular duplas e participantes para visitas.',
+    description: 'Vincular duplas e encontristas para visitas.',
     icon: <Car size={34} />,
     color: '#10b981',
     available: true,

@@ -364,7 +364,7 @@ export function FinanceiroPage() {
     setSaving(true);
     try {
       await financeiroService.criarReconciliacao(formData);
-      toast.success('Recebimento conciliado e lançado no financeiro.');
+      toast.success('Conciliação registrada e lançamento criado no Financeiro.');
       await loadLancamentos();
     } catch (error) {
       console.error('Erro ao conciliar recebimento:', error);

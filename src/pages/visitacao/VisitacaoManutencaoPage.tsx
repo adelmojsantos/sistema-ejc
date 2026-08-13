@@ -797,7 +797,7 @@ export function VisitacaoManutencaoPage() {
         if (isHistory) {
             toast.error(readOnlyReason === 'historical'
                 ? 'Encontros históricos são somente para consulta.'
-                : 'Participações canceladas são somente para consulta.');
+                : 'Encontristas desistentes são somente para consulta.');
             return;
         }
 
@@ -2115,7 +2115,7 @@ export function VisitacaoManutencaoPage() {
                     <div className="visit-mobile-save-bar visit-mobile-save-bar--history">
                         <div className="visit-mobile-save-bar__status">
                             <strong>Modo de consulta</strong>
-                            <span>{readOnlyReason === 'historical' ? 'Encontro encerrado' : 'Participação cancelada'}</span>
+                            <span>{readOnlyReason === 'historical' ? 'Encontro encerrado' : 'Encontrista desistente'}</span>
                         </div>
                         <button type="button" className="btn-primary" onClick={() => requestNavigation(VISIT_LIST_PATH)}>
                             <ChevronLeft size={18} />

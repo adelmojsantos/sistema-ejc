@@ -216,14 +216,14 @@ export function PedidosCamisetasPage() {
     teamSeparationItems.forEach(item => addItem(item, 'team'));
     encounteredSeparationItems.forEach(item => addItem(item, 'encountered'));
 
-    let text = `👕 *PEDIDOS DE CAMISETAS*\n`;
+    let text = `👕 *PEDIDOS E INTENÇÕES DE CAMISETAS*\n`;
     text += `Encontro: ${encontros.find(e => e.id === selectedEncontroId)?.nome}\n\n`;
     Array.from(summary.values())
       .sort((a, b) => a.modelName.localeCompare(b.modelName, 'pt-BR') || a.size.localeCompare(b.size, 'pt-BR'))
       .forEach(item => {
         const total = item.team + item.encountered;
         text += `• *${item.modelName} · ${item.size}*: ${total} `;
-        text += `(equipes ${item.team}, encontristas ${item.encountered}, pagas ${item.paid})\n`;
+        text += `(pedidos das equipes ${item.team}, intenções dos encontristas ${item.encountered}, pagas ${item.paid})\n`;
       });
 
     navigator.clipboard.writeText(text);
@@ -239,7 +239,7 @@ export function PedidosCamisetasPage() {
     const allItems = [...teamItems, ...encounteredItems];
 
     if (allItems.length === 0) {
-      toast.error(onlyPaid ? 'Não há pedidos pagos para exportar.' : 'Não há pedidos para exportar.');
+      toast.error(onlyPaid ? 'Não há camisetas pagas para exportar.' : 'Não há pedidos ou intenções para exportar.');
       return;
     }
 
@@ -279,7 +279,7 @@ export function PedidosCamisetasPage() {
         'Tamanho': item.size,
         'Equipes': item.teamTotal,
         'Encontristas': item.encounteredTotal,
-        'Total pedido': item.teamTotal + item.encounteredTotal,
+        'Total de camisetas': item.teamTotal + item.encounteredTotal,
         'Pago': item.paidTotal,
         'Pendente': item.pendingTotal,
       }));
@@ -324,7 +324,7 @@ export function PedidosCamisetasPage() {
     if (encounteredRows.length > 0) encounteredSheet['!autofilter'] = { ref: `A1:F${encounteredRows.length + 1}` };
     XLSX.utils.book_append_sheet(workbook, encounteredSheet, 'Encontristas por dupla');
 
-    const suffix = onlyPaid ? 'somente_pagos' : 'todos_os_pedidos';
+    const suffix = onlyPaid ? 'somente_pagos' : 'pedidos_e_intencoes';
     XLSX.writeFile(workbook, `camisetas_separacao_${suffix}_${new Date().getTime()}.xlsx`);
   };
 

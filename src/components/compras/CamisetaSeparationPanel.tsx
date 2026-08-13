@@ -156,16 +156,16 @@ export function CamisetaSeparationPanel({
           <span className="camiseta-separation__toggle-icon"><Shirt size={21} aria-hidden="true" /></span>
           <div>
             <span className="camiseta-separation__eyebrow">Conferência e separação</span>
-            <h2 id="camiseta-separation-title">Pedidos de camisetas</h2>
+            <h2 id="camiseta-separation-title">Pedidos e intenções de camisetas</h2>
           </div>
         </div>
-        <div className="camiseta-separation__compact-metrics" aria-label="Resumo dos pedidos">
+        <div className="camiseta-separation__compact-metrics" aria-label="Resumo das camisetas">
           <span><small>Total</small><strong>{units(allItems)}</strong></span>
           <span className="is-paid"><small>Pagas</small><strong>{paidUnits}</strong></span>
           <span className="is-pending"><small>Pendentes</small><strong>{pendingUnits}</strong></span>
         </div>
         <span className="camiseta-separation__toggle-action">
-          {isPanelOpen ? 'Ocultar pedidos' : 'Ver pedidos'}
+          {isPanelOpen ? 'Ocultar separação' : 'Ver separação'}
           <ChevronDown size={19} aria-hidden="true" />
         </span>
       </button>
@@ -173,10 +173,10 @@ export function CamisetaSeparationPanel({
       {isPanelOpen && (
         <div id="camiseta-separation-content" className="camiseta-separation__content">
           <p className="camiseta-separation__description">
-            Consulte quem pediu, confira pagamentos e veja os totais para produção.
+            Consulte os pedidos das equipes e as intenções dos encontristas, confira pagamentos e veja os totais para produção.
           </p>
 
-          <div className="camiseta-separation__modes" role="tablist" aria-label="Visão dos pedidos">
+          <div className="camiseta-separation__modes" role="tablist" aria-label="Visão da separação">
             <button
               type="button"
               role="tab"
@@ -199,7 +199,7 @@ export function CamisetaSeparationPanel({
 
           {view === 'separacao' ? <>
           <div className="camiseta-separation__toolbar">
-            <div className="camiseta-separation__origins" role="tablist" aria-label="Origem dos pedidos">
+            <div className="camiseta-separation__origins" role="tablist" aria-label="Origem das camisetas">
               <button
                 type="button"
                 role="tab"
@@ -249,10 +249,12 @@ export function CamisetaSeparationPanel({
           </div>
 
           {loading ? (
-            <div className="camiseta-separation__empty">Carregando pedidos...</div>
+            <div className="camiseta-separation__empty">Carregando camisetas...</div>
           ) : groups.length === 0 ? (
             <div className="camiseta-separation__empty">
-              Nenhum pedido encontrado com os filtros selecionados.
+              {origin === 'equipes'
+                ? 'Nenhum pedido encontrado com os filtros selecionados.'
+                : 'Nenhuma intenção encontrada com os filtros selecionados.'}
             </div>
           ) : (
             <div className="camiseta-separation__groups">
@@ -325,9 +327,9 @@ export function CamisetaSeparationPanel({
             </div>
           )}
           </> : loading ? (
-            <div className="camiseta-separation__empty">Carregando pedidos...</div>
+            <div className="camiseta-separation__empty">Carregando camisetas...</div>
           ) : productionGroups.length === 0 ? (
-            <div className="camiseta-separation__empty">Nenhum pedido registrado para este encontro.</div>
+            <div className="camiseta-separation__empty">Nenhum pedido ou intenção registrado para este encontro.</div>
           ) : (
             <div className="camiseta-production">
               {productionGroups.map(group => (

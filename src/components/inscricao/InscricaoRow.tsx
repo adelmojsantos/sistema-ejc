@@ -29,7 +29,7 @@ export function InscricaoRow({ inscricao, onEdit, onDelete }: InscricaoRowProps)
             <div className="pessoa-row-col desktop-only">
                 <span className="pessoa-row-label">Função</span>
                 <span className="pessoa-row-value">
-                    {isParticipante ? 'Participante' : (
+                    {isParticipante ? 'Encontrista' : (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <Shield size={12} /> {inscricao.equipes?.nome || 'Sem Equipe'}
                             {isCoordenador && <b style={{ color: 'var(--primary-color)', fontSize: '0.7rem' }}>(COORD)</b>}
