@@ -4916,6 +4916,27 @@ tbody tr:hover {
   overflow-y: auto;
 }
 
+.sidebar-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--sidebar-border);
+}
+
+.sidebar-nav-group__label {
+  padding: 0 1.1875rem 0.3rem;
+  color: var(--muted-text);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.72;
+}
+
 .nav-item {
   display: flex;
   align-items: center;
@@ -4985,6 +5006,15 @@ tbody tr:hover {
 
 .sidebar--collapsed .sidebar-nav {
   padding: 1rem 0.5rem;
+}
+
+.sidebar--collapsed .sidebar-nav-group {
+  margin-top: 0.35rem;
+  padding-top: 0.45rem;
+}
+
+.sidebar--collapsed .sidebar-nav-group__label {
+  display: none;
 }
 
 .sidebar-footer {

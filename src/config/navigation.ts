@@ -28,6 +28,12 @@ import {
 
 export type NavigationSurface = 'sidebar' | 'dashboard';
 export type NavigationAccent = 'primary' | 'success' | 'violet' | 'amber';
+export type NavigationGroupId =
+  | 'my-work'
+  | 'preparation'
+  | 'operation'
+  | 'resources'
+  | 'administration';
 
 export const VISITATION_ACCESS_PERMISSIONS = [
   'modulo_visitacao_coordenar',
@@ -61,6 +67,44 @@ export interface NavigationAccessContext {
   isCoordinator: boolean;
   teamName?: string | null;
 }
+
+export interface NavigationGroup {
+  id: NavigationGroupId;
+  label: string;
+  moduleIds: readonly string[];
+}
+
+export interface VisibleNavigationGroup extends Omit<NavigationGroup, 'moduleIds'> {
+  modules: NavigationModule[];
+}
+
+export const NAVIGATION_GROUPS: readonly NavigationGroup[] = [
+  {
+    id: 'my-work',
+    label: 'Meu trabalho',
+    moduleIds: ['minha-equipe'],
+  },
+  {
+    id: 'preparation',
+    label: 'Preparação',
+    moduleIds: ['cadastros', 'inscricoes', 'secretaria', 'visitacao', 'palestras'],
+  },
+  {
+    id: 'operation',
+    label: 'Operação do encontro',
+    moduleIds: ['circulos', 'cozinha', 'cuidados', 'recepcao', 'recreacao', 'ligacao'],
+  },
+  {
+    id: 'resources',
+    label: 'Recursos e apoio',
+    moduleIds: ['compras', 'biblioteca'],
+  },
+  {
+    id: 'administration',
+    label: 'Administração',
+    moduleIds: ['acessos', 'usuarios', 'dirigencia', 'diagnosticos'],
+  },
+] as const;
 
 export const NAVIGATION_MODULES: readonly NavigationModule[] = [
   {
@@ -313,6 +357,26 @@ export function getNavigationModules(
     .filter((module) => canViewNavigationModule(module, context));
 }
 
+export function getSidebarNavigationGroups(
+  context: NavigationAccessContext
+): VisibleNavigationGroup[] {
+  const visibleModules = new Map(
+    getNavigationModules('sidebar', context)
+      .filter((module) => module.id !== 'inicio')
+      .map((module) => [module.id, module])
+  );
+
+  return NAVIGATION_GROUPS
+    .map((group) => ({
+      id: group.id,
+      label: group.label,
+      modules: group.moduleIds
+        .map((moduleId) => visibleModules.get(moduleId))
+        .filter((module): module is NavigationModule => Boolean(module)),
+    }))
+    .filter((group) => group.modules.length > 0);
+}
+
 interface NavigationTitle {
   pathPrefix: string;
   title: string;
@@ -335,6 +399,7 @@ const NAVIGATION_TITLES: readonly NavigationTitle[] = [
   { pathPrefix: '/circulos/resumo-palestras', title: 'Resumo das Palestras' },
   { pathPrefix: '/circulos/pos-encontros', title: 'Pós-Encontro' },
   { pathPrefix: '/cadastros/pos-encontros', title: 'Pós-Encontro' },
+  { pathPrefix: '/dashboard/preparacao', title: 'Preparação do Encontro' },
   { pathPrefix: '/cadastros/preparacao', title: 'Preparação do Encontro' },
   { pathPrefix: '/cadastros/encontros', title: 'Encontros' },
   { pathPrefix: '/cadastros/equipes', title: 'Equipes' },

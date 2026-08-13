@@ -218,6 +218,12 @@ function AnimatedRoutes() {
             })()
           } />
 
+          <Route path="/dashboard/preparacao" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <PreparacaoEncontroPage />
+            </ProtectedRoute>
+          } />
+
           <Route path="/inscricao" element={<InscricaoPage />} />
 
           <Route path="/inscricao/participantes" element={
@@ -565,11 +571,7 @@ function AnimatedRoutes() {
             <Route path="avaliacao" element={<AvaliacaoEncontroPage />} />
             <Route path="avaliacao-encontristas" element={<AvaliacaoEncontristasPage />} />
             <Route path="cronograma" element={<CronogramaEncontroPage />} />
-            <Route path="preparacao" element={
-              <ProtectedRoute requiredPermissions={['modulo_admin']}>
-                <PreparacaoEncontroPage />
-              </ProtectedRoute>
-            } />
+            <Route path="preparacao" element={<Navigate to="/dashboard/preparacao" replace />} />
             <Route path="pos-encontros" element={
               <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_secretaria', 'modulo_admin']}>
                 <PosEncontrosCadastroPage />

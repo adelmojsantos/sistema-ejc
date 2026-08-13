@@ -102,7 +102,7 @@ export function Home() {
                 <button
                   type="button"
                   className="dashboard-work__preparation"
-                  onClick={() => navigate('/cadastros/preparacao')}
+                  onClick={() => navigate('/dashboard/preparacao')}
                 >
                   <ClipboardCheck size={17} aria-hidden="true" />
                   <span>Preparação do encontro</span>

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   getNavigationModules,
+  getSidebarNavigationGroups,
   getNavigationTitle,
+  NAVIGATION_GROUPS,
+  NAVIGATION_MODULES,
   type NavigationAccessContext,
 } from './navigation';
 
@@ -103,7 +106,53 @@ describe('catálogo central de navegação', () => {
     expect(moduleIds('dashboard', developer)).toContain('diagnosticos');
   });
 
+  it('organiza o menu por processo na ordem definida', () => {
+    const context = createContext(
+      ['modulo_admin', 'modulo_diagnosticos', 'modulo_coordenador'],
+      { isCoordinator: true, teamName: 'Equipe de Cozinha' }
+    );
+
+    expect(getSidebarNavigationGroups(context).map((group) => ({
+      label: group.label,
+      modules: group.modules.map((module) => module.id),
+    }))).toEqual([
+      { label: 'Meu trabalho', modules: ['minha-equipe'] },
+      {
+        label: 'Preparação',
+        modules: ['cadastros', 'inscricoes', 'secretaria', 'visitacao', 'palestras'],
+      },
+      {
+        label: 'Operação do encontro',
+        modules: ['circulos', 'cozinha', 'cuidados', 'recepcao', 'recreacao', 'ligacao'],
+      },
+      { label: 'Recursos e apoio', modules: ['compras', 'biblioteca'] },
+      {
+        label: 'Administração',
+        modules: ['acessos', 'usuarios', 'dirigencia', 'diagnosticos'],
+      },
+    ]);
+  });
+
+  it('omite grupos sem módulos permitidos', () => {
+    const groups = getSidebarNavigationGroups(createContext(['modulo_recepcao']));
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].label).toBe('Operação do encontro');
+    expect(groups[0].modules.map((module) => module.id)).toEqual(['recepcao']);
+  });
+
+  it('mantém todos os módulos laterais mapeados uma única vez', () => {
+    const groupedIds = NAVIGATION_GROUPS.flatMap((group) => group.moduleIds);
+    const sidebarIds = NAVIGATION_MODULES
+      .filter((module) => module.surfaces.includes('sidebar') && module.id !== 'inicio')
+      .map((module) => module.id);
+
+    expect(new Set(groupedIds).size).toBe(groupedIds.length);
+    expect([...groupedIds].sort()).toEqual([...sidebarIds].sort());
+  });
+
   it('mantém títulos específicos antes dos títulos gerais dos módulos', () => {
+    expect(getNavigationTitle('/dashboard/preparacao')).toBe('Preparação do Encontro');
     expect(getNavigationTitle('/secretaria/lista-espera')).toBe('Lista de Espera');
     expect(getNavigationTitle('/circulos/fichas-pos-encontro')).toBe('Ficha Pós-Encontro');
     expect(getNavigationTitle('/compras/almoxarifado/pedidos')).toBe('Compras');

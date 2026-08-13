@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 import { useAuth } from '../../hooks/useAuth';
-import { getNavigationModules } from '../../config/navigation';
+import { getNavigationModules, getSidebarNavigationGroups } from '../../config/navigation';
 import { NavItem } from './NavItem';
 import ejcLogo from '../../assets/brand-experiments/ejc-logo.png';
 
@@ -28,11 +28,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     isCoordinator: Boolean(userParticipacao?.coordenador),
     teamName: equipeNome,
   };
-  const [homeLink, ...menuItems] = getNavigationModules('sidebar', navigationContext);
-  const navLinks = [
-    ...(homeLink ? [homeLink] : []),
-    ...menuItems.sort((a, b) => a.label.localeCompare(b.label)),
-  ];
+  const homeLink = getNavigationModules('sidebar', navigationContext)
+    .find((module) => module.id === 'inicio');
+  const navigationGroups = getSidebarNavigationGroups(navigationContext);
 
   const handleLinkClick = () => {
     if (window.innerWidth <= 1180) {
@@ -93,15 +91,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <nav className="sidebar-nav" aria-label="Módulos do sistema">
-          {navLinks.map((link) => (
+          {homeLink && (
             <NavItem
-              key={link.path}
-              to={link.path}
-              icon={link.icon}
-              label={link.label}
+              to={homeLink.path}
+              icon={homeLink.icon}
+              label={homeLink.label}
               collapsed={collapsed && !mobileOpen}
               onClick={handleLinkClick}
             />
+          )}
+
+          {navigationGroups.map((group) => (
+            <section
+              key={group.id}
+              className="sidebar-nav-group"
+              aria-label={group.label}
+            >
+              <div className="sidebar-nav-group__label" aria-hidden="true">
+                {group.label}
+              </div>
+              {group.modules.map((link) => (
+                <NavItem
+                  key={link.path}
+                  to={link.path}
+                  icon={link.icon}
+                  label={link.label}
+                  collapsed={collapsed && !mobileOpen}
+                  onClick={handleLinkClick}
+                />
+              ))}
+            </section>
           ))}
         </nav>
 

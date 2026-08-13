@@ -102,7 +102,7 @@ export function PreparacaoEncontroPage() {
     <main className="container encounter-readiness-page">
       <PageHeader
         title="Preparação do encontro"
-        subtitle="Cadastros"
+        subtitle="Dashboard"
         backPath="/dashboard"
         actions={encontroSelecionado?.ativo && (
           <button
