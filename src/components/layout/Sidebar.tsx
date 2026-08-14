@@ -39,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navigationGroups = getSidebarNavigationGroups(navigationContext);
   const isCompact = collapsed && !mobileOpen;
 
-  const searchShortcutLabel = useMemo(() => navigator.platform.toLowerCase().includes('mac') ? '⌘ K' : 'Ctrl K', []);
+  const searchShortcutLabel = useMemo(() => navigator.platform.toLowerCase().includes('mac') ? '⌘ + K' : 'Ctrl + K', []);
 
   const openGlobalSearch = useCallback(() => {
     if (window.innerWidth <= 1180) setMobileOpen(false);

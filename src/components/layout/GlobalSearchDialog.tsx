@@ -174,6 +174,8 @@ export function GlobalSearchDialog({
     onClose();
   };
 
+  const searchShortcutLabel = useMemo(() => navigator.platform.toLowerCase().includes('mac') ? '⌘ + K' : 'Ctrl + K', []);
+
   return (
     <Modal
       isOpen={isOpen}
@@ -214,7 +216,7 @@ export function GlobalSearchDialog({
               <X size={17} />
             </button>
           )}
-          <kbd>Ctrl K</kbd>
+          <kbd>{searchShortcutLabel}</kbd>
         </div>
 
         <div className="global-search__context">
