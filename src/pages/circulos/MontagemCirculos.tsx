@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type ChangeEvent } from 'react';
 import { toast } from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronDown, Loader,
   Users, Shield, UserCircle, Eraser, AlertCircle,
   X,
-  UserPlus, Dices, CheckSquare, Square, Camera, ImageOff
+  UserPlus, Dices, CheckSquare, Square, Camera, ImageOff, Eye
 } from 'lucide-react';
 
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
+import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
 import { circuloService } from '../../services/circuloService';
 import { circuloParticipacaoService } from '../../services/circuloParticipacaoService';
 import { circuloMediadoresFotoService, type CirculoMediadoresFoto } from '../../services/circuloMediadoresFotoService';
@@ -39,6 +40,8 @@ interface CirculoAssignment {
 
 export function MontagemCirculos() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedCircleId = Number(searchParams.get('circulo'));
   const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
   const { equipes } = useEquipes();
 
@@ -67,6 +70,7 @@ export function MontagemCirculos() {
 
   // Operações pontuais (add/remove participante)
   const [isOperating, setIsOperating] = useState(false);
+  const [contextParticipacaoId, setContextParticipacaoId] = useState<string | null>(null);
 
   // ── Equipe círculo: busca inteligente e prioritária ──────────────
   const equipeCirculoId = useMemo(() => {
@@ -130,8 +134,14 @@ export function MontagemCirculos() {
   useEffect(() => {
     if (circulos.length > 0) {
       setSelectedLotteryCirculos(circulos.map(c => c.id));
+      if (Number.isFinite(requestedCircleId) && circulos.some((circulo) => circulo.id === requestedCircleId)) {
+        setOpenCirculoId(requestedCircleId);
+        window.setTimeout(() => {
+          document.getElementById(`circulo-${requestedCircleId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
     }
-  }, [circulos]);
+  }, [circulos, requestedCircleId]);
 
   // Reset mediadores ao trocar o círculo aberto
   useEffect(() => {
@@ -540,6 +550,7 @@ export function MontagemCirculos() {
               return (
                 <article
                   key={circulo.id}
+                  id={`circulo-${circulo.id}`}
                   className={`mc-accordion-card${isOpen ? ' mc-accordion-card--open' : ''}`}
                 >
                   {/* ── Card Header ── */}
@@ -680,6 +691,15 @@ export function MontagemCirculos() {
                               <span key={v.id} className="mc-chip mc-chip--mediator">
                                 <Shield size={12} />
                                 {v.participacoes?.pessoas?.nome_completo ?? '—'}
+                                <button
+                                  type="button"
+                                  className="mc-chip__remove"
+                                  onClick={() => setContextParticipacaoId(v.participacao)}
+                                  title="Resumo da pessoa"
+                                  aria-label={`Abrir resumo de ${v.participacoes?.pessoas?.nome_completo}`}
+                                >
+                                  <Eye size={11} />
+                                </button>
                                 <button
                                   className="mc-chip__remove"
                                   onClick={() => handleDesvincular(v.id)}
@@ -832,6 +852,15 @@ export function MontagemCirculos() {
                               <span key={v.id} className="mc-chip mc-chip--participant">
                                 {v.participacoes?.pessoas?.nome_completo ?? '—'}
                                 <button
+                                  type="button"
+                                  className="mc-chip__remove"
+                                  onClick={() => setContextParticipacaoId(v.participacao)}
+                                  title="Resumo da pessoa"
+                                  aria-label={`Abrir resumo de ${v.participacoes?.pessoas?.nome_completo}`}
+                                >
+                                  <Eye size={11} />
+                                </button>
+                                <button
                                   className="mc-chip__remove"
                                   onClick={() => handleDesvincular(v.id)}
                                   disabled={isOperating}
@@ -877,6 +906,11 @@ export function MontagemCirculos() {
         )}
 
       </main>
+      <PessoaContextDrawer
+        participacaoId={contextParticipacaoId}
+        encontroId={selectedEncontroId || null}
+        onClose={() => setContextParticipacaoId(null)}
+      />
     </div>
   );
 }

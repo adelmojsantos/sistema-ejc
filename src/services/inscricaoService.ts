@@ -200,35 +200,45 @@ export const inscricaoService = {
         return data as Inscricao;
     },
 
-    async excluir(id: string): Promise<void> {
-        const { error } = await supabase
-            .from(TABLE)
-            .delete()
-            .eq('id', id);
+    /** Remove um encontreiro do encontro ativo e trata vínculos operacionais relacionados. */
+    async desvincularDoEncontro(participacaoId: string): Promise<void> {
+        const { error } = await supabase.rpc('desvincular_integrante_encontro', {
+            p_participacao_id: participacaoId,
+        });
 
         if (error) throw error;
     },
 
-    /** Remove o vínculo de uma pessoa com um encontro (apaga a participação). */
-    async desvincularDoEncontro(participacaoId: string): Promise<void> {
-        const { error } = await supabase
-            .from(TABLE)
-            .delete()
-            .eq('id', participacaoId);
+    /**
+     * Cancela uma participação preservando os dados operacionais em histórico
+     * para uma eventual restauração pela Secretaria.
+     */
+    async cancelarParticipacao(participacaoId: string, motivo: string): Promise<{ cancelamento_id: string }> {
+        const { data, error } = await supabase.rpc('cancelar_participacao', {
+            p_participacao_id: participacaoId,
+            p_motivo: motivo,
+        });
 
         if (error) throw error;
+        return data as { cancelamento_id: string };
+    },
+
+    async restaurarParticipacaoCancelada(cancelamentoId: string): Promise<{
+        participacao_id?: string;
+        already_reverted?: boolean;
+    }> {
+        const { data, error } = await supabase.rpc('restaurar_participacao_cancelada', {
+            p_cancelamento_id: cancelamentoId,
+        });
+
+        if (error) throw error;
+        return (data || {}) as { participacao_id?: string; already_reverted?: boolean };
     },
 
     async confirmarDados(id: string): Promise<Inscricao> {
-        const { data, error } = await supabase
-            .from(TABLE)
-            .update({
-                dados_confirmados: true,
-                confirmado_em: new Date().toISOString()
-            })
-            .eq('id', id)
-            .select()
-            .single();
+        const { data, error } = await supabase.rpc('confirmar_dados_integrante_equipe', {
+            p_participacao_id: id,
+        });
 
         if (error) throw error;
         return data as Inscricao;

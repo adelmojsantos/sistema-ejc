@@ -40,7 +40,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   // Reset mobile menu when resizing to desktop
   useEffect(() => {
     const handleResize = () => {
-      if (window.innerWidth > 1024) {
+      if (window.innerWidth > 1180) {
         setMobileMenu((previous) => (
           previous.open ? { ...previous, open: false } : previous
         ));
@@ -54,7 +54,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     <div className="app-layout">
       <a className="skip-link" href="#conteudo-principal">Pular para o conteúdo</a>
       <Sidebar 
-        collapsed={collapsed} 
+        collapsed={collapsed}
         setCollapsed={handleSetCollapsed}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}

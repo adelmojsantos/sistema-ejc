@@ -3,8 +3,72 @@ import type { Pessoa, PessoaFormData } from '../types/pessoa';
 
 const TABLE = 'pessoas';
 
+export interface PessoaHistoricoParticipacao {
+    id: string;
+    participante: boolean | null;
+    coordenador: boolean | null;
+    equipes: { nome: string | null } | null;
+    encontros: {
+        nome: string | null;
+        ativo: boolean | null;
+        tema: string | null;
+    } | null;
+}
+
+type RelacaoPostgrest<T> = T | T[] | null | undefined;
+
+interface PessoaHistoricoParticipacaoRow {
+    id: string;
+    participante: boolean | null;
+    coordenador: boolean | null;
+    equipes: RelacaoPostgrest<{ nome: string | null }>;
+    encontros: RelacaoPostgrest<{
+        nome: string | null;
+        ativo: boolean | null;
+        tema: string | null;
+    }>;
+}
+
+function primeiraRelacao<T>(value: RelacaoPostgrest<T>): T | null {
+    return Array.isArray(value) ? value[0] ?? null : value ?? null;
+}
+
+/**
+ * Normaliza relações do PostgREST, que podem chegar como objeto em relações
+ * muitos-para-um ou como array conforme os metadados disponíveis no cliente.
+ */
+export function normalizarHistoricoParticipacao(
+    row: PessoaHistoricoParticipacaoRow,
+): PessoaHistoricoParticipacao {
+    const equipe = primeiraRelacao(row.equipes);
+    const encontro = primeiraRelacao(row.encontros);
+
+    return {
+        id: row.id,
+        participante: row.participante,
+        coordenador: row.coordenador,
+        equipes: equipe ? { nome: equipe.nome } : null,
+        encontros: encontro
+            ? { nome: encontro.nome, ativo: encontro.ativo, tema: encontro.tema }
+            : null,
+    };
+}
+
 /** Campos pessoais aceitos pela edição. Vínculos de encontro pertencem a participacoes. */
 export type PessoaUpdateData = Partial<PessoaFormData>;
+
+export interface ExclusaoPessoaImpacto {
+    pessoa_id: string;
+    nome_completo: string;
+    usuario_vinculado: boolean;
+    participacoes: number;
+    cancelamentos: number;
+    visitas: number;
+    circulos: number;
+    recepcao: number;
+    recreacao: number;
+    dirigencia: number;
+}
 
 /**
  * Normaliza somente dados da pessoa, preservando campos omitidos em atualizações parciais.
@@ -95,7 +159,7 @@ export const pessoaService = {
         return data as Pessoa;
     },
 
-    async buscarHistorico(pessoaId: string): Promise<Record<string, unknown>[]> {
+    async buscarHistorico(pessoaId: string): Promise<PessoaHistoricoParticipacao[]> {
         const { data, error } = await supabase
             .from('participacoes')
             .select(`
@@ -108,7 +172,7 @@ export const pessoaService = {
             .eq('pessoa_id', pessoaId);
 
         if (error) throw error;
-        return data || [];
+        return (data || []).map(normalizarHistoricoParticipacao);
     },
 
     async criar(formData: PessoaFormData): Promise<Pessoa> {
@@ -134,11 +198,20 @@ export const pessoaService = {
         return data as Pessoa;
     },
 
-    async excluir(id: string): Promise<void> {
-        const { error } = await supabase
-            .from(TABLE)
-            .delete()
-            .eq('id', id);
+    async obterImpactoExclusao(id: string): Promise<ExclusaoPessoaImpacto> {
+        const { data, error } = await supabase.rpc('get_exclusao_pessoa_impacto', {
+            p_pessoa_id: id,
+        });
+
+        if (error) throw error;
+        return data as ExclusaoPessoaImpacto;
+    },
+
+    async excluirDefinitivamente(id: string, nomeConfirmacao: string): Promise<void> {
+        const { error } = await supabase.rpc('excluir_pessoa_definitivamente', {
+            p_pessoa_id: id,
+            p_nome_confirmacao: nomeConfirmacao,
+        });
 
         if (error) throw error;
     },

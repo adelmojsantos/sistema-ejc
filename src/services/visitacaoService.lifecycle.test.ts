@@ -104,4 +104,70 @@ describe('ciclo seguro das duplas de visitação', () => {
       p_participacao_id: 'encontrista-1',
     });
   });
+
+  it('salva todos os blocos da visita por uma única operação transacional', async () => {
+    rpcMock.mockResolvedValue({ data: { visita_id: 'visita-1' }, error: null });
+
+    await visitacaoService.salvarVisitaCompleta('visita-1', {
+      status: 'realizada',
+      observacoes: 'Família confirmou presença.',
+      fotoFamiliaUrl: 'r2://familia.webp',
+      taxaPaga: true,
+      dataVisita: '2026-08-10T18:00:00Z',
+      fotoParticipacaoUrl: 'r2://encontrista.webp',
+      pessoa: {
+        nome_completo: 'Maria da Silva',
+        telefone: '(16) 99999-9999',
+        alergia: 'Dipirona',
+        possui_alergia: true,
+      },
+      intencoes: [{
+        id: 'intencao-1',
+        modelo_id: 'modelo-1',
+        tamanho: 'M',
+        quantidade: 2,
+        pago: true,
+        comprovante_url: 'private://comprovante',
+      }],
+    });
+
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+    expect(rpcMock).toHaveBeenCalledWith('salvar_visita_completa', {
+      p_visita_id: 'visita-1',
+      p_dados: expect.objectContaining({
+        status: 'realizada',
+        taxa_paga: true,
+        foto_familia_url: 'r2://familia.webp',
+        foto_participacao_url: 'r2://encontrista.webp',
+        pessoa: expect.objectContaining({
+          nome_completo: 'Maria da Silva',
+          telefone: '16999999999',
+          alergia: 'Dipirona',
+        }),
+        intencoes: [{
+          id: 'intencao-1',
+          modelo_id: 'modelo-1',
+          tamanho: 'M',
+          quantidade: 2,
+        }],
+      }),
+    });
+  });
+
+  it('propaga a rejeição transacional sem tentar persistências alternativas', async () => {
+    rpcMock.mockResolvedValue({ data: null, error: new Error('Somente o encontro ativo pode ser alterado.') });
+
+    await expect(visitacaoService.salvarVisitaCompleta('visita-historica', {
+      status: 'realizada',
+      observacoes: null,
+      fotoFamiliaUrl: null,
+      taxaPaga: false,
+      dataVisita: null,
+      fotoParticipacaoUrl: null,
+      pessoa: { nome_completo: 'Maria da Silva' },
+      intencoes: [],
+    })).rejects.toThrow('Somente o encontro ativo pode ser alterado.');
+
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+  });
 });

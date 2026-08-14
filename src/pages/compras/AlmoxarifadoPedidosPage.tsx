@@ -1,7 +1,7 @@
 import { ChevronLeft, Loader, PackagePlus, Plus, RefreshCw, Search, Send, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { FormField } from '../../components/ui/FormField';
 import { Modal } from '../../components/ui/Modal';
@@ -88,6 +88,7 @@ const buildDefaultTitle = (equipeNome?: string | null) => {
 
 export function AlmoxarifadoPedidosPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { encontroSelecionadoId } = useEncontros();
   const { hasPermission } = useAuth();
   const canCreateForOthers =
@@ -100,7 +101,7 @@ export function AlmoxarifadoPedidosPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
-  const [busca, setBusca] = useState('');
+  const [busca, setBusca] = useState(() => searchParams.get('busca') ?? '');
   const [equipeFiltro, setEquipeFiltro] = useState('');
   const [statusFiltro, setStatusFiltro] = useState('');
   const [pedidoModalOpen, setPedidoModalOpen] = useState(false);

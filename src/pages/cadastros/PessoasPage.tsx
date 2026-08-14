@@ -10,7 +10,9 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { pessoaService } from '../../services/pessoaService';
 import { useDebounce } from '../../hooks/useDebounce.ts';
 import { useEncontros } from '../../contexts/EncontroContext';
+import { useAuth } from '../../hooks/useAuth';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
+import type { ExclusaoPessoaImpacto } from '../../services/pessoaService';
 
 type Mode = 'list' | 'create' | 'edit';
 
@@ -26,6 +28,9 @@ export function PessoasPage() {
     const [fetchError, setFetchError] = useState<string | null>(null);
     const [formError, setFormError] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<Pessoa | null>(null);
+    const [deleteImpact, setDeleteImpact] = useState<ExclusaoPessoaImpacto | null>(null);
+    const [deleteConfirmation, setDeleteConfirmation] = useState('');
+    const [isLoadingDeleteImpact, setIsLoadingDeleteImpact] = useState(false);
     const [historyTarget, setHistoryTarget] = useState<Pessoa | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const scrollPositionRef = useRef(0);
@@ -38,6 +43,8 @@ export function PessoasPage() {
 
     // Filter States
     const { encontros } = useEncontros();
+    const { hasPermission } = useAuth();
+    const canDeletePeople = hasPermission('modulo_admin');
     const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
 
     const load = useCallback(async (currentSearch: string, currentPage: number, currentEncontroId: string) => {
@@ -129,23 +136,42 @@ export function PessoasPage() {
         }
     };
 
+    const openDelete = async (pessoa: Pessoa) => {
+        setDeleteTarget(pessoa);
+        setDeleteImpact(null);
+        setDeleteConfirmation('');
+        setIsLoadingDeleteImpact(true);
+        try {
+            setDeleteImpact(await pessoaService.obterImpactoExclusao(pessoa.id));
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Erro ao verificar os vínculos da pessoa.');
+            setDeleteTarget(null);
+        } finally {
+            setIsLoadingDeleteImpact(false);
+        }
+    };
+
+    const closeDelete = () => {
+        if (isDeleting) return;
+        setDeleteTarget(null);
+        setDeleteImpact(null);
+        setDeleteConfirmation('');
+    };
+
     const handleDeleteConfirm = async () => {
-        if (!deleteTarget) return;
+        if (!deleteTarget || !deleteImpact) return;
         setIsDeleting(true);
         try {
-            await pessoaService.excluir(deleteTarget.id);
-            toast.success('Cadastro excluído com sucesso!');
+            await pessoaService.excluirDefinitivamente(deleteTarget.id, deleteConfirmation);
+            toast.success('Pessoa e históricos excluídos definitivamente.');
             await load(debouncedSearch, page, selectedEncontroId);
         } catch (err: unknown) {
-            const errorObj = err as { code?: string };
-            if (errorObj.code === '23503') {
-                toast.error('Não é possível excluir pois existem registros vinculados.');
-            } else {
-                toast.error('Erro ao excluir cadastro.');
-            }
+            toast.error(err instanceof Error ? err.message : 'Erro ao excluir a pessoa.');
         } finally {
             setIsDeleting(false);
             setDeleteTarget(null);
+            setDeleteImpact(null);
+            setDeleteConfirmation('');
         }
     };
 
@@ -194,8 +220,8 @@ export function PessoasPage() {
             {mode === 'list' && (
                 <>
                     <div className="card" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.25rem' }}>
-                            <div style={{ flex: 1, minWidth: '300px' }}>
+                        <div className="pessoas-list-filters">
+                            <div className="pessoas-list-search">
                                 <div className="form-input-wrapper">
                                     <div className="form-input-icon">
                                         <Search size={16} />
@@ -235,30 +261,28 @@ export function PessoasPage() {
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>Encontro:</span>
+                            <div className="pessoas-list-filter-controls">
+                                <label className="pessoas-list-filter-field">
+                                    <span>Filtrar por encontro</span>
                                     <select
                                         className="form-input"
-                                        style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.85rem', width: 'auto', minWidth: '160px', marginTop: 0, height: '38px' }}
                                         value={selectedEncontroId}
                                         onChange={(e) => {
                                             setSelectedEncontroId(e.target.value);
                                             setPage(1);
                                         }}
                                     >
-                                        <option value="">Todos os Encontros</option>
+                                        <option value="">Todos os encontros</option>
                                         {encontros.map(e => (
                                             <option key={e.id} value={e.id}>{e.nome}</option>
                                         ))}
                                     </select>
-                                </div>
+                                </label>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.5, textTransform: 'uppercase' }}>Exibir:</span>
+                                <label className="pessoas-list-filter-field pessoas-list-page-size-field">
+                                    <span>Exibir</span>
                                     <select
                                         className="form-input"
-                                        style={{ padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.85rem', width: 'auto', marginTop: 0, height: '38px' }}
                                         value={pageSize}
                                         onChange={(e) => {
                                             setPageSize(Number(e.target.value));
@@ -270,7 +294,7 @@ export function PessoasPage() {
                                         <option value={50}>50 por página</option>
                                         <option value={100}>100 por página</option>
                                     </select>
-                                </div>
+                                </label>
                             </div>
                         </div>
                     </div>
@@ -313,7 +337,7 @@ export function PessoasPage() {
                                         key={p.id}
                                         pessoa={p}
                                         onEdit={openEdit}
-                                        onDelete={setDeleteTarget}
+                                        onDelete={canDeletePeople ? openDelete : undefined}
                                         onHistory={setHistoryTarget}
                                     />
                                 ))}
@@ -356,14 +380,57 @@ export function PessoasPage() {
 
             <ConfirmDialog
                 isOpen={!!deleteTarget}
-                title="Excluir Cadastro"
-                message={`Tem certeza que deseja excluir o cadastro de "${deleteTarget?.nome_completo}"? Esta ação não pode ser desfeita.`}
-                confirmText="Excluir"
+                title="Excluir pessoa definitivamente"
+                message={(
+                    <div>
+                        {isLoadingDeleteImpact ? (
+                            <p>Verificando vínculos…</p>
+                        ) : deleteImpact?.usuario_vinculado ? (
+                            <p style={{ color: '#ef4444', fontWeight: 700 }}>
+                                Esta pessoa possui uma conta de acesso vinculada. Remova ou desvincule o usuário antes de continuar.
+                            </p>
+                        ) : (
+                            <>
+                                <p>
+                                    Esta ação excluirá <strong>{deleteTarget?.nome_completo}</strong> e não poderá ser desfeita.
+                                </p>
+                                <ul style={{ margin: '1rem 0', paddingLeft: '1.25rem' }}>
+                                    <li>{deleteImpact?.participacoes ?? 0} participação(ões)</li>
+                                    <li>{deleteImpact?.cancelamentos ?? 0} cancelamento(s)</li>
+                                    <li>{deleteImpact?.visitas ?? 0} vínculo(s) de visitação</li>
+                                    <li>{deleteImpact?.circulos ?? 0} vínculo(s) de círculo</li>
+                                    <li>{deleteImpact?.recepcao ?? 0} registro(s) de recepção</li>
+                                    <li>{deleteImpact?.recreacao ?? 0} registro(s) de recreação</li>
+                                    <li>{deleteImpact?.dirigencia ?? 0} registro(s) de Dirigência</li>
+                                </ul>
+                                <label className="form-label" style={{ display: 'block' }}>
+                                    Digite o nome completo para confirmar
+                                    <input
+                                        className="form-input"
+                                        value={deleteConfirmation}
+                                        onChange={(event) => setDeleteConfirmation(event.target.value)}
+                                        placeholder={deleteTarget?.nome_completo}
+                                        autoComplete="off"
+                                        style={{ marginTop: '0.45rem' }}
+                                    />
+                                </label>
+                            </>
+                        )}
+                    </div>
+                )}
+                confirmText="Excluir definitivamente"
                 cancelText="Cancelar"
                 onConfirm={handleDeleteConfirm}
-                onCancel={() => setDeleteTarget(null)}
+                onCancel={closeDelete}
                 isLoading={isDeleting}
                 isDestructive={true}
+                isConfirmDisabled={
+                    isLoadingDeleteImpact
+                    || !deleteImpact
+                    || deleteImpact.usuario_vinculado
+                    || deleteConfirmation.trim() !== deleteTarget?.nome_completo.trim()
+                }
+                maxWidth="580px"
             />
 
             {historyTarget && (

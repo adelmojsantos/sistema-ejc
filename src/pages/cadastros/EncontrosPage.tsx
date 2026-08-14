@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Search, Calendar as CalIcon, Plus, X } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { EncontroRow } from '../../components/encontro/EncontroRow';
@@ -14,6 +14,7 @@ type Mode = 'list' | 'create' | 'edit';
 
 export function EncontrosPage() {
     const navigate = useNavigate();
+    const { id: encontroId } = useParams<{ id: string }>();
     const [encontros, setEncontros] = useState<Encontro[]>([]);
     const [filtered, setFiltered] = useState<Encontro[]>([]);
     const [search, setSearch] = useState('');
@@ -32,6 +33,21 @@ export function EncontrosPage() {
             const data = await encontroService.listar();
             setEncontros(data);
             setFiltered(data);
+
+            if (encontroId) {
+                const encontro = data.find((item) => item.id === encontroId);
+                if (!encontro) {
+                    toast.error('Encontro não encontrado.');
+                    navigate('/cadastros/encontros', { replace: true });
+                    setSelected(null);
+                    setMode('list');
+                    return;
+                }
+
+                setSelected(encontro);
+                setFormError(null);
+                setMode('edit');
+            }
         } catch (err: unknown) {
             const errorObj = err as { message?: string };
             const msg = errorObj.message || 'Erro ao carregar encontros.';
@@ -40,7 +56,7 @@ export function EncontrosPage() {
         } finally {
             setIsFetching(false);
         }
-    }, []);
+    }, [encontroId, navigate]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -57,8 +73,17 @@ export function EncontrosPage() {
     }, [search, encontros]);
 
     const openCreate = () => { setSelected(null); setFormError(null); setMode('create'); };
-    const openEdit = (p: Encontro) => { setSelected(p); setFormError(null); setMode('edit'); };
-    const backToList = () => { setMode('list'); setSelected(null); };
+    const openEdit = (p: Encontro) => {
+        setSelected(p);
+        setFormError(null);
+        setMode('edit');
+        navigate(`/cadastros/encontros/${p.id}/editar`);
+    };
+    const backToList = () => {
+        setMode('list');
+        setSelected(null);
+        if (encontroId) navigate('/cadastros/encontros');
+    };
 
     const handleBack = () => {
         if (mode !== 'list') {

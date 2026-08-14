@@ -1,0 +1,510 @@
+.finance-reconciliation {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--card-bg);
+}
+
+.finance-reconciliation__heading h2 {
+  margin: 0.2rem 0 0.3rem;
+  font-size: 1.15rem;
+}
+
+.finance-reconciliation__heading p,
+.finance-reconciliation-history__item small,
+.finance-reconciliation-card__body small {
+  color: var(--muted-text);
+}
+
+.finance-reconciliation__heading p {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.finance-reconciliation__eyebrow {
+  color: var(--primary-color);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.finance-reconciliation__cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.finance-reconciliation-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--secondary-bg);
+}
+
+.finance-reconciliation-card__icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--primary-color);
+  background: rgba(var(--primary-rgb), 0.12);
+}
+
+.finance-reconciliation-card--camiseta .finance-reconciliation-card__icon {
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.13);
+}
+
+.finance-reconciliation-card__body {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.finance-reconciliation-card__body > span {
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.finance-reconciliation-card__body strong {
+  font-size: 1.2rem;
+}
+
+.finance-reconciliation-card__body small {
+  overflow-wrap: anywhere;
+  font-size: 0.72rem;
+}
+
+.finance-reconciliation__loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 7rem;
+  color: var(--muted-text);
+}
+
+.finance-reconciliation-history {
+  border-top: 1px solid var(--border-color);
+}
+
+.finance-reconciliation-history > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0 0;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+}
+
+.finance-reconciliation-history > summary::-webkit-details-marker {
+  display: none;
+}
+
+.finance-reconciliation-history > summary span,
+.finance-reconciliation-history__main,
+.finance-reconciliation-history__details {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.finance-reconciliation-history[open] > summary > svg {
+  transform: rotate(180deg);
+}
+
+.finance-reconciliation-history__list {
+  display: grid;
+  gap: 0.65rem;
+  padding-top: 0.85rem;
+}
+
+.finance-reconciliation-history__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--secondary-bg);
+}
+
+.finance-reconciliation-history__main > div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.finance-reconciliation-history__details {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  font-size: 0.76rem;
+}
+
+.finance-reconciliation-history__note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border-color);
+  color: var(--muted-text);
+  font-size: 0.76rem;
+}
+
+.finance-reconciliation__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0;
+  border: 0;
+  color: var(--primary-color);
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.finance-reconciliation__link:hover {
+  text-decoration: underline;
+}
+
+.finance-reconciliation-modal {
+  display: grid;
+  gap: 1rem;
+}
+
+.finance-reconciliation-modal__toolbar {
+  display: grid;
+  padding: 0.85rem;
+  border-radius: 12px;
+  background: var(--secondary-bg);
+}
+
+.finance-reconciliation-modal__toolbar > div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.finance-reconciliation-modal__toolbar span {
+  color: var(--muted-text);
+  font-size: 0.76rem;
+}
+
+.finance-reconciliation-modal__groups {
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 0.65rem;
+  max-height: min(48vh, 32rem);
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.finance-reconciliation-modal__tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 0.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--secondary-bg);
+}
+
+.finance-reconciliation-modal__tabs button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 0;
+  border-radius: 9px;
+  color: var(--muted-text);
+  background: transparent;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.finance-reconciliation-modal__tabs button:hover {
+  color: var(--text-color);
+  background: rgba(var(--primary-rgb), 0.06);
+}
+
+.finance-reconciliation-modal__tabs button.active {
+  color: #fff;
+  background: var(--primary-color);
+}
+
+.finance-reconciliation-modal__tabs button span {
+  display: inline-grid;
+  min-width: 1.45rem;
+  height: 1.45rem;
+  place-items: center;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 0.68rem;
+}
+
+.finance-reconciliation-modal__list-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.finance-reconciliation-modal__search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 3rem;
+  padding: 0 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--muted-text);
+  background: var(--secondary-bg);
+}
+
+.finance-reconciliation-modal__search:focus-within {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.12);
+}
+
+.finance-reconciliation-modal__search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.8rem 0;
+  border: 0;
+  outline: 0;
+  color: var(--text-color);
+  background: transparent;
+  font: inherit;
+}
+
+.finance-reconciliation-modal__group {
+  min-height: 3.75rem;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--text-color);
+  background: var(--card-bg);
+}
+
+.finance-reconciliation-modal__group > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  min-height: 3.75rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--secondary-bg);
+  cursor: pointer;
+  list-style: none;
+}
+
+.finance-reconciliation-modal__group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.finance-reconciliation-modal__group > summary > span {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.finance-reconciliation-modal__group > summary > span:first-child {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.finance-reconciliation-modal__group > summary > span:last-child {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.finance-reconciliation-modal__group-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.8rem;
+  border-top: 1px solid var(--border-color);
+  background: rgba(var(--primary-rgb), 0.025);
+}
+
+.finance-reconciliation-modal__group > summary small {
+  color: var(--muted-text);
+  font-size: 0.7rem;
+}
+
+.finance-reconciliation-modal__group[open] > summary svg {
+  transform: rotate(180deg);
+}
+
+.finance-reconciliation-modal__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3.5rem;
+  padding: 0.6rem 0.8rem;
+  border-top: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.finance-reconciliation-modal__row:hover {
+  background: rgba(var(--primary-rgb), 0.04);
+}
+
+.finance-reconciliation-modal__row input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--primary-color);
+}
+
+.finance-reconciliation-modal__person {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.finance-reconciliation-modal__person strong {
+  overflow-wrap: anywhere;
+}
+
+.finance-reconciliation-modal__person small {
+  color: var(--muted-text);
+  font-size: 0.7rem;
+}
+
+.finance-reconciliation-modal__value {
+  white-space: nowrap;
+}
+
+.finance-reconciliation-modal__empty {
+  display: grid;
+  min-height: 7rem;
+  place-items: center;
+  padding: 1rem;
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+  color: var(--muted-text);
+  text-align: center;
+}
+
+.finance-reconciliation-modal__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  padding-top: 0.25rem;
+}
+
+.finance-reconciliation-modal__justification {
+  grid-column: 1 / -1;
+}
+
+.finance-reconciliation-modal__justification > span {
+  display: block;
+  margin-top: 0.35rem;
+  color: #d97706;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 820px) {
+  .finance-reconciliation__cards {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-reconciliation-history__item {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-reconciliation-history__details {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .finance-reconciliation {
+    padding: 1rem;
+    border-radius: 14px;
+  }
+
+  .finance-reconciliation-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .finance-reconciliation-card > button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .finance-reconciliation-modal__list-tools {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-reconciliation-modal__list-tools > button {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .finance-reconciliation-modal__group > summary {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .finance-reconciliation-modal__tabs button {
+    gap: 0.35rem;
+    padding-inline: 0.45rem;
+    font-size: 0.75rem;
+  }
+
+  .finance-reconciliation-modal__group > summary > span:last-child {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .finance-reconciliation-modal__group-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .finance-reconciliation-modal__group-actions > button {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .finance-reconciliation-modal__form {
+    grid-template-columns: 1fr;
+  }
+
+  .finance-reconciliation-modal__row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .finance-reconciliation-modal__row .finance-reconciliation__link {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .finance-reconciliation-modal__value {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}

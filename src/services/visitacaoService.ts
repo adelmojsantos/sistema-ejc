@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { pessoaService, type PessoaUpdateData } from './pessoaService';
-import type { VisitaGrupo, VisitaGrupoDeleteImpact, VisitaParticipacao, VisitaParticipacaoEnriched } from '../types/visitacao';
+import { normalizarPessoaUpdate, pessoaService, type PessoaUpdateData } from './pessoaService';
+import type { VisitaGrupo, VisitaGrupoDeleteImpact, VisitaParticipacao, VisitaParticipacaoEnriched, VisitaStatus } from '../types/visitacao';
 import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
 import { createPrivateStorageReference, removeStorageReference } from './privateStorageService';
 import { removePublicImage, uploadPublicImage } from './publicImageStorageService';
@@ -17,6 +17,26 @@ export interface IntencaoCamisetaItem {
     pago_por?: string | null;
     // Enriched
     camiseta_modelos?: { id: string; nome: string };
+}
+
+/**
+ * Campos que a coordenação da Visitação pode ajustar ao validar a rota.
+ * Informações pessoais, familiares e de saúde continuam no fluxo operacional
+ * da dupla de visitação e na revisão da equipe responsável.
+ */
+export type EnderecoVisitacaoUpdate = Pick<PessoaUpdateData,
+    'endereco' | 'numero' | 'complemento' | 'cep' | 'bairro' | 'cidade' | 'estado' | 'latitude' | 'longitude'
+>;
+
+export interface SalvarVisitaCompletaPayload {
+    status: VisitaStatus;
+    observacoes: string | null;
+    fotoFamiliaUrl: string | null;
+    taxaPaga: boolean;
+    dataVisita: string | null;
+    fotoParticipacaoUrl: string | null;
+    pessoa: PessoaUpdateData;
+    intencoes: IntencaoCamisetaItem[];
 }
 
 const GRUPOS_TABLE = 'visita_grupos';
@@ -191,6 +211,46 @@ export const visitacaoService = {
 
     async atualizarPessoa(id: string, updates: PessoaUpdateData): Promise<void> {
         await pessoaService.atualizar(id, updates);
+    },
+
+    async salvarVisitaCompleta(visitaId: string, payload: SalvarVisitaCompletaPayload): Promise<void> {
+        const { error } = await supabase.rpc('salvar_visita_completa', {
+            p_visita_id: visitaId,
+            p_dados: {
+                status: payload.status,
+                observacoes: payload.observacoes,
+                foto_familia_url: payload.fotoFamiliaUrl,
+                taxa_paga: payload.taxaPaga,
+                data_visita: payload.dataVisita,
+                foto_participacao_url: payload.fotoParticipacaoUrl,
+                pessoa: normalizarPessoaUpdate(payload.pessoa),
+                intencoes: payload.intencoes.map(({ id, modelo_id, tamanho, quantidade }) => ({
+                    id: id ?? null,
+                    modelo_id,
+                    tamanho,
+                    quantidade,
+                })),
+            },
+        });
+
+        if (error) throw error;
+    },
+
+    async atualizarEnderecoParticipante(participacaoId: string, updates: EnderecoVisitacaoUpdate): Promise<void> {
+        const { error } = await supabase.rpc('atualizar_endereco_visitacao', {
+            p_participacao_id: participacaoId,
+            p_endereco: updates.endereco ?? null,
+            p_numero: updates.numero ?? null,
+            p_complemento: updates.complemento ?? null,
+            p_cep: updates.cep ?? null,
+            p_bairro: updates.bairro ?? null,
+            p_cidade: updates.cidade ?? null,
+            p_estado: updates.estado ?? null,
+            p_latitude: updates.latitude ?? null,
+            p_longitude: updates.longitude ?? null,
+        });
+
+        if (error) throw error;
     },
 
     async atualizarParticipacao(id: string, updates: Record<string, unknown>): Promise<void> {

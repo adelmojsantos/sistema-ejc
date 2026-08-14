@@ -27,6 +27,8 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 export interface UserExtended {
     id: string;
     email: string;
+    pessoaId?: string | null;
+    pessoaVinculo?: 'explicit' | 'email_fallback' | 'none';
     temporary_password: boolean;
     created_at: string;
     grupos: import('../../services/adminUserService').UserGrupoVinculo[];
@@ -58,6 +60,8 @@ export function UsersAdminPage() {
     const [securingPendingPasswords, setSecuringPendingPasswords] = useState(false);
     const [userToDelete, setUserToDelete] = useState<string | null>(null);
     const [selectedUserDetails, setSelectedUserDetails] = useState<UserExtended | null>(null);
+    const [linkPessoa, setLinkPessoa] = useState<Pessoa | null>(null);
+    const [linkingPessoa, setLinkingPessoa] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
     const [selectedPessoa, setSelectedPessoa] = useState<Pessoa | null>(null);
@@ -237,7 +241,12 @@ export function UsersAdminPage() {
 
         setCreating(true);
         try {
-            await adminUserService.createUser({ email, gruposIds: selectedGruposIds, encontroId: targetEncontroId });
+            await adminUserService.createUser({
+                email,
+                pessoaId: selectedPessoa.id,
+                gruposIds: selectedGruposIds,
+                encontroId: targetEncontroId,
+            });
             toast.success('Usuário criado e convite enviado por e-mail.');
             handleClearSelection();
             loadUsers();
@@ -370,7 +379,12 @@ export function UsersAdminPage() {
             if (!member || !member.pessoas?.email) continue;
 
             try {
-                const result = await adminUserService.createUser({ email: member.pessoas.email, gruposIds: bulkGruposIds, encontroId: targetEncontroId });
+                const result = await adminUserService.createUser({
+                    email: member.pessoas.email,
+                    pessoaId: member.pessoa_id,
+                    gruposIds: bulkGruposIds,
+                    encontroId: targetEncontroId,
+                });
                 setUsers(prev => [...prev, result.user]);
                 results.push({ id: pessoaId, success: true });
             } catch (err: unknown) {
@@ -463,6 +477,28 @@ export function UsersAdminPage() {
             toast.error(message);
         } finally {
             setResettingPasswordById((prev) => ({ ...prev, [userId]: false }));
+        }
+    };
+
+    const handleLinkUserToPerson = async () => {
+        if (!selectedUserDetails || !linkPessoa) return;
+        setLinkingPessoa(true);
+        try {
+            await adminUserService.linkUserToPerson(selectedUserDetails.id, linkPessoa.id);
+            toast.success('Pessoa vinculada ao usuário com sucesso.');
+            setSelectedUserDetails(prev => prev ? {
+                ...prev,
+                pessoaId: linkPessoa.id,
+                pessoaVinculo: 'explicit',
+                nome: linkPessoa.nome_completo,
+            } : null);
+            setLinkPessoa(null);
+            await loadUsers();
+        } catch (linkError: unknown) {
+            const message = linkError instanceof Error ? linkError.message : 'Não foi possível vincular a pessoa.';
+            toast.error(message);
+        } finally {
+            setLinkingPessoa(false);
         }
     };
 
@@ -1677,7 +1713,10 @@ export function UsersAdminPage() {
                         justifyContent: 'flex-end',
                         background: 'rgba(15, 23, 42, 0.45)',
                     }}
-                    onClick={() => setSelectedUserDetails(null)}
+                    onClick={() => {
+                        setSelectedUserDetails(null);
+                        setLinkPessoa(null);
+                    }}
                 >
                     <aside
                         className="card"
@@ -1696,12 +1735,43 @@ export function UsersAdminPage() {
                                 <h2 style={{ margin: 0, fontSize: '1.25rem' }}>{selectedUserDetails.nome || 'Usuário sem pessoa vinculada'}</h2>
                                 <p style={{ margin: '0.25rem 0 0', color: 'var(--muted-text)', fontSize: '0.9rem' }}>{selectedUserDetails.email}</p>
                             </div>
-                            <button className="btn-secondary" type="button" onClick={() => setSelectedUserDetails(null)} style={{ padding: '0.35rem' }}>
+                            <button className="btn-secondary" type="button" onClick={() => {
+                                setSelectedUserDetails(null);
+                                setLinkPessoa(null);
+                            }} style={{ padding: '0.35rem' }}>
                                 <X size={18} />
                             </button>
                         </div>
 
                         <div style={{ display: 'grid', gap: '1rem' }}>
+                            {selectedUserDetails.pessoaVinculo !== 'explicit' && (
+                                <section style={{ padding: '1rem', border: '1px solid var(--warning-color)', borderRadius: '12px', background: 'var(--surface-1)' }}>
+                                    <strong>Vínculo cadastral pendente</strong>
+                                    <p style={{ margin: '0.35rem 0 0.85rem', color: 'var(--muted-text)', fontSize: '0.82rem' }}>
+                                        {selectedUserDetails.pessoaVinculo === 'email_fallback'
+                                            ? 'O cadastro foi localizado pelo e-mail, mas o vínculo ainda precisa ser confirmado.'
+                                            : 'Selecione a pessoa correta. O sistema não vincula automaticamente e-mails duplicados ou ambíguos.'}
+                                    </p>
+                                    <LiveSearchSelect<Pessoa>
+                                        value={linkPessoa?.id || ''}
+                                        onChange={(_, pessoa) => setLinkPessoa(pessoa)}
+                                        fetchData={(search, page) => adminUserService.searchPeople(search, page, 20)}
+                                        getOptionLabel={(pessoa) => `${pessoa.nome_completo}${pessoa.email ? ` — ${pessoa.email}` : ''}`}
+                                        getOptionValue={(pessoa) => pessoa.id}
+                                        placeholder="Buscar pessoa para vincular..."
+                                        initialOptions={linkPessoa ? [linkPessoa] : []}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="btn-primary"
+                                        disabled={!linkPessoa || linkingPessoa}
+                                        onClick={handleLinkUserToPerson}
+                                        style={{ width: '100%', justifyContent: 'center', marginTop: '0.75rem' }}
+                                    >
+                                        {linkingPessoa ? 'Vinculando...' : 'Confirmar vínculo com a pessoa'}
+                                    </button>
+                                </section>
+                            )}
                             <section style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'var(--surface-1)' }}>
                                 <strong>Status da conta</strong>
                                 <p style={{ margin: '0.35rem 0 0', color: selectedUserDetails.temporary_password ? 'var(--warning-color)' : 'var(--success-color)', fontWeight: 700 }}>

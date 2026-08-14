@@ -69,7 +69,7 @@ function LigacaoCard({ registro }: { registro: LigacaoRegistro }) {
         <div className="ligacao-card__identity">
           <span className="ligacao-card__type">
             {isCrianca ? <Baby size={13} /> : isParticipante ? <UserRound size={13} /> : <CircleUserRound size={13} />}
-            {isCrianca ? 'Criança' : isParticipante ? 'Participante' : 'Encontreiro'}
+            {isCrianca ? 'Criança' : isParticipante ? 'Encontrista' : 'Encontreiro'}
           </span>
           <h3>{registro.nome}{isCrianca && registro.idade ? <small> {registro.idade} anos</small> : null}</h3>
           {!isParticipante && !isCrianca && (
@@ -236,7 +236,7 @@ export function LigacaoPage() {
         onClick={() => setActiveTab('participante')}
       >
         <UserRound size={17} />
-        Participantes
+        Encontristas
         <span>{participantes.length}</span>
       </button>
       <button
@@ -387,7 +387,7 @@ export function LigacaoPage() {
           <span>
             <strong>{filteredRegistros.length}</strong> de{' '}
             <strong>{activeTab === 'participante' ? participantes.length : activeTab === 'crianca' ? criancas.length : encontreiros.length}</strong>{' '}
-            {activeTab === 'participante' ? 'participantes' : activeTab === 'crianca' ? 'crianças' : 'encontreiros'}
+            {activeTab === 'participante' ? 'encontristas' : activeTab === 'crianca' ? 'crianças' : 'encontreiros'}
           </span>
         </div>
       </div>

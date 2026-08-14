@@ -62,6 +62,7 @@ const PalestrasGestaoPage = lazyNamed(() => import('./pages/cadastros/PalestrasG
 const PalestrasResumoPage = lazyNamed(() => import('./pages/cadastros/PalestrasResumoPage'), 'PalestrasResumoPage');
 const PosEncontrosCadastroPage = lazyNamed(() => import('./pages/cadastros/PosEncontrosCadastroPage'), 'PosEncontrosCadastroPage');
 const PosEncontroFormPage = lazyNamed(() => import('./pages/cadastros/PosEncontroFormPage'), 'PosEncontroFormPage');
+const PreparacaoEncontroPage = lazyNamed(() => import('./pages/cadastros/PreparacaoEncontroPage'), 'PreparacaoEncontroPage');
 const PalestrasModulePage = lazyNamed(() => import('./pages/atividades/PalestrasModulePage'), 'PalestrasModulePage');
 const ChangePasswordPage = lazyNamed(() => import('./pages/ChangePasswordPage'), 'ChangePasswordPage');
 const CoordenadorAvaliacaoPage = lazyNamed(() => import('./pages/coordenador/CoordenadorAvaliacaoPage'), 'CoordenadorAvaliacaoPage');
@@ -215,6 +216,12 @@ function AnimatedRoutes() {
                 return <Home />;
               }
             })()
+          } />
+
+          <Route path="/dashboard/preparacao" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <PreparacaoEncontroPage />
+            </ProtectedRoute>
           } />
 
           <Route path="/inscricao" element={<InscricaoPage />} />
@@ -554,6 +561,7 @@ function AnimatedRoutes() {
           }>
             <Route path="pessoas" element={<PessoasPage />} />
             <Route path="encontros" element={<EncontrosPage />} />
+            <Route path="encontros/:id/editar" element={<EncontrosPage />} />
             <Route path="encontros/:id/quadrante" element={<EncontroQuadranteConfigPage />} />
             <Route path="encontros/:id/palestras" element={<PalestrasGestaoPage />} />
             <Route path="encontros/:id/palestras-resumo" element={<PalestrasResumoPage />} />
@@ -563,6 +571,7 @@ function AnimatedRoutes() {
             <Route path="avaliacao" element={<AvaliacaoEncontroPage />} />
             <Route path="avaliacao-encontristas" element={<AvaliacaoEncontristasPage />} />
             <Route path="cronograma" element={<CronogramaEncontroPage />} />
+            <Route path="preparacao" element={<Navigate to="/dashboard/preparacao" replace />} />
             <Route path="pos-encontros" element={
               <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_secretaria', 'modulo_admin']}>
                 <PosEncontrosCadastroPage />

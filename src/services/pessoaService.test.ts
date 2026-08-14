@@ -1,18 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { updateMock, eqMock, selectMock, singleMock, fromMock } = vi.hoisted(() => ({
+const { updateMock, eqMock, selectMock, singleMock, fromMock, rpcMock } = vi.hoisted(() => ({
   updateMock: vi.fn(),
   eqMock: vi.fn(),
   selectMock: vi.fn(),
   singleMock: vi.fn(),
   fromMock: vi.fn(),
+  rpcMock: vi.fn(),
 }));
 
 vi.mock('../lib/supabase', () => ({
-  supabase: { from: fromMock },
+  supabase: { from: fromMock, rpc: rpcMock },
 }));
 
-import { normalizarPessoaUpdate, pessoaService } from './pessoaService';
+import {
+  normalizarHistoricoParticipacao,
+  normalizarPessoaUpdate,
+  pessoaService,
+} from './pessoaService';
 
 describe('pessoaService', () => {
   beforeEach(() => {
@@ -25,6 +30,7 @@ describe('pessoaService', () => {
     eqMock.mockReturnValue({ select: selectMock });
     updateMock.mockReturnValue({ eq: eqMock });
     fromMock.mockReturnValue({ update: updateMock });
+    rpcMock.mockResolvedValue({ data: null, error: null });
   });
 
   it('normaliza somente campos pessoais e preserva atualizações parciais', () => {
@@ -55,5 +61,62 @@ describe('pessoaService', () => {
     });
     expect(updateMock.mock.calls[0][0]).not.toHaveProperty('participante');
     expect(updateMock.mock.calls[0][0]).not.toHaveProperty('encontro_id');
+  });
+
+  it.each([
+    {
+      formato: 'objeto',
+      equipes: { nome: 'Círculos' },
+      encontros: { nome: '52º EJC', ativo: true, tema: 'Permanecei em mim' },
+    },
+    {
+      formato: 'array',
+      equipes: [{ nome: 'Círculos' }],
+      encontros: [{ nome: '52º EJC', ativo: true, tema: 'Permanecei em mim' }],
+    },
+  ])('normaliza relações do histórico retornadas como $formato', ({ equipes, encontros }) => {
+    expect(normalizarHistoricoParticipacao({
+      id: 'participacao-1',
+      participante: false,
+      coordenador: true,
+      equipes,
+      encontros,
+    })).toEqual({
+      id: 'participacao-1',
+      participante: false,
+      coordenador: true,
+      equipes: { nome: 'Círculos' },
+      encontros: { nome: '52º EJC', ativo: true, tema: 'Permanecei em mim' },
+    });
+  });
+
+  it('consulta o impacto antes da exclusão definitiva', async () => {
+    const impacto = {
+      pessoa_id: 'pessoa-1',
+      nome_completo: 'Ana Silva',
+      usuario_vinculado: false,
+      participacoes: 2,
+      cancelamentos: 1,
+      visitas: 1,
+      circulos: 1,
+      recepcao: 0,
+      recreacao: 0,
+      dirigencia: 0,
+    };
+    rpcMock.mockResolvedValueOnce({ data: impacto, error: null });
+
+    await expect(pessoaService.obterImpactoExclusao('pessoa-1')).resolves.toEqual(impacto);
+    expect(rpcMock).toHaveBeenCalledWith('get_exclusao_pessoa_impacto', {
+      p_pessoa_id: 'pessoa-1',
+    });
+  });
+
+  it('exclui definitivamente somente pela RPC transacional', async () => {
+    await pessoaService.excluirDefinitivamente('pessoa-1', 'Ana Silva');
+
+    expect(rpcMock).toHaveBeenCalledWith('excluir_pessoa_definitivamente', {
+      p_pessoa_id: 'pessoa-1',
+      p_nome_confirmacao: 'Ana Silva',
+    });
   });
 });

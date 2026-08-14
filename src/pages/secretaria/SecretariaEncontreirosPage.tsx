@@ -12,6 +12,11 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
+import { useAuth } from '../../hooks/useAuth';
+import { pessoaService } from '../../services/pessoaService';
+import type { Pessoa, PessoaFormData } from '../../types/pessoa';
+import { Modal } from '../../components/ui/Modal';
+import { PessoaForm } from '../../components/pessoa/PessoaForm';
 
 function formatTelefone(tel: string | null | undefined) {
   if (!tel) return '—';
@@ -34,6 +39,7 @@ function formatEnderecoCompleto(pessoa: InscricaoEnriched['pessoas']) {
 export function SecretariaEncontreirosPage() {
   const navigate = useNavigate();
   const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
+  const { hasPermission } = useAuth();
   const { equipes } = useEquipes();
 
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
@@ -44,8 +50,12 @@ export function SecretariaEncontreirosPage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
-  const [contextParticipant, setContextParticipant] = useState<InscricaoEnriched | null>(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState('');
+  const [contextParticipantId, setContextParticipantId] = useState<string | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
+  const [editingPessoa, setEditingPessoa] = useState<Pessoa | null>(null);
+  const [isLoadingPessoaEdit, setIsLoadingPessoaEdit] = useState(false);
+  const [isSavingPessoaEdit, setIsSavingPessoaEdit] = useState(false);
 
   const loadParticipantes = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -69,18 +79,54 @@ export function SecretariaEncontreirosPage() {
     if (!participantToUnlink) return;
     setIsUnlinking(true);
     try {
-      await inscricaoService.desvincularDoEncontro(participantToUnlink.id);
-      toast.success(`${participantToUnlink.pessoas?.nome_completo} desvinculado(a) com sucesso.`);
+      await inscricaoService.cancelarParticipacao(participantToUnlink.id, motivoCancelamento);
+      toast.success(`${participantToUnlink.pessoas?.nome_completo} teve a participação cancelada.`);
       setParticipantToUnlink(null);
+      setMotivoCancelamento('');
       await loadParticipantes();
-    } catch {
-      toast.error('Erro ao desvincular encontreiro.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao cancelar participação.');
     } finally {
       setIsUnlinking(false);
     }
   };
 
   const selectedEncontro = encontroSelecionado;
+  const canEditPessoa = Boolean(selectedEncontro?.ativo)
+    && (hasPermission('modulo_secretaria') || hasPermission('modulo_admin'));
+
+  const handleOpenPessoaEdit = async (pessoaId: string) => {
+    setIsLoadingPessoaEdit(true);
+    try {
+      const pessoa = await pessoaService.buscarPorId(pessoaId);
+      setEditingPessoa(pessoa);
+    } catch (error) {
+      console.error('Erro ao carregar dados da pessoa:', error);
+      toast.error('Não foi possível carregar os dados para edição.');
+    } finally {
+      setIsLoadingPessoaEdit(false);
+    }
+  };
+
+  const handlePessoaEditSubmit = async (data: PessoaFormData) => {
+    if (!editingPessoa) return;
+    setIsSavingPessoaEdit(true);
+    try {
+      const updatedPessoa = await pessoaService.atualizar(editingPessoa.id, data);
+      setParticipantes(prev => prev.map(participacao => (
+        participacao.pessoa_id === updatedPessoa.id
+          ? { ...participacao, pessoas: { ...participacao.pessoas, ...updatedPessoa } }
+          : participacao
+      )));
+      setEditingPessoa(null);
+      toast.success('Dados atualizados. A confirmação da equipe não foi alterada.');
+    } catch (error) {
+      console.error('Erro ao salvar dados da pessoa:', error);
+      toast.error('Erro ao salvar alterações.');
+    } finally {
+      setIsSavingPessoaEdit(false);
+    }
+  };
 
   const filteredParticipantes = useMemo(() => {
     const term = debouncedSearch.toLowerCase().trim();
@@ -336,7 +382,7 @@ export function SecretariaEncontreirosPage() {
                         <button
                           type="button"
                           className="pessoa-context-trigger"
-                          onClick={() => setContextParticipant(p)}
+                          onClick={() => setContextParticipantId(p.id)}
                           aria-label={`Visualizar ${p.pessoas?.nome_completo || 'encontreiro'}`}
                         >
                           {p.pessoas?.nome_completo || 'Nome não informado'}
@@ -376,7 +422,7 @@ export function SecretariaEncontreirosPage() {
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        setContextParticipant(p);
+                        setContextParticipantId(p.id);
                       }}
                       className="secretaria-details-button"
                       title="Visualizar"
@@ -386,14 +432,14 @@ export function SecretariaEncontreirosPage() {
                     </button>
                     {selectedEncontro?.ativo && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
+                        onClick={(e) => { e.stopPropagation(); setMotivoCancelamento(''); setParticipantToUnlink(p); }}
                         className="secretaria-unlink-button"
-                        title="Desvincular do encontro"
-                        aria-label="Desvincular do encontro"
-                      >
-                        <UserMinus size={16} />
-                        <span>Desvincular</span>
-                      </button>
+                        title="Cancelar participação"
+                        aria-label="Cancelar participação"
+                        >
+                          <UserMinus size={16} />
+                          <span>Cancelar</span>
+                        </button>
                     )}
                   </div>
                 </div>
@@ -404,24 +450,59 @@ export function SecretariaEncontreirosPage() {
       </div>
 
       <PessoaContextDrawer
-        participacao={contextParticipant}
-        onClose={() => setContextParticipant(null)}
+        participacaoId={contextParticipantId}
+        encontroId={selectedEncontroId || null}
+        onClose={() => setContextParticipantId(null)}
+        canEditPessoa={canEditPessoa}
+        onEditPessoa={handleOpenPessoaEdit}
       />
+
+      <Modal
+        isOpen={!!editingPessoa || isLoadingPessoaEdit}
+        onClose={() => {
+          if (!isSavingPessoaEdit) setEditingPessoa(null);
+        }}
+        title={`Editar dados — ${editingPessoa?.nome_completo || 'Encontreiro'}`}
+        maxWidth="920px"
+      >
+        {isLoadingPessoaEdit && !editingPessoa ? (
+          <div style={{ padding: '2rem', textAlign: 'center' }}><Loader className="animate-spin" /></div>
+        ) : editingPessoa ? (
+          <PessoaForm
+            initialData={editingPessoa}
+            onSubmit={handlePessoaEditSubmit}
+            onCancel={() => setEditingPessoa(null)}
+            isLoading={isSavingPessoaEdit}
+            hideConfirmAction
+          />
+        ) : null}
+      </Modal>
 
       <ConfirmDialog
         isOpen={!!participantToUnlink}
-        title="Desvincular Encontreiro"
+        title="Cancelar participação"
         message={
           <>
-            Tem certeza que deseja desvincular o(a) encontreiro(a) <strong style={{ color: 'var(--text-color)' }}>{participantToUnlink?.pessoas?.nome_completo}</strong> deste encontro?
+            Deseja cancelar a participação de <strong style={{ color: 'var(--text-color)' }}>{participantToUnlink?.pessoas?.nome_completo}</strong> neste encontro?
             <br /><br />
-            Esta ação <strong style={{ color: 'var(--danger-text)' }}>apenas removerá o vínculo</strong> da pessoa com este encontro específico. O cadastro da pessoa no sistema de pessoas será mantido intacto.
+            Os dados operacionais serão preservados no histórico para possível restauração pela Secretaria. O cadastro da pessoa permanecerá intacto.
+            <label className="form-label" style={{ display: 'block', marginTop: '1rem' }}>
+              Motivo do cancelamento
+              <textarea
+                className="form-input"
+                value={motivoCancelamento}
+                onChange={(event) => setMotivoCancelamento(event.target.value)}
+                placeholder="Descreva o motivo do cancelamento"
+                rows={3}
+                style={{ marginTop: '0.45rem', resize: 'vertical' }}
+              />
+            </label>
           </>
         }
-        confirmText="Sim, desvincular"
+        confirmText="Cancelar participação"
         cancelText="Cancelar"
         onConfirm={handleUnlink}
-        onCancel={() => setParticipantToUnlink(null)}
+        onCancel={() => { setParticipantToUnlink(null); setMotivoCancelamento(''); }}
         isLoading={isUnlinking}
         isDestructive={true}
       />
@@ -468,7 +549,8 @@ export function SecretariaEncontreirosPage() {
           background-color: rgba(239, 68, 68, 0.1);
         }
         .secretaria-encontreiro-row {
-          grid-template-columns: minmax(260px, 1.35fr) minmax(170px, 0.75fr) minmax(190px, 0.9fr) minmax(140px, 0.7fr) auto;
+          grid-template-columns: minmax(300px, 1.45fr) minmax(180px, 0.8fr) minmax(260px, 1.2fr) minmax(84px, auto);
+          align-items: center;
         }
         .secretaria-team-badge {
           width: fit-content;
@@ -496,8 +578,10 @@ export function SecretariaEncontreirosPage() {
           font-weight: 700;
         }
         .secretaria-unlink-button {
-          width: 34px;
-          height: 34px;
+          width: 150px;
+          min-width: 150px;
+          height: 38px;
+          padding: 0 0.8rem;
           border-radius: 9px;
           border: 1px solid rgba(239, 68, 68, 0.7);
           background: transparent;
@@ -523,12 +607,26 @@ export function SecretariaEncontreirosPage() {
           transform: translateY(-1px);
         }
         .secretaria-unlink-button span {
-          display: none;
+          display: inline;
           font-size: 0.85rem;
           font-weight: 700;
         }
         .secretaria-pessoa-actions {
+          grid-area: auto;
+          grid-column: 1 / -1;
+          grid-row: 2;
           justify-content: flex-end;
+          margin-left: 0;
+          padding-top: 0.7rem;
+          border-top: 1px solid var(--border-color);
+          gap: 0.45rem;
+          min-width: 0;
+          flex-wrap: nowrap;
+        }
+        .secretaria-encontreiros-grid .secretaria-details-button {
+          width: 150px;
+          min-width: 150px;
+          height: 38px;
         }
         @media (max-width: 900px) {
           .secretaria-encontreiros-grid {
@@ -538,6 +636,7 @@ export function SecretariaEncontreirosPage() {
           }
           .secretaria-encontreiro-row {
             grid-template-columns: 1fr;
+            grid-auto-flow: row;
             align-items: stretch;
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -548,16 +647,61 @@ export function SecretariaEncontreirosPage() {
             border-bottom: 1px solid var(--border-color);
           }
           .secretaria-pessoa-actions {
+            grid-area: auto;
+            grid-column: auto;
+            grid-row: auto;
             justify-content: flex-start;
             padding-top: 0.35rem;
             border-top: 1px solid var(--border-color);
           }
+          .secretaria-details-button,
           .secretaria-unlink-button {
-            width: 100%;
+            flex: 1 1 0;
+            width: auto;
+            min-width: 0;
             height: 40px;
           }
           .secretaria-unlink-button span {
             display: inline;
+          }
+        }
+
+        /* A largura útil da lista varia com a barra lateral. Portanto, estes
+           pontos de quebra acompanham o container, não apenas a janela. */
+        @container pessoa-list (min-width: 601px) and (max-width: 970px) {
+          .secretaria-encontreiro-row {
+            grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+            align-items: start;
+            row-gap: 0.9rem;
+          }
+          .secretaria-encontreiro-row > .pessoa-row-main { grid-column: 1; grid-row: 1; }
+          .secretaria-encontreiro-row > .pessoa-row-col:nth-child(2) { grid-column: 2; grid-row: 1; }
+          .secretaria-encontreiro-row > .pessoa-row-col:nth-child(3) { grid-column: 1; grid-row: 2; }
+          .secretaria-encontreiro-row > .pessoa-row-col:nth-child(4) { grid-column: 2; grid-row: 2; }
+          .secretaria-pessoa-actions {
+            grid-column: 1 / -1;
+            grid-row: 3;
+            justify-content: flex-end;
+            min-width: 0;
+          }
+          .secretaria-encontreiros-grid .secretaria-details-button,
+          .secretaria-encontreiros-grid .secretaria-unlink-button {
+            flex: 1 1 0;
+            width: auto;
+            min-width: 0;
+          }
+        }
+        @container pessoa-list (max-width: 600px) {
+          .secretaria-encontreiro-row {
+            grid-template-columns: 1fr;
+            grid-auto-flow: row;
+            align-items: stretch;
+          }
+          .secretaria-encontreiro-row > .pessoa-row-main,
+          .secretaria-encontreiro-row > .pessoa-row-col,
+          .secretaria-pessoa-actions {
+            grid-column: auto;
+            grid-row: auto;
           }
         }
       `}</style>

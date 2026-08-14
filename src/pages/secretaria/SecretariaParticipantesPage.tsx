@@ -42,7 +42,7 @@ function getVisitaStatusLabel(status: string | null | undefined) {
     pendente: 'Visita pendente',
     realizada: 'Visita realizada',
     ausente: 'Ausente na visita',
-    cancelada: 'Visita cancelada',
+    cancelada: 'Desistente',
   };
   return labels[status || ''] || 'Visita sem status';
 }
@@ -61,15 +61,16 @@ interface DesistentesTabProps {
   total: number;
   isLoading: boolean;
   canRestore: boolean;
+  isEncontroAtivo: boolean;
   onRestore: (desistencia: ParticipacaoCancelada) => void;
 }
 
-function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }: DesistentesTabProps) {
+function DesistentesTab({ desistentes, total, isLoading, canRestore, isEncontroAtivo, onRestore }: DesistentesTabProps) {
   if (isLoading) {
     return (
       <div className="card text-center py-8">
         <Loader size={32} className="animate-spin" style={{ display: 'inline-block', marginBottom: '1rem' }} />
-        <p>Carregando desistentes...</p>
+        <p>Carregando histórico...</p>
       </div>
     );
   }
@@ -78,7 +79,7 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
     return (
       <div className="empty-state">
         <UserMinus size={48} style={{ opacity: 0.3 }} />
-        <p>{total > 0 ? 'Nenhum desistente encontrado para a busca.' : 'Nenhuma desistência registrada nesta edição.'}</p>
+        <p>{total > 0 ? 'Nenhum cancelamento encontrado para a busca.' : 'Nenhuma participação cancelada nesta edição.'}</p>
       </div>
     );
   }
@@ -93,7 +94,8 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
         {desistentes.map((desistencia) => {
           const pessoa = desistencia.pessoas;
           const nome = pessoa?.nome_completo || 'Nome não informado';
-          const dupla = desistencia.visita_grupos?.nome || 'Dupla não informada';
+          const dupla = desistencia.visita_grupos?.nome;
+          const possuiDupla = !!dupla;
           const isRevertida = !!desistencia.revertido_em;
 
           return (
@@ -108,12 +110,12 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
                   <div className="secretaria-desistente-badges">
                     <span className={`secretaria-desistente-status ${isRevertida ? 'is-reverted' : 'is-active'}`}>
                       {isRevertida ? <CheckCircle size={12} /> : <UserMinus size={12} />}
-                      {isRevertida ? 'Desistência revertida' : 'Desistência ativa'}
+                      {isRevertida ? 'Cancelamento revertido' : 'Participação cancelada'}
                     </span>
-                    <span><Users size={12} /> {dupla}</span>
-                    <span><Clock size={12} /> Desistiu em {formatDateTime(desistencia.data_cancelamento)}</span>
+                    {possuiDupla ? <span><Users size={12} /> {dupla}</span> : <span>Cancelamento administrativo</span>}
+                    <span><Clock size={12} /> Cancelado em {formatDateTime(desistencia.data_cancelamento)}</span>
                     {isRevertida && (
-                      <span><RotateCcw size={12} /> Retornou em {formatDateTime(desistencia.revertido_em)}</span>
+                      <span><RotateCcw size={12} /> Restaurado em {formatDateTime(desistencia.revertido_em)}</span>
                     )}
                   </div>
                 </div>
@@ -128,6 +130,8 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
               <div className="secretaria-desistente-actions">
                 {isRevertida ? (
                   <span className="secretaria-desistente-readonly">Histórico encerrado</span>
+                ) : !isEncontroAtivo ? (
+                  <span className="secretaria-desistente-readonly">Edição histórica: somente consulta</span>
                 ) : canRestore ? (
                   <button
                     type="button"
@@ -135,7 +139,7 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
                     onClick={() => onRestore(desistencia)}
                   >
                     <RotateCcw size={16} />
-                    Reverter
+                    Restaurar
                   </button>
                 ) : (
                   <span className="secretaria-desistente-readonly">Somente admin/secretaria</span>
@@ -153,8 +157,9 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, onRestore }
 export function SecretariaParticipantesPage() {
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { encontros, encontroSelecionadoId: selectedEncontroId, selecionarEncontro } = useEncontros();
+  const encontroSelecionado = encontros.find((encontro) => encontro.id === selectedEncontroId) ?? null;
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
   const [desistentes, setDesistentes] = useState<ParticipacaoCancelada[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -164,13 +169,16 @@ export function SecretariaParticipantesPage() {
   const [showConfirmGeoModal, setShowConfirmGeoModal] = useState(false);
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [participantToUnlink, setParticipantToUnlink] = useState<InscricaoEnriched | null>(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState('');
   const [desistenciaToRestore, setDesistenciaToRestore] = useState<ParticipacaoCancelada | null>(null);
   const [editingPessoa, setEditingPessoa] = useState<Pessoa | null>(null);
   const [isUnlinking, setIsUnlinking] = useState(false);
   const [isRestoringDesistencia, setIsRestoringDesistencia] = useState(false);
   const [isLoadingPessoaEdit, setIsLoadingPessoaEdit] = useState(false);
   const [isSavingPessoaEdit, setIsSavingPessoaEdit] = useState(false);
-  const [activeTab, setActiveTab] = useState<'participantes' | 'desistentes' | 'fotosFamilias'>('participantes');
+  const [activeTab, setActiveTab] = useState<'participantes' | 'desistentes' | 'fotosFamilias'>(() =>
+    searchParams.get('aba') === 'fotos' ? 'fotosFamilias' : 'participantes'
+  );
   const [searchTerm, setSearchTerm] = useState('');
   const [filterVeiculo, setFilterVeiculo] = useState(false);
   const [filterSemFoto, setFilterSemFoto] = useState(false);
@@ -182,7 +190,7 @@ export function SecretariaParticipantesPage() {
   const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; nome: string } | null>(null);
   const [photoActionsParticipant, setPhotoActionsParticipant] = useState<InscricaoEnriched | null>(null);
-  const [contextParticipant, setContextParticipant] = useState<InscricaoEnriched | null>(null);
+  const [contextParticipantId, setContextParticipantId] = useState<string | null>(null);
   const [adjustingPhotoId, setAdjustingPhotoId] = useState<string | null>(null);
   const [tempPhotoPosition, setTempPhotoPosition] = useState(50);
   const [isDownloadingFamilyPhotos, setIsDownloadingFamilyPhotos] = useState(false);
@@ -198,6 +206,12 @@ export function SecretariaParticipantesPage() {
     }
   }, [encontros, searchParams, selectedEncontroId, selecionarEncontro]);
 
+  useEffect(() => {
+    if (searchParams.get('aba') === 'fotos') {
+      setActiveTab('fotosFamilias');
+    }
+  }, [searchParams]);
+
   const loadParticipantes = useCallback(async () => {
     if (!selectedEncontroId) return;
     setIsLoading(true);
@@ -206,7 +220,7 @@ export function SecretariaParticipantesPage() {
       const data = await inscricaoService.listarParticipantesPorEncontro(selectedEncontroId);
       setParticipantes(data);
     } catch {
-      toast.error('Erro ao carregar participantes.');
+      toast.error('Erro ao carregar encontristas.');
     } finally {
       setIsLoading(false);
     }
@@ -220,7 +234,7 @@ export function SecretariaParticipantesPage() {
       setDesistentes(data);
     } catch (error) {
       console.error('Erro ao carregar desistentes:', error);
-      toast.error('Erro ao carregar desistentes.');
+      toast.error('Erro ao carregar o histórico de cancelamentos.');
     } finally {
       setIsLoadingDesistentes(false);
     }
@@ -297,7 +311,7 @@ export function SecretariaParticipantesPage() {
   const handleUpdateGeolocalizacao = () => {
     const pending = filteredParticipantes.filter(p => !p.pessoas?.latitude || !p.pessoas?.longitude);
     if (pending.length === 0) {
-      toast.success('Todos os participantes já possuem geolocalização!');
+      toast.success('Todos os encontristas já possuem geolocalização!');
       return;
     }
     setPendingGeoCount(pending.length);
@@ -385,12 +399,13 @@ export function SecretariaParticipantesPage() {
     if (!participantToUnlink) return;
     setIsUnlinking(true);
     try {
-      await inscricaoService.desvincularDoEncontro(participantToUnlink.id);
-      toast.success(`${participantToUnlink.pessoas?.nome_completo} desvinculado(a) com sucesso.`);
+      await inscricaoService.cancelarParticipacao(participantToUnlink.id, motivoCancelamento);
+      toast.success(`${participantToUnlink.pessoas?.nome_completo} teve a participação cancelada.`);
       setParticipantToUnlink(null);
-      await loadParticipantes();
-    } catch {
-      toast.error('Erro ao desvincular participante.');
+      setMotivoCancelamento('');
+      await Promise.all([loadParticipantes(), loadDesistentes()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao cancelar participação.');
     } finally {
       setIsUnlinking(false);
     }
@@ -444,13 +459,13 @@ export function SecretariaParticipantesPage() {
     }
 
     setUploadingPhotoId(participante.id);
-    const loadingToast = toast.loading('Enviando foto do participante...');
+    const loadingToast = toast.loading('Enviando foto do encontrista...');
 
     try {
       const fotoUrl = await inscricaoService.uploadFotoParticipante(participante.id, file);
       await inscricaoService.atualizarFotoParticipante(participante.id, fotoUrl);
       updateParticipantPhotoState(participante.id, { foto_url: fotoUrl, foto_posicao_y: 50 });
-      toast.success('Foto do participante atualizada!', { id: loadingToast });
+      toast.success('Foto do encontrista atualizada!', { id: loadingToast });
     } catch (error) {
       console.error('Erro ao enviar foto do participante:', error);
       toast.error('Erro ao enviar a foto.', { id: loadingToast });
@@ -461,21 +476,21 @@ export function SecretariaParticipantesPage() {
 
   const handleRestoreDesistencia = async () => {
     if (!desistenciaToRestore) return;
-    const restoredName = desistenciaToRestore.pessoas?.nome_completo || 'Participante';
+    const restoredName = desistenciaToRestore.pessoas?.nome_completo || 'Encontrista';
     setIsRestoringDesistencia(true);
     try {
-      const result = await inscricaoService.desfazerDesistencia(desistenciaToRestore.id);
+      const result = await inscricaoService.restaurarParticipacaoCancelada(desistenciaToRestore.id);
       setDesistentes((prev) => prev.filter((item) => item.id !== desistenciaToRestore.id));
       setDesistenciaToRestore(null);
       await Promise.all([loadParticipantes(), loadDesistentes()]);
       handleTabChange('participantes');
       toast.success(result.already_reverted
-        ? `${restoredName} já estava com a desistência revertida.`
-        : `${restoredName} voltou para a listagem de participantes.`
+        ? `${restoredName} já estava com o cancelamento revertido.`
+        : `${restoredName} voltou para a listagem de encontristas.`
       );
     } catch (error) {
       console.error('Erro ao desfazer desistência:', error);
-      const message = error instanceof Error ? error.message : 'Erro ao desfazer desistência.';
+      const message = error instanceof Error ? error.message : 'Erro ao reverter cancelamento.';
       toast.error(message);
     } finally {
       setIsRestoringDesistencia(false);
@@ -484,6 +499,12 @@ export function SecretariaParticipantesPage() {
 
   const handleTabChange = (tab: 'participantes' | 'desistentes' | 'fotosFamilias') => {
     setActiveTab(tab);
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams);
+      if (tab === 'fotosFamilias') nextParams.set('aba', 'fotos');
+      else nextParams.delete('aba');
+      return nextParams;
+    }, { replace: true });
     setSearchTerm('');
     setFilterVeiculo(false);
     setFilterSemFoto(false);
@@ -571,7 +592,7 @@ export function SecretariaParticipantesPage() {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
       
       doc.setFontSize(16);
-      doc.text(`Participantes: ${selectedEncontro?.nome || 'Encontro'}`, 14, 18);
+      doc.text(`Encontristas: ${selectedEncontro?.nome || 'Encontro'}`, 14, 18);
       
       autoTable(doc, {
         head: [['#', 'Nome', 'Nasc.', 'Idade', 'Telefone', 'Endereço', 'Bairro', 'Cidade', 'Dupla', 'Círculo', 'Veículo']],
@@ -596,7 +617,7 @@ export function SecretariaParticipantesPage() {
         }
       });
       
-      doc.save(`participantes_${selectedEncontro?.nome || 'encontro'}.pdf`);
+      doc.save(`encontristas_${selectedEncontro?.nome || 'encontro'}.pdf`);
       setShowExportMenu(false);
     } catch (error) {
       console.error('Erro ao exportar PDF:', error);
@@ -612,7 +633,7 @@ export function SecretariaParticipantesPage() {
       const data = getExportData();
       const worksheet = XLSX.utils.json_to_sheet(data);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Participantes');
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Encontristas');
       
       // Auto-size columns
       const maxWidths = Object.keys(data[0] || {}).map(key => {
@@ -623,7 +644,7 @@ export function SecretariaParticipantesPage() {
       });
       worksheet['!cols'] = maxWidths.map(w => ({ wch: w + 2 }));
 
-      XLSX.writeFile(workbook, `participantes_${selectedEncontro?.nome || 'encontro'}.xlsx`);
+      XLSX.writeFile(workbook, `encontristas_${selectedEncontro?.nome || 'encontro'}.xlsx`);
       setShowExportMenu(false);
     } catch (error) {
       console.error('Erro ao exportar Excel:', error);
@@ -733,12 +754,12 @@ export function SecretariaParticipantesPage() {
   };
   const participantSummary = (
     <p className="secretaria-result-summary secretaria-result-summary--with-actions">
-      <span>Mostrando <strong>{filteredParticipantes.length}</strong> de <strong>{participantes.length}</strong> {participantes.length === 1 ? 'participante encontrado' : 'participantes encontrados'}</span>
+      <span>Mostrando <strong>{filteredParticipantes.length}</strong> de <strong>{participantes.length}</strong> {participantes.length === 1 ? 'encontrista encontrado' : 'encontristas encontrados'}</span>
       <button
         type="button"
         onClick={() => setFilterSemFoto(v => !v)}
         className={`secretaria-summary-filter${filterSemFoto ? ' is-active' : ''}`}
-        title={filterSemFoto ? 'Remover filtro sem foto' : 'Mostrar apenas participantes sem foto'}
+        title={filterSemFoto ? 'Remover filtro sem foto' : 'Mostrar apenas encontristas sem foto'}
       >
         <ImageIcon size={13} />
         Sem foto
@@ -763,7 +784,7 @@ export function SecretariaParticipantesPage() {
               </button>
               <div>
                 <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Secretaria</p>
-                <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Participantes do Encontro</h1>
+                <h1 className="page-title" style={{ fontSize: '1.5rem' }}>Encontristas do Encontro</h1>
               </div>
             </div>
 
@@ -771,8 +792,12 @@ export function SecretariaParticipantesPage() {
               <button
                 onClick={() => navigate('/inscricao')}
                 className="btn-secondary secretaria-header-action"
+                title={encontroSelecionado?.ativo ? 'Nova inscrição' : 'Nova inscrição no encontro ativo'}
               >
-                <Plus size={16} /> <span className="hide-mobile">Nova Inscrição</span>
+                <Plus size={16} />
+                <span className="hide-mobile">
+                  {encontroSelecionado?.ativo ? 'Nova inscrição' : 'Nova inscrição no encontro ativo'}
+                </span>
               </button>
 
               <button
@@ -846,7 +871,7 @@ export function SecretariaParticipantesPage() {
             </div>
           </div>
 
-          <div className="secretaria-tabs" role="tablist" aria-label="Participantes da edição">
+          <div className="secretaria-tabs" role="tablist" aria-label="Encontristas da edição">
             <button
               type="button"
               role="tab"
@@ -855,7 +880,7 @@ export function SecretariaParticipantesPage() {
               onClick={() => handleTabChange('participantes')}
             >
               <Users size={16} />
-              <span className="secretaria-tab-label">Participantes</span>
+              <span className="secretaria-tab-label">Encontristas</span>
               <span className="secretaria-tab-count">{participantes.length}</span>
             </button>
             <button
@@ -866,7 +891,7 @@ export function SecretariaParticipantesPage() {
               onClick={() => handleTabChange('desistentes')}
             >
               <UserMinus size={16} />
-              <span className="secretaria-tab-label">Histórico de desistências</span>
+              <span className="secretaria-tab-label">Histórico de cancelamentos</span>
               <span className="secretaria-tab-count">{desistentes.length}</span>
             </button>
             <button
@@ -885,7 +910,7 @@ export function SecretariaParticipantesPage() {
           <div className="card" style={{ marginBottom: '2rem' }}>
             <div className="grid-container secretaria-filter-grid">
               <div className="form-group" style={{ marginBottom: 0, flex: 2 }}>
-                <label className="form-label">{activeTab === 'desistentes' ? 'Buscar no histórico' : activeTab === 'fotosFamilias' ? 'Buscar foto da família' : 'Buscar Participante'}</label>
+                <label className="form-label">{activeTab === 'desistentes' ? 'Buscar no histórico' : activeTab === 'fotosFamilias' ? 'Buscar foto da família' : 'Buscar encontrista'}</label>
                 <div className="form-input-wrapper">
                   <div className="form-input-icon">
                     <Search size={16} />
@@ -893,7 +918,7 @@ export function SecretariaParticipantesPage() {
                   <input
                     type="text"
                     className="form-input form-input--with-icon"
-                    placeholder={activeTab === 'desistentes' ? 'Nome, e-mail, telefone, comunidade, dupla ou observação...' : activeTab === 'fotosFamilias' ? 'Buscar encontrista ou dupla...' : 'Nome, e-mail, telefone, bairro ou cidade...'}
+                    placeholder={activeTab === 'desistentes' ? 'Nome, e-mail, telefone, comunidade, dupla ou motivo...' : activeTab === 'fotosFamilias' ? 'Buscar encontrista ou dupla...' : 'Nome, e-mail, telefone, bairro ou cidade...'}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -943,7 +968,7 @@ export function SecretariaParticipantesPage() {
                     justifyContent: 'center',
                     transition: 'all 0.2s ease',
                   }}
-                  title={filterVeiculo ? 'Remover filtro de veículo' : 'Mostrar apenas participantes com veículo'}
+                  title={filterVeiculo ? 'Remover filtro de veículo' : 'Mostrar apenas encontristas com veículo'}
                 >
                   <Car size={16} />
                   <span>Com veículo</span>
@@ -959,6 +984,7 @@ export function SecretariaParticipantesPage() {
               total={desistentes.length}
               isLoading={isLoadingDesistentes}
               canRestore={canRestoreDesistencia}
+              isEncontroAtivo={!!encontroSelecionado?.ativo}
               onRestore={setDesistenciaToRestore}
             />
           ) : activeTab === 'fotosFamilias' ? (
@@ -1061,7 +1087,7 @@ export function SecretariaParticipantesPage() {
           ) : isLoading ? (
             <div className="card text-center py-8">
               <Loader size={32} className="animate-spin" style={{ display: 'inline-block', marginBottom: '1rem' }} />
-              <p>Carregando participantes...</p>
+              <p>Carregando encontristas...</p>
             </div>
           ) : filteredParticipantes.length === 0 ? (
             <>
@@ -1070,8 +1096,8 @@ export function SecretariaParticipantesPage() {
                 <Users size={48} style={{ opacity: 0.3 }} />
                 <p>
                   {(filterVeiculo || filterSemFoto) && participantes.length > 0
-                    ? 'Nenhum participante encontrado para os filtros selecionados.'
-                    : 'Nenhum participante encontrado.'}
+                    ? 'Nenhum encontrista encontrado para os filtros selecionados.'
+                    : 'Nenhum encontrista encontrado.'}
                 </p>
                 {(filterVeiculo || filterSemFoto) && (
                   <button
@@ -1141,7 +1167,7 @@ export function SecretariaParticipantesPage() {
                             <button
                               type="button"
                               className="pessoa-context-trigger"
-                              onClick={() => setContextParticipant(p)}
+                              onClick={() => setContextParticipantId(p.id)}
                               aria-label={`Visualizar ${nomeParticipante}`}
                             >
                               {nomeParticipante}
@@ -1197,7 +1223,7 @@ export function SecretariaParticipantesPage() {
 
                       <div className="pessoa-row-actions secretaria-pessoa-actions">
                         <button
-                          onClick={(e) => { e.stopPropagation(); setContextParticipant(p); }}
+                          onClick={(e) => { e.stopPropagation(); setContextParticipantId(p.id); }}
                           className="secretaria-details-button"
                           title="Visualizar"
                           aria-label={`Visualizar ${nomeParticipante}`}
@@ -1217,13 +1243,13 @@ export function SecretariaParticipantesPage() {
                         </button>
                         {selectedEncontro?.ativo && (
                           <button
-                            onClick={(e) => { e.stopPropagation(); setParticipantToUnlink(p); }}
+                            onClick={(e) => { e.stopPropagation(); setMotivoCancelamento(''); setParticipantToUnlink(p); }}
                             className="secretaria-unlink-button"
-                            title="Desvincular do encontro"
-                            aria-label="Desvincular do encontro"
+                            title="Cancelar participação"
+                            aria-label="Cancelar participação"
                           >
                             <UserMinus size={16} />
-                            <span>Desvincular</span>
+                            <span>Cancelar</span>
                           </button>
                         )}
                       </div>
@@ -1252,7 +1278,7 @@ export function SecretariaParticipantesPage() {
           </div>
           <h3 style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Atualizar coordenadas?</h3>
           <p style={{ opacity: 0.7, marginBottom: '2rem' }}>
-            Serão processados <strong>{pendingGeoCount}</strong> participante(s) sem geolocalização.
+            Serão processados <strong>{pendingGeoCount}</strong> encontrista(s) sem geolocalização.
             <br />O processo pode levar alguns minutos (1 req/s).
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
@@ -1357,30 +1383,41 @@ export function SecretariaParticipantesPage() {
 
       <ConfirmDialog
         isOpen={!!participantToUnlink}
-        title="Desvincular Participante"
+        title="Cancelar participação"
         message={
           <>
-            Tem certeza que deseja desvincular o(a) participante <strong style={{ color: 'var(--text-color)' }}>{participantToUnlink?.pessoas?.nome_completo}</strong> deste encontro?
+            Deseja cancelar a participação de <strong style={{ color: 'var(--text-color)' }}>{participantToUnlink?.pessoas?.nome_completo}</strong> neste encontro?
             <br /><br />
-            Esta ação <strong style={{ color: 'var(--danger-text)' }}>apenas removerá o vínculo</strong> da pessoa com este encontro específico. O cadastro da pessoa no sistema de pessoas será mantido intacto.
+            Os dados operacionais serão preservados no histórico para possível restauração pela Secretaria. O cadastro da pessoa permanecerá intacto.
+            <label className="form-label" style={{ display: 'block', marginTop: '1rem' }}>
+              Motivo do cancelamento
+              <textarea
+                className="form-input"
+                value={motivoCancelamento}
+                onChange={(event) => setMotivoCancelamento(event.target.value)}
+                placeholder="Descreva o motivo do cancelamento"
+                rows={3}
+                style={{ marginTop: '0.45rem', resize: 'vertical' }}
+              />
+            </label>
           </>
         }
-        confirmText="Sim, desvincular"
+        confirmText="Cancelar participação"
         cancelText="Cancelar"
         onConfirm={handleUnlink}
-        onCancel={() => setParticipantToUnlink(null)}
+        onCancel={() => { setParticipantToUnlink(null); setMotivoCancelamento(''); }}
         isLoading={isUnlinking}
         isDestructive={true}
       />
 
       <ConfirmDialog
         isOpen={!!desistenciaToRestore}
-        title="Reverter desistência"
+        title="Reverter cancelamento"
         message={
           <>
             Deseja recolocar <strong style={{ color: 'var(--text-color)' }}>{desistenciaToRestore?.pessoas?.nome_completo}</strong> neste encontro e na dupla <strong style={{ color: 'var(--text-color)' }}>{desistenciaToRestore?.visita_grupos?.nome || 'original'}</strong>?
             <br /><br />
-            A desistência ficará registrada no histórico como revertida.
+            O cancelamento ficará registrado no histórico como revertido.
           </>
         }
         confirmText="Sim, reverter"
@@ -1395,7 +1432,7 @@ export function SecretariaParticipantesPage() {
         onClose={() => {
           if (!isSavingPessoaEdit) setEditingPessoa(null);
         }}
-        title={`Editar Dados - ${editingPessoa?.nome_completo || 'Participante'}`}
+        title={`Editar dados - ${editingPessoa?.nome_completo || 'Encontrista'}`}
         maxWidth="920px"
       >
         {editingPessoa && (
@@ -1410,14 +1447,15 @@ export function SecretariaParticipantesPage() {
       </Modal>
 
       <PessoaContextDrawer
-        participacao={contextParticipant}
-        onClose={() => setContextParticipant(null)}
+        participacaoId={contextParticipantId}
+        encontroId={selectedEncontroId || null}
+        onClose={() => setContextParticipantId(null)}
       />
 
       <Modal
         isOpen={!!previewPhoto}
         onClose={() => setPreviewPhoto(null)}
-        title={previewPhoto?.nome || 'Foto do participante'}
+        title={previewPhoto?.nome || 'Foto do encontrista'}
         maxWidth="720px"
       >
         {previewPhoto && (
@@ -1441,7 +1479,7 @@ export function SecretariaParticipantesPage() {
           setPhotoActionsParticipant(null);
           setAdjustingPhotoId(null);
         }}
-        title={photoActionsParticipant?.pessoas?.nome_completo || 'Foto do participante'}
+        title={photoActionsParticipant?.pessoas?.nome_completo || 'Foto do encontrista'}
         maxWidth="720px"
       >
         {photoActionsParticipant && (
@@ -1450,7 +1488,7 @@ export function SecretariaParticipantesPage() {
               {photoActionsParticipant.foto_url ? (
                 <img
                   src={photoActionsParticipant.foto_url}
-                  alt={photoActionsParticipant.pessoas?.nome_completo || 'Participante'}
+                  alt={photoActionsParticipant.pessoas?.nome_completo || 'Encontrista'}
                   className={adjustingPhotoId === photoActionsParticipant.id ? 'is-adjusting' : ''}
                   style={{
                     objectPosition: `center ${adjustingPhotoId === photoActionsParticipant.id ? tempPhotoPosition : (photoActionsParticipant.foto_posicao_y ?? 50)}%`,
@@ -1504,7 +1542,7 @@ export function SecretariaParticipantesPage() {
                       <button
                         type="button"
                         className="secretaria-photo-option"
-                        onClick={() => handleDownloadPhoto(photoActionsParticipant.foto_url!, photoActionsParticipant.pessoas?.nome_completo || 'Participante')}
+                        onClick={() => handleDownloadPhoto(photoActionsParticipant.foto_url!, photoActionsParticipant.pessoas?.nome_completo || 'Encontrista')}
                       >
                         <Download size={17} /> Baixar
                       </button>
@@ -1814,8 +1852,10 @@ export function SecretariaParticipantesPage() {
         }
         .secretaria-details-button,
         .secretaria-edit-button {
-          width: 34px;
-          height: 34px;
+          width: auto;
+          min-width: 112px;
+          height: 38px;
+          padding: 0 0.8rem;
           border-radius: 9px;
           border: 1px solid rgba(37, 99, 235, 0.45);
           background: rgba(37, 99, 235, 0.06);
@@ -1852,13 +1892,15 @@ export function SecretariaParticipantesPage() {
         }
         .secretaria-details-button span,
         .secretaria-edit-button span {
-          display: none;
+          display: inline;
           font-size: 0.85rem;
           font-weight: 700;
         }
         .secretaria-unlink-button {
-          width: 34px;
-          height: 34px;
+          width: auto;
+          min-width: 128px;
+          height: 38px;
+          padding: 0 0.8rem;
           border-radius: 9px;
           border: 1px solid rgba(239, 68, 68, 0.7);
           background: transparent;
@@ -1884,7 +1926,7 @@ export function SecretariaParticipantesPage() {
           transform: translateY(-1px);
         }
         .secretaria-unlink-button span {
-          display: none;
+          display: inline;
           font-size: 0.85rem;
           font-weight: 700;
         }
@@ -2511,11 +2553,50 @@ export function SecretariaParticipantesPage() {
           display: block;
         }
         .secretaria-pessoa-actions {
+          grid-column: 1 / -1;
+          grid-row: 2;
           justify-content: flex-end;
           margin-left: 0;
+          padding-top: 0.8rem;
+          border-top: 1px solid var(--border-color);
           gap: 0.45rem;
-          min-width: 84px;
+          min-width: 0;
           flex-wrap: nowrap;
+        }
+        @media (min-width: 901px) and (max-width: 1200px) {
+          .secretaria-pessoa-row {
+            grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+            align-items: start;
+            row-gap: 0.9rem;
+          }
+          .secretaria-pessoa-main {
+            grid-column: 1;
+          }
+          .secretaria-pessoa-contact {
+            grid-column: 2;
+          }
+          .secretaria-pessoa-address,
+          .secretaria-pessoa-actions {
+            grid-column: 1 / -1;
+          }
+          .secretaria-pessoa-address {
+            grid-row: 2;
+          }
+          .secretaria-pessoa-address {
+            padding-top: 0.25rem;
+          }
+          .secretaria-pessoa-actions {
+            grid-row: 3;
+            min-width: 0;
+            justify-content: flex-end;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border-color);
+          }
+          .secretaria-address-main span {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+          }
         }
         @media (max-width: 900px) {
           .secretaria-filter-grid {
@@ -2548,6 +2629,7 @@ export function SecretariaParticipantesPage() {
           }
           .secretaria-pessoa-row {
             grid-template-columns: 1fr;
+            grid-auto-flow: row;
             align-items: stretch;
             border: 1px solid var(--border-color);
             border-radius: 8px;
@@ -2579,6 +2661,7 @@ export function SecretariaParticipantesPage() {
             text-overflow: clip;
           }
           .secretaria-pessoa-actions {
+            grid-row: auto;
             justify-content: flex-start;
             padding-top: 0.35rem;
             border-top: 1px solid var(--border-color);

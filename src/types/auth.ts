@@ -1,6 +1,8 @@
 export interface UserProfile {
     id: string;
     email: string;
+    pessoa_id?: string | null;
+    pessoa_vinculo?: 'explicit' | 'email_fallback' | 'none';
     nome_completo?: string;
     temporary_password: boolean;
     created_at: string;

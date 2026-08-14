@@ -31,6 +31,22 @@ export const recreacaoService = {
   },
 
   async salvar(participacaoId: string, formData: RecreacaoDadosFormData, id?: string): Promise<RecreacaoDados> {
+    const responsibleIds = [participacaoId, formData.outro_responsavel_id].filter(Boolean) as string[];
+    const { data: responsaveis, error: responsaveisError } = await supabase
+      .from('participacoes')
+      .select('id, encontro_id, participante, equipe_id')
+      .in('id', responsibleIds);
+
+    if (responsaveisError) throw responsaveisError;
+    if (responsaveis?.length !== responsibleIds.length || responsaveis.some((p) => p.participante !== false || !p.equipe_id)) {
+      throw new Error('A recreação infantil só pode ser vinculada a encontreiros com equipe.');
+    }
+
+    const encontroIds = new Set(responsaveis?.map((p) => p.encontro_id));
+    if (encontroIds.size !== 1) {
+      throw new Error('Os responsáveis devem pertencer ao mesmo encontro.');
+    }
+
     if (id) {
       // Update existing
       const { data, error } = await supabase

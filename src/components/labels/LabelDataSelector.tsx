@@ -114,7 +114,7 @@ export function LabelDataSelector({
         </select>
         <select className="form-input" value={filters.tipo} onChange={(event) => setFilter('tipo', event.target.value)}>
           <option value="">Todos os tipos</option>
-          <option value="participante">Participantes</option>
+          <option value="participante">Encontristas</option>
           <option value="encontreiro">Encontreiros</option>
           <option value="equipe">Equipes</option>
           <option value="circulo">Círculos</option>

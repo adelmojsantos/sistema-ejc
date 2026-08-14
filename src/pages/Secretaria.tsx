@@ -44,7 +44,7 @@ const CATEGORIES: SecretariaCategory[] = [
   {
     id: 'sec-participantes',
     path: '/secretaria/participantes',
-    label: 'Listagem de Participantes',
+    label: 'Listagem de Encontristas',
     description: 'Lista simplificada de encontristas com geolocalização.',
     icon: <MapPin size={34} />,
     color: '#3b82f6',

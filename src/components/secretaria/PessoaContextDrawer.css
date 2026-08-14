@@ -4,6 +4,10 @@
   z-index: 1200;
 }
 
+.pessoa-context-layer--stacked {
+  z-index: 10001;
+}
+
 .pessoa-context-backdrop {
   position: absolute;
   inset: 0;
@@ -131,6 +135,28 @@
   gap: 0.55rem;
 }
 
+.pessoa-context-edit {
+  width: 100%;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--primary-color);
+  color: var(--primary-color);
+  background: var(--primary-light);
+  font-weight: 700;
+}
+
+.pessoa-context-edit:hover {
+  color: white;
+  background: var(--primary-color);
+}
+
+.pessoa-context-status-grid.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .pessoa-context-status {
   min-width: 0;
   padding: 0.65rem;
@@ -148,6 +174,7 @@
 
 .pessoa-context-status strong {
   overflow-wrap: anywhere;
+  white-space: pre-line;
   color: var(--text-color);
   font-size: 0.78rem;
 }
@@ -194,16 +221,36 @@
 .pessoa-context-actions {
   margin-top: 0.7rem;
   display: flex;
+  flex-direction: column;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0;
 }
 
 .pessoa-context-actions button {
+  flex: 1 1 0;
+  min-width: 0;
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--border-color);
   color: var(--text-color);
   background: var(--card-bg);
   font-size: 0.72rem;
+}
+
+.pessoa-context-actions .pessoa-context-link {
+  flex: 1 1 auto;
+  margin-top: 0;
+  padding: 0.55rem 0;
+  border: 0;
+  border-top: 1px solid var(--border-color);
+  border-radius: 0;
+  color: var(--primary-color);
+  background: transparent;
+  font-size: 0.75rem;
+}
+
+.pessoa-context-actions .pessoa-context-link:hover {
+  color: var(--primary-hover);
+  background: transparent;
 }
 
 .pessoa-context-privacy {
@@ -243,5 +290,9 @@
 
   .pessoa-context-status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .pessoa-context-actions button {
+    flex-basis: 100%;
   }
 }

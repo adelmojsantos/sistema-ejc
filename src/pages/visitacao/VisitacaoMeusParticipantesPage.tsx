@@ -16,7 +16,8 @@ import {
     Heart,
     UtensilsCrossed,
     Pill,
-    AlertTriangle
+    AlertTriangle,
+    RotateCcw
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
@@ -26,11 +27,13 @@ import type { VisitaParticipacaoEnriched, VisitaStatus, VisitaGrupo } from '../.
 import { toast } from 'react-hot-toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Modal } from '../../components/ui/Modal';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { MyParticipantsMap } from '../../components/visitacao/MyParticipantsMap';
 import { formatPhone } from '../../utils/stringUtils';
 import { formatPlate } from '../../utils/plateUtils';
 import { WhatsappLogo } from 'phosphor-react';
 import { useEncontros } from '../../contexts/EncontroContext';
+import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
 
 type VisitaListItem = VisitaParticipacaoEnriched & {
     is_history?: boolean;
@@ -63,17 +66,15 @@ const formatVehicleText = (value: string | null | undefined) => {
 };
 
 export function VisitacaoMeusParticipantesPage() {
-    const { userParticipacao, hasPermission } = useAuth();
+    const { profile, userParticipacao, hasPermission } = useAuth();
     const navigate = useNavigate();
     const isCoordinator = hasPermission('modulo_visitacao_coordenar');
-    const { encontroSelecionadoId } = useEncontros();
+    const { encontroSelecionadoId, encontroSelecionado } = useEncontros();
 
-    const [participantes, setParticipantes] = useState<VisitaParticipacaoEnriched[]>([]);
+    const [participantes, setParticipantes] = useState<VisitaListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [grupos, setGrupos] = useState<VisitaGrupo[]>([]);
-    const [selectedGrupoId, setSelectedGrupoId] = useState<string>(() => {
-        return sessionStorage.getItem('visita_selected_grupo_id') || '';
-    });
+    const [selectedGrupoId, setSelectedGrupoId] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'map'>(() => {
         return (sessionStorage.getItem('visita_view_mode') as 'list' | 'map') || 'list';
     });
@@ -81,36 +82,70 @@ export function VisitacaoMeusParticipantesPage() {
     const [filterStatus, setFilterStatus] = useState<'todos' | 'pendentes' | 'visitados' | 'ausentes' | 'cancelados'>('todos');
     const [filterVeiculo, setFilterVeiculo] = useState(false);
     const [previewPhoto, setPreviewPhoto] = useState<{ url: string; nome: string } | null>(null);
+    const [contextParticipantId, setContextParticipantId] = useState<string | null>(null);
+    const [cancelamentoParaRestaurar, setCancelamentoParaRestaurar] = useState<VisitaListItem | null>(null);
+    const [isRestaurando, setIsRestaurando] = useState(false);
+    const [reloadKey, setReloadKey] = useState(0);
 
     useEffect(() => {
         sessionStorage.setItem('visita_view_mode', viewMode);
     }, [viewMode]);
 
     useEffect(() => {
-        if (selectedGrupoId) {
-            sessionStorage.setItem('visita_selected_grupo_id', selectedGrupoId);
-        }
-    }, [selectedGrupoId]);
+        if (!encontroSelecionadoId) return;
+
+        const storageKey = `visita_selected_grupo_id:${encontroSelecionadoId}`;
+        setParticipantes([]);
+        setGrupoNome('');
+        setSelectedGrupoId(sessionStorage.getItem(storageKey) || '');
+        setLoading(true);
+    }, [encontroSelecionadoId]);
 
     useEffect(() => {
+        if (!encontroSelecionadoId || !selectedGrupoId) return;
+        sessionStorage.setItem(`visita_selected_grupo_id:${encontroSelecionadoId}`, selectedGrupoId);
+    }, [encontroSelecionadoId, selectedGrupoId]);
+
+    useEffect(() => {
+        let cancelled = false;
+
         async function loadGroups() {
             if (isCoordinator && encontroSelecionadoId) {
                 try {
                     const data = await visitacaoService.listarGrupos(encontroSelecionadoId);
+                    if (cancelled) return;
                     setGrupos(data);
                     setSelectedGrupoId((current) => data.some((grupo) => grupo.id === current) ? current : '');
                 } catch (error) {
+                    if (cancelled) return;
                     console.error('Erro ao carregar grupos:', error);
                 }
+            } else if (!cancelled) {
+                setGrupos([]);
             }
         }
         loadGroups();
+
+        return () => {
+            cancelled = true;
+        };
     }, [encontroSelecionadoId, isCoordinator]);
 
     useEffect(() => {
+        let cancelled = false;
+
         async function loadParticipants() {
-            if (!userParticipacao) {
-                setLoading(false);
+            if (!cancelled) {
+                setLoading(true);
+                setParticipantes([]);
+                setGrupoNome('');
+            }
+
+            if (!profile?.pessoa_id || !encontroSelecionadoId) {
+                if (!cancelled) {
+                    setParticipantes([]);
+                    setLoading(false);
+                }
                 return;
             }
 
@@ -122,8 +157,9 @@ export function VisitacaoMeusParticipantesPage() {
                 if (!isCoordinator || !selectedGrupoId) {
                     const { data: myVinculo, error: vinculoError } = await supabase
                         .from('visita_participacao')
-                        .select('grupo_id, visita_grupos(nome)')
-                        .eq('participacao_id', userParticipacao.id)
+                        .select('grupo_id, visita_grupos(nome), participacoes!inner(encontro_id, pessoa_id)')
+                        .eq('participacoes.encontro_id', encontroSelecionadoId)
+                        .eq('participacoes.pessoa_id', profile.pessoa_id)
                         .eq('visitante', true)
                         .maybeSingle();
 
@@ -150,6 +186,7 @@ export function VisitacaoMeusParticipantesPage() {
                     if (g) targetGrupoNome = g.nome || '';
                 }
 
+                if (cancelled) return;
                 setGrupoNome(targetGrupoNome);
 
                 if (targetGrupoId) {
@@ -160,53 +197,99 @@ export function VisitacaoMeusParticipantesPage() {
                         .from('visita_participacao')
                         .select(`
                             *,
+                            visita_grupos:grupo_id (nome),
                             participacoes:participacao_id (
                                 id,
+                                encontro_id,
+                                equipe_id,
+                                participante,
+                                coordenador,
+                                dados_confirmados,
+                                confirmado_em,
+                                pago_taxa,
+                                pago_camiseta,
                                 foto_url,
                                 pessoas (*),
+                                equipes (nome),
                                 recepcao_dados (*)
                             )
                         `)
                         .eq('grupo_id', targetGrupoId)
+                        .eq('participacoes.encontro_id', encontroId)
                         .eq('visitante', false);
 
                     if (activeError) throw activeError;
 
                     // 2. Fetch canceled participants from history
-                    let transformedCanceled: any[] = [];
+                    let transformedCanceled: VisitaListItem[] = [];
                     try {
                         const canceledData = await inscricaoService.listarCanceladosPorGrupo(targetGrupoId, encontroId);
-                        transformedCanceled = canceledData.map(c => ({
+                        transformedCanceled = canceledData.map(c => {
+                            const participacaoSnapshot = c.dados_snapshot?.participacao;
+
+                            return {
                             id: c.id,
                             grupo_id: c.grupo_id,
-                            participacao_id: c.dados_snapshot?.participacao_id || '',
-                            status: 'cancelada',
+                            participacao_id: participacaoSnapshot?.id || c.dados_snapshot?.participacao_id || '',
+                            visitante: false,
+                            created_at: c.data_cancelamento || '',
+                            status: 'cancelada' as const,
                             observacoes: c.observacoes,
+                            foto_url: null,
+                            foto_familia_url: null,
                             motivo_cancelamento: c.motivo_cancelamento,
-                            taxa_paga: c.dados_snapshot?.taxa_paga || false,
+                            taxa_paga: participacaoSnapshot?.pago_taxa || c.dados_snapshot?.taxa_paga || false,
+                            data_visita: null,
                             participacoes: {
-                                id: c.dados_snapshot?.participacao_id || '',
-                                pessoas: c.pessoas
+                                id: participacaoSnapshot?.id || c.dados_snapshot?.participacao_id || '',
+                                encontro_id: encontroId,
+                                foto_url: null,
+                                pessoas: c.pessoas || null
                             },
                             is_history: true
-                        }));
+                            };
+                        });
                     } catch (err) {
                         console.error('Erro ao buscar cancelados:', err);
                     }
 
-                    setParticipantes([...(activeData || []), ...transformedCanceled] as unknown as VisitaParticipacaoEnriched[]);
+                    if (!cancelled) {
+                        setParticipantes([...(activeData || []) as VisitaParticipacaoEnriched[], ...transformedCanceled]);
+                    }
                 } else {
-                    setParticipantes([]);
+                    if (!cancelled) setParticipantes([]);
                 }
             } catch (error) {
+                if (cancelled) return;
                 console.error('Erro ao buscar participantes da visita:', error);
             } finally {
-                setLoading(false);
+                if (!cancelled) setLoading(false);
             }
         }
 
         loadParticipants();
-    }, [encontroSelecionadoId, userParticipacao, isCoordinator, selectedGrupoId, grupos]);
+
+        return () => {
+            cancelled = true;
+        };
+    }, [encontroSelecionadoId, profile?.pessoa_id, isCoordinator, selectedGrupoId, grupos, reloadKey]);
+
+    const handleRestoreParticipation = async () => {
+        if (!cancelamentoParaRestaurar) return;
+
+        try {
+            setIsRestaurando(true);
+            await inscricaoService.restaurarParticipacaoCancelada(cancelamentoParaRestaurar.id);
+            toast.success('Participação restaurada com os dados preservados.');
+            setCancelamentoParaRestaurar(null);
+            setReloadKey((current) => current + 1);
+        } catch (error) {
+            console.error('Erro ao restaurar participação:', error);
+            toast.error(error instanceof Error ? error.message : 'Não foi possível restaurar a participação.');
+        } finally {
+            setIsRestaurando(false);
+        }
+    };
 
     const stats = useMemo(() => {
         const ativos = participantes.filter(p => p.status !== 'cancelada');
@@ -275,7 +358,7 @@ export function VisitacaoMeusParticipantesPage() {
     return (
         <>
             <PageHeader
-                title={grupoNome || 'Participantes da Visita'}
+                title={grupoNome || 'Encontristas da Visita'}
                 subtitle="Início / Visitação"
                 backPath="/visitacao"
             />
@@ -466,12 +549,14 @@ export function VisitacaoMeusParticipantesPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             {participantesFiltrados.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.6 }}>
-                                    Nenhum participante encontrado para este filtro.
+                                    Nenhum encontrista encontrado para este filtro.
                                 </div>
                             ) : (
-                                participantesFiltrados.map((p: any) => {
+                                participantesFiltrados.map((p) => {
                                     const status = getStatusInfo(p.status);
                                     const pessoa = p.participacoes?.pessoas;
+                                    const fotoUrl = p.participacoes?.foto_url;
+                                    const fotoPosicaoY = p.participacoes?.foto_posicao_y ?? 50;
                                     const veiculo = getVehicleData(p.participacoes?.recepcao_dados);
                                     return (
                                         <div key={p.id} className="card card-hover" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden', maxWidth: '100%' }}>
@@ -484,26 +569,26 @@ export function VisitacaoMeusParticipantesPage() {
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0, flex: 1 }}>
                                                         <button
                                                             type="button"
-                                                            className={`visita-participant-avatar${p.participacoes?.foto_url ? ' has-photo' : ''}`}
+                                                            className={`visita-participant-avatar${fotoUrl ? ' has-photo' : ''}`}
                                                             style={{ background: status.color + '20', color: status.color }}
-                                                            onClick={p.participacoes?.foto_url
+                                                            onClick={fotoUrl
                                                                 ? (event) => {
                                                                     event.stopPropagation();
                                                                     setPreviewPhoto({
-                                                                        url: p.participacoes.foto_url!,
-                                                                        nome: pessoa?.nome_completo || 'Participante',
+                                                                        url: fotoUrl,
+                                                                        nome: pessoa?.nome_completo || 'Encontrista',
                                                                     });
                                                                 }
                                                                 : undefined}
-                                                            aria-label={p.participacoes?.foto_url ? `Abrir foto de ${pessoa?.nome_completo || 'participante'}` : undefined}
+                                                            aria-label={fotoUrl ? `Abrir foto de ${pessoa?.nome_completo || 'encontrista'}` : undefined}
                                                         >
-                                                            {p.participacoes?.foto_url ? (
+                                                            {fotoUrl ? (
                                                                 <img
-                                                                    src={p.participacoes.foto_url}
-                                                                    alt={pessoa?.nome_completo || 'Participante'}
+                                                                    src={fotoUrl}
+                                                                    alt={pessoa?.nome_completo || 'Encontrista'}
                                                                     loading="lazy"
                                                                     decoding="async"
-                                                                    style={{ objectPosition: `center ${p.participacoes.foto_posicao_y ?? 50}%` }}
+                                                                    style={{ objectPosition: `center ${fotoPosicaoY}%` }}
                                                                 />
                                                             ) : (
                                                                 pessoa?.nome_completo?.charAt(0) || <Users size={24} />
@@ -541,7 +626,7 @@ export function VisitacaoMeusParticipantesPage() {
                                                     </div>
 
                                                     {/* Ações Rápidas Topo */}
-                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                    {!p.is_history && <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); handleToggleTax(p.id, p.taxa_paga); }}
                                                             style={{
@@ -557,7 +642,7 @@ export function VisitacaoMeusParticipantesPage() {
                                                             {p.taxa_paga ? <CheckCircle size={14} /> : <DollarSign size={14} />}
                                                             {p.taxa_paga ? 'Pago' : 'Marcar Pago'}
                                                         </button>
-                                                    </div>
+                                                    </div>}
                                                 </div>
 
                                                 {/* Info Secundária (Endereço e Contatos) */}
@@ -710,14 +795,34 @@ export function VisitacaoMeusParticipantesPage() {
                                                 )}
 
                                                 {/* Rodapé do Card / Ação Principal */}
-                                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
-                                                    <button
-                                                        onClick={() => navigate(`/visitacao/manutencao/${p.id}`)}
-                                                        className="btn-primary visita-detail-btn"
-                                                        style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem', borderRadius: '8px' }}
-                                                    >
-                                                        <Edit3 size={16} /> <span>Detalhes da Visita</span>
-                                                    </button>
+                                                <div className="visita-card-actions" style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: '0.65rem', marginTop: '0.25rem' }}>
+                                                    {!p.is_history && <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setContextParticipantId(p.participacao_id)}
+                                                            className="btn-secondary"
+                                                            style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem', borderRadius: '8px' }}
+                                                        >
+                                                            <Users size={16} /> <span>Resumo da pessoa</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => navigate(`/visitacao/manutencao/${p.id}`)}
+                                                            className="btn-primary visita-detail-btn"
+                                                            style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem', borderRadius: '8px' }}
+                                                        >
+                                                            <Edit3 size={16} /> <span>Detalhes da Visita</span>
+                                                        </button>
+                                                    </>}
+                                                    {p.is_history && encontroSelecionado?.ativo && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCancelamentoParaRestaurar(p as VisitaListItem)}
+                                                            className="btn-primary visita-detail-btn"
+                                                            style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontSize: '0.85rem', borderRadius: '8px' }}
+                                                        >
+                                                            <RotateCcw size={16} /> <span>Restaurar participação</span>
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -732,7 +837,7 @@ export function VisitacaoMeusParticipantesPage() {
             <Modal
                 isOpen={!!previewPhoto}
                 onClose={() => setPreviewPhoto(null)}
-                title={previewPhoto?.nome || 'Foto do participante'}
+                title={previewPhoto?.nome || 'Foto do encontrista'}
                 maxWidth="min(92vw, 900px)"
             >
                 {previewPhoto && (
@@ -741,6 +846,25 @@ export function VisitacaoMeusParticipantesPage() {
                     </div>
                 )}
             </Modal>
+
+            <PessoaContextDrawer
+                participacaoId={contextParticipantId}
+                encontroId={encontroSelecionadoId || null}
+                onClose={() => setContextParticipantId(null)}
+            />
+
+            <ConfirmDialog
+                isOpen={!!cancelamentoParaRestaurar}
+                title="Restaurar participação"
+                message={
+                    <>Deseja restaurar a participação de <strong>{cancelamentoParaRestaurar?.participacoes?.pessoas?.nome_completo}</strong>? A pessoa voltará para esta dupla e os dados operacionais preservados serão recuperados.</>
+                }
+                confirmText="Restaurar participação"
+                cancelText="Cancelar"
+                onConfirm={handleRestoreParticipation}
+                onCancel={() => setCancelamentoParaRestaurar(null)}
+                isLoading={isRestaurando}
+            />
 
             <style>{`
                     .hover-primary:hover {
@@ -792,6 +916,20 @@ export function VisitacaoMeusParticipantesPage() {
                         object-fit: contain;
                         border-radius: 8px;
                         background: var(--secondary-bg);
+                    }
+                    .visita-card-actions > button {
+                        min-width: 0;
+                        width: auto;
+                        flex: 0 1 auto;
+                    }
+                    @media (max-width: 520px) {
+                        .visita-card-actions {
+                            justify-content: stretch !important;
+                        }
+                        .visita-card-actions > button {
+                            flex: 1 1 100%;
+                            width: 100%;
+                        }
                     }
                 `}</style>
         </>

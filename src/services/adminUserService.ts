@@ -9,6 +9,8 @@ export interface UserGrupoVinculo {
 export interface AdminUserListItem {
     id: string;
     email: string;
+    pessoaId?: string | null;
+    pessoaVinculo?: 'explicit' | 'email_fallback' | 'none';
     temporary_password: boolean;
     created_at: string;
     grupos: UserGrupoVinculo[];
@@ -78,6 +80,7 @@ export interface CoordenadorPastaAccessResponse {
 
 interface CreateAdminUserPayload {
     email: string;
+    pessoaId: string;
     gruposIds: string[];
     encontroId: string | null;
 }
@@ -210,7 +213,7 @@ export const adminUserService = {
         const headers = await getAuthHeaders();
         const { data, error } = await supabase.functions.invoke('admin-users', {
             // we pass a dummy 'viewer' role to not break the edge function's upsert to profiles, which might still have role fallback
-            body: { action: 'create', email: payload.email, role: 'viewer' },
+            body: { action: 'create', email: payload.email, pessoaId: payload.pessoaId, role: 'viewer' },
             headers,
         });
 
@@ -229,6 +232,15 @@ export const adminUserService = {
         }
 
         return response;
+    },
+
+    async linkUserToPerson(userId: string, pessoaId: string): Promise<void> {
+        const { error } = await supabase.rpc('vincular_profile_pessoa', {
+            p_profile_id: userId,
+            p_pessoa_id: pessoaId,
+        });
+
+        if (error) throw error;
     },
 
     async updateGrupos(userId: string, currentVinculos: UserGrupoVinculo[], action: 'add' | 'remove', gId: string, encontroId: string | null): Promise<UserGrupoVinculo[]> {

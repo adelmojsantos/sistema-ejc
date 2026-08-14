@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import type { Encontro } from '../../types/encontro';
+import { buildPublicFormUrl } from '../../utils/publicFormUrl';
 
 interface EncontroRowProps {
     encontro: Encontro;
@@ -70,7 +71,7 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
 
     const handleCopy = (e: React.MouseEvent) => {
         e.stopPropagation();
-        const url = `${window.location.origin}/formulario?encontro=${encontro.id}`;
+        const url = buildPublicFormUrl(encontro.id);
         navigator.clipboard.writeText(url);
         
         setCopied(true);
@@ -83,7 +84,7 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
         <div className={`pessoa-row container-encontro-row ${encontro.ativo ? 'is-active' : ''}`}>
             <div className="encontro-row-layout">
                 {/* Zona 1: Encontro + Data */}
-                <div className="pessoa-row-main" style={{ flex: '0 0 250px' }}>
+                <div className="encontro-summary-zone">
                     <div className={`pessoa-avatar small ${encontro.ativo ? 'bg-active' : 'bg-dim'}`}>
                         {encontro.edicao ?? '?'}
                     </div>
@@ -164,14 +165,14 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
                 </div>
 
                 {/* Ações */}
-                <div className="pessoa-row-actions">
+                <div className="encontro-actions">
                     <button 
-                        className="icon-btn quadrante-btn" 
+                        className={`icon-btn quadrante-btn ${encontro.ativo ? 'active-encounter' : 'historical-encounter'}`}
                         onClick={() => navigate(`/cadastros/encontros/${encontro.id}/quadrante`)} 
-                        title="Configurar Quadrante"
+                        title={encontro.ativo ? 'Configurar Quadrante' : 'Ver Quadrante'}
                     >
                         <LayoutGrid size={15} />
-                        <span>Quadrante</span>
+                        <span>{encontro.ativo ? 'Configurar Quadrante' : 'Ver Quadrante'}</span>
                         {encontro.quadrante_ativo ? (
                             <span className="quadrante-status-dot active" />
                         ) : (
@@ -199,11 +200,45 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
                 .container-encontro-row.is-active { border-left: 4px solid #10b981 !important; }
                 .encontro-row-layout {
                     display: grid;
-                    grid-template-columns: minmax(180px, 1fr) 1px minmax(130px, 0.7fr) 1px minmax(200px, 1fr) max-content;
-                    align-items: center;
+                    grid-template-columns: minmax(180px, 1fr) 1px minmax(130px, 0.7fr) 1px minmax(200px, 1fr);
+                    align-items: start;
                     gap: 1rem;
                     min-width: 0;
                     width: 100%;
+                }
+
+                .container-encontro-row .encontro-actions {
+                    display: flex;
+                    gap: 0.5rem;
+                    grid-column: 1 / -1;
+                    justify-self: stretch;
+                    justify-content: flex-end;
+                    align-self: stretch;
+                    align-items: center;
+                    flex-wrap: wrap;
+                    width: 100%;
+                    min-width: 0;
+                    padding-top: 0.75rem;
+                    border-top: 1px solid var(--border-color);
+                }
+
+                .container-encontro-row .encontro-actions .icon-btn {
+                    flex: 0 0 auto;
+                    width: auto;
+                    height: 40px;
+                    min-height: 40px;
+                    gap: 0.45rem;
+                    padding: 0.45rem 0.75rem;
+                }
+                .container-encontro-row .encontro-actions .icon-btn-danger {
+                    color: #ef4444;
+                    border-color: rgba(239, 68, 68, 0.45);
+                    background: rgba(239, 68, 68, 0.06);
+                }
+                .container-encontro-row .encontro-actions .icon-btn-danger:hover {
+                    color: #fff;
+                    border-color: #ef4444;
+                    background: #ef4444;
                 }
                 
                 .title-with-badge { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
@@ -213,6 +248,7 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
                 
                 .meta-info { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; opacity: 0.7; }
                 .desktop-divider { width: 1px; height: 32px; background: var(--border-color); opacity: 0.5; }
+                .encontro-summary-zone { display: flex; align-items: center; gap: 1rem; min-width: 0; }
                 
                 .encontro-local-zone { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
                 .section-label { font-size: 0.65rem; font-weight: 800; opacity: 0.5; letter-spacing: 0.05em; margin-bottom: 2px; }
@@ -231,12 +267,19 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
                 .mini-link-btn.copied { background: #10b981 !important; color: white !important; border-color: #10b981; }
                 .mini-link-btn svg { display: block; flex-shrink: 0; transition: transform 0.2s ease; }
                 .icon-check-anim { animation: check-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-                .quadrante-btn { display: flex !important; align-items: center; gap: 5px; padding: 0.35rem 0.75rem !important; border-radius: 8px !important; background: rgba(59,130,246,0.08) !important; border: 1px solid rgba(59,130,246,0.2) !important; color: var(--primary-color) !important; font-size: 0.75rem !important; font-weight: 700 !important; white-space: nowrap; width: auto !important; }
-                .quadrante-btn:hover { background: var(--primary-color) !important; color: white !important; border-color: var(--primary-color) !important; }
+                .quadrante-btn { display: flex !important; align-items: center; gap: 5px; padding: 0.35rem 0.75rem !important; border-radius: 8px !important; font-size: 0.75rem !important; font-weight: 700 !important; white-space: nowrap; width: auto !important; }
+                .quadrante-btn.active-encounter { background: rgba(59,130,246,0.1) !important; border: 1px solid rgba(59,130,246,0.35) !important; color: var(--primary-color) !important; }
+                .quadrante-btn.active-encounter:hover { background: var(--primary-color) !important; color: white !important; border-color: var(--primary-color) !important; }
+                .quadrante-btn.historical-encounter { background: transparent !important; border: 1px solid var(--border-color) !important; color: var(--text-color) !important; opacity: 0.78; }
+                .quadrante-btn.historical-encounter:hover { background: var(--secondary-bg) !important; border-color: rgba(148, 163, 184, 0.65) !important; color: var(--text-color) !important; opacity: 1; }
                 .quadrante-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
                 .quadrante-status-dot.active { background: #10b981; box-shadow: 0 0 5px #10b981; }
                 .quadrante-status-dot.inactive { background: #94a3b8; }
-                .encontro-action-label { display: none; }
+                .encontro-action-label {
+                    display: inline;
+                    font-size: 0.75rem;
+                    font-weight: 700;
+                }
 
                 @keyframes check-pop {
                     0% { transform: scale(0.5) rotate(-20deg); opacity: 0; }
@@ -250,44 +293,39 @@ export function EncontroRow({ encontro, onEdit, onDelete }: EncontroRowProps) {
                         gap: 0.75rem;
                     }
                     .desktop-divider { display: none; }
-                    .pessoa-row-main { width: 100%; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; flex: none !important; }
+                    .encontro-summary-zone { width: 100%; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; }
                     .encontro-local-zone { width: 100%; min-width: 0; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); }
                     .encontro-mid-section { width: 100%; min-width: 0; padding-top: 0.25rem; }
-                    .pessoa-row-actions {
-                        position: static;
+                    .encontro-actions {
+                        grid-column: 1 / -1;
                         width: 100%;
                         justify-content: flex-end;
                         flex-wrap: wrap;
-                        padding-top: 0.25rem;
+                        padding-top: 0.75rem;
                         background: transparent;
-                        border: none;
+                        border-top: 1px solid var(--border-color);
                     }
                 }
 
                 @container (max-width: 520px) {
-                    .pessoa-row-actions {
+                    .container-encontro-row .encontro-actions {
                         display: grid;
                         grid-template-columns: repeat(2, minmax(0, 1fr));
                         justify-content: stretch;
                         gap: 0.4rem;
                     }
-                    .pessoa-row-actions .quadrante-btn {
+                    .encontro-actions .quadrante-btn {
                         grid-column: 1 / -1;
                         justify-content: center;
                         width: 100% !important;
                     }
-                    .pessoa-row-actions .icon-btn:not(.quadrante-btn) {
+                    .encontro-actions .icon-btn:not(.quadrante-btn) {
                         width: 100%;
                         height: auto;
                         min-height: 36px;
                         min-width: 0;
                         gap: 0.45rem;
                         padding: 0.45rem 0.65rem;
-                    }
-                    .encontro-action-label {
-                        display: inline;
-                        font-size: 0.75rem;
-                        font-weight: 700;
                     }
                     .encontro-row-layout { gap: 0.5rem; }
                     .title-with-badge { padding-right: 0; }
