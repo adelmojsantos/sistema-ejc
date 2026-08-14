@@ -4,6 +4,10 @@
   z-index: 1200;
 }
 
+.pessoa-context-layer--stacked {
+  z-index: 10001;
+}
+
 .pessoa-context-backdrop {
   position: absolute;
   inset: 0;

@@ -28,6 +28,8 @@ interface PessoaContextDrawerProps {
   /** Edição explícita e sem confirmação; habilitada pela tela que abriu a gaveta. */
   canEditPessoa?: boolean;
   onEditPessoa?: (pessoaId: string) => void;
+  stacked?: boolean;
+  onNavigate?: () => void;
 }
 
 const CIRCLE_PERMISSIONS = [
@@ -70,6 +72,8 @@ export function PessoaContextDrawer({
   onClose,
   canEditPessoa = false,
   onEditPessoa,
+  stacked = false,
+  onNavigate,
 }: PessoaContextDrawerProps) {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -156,12 +160,13 @@ export function PessoaContextDrawer({
   const showVisitacao = isEncontrista && participacao.visita_participacao !== undefined;
 
   const goTo = (path: string) => {
-    onClose();
+    if (onNavigate) onNavigate();
+    else onClose();
     navigate(path);
   };
 
   return createPortal(
-    <div className="pessoa-context-layer" role="presentation">
+    <div className={`pessoa-context-layer ${stacked ? 'pessoa-context-layer--stacked' : ''}`} role="presentation">
       <button
         type="button"
         className="pessoa-context-backdrop"

@@ -157,7 +157,7 @@ function DesistentesTab({ desistentes, total, isLoading, canRestore, isEncontroA
 export function SecretariaParticipantesPage() {
   const { hasPermission } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { encontros, encontroSelecionadoId: selectedEncontroId, selecionarEncontro } = useEncontros();
   const encontroSelecionado = encontros.find((encontro) => encontro.id === selectedEncontroId) ?? null;
   const [participantes, setParticipantes] = useState<InscricaoEnriched[]>([]);
@@ -176,7 +176,9 @@ export function SecretariaParticipantesPage() {
   const [isRestoringDesistencia, setIsRestoringDesistencia] = useState(false);
   const [isLoadingPessoaEdit, setIsLoadingPessoaEdit] = useState(false);
   const [isSavingPessoaEdit, setIsSavingPessoaEdit] = useState(false);
-  const [activeTab, setActiveTab] = useState<'participantes' | 'desistentes' | 'fotosFamilias'>('participantes');
+  const [activeTab, setActiveTab] = useState<'participantes' | 'desistentes' | 'fotosFamilias'>(() =>
+    searchParams.get('aba') === 'fotos' ? 'fotosFamilias' : 'participantes'
+  );
   const [searchTerm, setSearchTerm] = useState('');
   const [filterVeiculo, setFilterVeiculo] = useState(false);
   const [filterSemFoto, setFilterSemFoto] = useState(false);
@@ -203,6 +205,12 @@ export function SecretariaParticipantesPage() {
       selecionarEncontro(encontroParam);
     }
   }, [encontros, searchParams, selectedEncontroId, selecionarEncontro]);
+
+  useEffect(() => {
+    if (searchParams.get('aba') === 'fotos') {
+      setActiveTab('fotosFamilias');
+    }
+  }, [searchParams]);
 
   const loadParticipantes = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -491,6 +499,12 @@ export function SecretariaParticipantesPage() {
 
   const handleTabChange = (tab: 'participantes' | 'desistentes' | 'fotosFamilias') => {
     setActiveTab(tab);
+    setSearchParams((currentParams) => {
+      const nextParams = new URLSearchParams(currentParams);
+      if (tab === 'fotosFamilias') nextParams.set('aba', 'fotos');
+      else nextParams.delete('aba');
+      return nextParams;
+    }, { replace: true });
     setSearchTerm('');
     setFilterVeiculo(false);
     setFilterSemFoto(false);

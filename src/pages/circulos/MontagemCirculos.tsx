@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type ChangeEvent } from 'react';
 import { toast } from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ChevronLeft, ChevronDown, Loader,
   Users, Shield, UserCircle, Eraser, AlertCircle,
@@ -40,6 +40,8 @@ interface CirculoAssignment {
 
 export function MontagemCirculos() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedCircleId = Number(searchParams.get('circulo'));
   const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
   const { equipes } = useEquipes();
 
@@ -132,8 +134,14 @@ export function MontagemCirculos() {
   useEffect(() => {
     if (circulos.length > 0) {
       setSelectedLotteryCirculos(circulos.map(c => c.id));
+      if (Number.isFinite(requestedCircleId) && circulos.some((circulo) => circulo.id === requestedCircleId)) {
+        setOpenCirculoId(requestedCircleId);
+        window.setTimeout(() => {
+          document.getElementById(`circulo-${requestedCircleId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
     }
-  }, [circulos]);
+  }, [circulos, requestedCircleId]);
 
   // Reset mediadores ao trocar o círculo aberto
   useEffect(() => {
@@ -542,6 +550,7 @@ export function MontagemCirculos() {
               return (
                 <article
                   key={circulo.id}
+                  id={`circulo-${circulo.id}`}
                   className={`mc-accordion-card${isOpen ? ' mc-accordion-card--open' : ''}`}
                 >
                   {/* ── Card Header ── */}

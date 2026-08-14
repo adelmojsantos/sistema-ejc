@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { useSearchParams } from 'react-router-dom';
 import { WhatsappLogo } from 'phosphor-react';
 import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -65,6 +66,8 @@ type GrupoMonitoramento = VisitaGrupo & {
 type GrupoComDesistentes = Pick<GrupoMonitoramento, 'nome' | 'desistentes'>;
 
 export function CoordenadorVisitacaoPage() {
+  const [searchParams] = useSearchParams();
+  const requestedGroupId = searchParams.get('grupo');
   const { encontroSelecionadoId: selectedEncontroId } = useEncontros();
   const { equipes } = useEquipes();
   const [activeTab, setActiveTab] = useState<'painel' | 'vincular'>('painel');
@@ -156,15 +159,18 @@ export function CoordenadorVisitacaoPage() {
       setVinculos(vData || []);
       setParticipacoesCanceladas(canceladosData || []);
 
-      if (gData.length > 0 && !selectedGrupoId) {
-        setSelectedGrupoId(gData[0].id);
+      if (gData.length > 0) {
+        const nextGroupId = gData.some((group) => group.id === requestedGroupId)
+          ? requestedGroupId!
+          : (gData.some((group) => group.id === selectedGrupoId) ? selectedGrupoId : gData[0].id);
+        if (nextGroupId !== selectedGrupoId) setSelectedGrupoId(nextGroupId);
       }
     } catch (_error) {
       console.error('Error loading meeting data:', _error);
     } finally {
       setIsFetching(false);
     }
-  }, [selectedEncontroId, selectedGrupoId, equipes]);
+  }, [selectedEncontroId, selectedGrupoId, equipes, requestedGroupId]);
 
   useEffect(() => {
     loadData();

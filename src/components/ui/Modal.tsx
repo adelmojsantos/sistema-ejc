@@ -7,24 +7,27 @@ interface ModalProps {
     title: string;
     children: ReactNode;
     maxWidth?: string;
+    suspended?: boolean;
 }
 
-export function Modal({ isOpen, onClose, title, children, maxWidth = '500px' }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, maxWidth = '500px', suspended = false }: ModalProps) {
     const overlayMouseDownRef = useRef(false);
 
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
         };
-        if (isOpen) {
+        if (isOpen && !suspended) {
             window.addEventListener('keydown', handleEsc);
+        }
+        if (isOpen) {
             document.body.style.overflow = 'hidden';
         }
         return () => {
             window.removeEventListener('keydown', handleEsc);
             document.body.style.overflow = 'unset';
         };
-    }, [isOpen, onClose]);
+    }, [isOpen, onClose, suspended]);
 
     if (!isOpen) return null;
 
@@ -40,7 +43,12 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = '500px' }: 
     };
 
     return (
-        <div className="modal-overlay" onMouseDown={handleOverlayMouseDown} onClick={handleOverlayClick}>
+        <div
+            className={`modal-overlay ${suspended ? 'modal-overlay--suspended' : ''}`}
+            onMouseDown={handleOverlayMouseDown}
+            onClick={handleOverlayClick}
+            aria-hidden={suspended || undefined}
+        >
             <div 
                 className="modal-content" 
                 style={{ maxWidth }}

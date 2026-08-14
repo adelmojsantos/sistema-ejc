@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, Plus, X, Loader, Check } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { EquipeRow } from '../../components/equipe/EquipeRow';
@@ -11,9 +11,10 @@ import type { Equipe, EquipeFormData } from '../../types/equipe';
 
 export function EquipesPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [equipes, setEquipes] = useState<Equipe[]>([]);
     const [filtered, setFiltered] = useState<Equipe[]>([]);
-    const [search, setSearch] = useState('');
+    const [search, setSearch] = useState(() => searchParams.get('busca') ?? '');
     const [novoNome, setNovoNome] = useState('');
     const [novoAcesso, setNovoAcesso] = useState<'verde' | 'amarela' | 'vermelha'>('verde');
     const [novoAparecePosEncontro, setNovoAparecePosEncontro] = useState(true);
