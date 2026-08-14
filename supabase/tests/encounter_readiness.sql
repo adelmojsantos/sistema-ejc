@@ -89,9 +89,15 @@ SELECT extensions.is(
   'valor, chave e tipo PIX completos são reconhecidos'
 );
 
+-- A alteração abaixo prepara o cenário seguinte; não faz parte da autorização
+-- exercitada pela RPC e, por isso, é executada pelo papel do teste.
+RESET ROLE;
+
 UPDATE public.encontros
 SET tema = NULL
 WHERE id = '27000000-0000-0000-0000-000000000001';
+
+SET LOCAL ROLE authenticated;
 
 SELECT extensions.ok(
   (public.get_encounter_readiness('27000000-0000-0000-0000-000000000001')->'metrics'->'basic_missing_fields') ? 'Tema',

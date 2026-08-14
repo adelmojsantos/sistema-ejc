@@ -32,6 +32,14 @@ VALUES (
   NULL
 );
 
+-- Grants locais ao teste reproduzem os privilégios de leitura do ambiente
+-- Supabase; as policies continuam decidindo quais linhas são visíveis.
+GRANT SELECT ON TABLE
+  public.financeiro_lancamentos,
+  public.financeiro_reconciliacoes,
+  public.financeiro_reconciliacao_itens
+TO authenticated;
+
 INSERT INTO public.grupos (id, nome, descricao)
 VALUES (
   '68000000-0000-0000-0000-000000000001',

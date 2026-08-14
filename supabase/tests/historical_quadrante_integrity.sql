@@ -31,6 +31,10 @@ VALUES (
   NULL
 );
 
+-- O baseline isolado contém apenas o esquema legado. O grant local reproduz a
+-- permissão de tabela esperada para que o teste alcance a RLS e o trigger.
+GRANT UPDATE ON TABLE public.encontros TO authenticated;
+
 INSERT INTO public.encontros (
   id, nome, data_inicio, data_fim, ativo, edicao,
   quadrante_ativo, quadrante_token, quadrante_pin, tematica_texto

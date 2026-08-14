@@ -27,6 +27,15 @@ UPDATE public.profiles
 SET role = 'admin', pessoa_id = '26000000-0000-0000-0000-000000000001'
 WHERE id = '16000000-0000-0000-0000-000000000001';
 
+-- Desde a P3, profiles.role não concede administração por si só. A fixture usa
+-- a mesma autorização RBAC aplicada pelo sistema.
+INSERT INTO public.usuario_grupos (usuario_id, grupo_id, encontro_id)
+VALUES (
+  '16000000-0000-0000-0000-000000000001',
+  '00000000-0000-0000-0002-000000000001',
+  NULL
+);
+
 UPDATE public.profiles
 SET pessoa_id = '26000000-0000-0000-0000-000000000002'
 WHERE id = '16000000-0000-0000-0000-000000000002';
