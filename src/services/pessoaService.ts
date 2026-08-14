@@ -15,6 +15,45 @@ export interface PessoaHistoricoParticipacao {
     } | null;
 }
 
+type RelacaoPostgrest<T> = T | T[] | null | undefined;
+
+interface PessoaHistoricoParticipacaoRow {
+    id: string;
+    participante: boolean | null;
+    coordenador: boolean | null;
+    equipes: RelacaoPostgrest<{ nome: string | null }>;
+    encontros: RelacaoPostgrest<{
+        nome: string | null;
+        ativo: boolean | null;
+        tema: string | null;
+    }>;
+}
+
+function primeiraRelacao<T>(value: RelacaoPostgrest<T>): T | null {
+    return Array.isArray(value) ? value[0] ?? null : value ?? null;
+}
+
+/**
+ * Normaliza relações do PostgREST, que podem chegar como objeto em relações
+ * muitos-para-um ou como array conforme os metadados disponíveis no cliente.
+ */
+export function normalizarHistoricoParticipacao(
+    row: PessoaHistoricoParticipacaoRow,
+): PessoaHistoricoParticipacao {
+    const equipe = primeiraRelacao(row.equipes);
+    const encontro = primeiraRelacao(row.encontros);
+
+    return {
+        id: row.id,
+        participante: row.participante,
+        coordenador: row.coordenador,
+        equipes: equipe ? { nome: equipe.nome } : null,
+        encontros: encontro
+            ? { nome: encontro.nome, ativo: encontro.ativo, tema: encontro.tema }
+            : null,
+    };
+}
+
 /** Campos pessoais aceitos pela edição. Vínculos de encontro pertencem a participacoes. */
 export type PessoaUpdateData = Partial<PessoaFormData>;
 
@@ -133,20 +172,7 @@ export const pessoaService = {
             .eq('pessoa_id', pessoaId);
 
         if (error) throw error;
-        return (data || []).map((row): PessoaHistoricoParticipacao => {
-            const equipe = row.equipes[0] ?? null;
-            const encontro = row.encontros[0] ?? null;
-
-            return {
-                id: row.id,
-                participante: row.participante,
-                coordenador: row.coordenador,
-                equipes: equipe ? { nome: equipe.nome } : null,
-                encontros: encontro
-                    ? { nome: encontro.nome, ativo: encontro.ativo, tema: encontro.tema }
-                    : null,
-            };
-        });
+        return (data || []).map(normalizarHistoricoParticipacao);
     },
 
     async criar(formData: PessoaFormData): Promise<Pessoa> {

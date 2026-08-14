@@ -13,7 +13,11 @@ vi.mock('../lib/supabase', () => ({
   supabase: { from: fromMock, rpc: rpcMock },
 }));
 
-import { normalizarPessoaUpdate, pessoaService } from './pessoaService';
+import {
+  normalizarHistoricoParticipacao,
+  normalizarPessoaUpdate,
+  pessoaService,
+} from './pessoaService';
 
 describe('pessoaService', () => {
   beforeEach(() => {
@@ -57,6 +61,33 @@ describe('pessoaService', () => {
     });
     expect(updateMock.mock.calls[0][0]).not.toHaveProperty('participante');
     expect(updateMock.mock.calls[0][0]).not.toHaveProperty('encontro_id');
+  });
+
+  it.each([
+    {
+      formato: 'objeto',
+      equipes: { nome: 'Círculos' },
+      encontros: { nome: '52º EJC', ativo: true, tema: 'Permanecei em mim' },
+    },
+    {
+      formato: 'array',
+      equipes: [{ nome: 'Círculos' }],
+      encontros: [{ nome: '52º EJC', ativo: true, tema: 'Permanecei em mim' }],
+    },
+  ])('normaliza relações do histórico retornadas como $formato', ({ equipes, encontros }) => {
+    expect(normalizarHistoricoParticipacao({
+      id: 'participacao-1',
+      participante: false,
+      coordenador: true,
+      equipes,
+      encontros,
+    })).toEqual({
+      id: 'participacao-1',
+      participante: false,
+      coordenador: true,
+      equipes: { nome: 'Círculos' },
+      encontros: { nome: '52º EJC', ativo: true, tema: 'Permanecei em mim' },
+    });
   });
 
   it('consulta o impacto antes da exclusão definitiva', async () => {

@@ -1949,6 +1949,270 @@ input:checked+.theme-toggle-slider:before {
   }
 }
 
+@media (max-width: 376px) {
+  .pessoa-card-row .pessoa-card-actions .icon-btn {
+    font-size: 0.76rem;
+  }
+
+  .pessoa-card-row .pessoa-card-actions .icon-btn > svg {
+    display: none;
+  }
+}
+
+/* Histórico de participação da pessoa */
+.historico-participacao {
+  display: flex;
+  flex-direction: column;
+}
+
+.historico-participacao__pessoa {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.historico-participacao__pessoa-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+}
+
+.historico-participacao__pessoa-info {
+  min-width: 0;
+}
+
+.historico-participacao__pessoa-info h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  overflow-wrap: anywhere;
+}
+
+.historico-participacao__pessoa-info p {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 0.85rem;
+}
+
+.historico-participacao__state {
+  padding: 3rem;
+  text-align: center;
+  color: var(--muted-text);
+}
+
+.historico-participacao__state svg {
+  margin: 0 auto 1rem;
+}
+
+.historico-participacao__state p {
+  margin: 0;
+}
+
+.historico-participacao__state--empty {
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+}
+
+.historico-participacao__lista {
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.historico-participacao__card {
+  padding: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.historico-participacao__card--ativo {
+  margin: 0.5rem 0;
+  border: 2px solid #10b981;
+  background: rgba(16, 185, 129, 0.05);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.1);
+}
+
+.historico-participacao__card-header,
+.historico-participacao__card-heading,
+.historico-participacao__papeis {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.historico-participacao__card-header {
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.historico-participacao__card-heading {
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.historico-participacao__encontro {
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.historico-participacao__card--ativo .historico-participacao__encontro {
+  color: #10b981;
+}
+
+.historico-participacao__tema {
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  color: #10b981;
+  font-size: 0.8rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.historico-participacao__atual {
+  padding: 0.2rem 0.6rem;
+  border-radius: 12px;
+  background: #10b981;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.historico-participacao__papeis {
+  gap: 0.5rem;
+}
+
+.historico-participacao__papel {
+  padding: 0.25rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(6, 107, 14, 0.9);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.historico-participacao__papel--participante {
+  background: rgba(7, 65, 12, 0.77);
+}
+
+.historico-participacao__papel--coordenador {
+  background: rgba(20, 2, 99, 0.9);
+  font-size: 0.75rem;
+}
+
+.historico-participacao__footer {
+  margin-top: 1.5rem;
+  text-align: right;
+}
+
+@media (max-width: 426px) {
+  .modal-content:has(.historico-participacao) .modal-header {
+    padding: 0.85rem 1rem;
+  }
+
+  .modal-content:has(.historico-participacao) .modal-title {
+    font-size: 1.1rem;
+  }
+
+  .modal-content:has(.historico-participacao) .modal-body {
+    padding: 0.7rem;
+  }
+
+  .historico-participacao__pessoa {
+    gap: 0.6rem;
+    margin-bottom: 0.7rem;
+    padding-bottom: 0.7rem;
+  }
+
+  .historico-participacao__pessoa-icon {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .historico-participacao__pessoa-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .historico-participacao__pessoa-info h2 {
+    font-size: 0.9rem;
+  }
+
+  .historico-participacao__lista {
+    max-height: 58vh;
+    gap: 0.5rem;
+  }
+
+  .historico-participacao__card,
+  .historico-participacao__card--ativo {
+    margin: 0;
+    padding: 0.75rem;
+    gap: 0.55rem;
+  }
+
+  .historico-participacao__card-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem 0.5rem;
+  }
+
+  .historico-participacao__card-heading {
+    display: contents;
+  }
+
+  .historico-participacao__encontro {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 0.85rem;
+  }
+
+  .historico-participacao__atual {
+    grid-column: 2;
+    grid-row: 1;
+    font-size: 0.6rem;
+  }
+
+  .historico-participacao__atual__icon {
+    display: none;
+  }
+
+  .historico-participacao__tema {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding: 0;
+    font-size: 0.66rem;
+  }
+
+  .historico-participacao__papel,
+  .historico-participacao__papel--coordenador {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.66rem;
+  }
+
+  .historico-participacao__footer {
+    display: none;
+  }
+}
+
 .desktop-only {
   display: none;
 }
@@ -2064,6 +2328,7 @@ input:checked+.theme-toggle-slider:before {
   bottom: -1px;
   left: 0;
   width: 350px;
+  max-width: 100%;
   height: 2px;
   background: var(--primary-color);
   border-radius: 99px;
@@ -4966,6 +5231,13 @@ tbody tr:hover {
   font-weight: 600;
 }
 
+.pessoa-card-row .pessoa-card-actions .icon-btn > svg {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  flex: 0 0 16px;
+}
+
 .sidebar-nav {
   flex: 1;
   padding: 1rem 0.75rem;
@@ -4982,6 +5254,12 @@ tbody tr:hover {
   margin-top: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--sidebar-border);
+}
+
+.sidebar-nav-group:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
 }
 
 .sidebar-nav-group__label {
@@ -8740,6 +9018,11 @@ textarea.form-input {
 }
 
 @media (max-width: 640px) {
+  .sidebar {
+    width: 100vw;
+    max-width: none;
+  }
+
   .modal-content:has(.global-search) {
     width: calc(100vw - 1rem); max-width: none !important; max-height: calc(100dvh - 1rem);
   }
