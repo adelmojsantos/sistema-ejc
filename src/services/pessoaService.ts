@@ -70,7 +70,7 @@ export interface ExclusaoPessoaImpacto {
     dirigencia: number;
 }
 
-export type PessoaSearchField = 'nome' | 'email' | 'telefone' | 'cpf' | 'endereco';
+export type PessoaSearchField = 'todos' | 'nome' | 'email' | 'telefone' | 'endereco';
 
 interface PessoaSearchRpcResult {
     data: Pessoa[];

@@ -86,6 +86,20 @@ describe('pessoaService', () => {
     });
   });
 
+  it('envia o filtro agregado sem incluir comunidade', async () => {
+    rpcMock.mockResolvedValueOnce({ data: { data: [], count: 0 }, error: null });
+
+    await pessoaService.buscarPorCampoComPaginacao('todos', 'Natalia', 1, 10);
+
+    expect(rpcMock).toHaveBeenCalledWith('search_pessoas_by_field', {
+      p_search_field: 'todos',
+      p_search_term: 'Natalia',
+      p_encontro_id: null,
+      p_page: 1,
+      p_page_size: 10,
+    });
+  });
+
   it('rejeita resposta incompleta da busca tipada', async () => {
     rpcMock.mockResolvedValueOnce({ data: { data: [] }, error: null });
 

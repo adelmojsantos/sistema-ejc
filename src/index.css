@@ -1690,13 +1690,16 @@ input:checked+.theme-toggle-slider:before {
 }
 
 .pessoas-list-search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
   min-width: 0;
 }
 
 .pessoas-search-composite {
   display: flex;
   align-items: stretch;
-  min-height: 42px;
+  height: 48px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   background: var(--surface-1);
@@ -1709,20 +1712,48 @@ input:checked+.theme-toggle-slider:before {
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
+.pessoas-search-field-control {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  border-right: 1px solid var(--border-color);
+  background-color: var(--secondary-bg);
+}
+
 .pessoas-search-field-select {
   flex: 0 0 auto;
   width: auto;
   min-width: 7.5rem;
-  padding: 0.55rem 2rem 0.55rem 0.75rem;
+  padding: 0.55rem 2.75rem 0.55rem 0.75rem;
   border: 0;
-  border-right: 1px solid var(--border-color);
   border-radius: 0;
-  background-color: var(--secondary-bg);
+  appearance: none;
+  background: transparent;
   color: var(--text-color);
   font: inherit;
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+.pessoas-search-field-select option {
+  background-color: var(--surface-1);
+  color: var(--text-color);
+}
+
+:root[data-theme="dark"] .pessoas-search-field-select,
+.dark .pessoas-search-field-select {
+  color-scheme: dark;
+}
+
+.pessoas-search-field-chevron {
+  position: absolute;
+  top: 50%;
+  right: 0.5rem;
+  transform: translateY(-50%);
+  color: var(--muted-text);
+  pointer-events: none;
 }
 
 .pessoas-search-field-select:focus,
@@ -1760,6 +1791,7 @@ input:checked+.theme-toggle-slider:before {
   min-width: 10rem;
 }
 
+.pessoas-list-search-label,
 .pessoas-list-filter-field > span {
   font-size: 0.75rem;
   font-weight: 600;
@@ -1769,7 +1801,7 @@ input:checked+.theme-toggle-slider:before {
 
 .pessoas-list-filter-field .form-input {
   width: 100%;
-  height: 38px;
+  height: 48px;
   margin-top: 0;
   padding: 0.4rem 2rem 0.4rem 0.75rem;
   font-size: 0.85rem;
@@ -1805,7 +1837,11 @@ input:checked+.theme-toggle-slider:before {
   .pessoas-search-field-select {
     min-width: 6.6rem;
     padding-left: 0.6rem;
-    padding-right: 1.5rem;
+    padding-right: 2.5rem;
+  }
+
+  .pessoas-search-field-chevron {
+    right: 0.85rem;
   }
 }
 

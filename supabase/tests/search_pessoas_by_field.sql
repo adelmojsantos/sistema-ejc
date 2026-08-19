@@ -1,7 +1,7 @@
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(11);
+SELECT extensions.plan(14);
 
 INSERT INTO public.pessoas (
   id, nome_completo, email, telefone, cpf, endereco, numero, bairro, cidade, estado, cep
@@ -52,10 +52,11 @@ SELECT extensions.is(
   'busca por telefone ignora formatação'
 );
 
-SELECT extensions.is(
-  (public.search_pessoas_by_field('cpf', '555.666.777-88', NULL, 1, 10) ->> 'count')::integer,
-  1,
-  'busca por CPF ignora formatação'
+SELECT extensions.throws_ok(
+  $$SELECT public.search_pessoas_by_field('cpf', '555.666.777-88', NULL, 1, 10)$$,
+  '22023',
+  'Filtro de busca inválido.',
+  'CPF não é aceito como filtro específico'
 );
 
 SELECT extensions.is(
@@ -74,6 +75,24 @@ SELECT extensions.is(
   (public.search_pessoas_by_field('endereco', '14400-123', NULL, 1, 10) ->> 'count')::integer,
   1,
   'busca por endereço reconhece CEP formatado'
+);
+
+SELECT extensions.is(
+  (public.search_pessoas_by_field('todos', 'nathy.moreiras', NULL, 1, 10) ->> 'count')::integer,
+  1,
+  'busca em todos encontra correspondência por e-mail'
+);
+
+SELECT extensions.is(
+  (public.search_pessoas_by_field('todos', 'santo antonio', NULL, 1, 10) ->> 'count')::integer,
+  1,
+  'busca em todos encontra correspondência por endereço sem acentos'
+);
+
+SELECT extensions.is(
+  (public.search_pessoas_by_field('todos', '55566677788', NULL, 1, 10) ->> 'count')::integer,
+  0,
+  'busca em todos não pesquisa CPF'
 );
 
 SELECT extensions.is(

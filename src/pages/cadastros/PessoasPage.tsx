@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { UserPlus, X, Users, User } from 'lucide-react';
+import { ChevronDown, UserPlus, X, Users, User } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { PessoaCard } from '../../components/pessoa/PessoaCard';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
@@ -20,8 +20,8 @@ const SEARCH_FIELDS: Array<{ value: PessoaSearchField; label: string; placeholde
     { value: 'nome', label: 'Nome', placeholder: 'Buscar por nome…' },
     { value: 'email', label: 'E-mail', placeholder: 'Buscar por e-mail…' },
     { value: 'telefone', label: 'Telefone', placeholder: 'Buscar por telefone…' },
-    { value: 'cpf', label: 'CPF', placeholder: 'Buscar por CPF…' },
     { value: 'endereco', label: 'Endereço', placeholder: 'Buscar por rua, bairro, cidade ou CEP…' },
+    { value: 'todos', label: 'Todos', placeholder: 'Buscar por nome, e-mail, telefone ou endereço…' },
 ];
 
 export function PessoasPage() {
@@ -49,7 +49,12 @@ export function PessoasPage() {
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [totalCount, setTotalCount] = useState(0);
-    const debouncedSearch = useDebounce(search, 500);
+    const requestSearchField: PessoaSearchField = search.trim() === '' ? 'nome' : searchField;
+    const pendingSearch = useMemo(
+        () => ({ term: search, field: requestSearchField }),
+        [search, requestSearchField],
+    );
+    const { term: debouncedSearch, field: appliedSearchField } = useDebounce(pendingSearch, 500);
 
     // Filter States
     const { encontros } = useEncontros();
@@ -88,8 +93,8 @@ export function PessoasPage() {
     }, [pageSize]);
 
     useEffect(() => {
-        void load(debouncedSearch, searchField, page, selectedEncontroId);
-    }, [load, debouncedSearch, searchField, page, selectedEncontroId]);
+        void load(debouncedSearch, appliedSearchField, page, selectedEncontroId);
+    }, [load, debouncedSearch, appliedSearchField, page, selectedEncontroId]);
 
     // Local filtering removed as it's now server-side
     // useEffect(() => { ... }, [search, pessoas]);
@@ -246,23 +251,31 @@ export function PessoasPage() {
                     <div className="card" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
                         <div className="pessoas-list-filters">
                             <div className="pessoas-list-search">
+                                <label className="pessoas-list-search-label" htmlFor="pessoas-search-input">Buscar por</label>
                                 <div className="pessoas-search-composite">
                                     <label className="sr-only" htmlFor="pessoas-search-field">Buscar por</label>
-                                    <select
-                                        id="pessoas-search-field"
-                                        className="pessoas-search-field-select"
-                                        value={searchField}
-                                        onChange={(event) => {
-                                            setSearchField(event.target.value as PessoaSearchField);
-                                            setPage(1);
-                                        }}
-                                    >
-                                        {SEARCH_FIELDS.map(option => (
-                                            <option key={option.value} value={option.value}>{option.label}</option>
-                                        ))}
-                                    </select>
+                                    <div className="pessoas-search-field-control">
+                                        <select
+                                            id="pessoas-search-field"
+                                            className="pessoas-search-field-select"
+                                            value={searchField}
+                                            onChange={(event) => {
+                                                setSearchField(event.target.value as PessoaSearchField);
+                                                if (search.trim() !== '') {
+                                                    setSearch('');
+                                                    setPage(1);
+                                                }
+                                            }}
+                                        >
+                                            {SEARCH_FIELDS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown className="pessoas-search-field-chevron" size={18} aria-hidden="true" />
+                                    </div>
                                     <div className="form-input-wrapper pessoas-search-input-wrapper">
                                         <input
+                                            id="pessoas-search-input"
                                             type="text"
                                             className="form-input"
                                             placeholder={SEARCH_FIELDS.find(option => option.value === searchField)?.placeholder}
