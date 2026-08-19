@@ -63,6 +63,36 @@ describe('pessoaService', () => {
     expect(updateMock.mock.calls[0][0]).not.toHaveProperty('encontro_id');
   });
 
+  it('envia o filtro específico e a paginação para a busca de pessoas', async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: { data: [{ id: 'pessoa-1', nome_completo: 'Natália Silva' }], count: 1 },
+      error: null,
+    });
+
+    await expect(pessoaService.buscarPorCampoComPaginacao(
+      'endereco',
+      '  Rua Pérola  ',
+      2,
+      10,
+      'encontro-1',
+    )).resolves.toMatchObject({ count: 1 });
+
+    expect(rpcMock).toHaveBeenCalledWith('search_pessoas_by_field', {
+      p_search_field: 'endereco',
+      p_search_term: 'Rua Pérola',
+      p_encontro_id: 'encontro-1',
+      p_page: 2,
+      p_page_size: 10,
+    });
+  });
+
+  it('rejeita resposta incompleta da busca tipada', async () => {
+    rpcMock.mockResolvedValueOnce({ data: { data: [] }, error: null });
+
+    await expect(pessoaService.buscarPorCampoComPaginacao('nome', 'Natalia'))
+      .rejects.toThrow('resposta incompleta');
+  });
+
   it.each([
     {
       formato: 'objeto',
