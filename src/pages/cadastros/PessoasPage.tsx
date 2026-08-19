@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { UserPlus, Search, X, Users, User } from 'lucide-react';
+import { ChevronDown, UserPlus, X, Users, User } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { PessoaCard } from '../../components/pessoa/PessoaCard';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
@@ -12,15 +12,24 @@ import { useDebounce } from '../../hooks/useDebounce.ts';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
-import type { ExclusaoPessoaImpacto } from '../../services/pessoaService';
+import type { ExclusaoPessoaImpacto, PessoaSearchField } from '../../services/pessoaService';
 
 type Mode = 'list' | 'create' | 'edit';
+
+const SEARCH_FIELDS: Array<{ value: PessoaSearchField; label: string; placeholder: string }> = [
+    { value: 'nome', label: 'Nome', placeholder: 'Buscar por nome…' },
+    { value: 'email', label: 'E-mail', placeholder: 'Buscar por e-mail…' },
+    { value: 'telefone', label: 'Telefone', placeholder: 'Buscar por telefone…' },
+    { value: 'endereco', label: 'Endereço', placeholder: 'Buscar por rua, bairro, cidade ou CEP…' },
+    { value: 'todos', label: 'Todos', placeholder: 'Buscar por nome, e-mail, telefone ou endereço…' },
+];
 
 export function PessoasPage() {
     const navigate = useNavigate();
     const [pessoas, setPessoas] = useState<Pessoa[]>([]);
     const [filtered, setFiltered] = useState<Pessoa[]>([]);
     const [search, setSearch] = useState('');
+    const [searchField, setSearchField] = useState<PessoaSearchField>('nome');
     const [mode, setMode] = useState<Mode>('list');
     const [selected, setSelected] = useState<Pessoa | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -34,12 +43,18 @@ export function PessoasPage() {
     const [historyTarget, setHistoryTarget] = useState<Pessoa | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const scrollPositionRef = useRef(0);
+    const latestRequestRef = useRef(0);
 
     // Pagination States
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [totalCount, setTotalCount] = useState(0);
-    const debouncedSearch = useDebounce(search, 500);
+    const requestSearchField: PessoaSearchField = search.trim() === '' ? 'nome' : searchField;
+    const pendingSearch = useMemo(
+        () => ({ term: search, field: requestSearchField }),
+        [search, requestSearchField],
+    );
+    const { term: debouncedSearch, field: appliedSearchField } = useDebounce(pendingSearch, 500);
 
     // Filter States
     const { encontros } = useEncontros();
@@ -47,25 +62,39 @@ export function PessoasPage() {
     const canDeletePeople = hasPermission('modulo_admin');
     const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
 
-    const load = useCallback(async (currentSearch: string, currentPage: number, currentEncontroId: string) => {
+    const load = useCallback(async (
+        currentSearch: string,
+        currentSearchField: PessoaSearchField,
+        currentPage: number,
+        currentEncontroId: string,
+    ) => {
+        const requestId = ++latestRequestRef.current;
         setIsFetching(true);
         setFetchError(null);
         try {
-            const result = await pessoaService.buscarComPaginacao(currentSearch, currentPage, pageSize, currentEncontroId);
+            const result = await pessoaService.buscarPorCampoComPaginacao(
+                currentSearchField,
+                currentSearch,
+                currentPage,
+                pageSize,
+                currentEncontroId,
+            );
+            if (requestId !== latestRequestRef.current) return;
             setPessoas(result.data);
             setFiltered(result.data);
             setTotalCount(result.count);
         } catch {
+            if (requestId !== latestRequestRef.current) return;
             setFetchError('Erro ao carregar cadastros. Tente novamente.');
             toast.error('Erro ao carregar pessoas.');
         } finally {
-            setIsFetching(false);
+            if (requestId === latestRequestRef.current) setIsFetching(false);
         }
     }, [pageSize]);
 
     useEffect(() => {
-        load(debouncedSearch, page, selectedEncontroId);
-    }, [load, debouncedSearch, page, selectedEncontroId]);
+        void load(debouncedSearch, appliedSearchField, page, selectedEncontroId);
+    }, [load, debouncedSearch, appliedSearchField, page, selectedEncontroId]);
 
     // Local filtering removed as it's now server-side
     // useEffect(() => { ... }, [search, pessoas]);
@@ -126,7 +155,7 @@ export function PessoasPage() {
             backToList();
             if (mode === 'create') {
                 setPage(1); // Reset to first page on create
-                load(debouncedSearch, 1, selectedEncontroId);
+                void load(debouncedSearch, searchField, 1, selectedEncontroId);
             }
         } catch {
             setFormError('Erro ao salvar. Verifique os dados e tente novamente.');
@@ -164,7 +193,7 @@ export function PessoasPage() {
         try {
             await pessoaService.excluirDefinitivamente(deleteTarget.id, deleteConfirmation);
             toast.success('Pessoa e históricos excluídos definitivamente.');
-            await load(debouncedSearch, page, selectedEncontroId);
+            await load(debouncedSearch, searchField, page, selectedEncontroId);
         } catch (err: unknown) {
             toast.error(err instanceof Error ? err.message : 'Erro ao excluir a pessoa.');
         } finally {
@@ -222,42 +251,63 @@ export function PessoasPage() {
                     <div className="card" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
                         <div className="pessoas-list-filters">
                             <div className="pessoas-list-search">
-                                <div className="form-input-wrapper">
-                                    <div className="form-input-icon">
-                                        <Search size={16} />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        className="form-input form-input--with-icon"
-                                        placeholder="Buscar por nome, e-mail, telefone ou comunidade…"
-                                        value={search}
-                                        onChange={(e) => {
-                                            setSearch(e.target.value);
-                                            setPage(1);
-                                        }}
-                                    />
-                                    {search && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setSearch('')}
-                                            style={{
-                                                position: 'absolute',
-                                                right: '0.6rem',
-                                                top: '50%',
-                                                transform: 'translateY(-50%)',
-                                                background: 'none',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                color: 'var(--muted-text)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                padding: '0.2rem',
+                                <label className="pessoas-list-search-label" htmlFor="pessoas-search-input">Buscar por</label>
+                                <div className="pessoas-search-composite">
+                                    <label className="sr-only" htmlFor="pessoas-search-field">Buscar por</label>
+                                    <div className="pessoas-search-field-control">
+                                        <select
+                                            id="pessoas-search-field"
+                                            className="pessoas-search-field-select"
+                                            value={searchField}
+                                            onChange={(event) => {
+                                                setSearchField(event.target.value as PessoaSearchField);
+                                                if (search.trim() !== '') {
+                                                    setSearch('');
+                                                    setPage(1);
+                                                }
                                             }}
-                                            title="Limpar busca"
                                         >
-                                            <X size={14} />
-                                        </button>
-                                    )}
+                                            {SEARCH_FIELDS.map(option => (
+                                                <option key={option.value} value={option.value}>{option.label}</option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown className="pessoas-search-field-chevron" size={18} aria-hidden="true" />
+                                    </div>
+                                    <div className="form-input-wrapper pessoas-search-input-wrapper">
+                                        <input
+                                            id="pessoas-search-input"
+                                            type="text"
+                                            className="form-input"
+                                            placeholder={SEARCH_FIELDS.find(option => option.value === searchField)?.placeholder}
+                                            value={search}
+                                            onChange={(e) => {
+                                                setSearch(e.target.value);
+                                                setPage(1);
+                                            }}
+                                        />
+                                        {search && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setSearch('')}
+                                                style={{
+                                                    position: 'absolute',
+                                                    right: '0.6rem',
+                                                    top: '50%',
+                                                    transform: 'translateY(-50%)',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    cursor: 'pointer',
+                                                    color: 'var(--muted-text)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    padding: '0.2rem',
+                                                }}
+                                                title="Limpar busca"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 
@@ -309,7 +359,7 @@ export function PessoasPage() {
                     {fetchError && !isFetching && (
                         <div className="empty-state">
                             <p style={{ color: '#ef4444' }}>{fetchError}</p>
-                            <button onClick={() => load(search, page, selectedEncontroId)}>Tentar novamente</button>
+                            <button onClick={() => void load(search, searchField, page, selectedEncontroId)}>Tentar novamente</button>
                         </div>
                     )}
 

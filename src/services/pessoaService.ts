@@ -70,6 +70,26 @@ export interface ExclusaoPessoaImpacto {
     dirigencia: number;
 }
 
+export type PessoaSearchField = 'todos' | 'nome' | 'email' | 'telefone' | 'endereco';
+
+interface PessoaSearchRpcResult {
+    data: Pessoa[];
+    count: number;
+}
+
+function parsePessoaSearchResult(value: unknown): PessoaSearchRpcResult {
+    if (!value || typeof value !== 'object') {
+        throw new Error('A busca de pessoas retornou uma resposta inválida.');
+    }
+
+    const result = value as { data?: unknown; count?: unknown };
+    if (!Array.isArray(result.data) || typeof result.count !== 'number') {
+        throw new Error('A busca de pessoas retornou uma resposta incompleta.');
+    }
+
+    return { data: result.data as Pessoa[], count: result.count };
+}
+
 /**
  * Normaliza somente dados da pessoa, preservando campos omitidos em atualizações parciais.
  * Isso impede que telas de módulos diferentes enviem acidentalmente dados de participação.
@@ -146,6 +166,25 @@ export const pessoaService = {
 
         if (error) throw error;
         return { data: data as Pessoa[], count: count || 0 };
+    },
+
+    async buscarPorCampoComPaginacao(
+        campo: PessoaSearchField,
+        busca: string = '',
+        pagina: number = 1,
+        limite: number = 20,
+        encontroId?: string,
+    ): Promise<PessoaSearchRpcResult> {
+        const { data, error } = await supabase.rpc('search_pessoas_by_field', {
+            p_search_field: campo,
+            p_search_term: busca.trim(),
+            p_encontro_id: encontroId || null,
+            p_page: pagina,
+            p_page_size: limite,
+        });
+
+        if (error) throw error;
+        return parsePessoaSearchResult(data);
     },
 
     async buscarPorId(id: string): Promise<Pessoa> {
