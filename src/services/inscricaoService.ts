@@ -25,6 +25,23 @@ export const SECRETARIA_SAFE_PERSON_FIELDS = [
     'origem',
     'latitude',
     'longitude',
+    'geo_status',
+    'geo_source',
+    'geo_precision',
+    'geo_accuracy_m',
+    'geo_address_fingerprint',
+    'geo_checked_at',
+    'geo_verified_at',
+    'geo_verified_by',
+    'geo_failure_code',
+    'geo_retry_count',
+    'geo_next_retry_at',
+    'geo_reference_latitude',
+    'geo_reference_longitude',
+    'geo_reference_source',
+    'geo_reference_precision',
+    'geo_reference_address_fingerprint',
+    'geo_reference_checked_at',
     'nome_pai',
     'telefone_pai',
     'nome_mae',
@@ -155,16 +172,17 @@ export const inscricaoService = {
     async listarPorEquipeEEncontro(equipeId: string, encontroId: string): Promise<InscricaoEnriched[]> {
         const { data, error } = await supabase
             .from(TABLE)
-            .select('*, pessoas(id, nome_completo, cpf, email, telefone, comunidade, data_nascimento, endereco, numero, bairro, cidade, estado, cep, origem, latitude, longitude), equipes(nome), recepcao_dados(*), recreacao_dados!recreacao_dados_participacao_id_fkey(*), recreacao_dados_secundario:recreacao_dados!recreacao_dados_outro_responsavel_id_fkey(*)')
+            .select(`*, pessoas(${SECRETARIA_SAFE_PERSON_FIELDS}), equipes(nome), recepcao_dados(*), recreacao_dados!recreacao_dados_participacao_id_fkey(*), recreacao_dados_secundario:recreacao_dados!recreacao_dados_outro_responsavel_id_fkey(*)`)
             .eq('encontro_id', encontroId)
             .eq('equipe_id', equipeId);
 
         if (error) throw error;
-        return (data ?? []).map((participacao) => ({
+        const participacoes = (data ?? []) as unknown as InscricaoEnriched[];
+        return participacoes.map((participacao) => ({
             ...participacao,
             recreacao_dados: participacao.recreacao_dados?.filter((crianca: RecreacaoDados) => !crianca.deleted_at) ?? [],
             recreacao_dados_secundario: participacao.recreacao_dados_secundario?.filter((crianca: RecreacaoDados) => !crianca.deleted_at) ?? [],
-        })) as unknown as InscricaoEnriched[];
+        }));
     },
 
     async criar(formData: InscricaoFormData): Promise<Inscricao> {

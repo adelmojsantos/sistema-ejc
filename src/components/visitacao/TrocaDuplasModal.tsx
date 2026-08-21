@@ -12,9 +12,9 @@ import {
 import { toast } from 'react-hot-toast';
 import { Modal } from '../ui/Modal';
 import { visitacaoService } from '../../services/visitacaoService';
-import type { VisitaGrupo, VisitaParticipacaoEnriched } from '../../types/visitacao';
+import type { VisitaGrupo, VisitaGrupoMoveMode, VisitaParticipacaoEnriched } from '../../types/visitacao';
 
-type SwapMode = 'individual' | 'mover_todos' | 'swap_completo';
+type SwapMode = VisitaGrupoMoveMode;
 
 interface TrocaDuplasModalProps {
   isOpen: boolean;
@@ -74,29 +74,21 @@ export function TrocaDuplasModal({ isOpen, onClose, grupos, vinculos, onSuccess 
     if (!canExecute) return;
     setIsLoading(true);
     try {
-      switch (mode) {
-        case 'individual': {
-          const ops = membrosA
-            .filter(m => selectedIds.has(m.id))
-            .map(m => visitacaoService.trocarGrupo(m.id, grupoBId));
-          await Promise.all(ops);
-          toast.success(`${ops.length} encontrista(s) movido(s) com sucesso!`);
-          break;
-        }
-        case 'mover_todos': {
-          const ops = membrosA.map(m => visitacaoService.trocarGrupo(m.id, grupoBId));
-          await Promise.all(ops);
-          toast.success(`${ops.length} encontrista(s) movido(s) para ${grupoB?.nome}!`);
-          break;
-        }
-        case 'swap_completo': {
-          // Move all A → B and all B → A in parallel
-          const opsAtoB = membrosA.map(m => visitacaoService.trocarGrupo(m.id, grupoBId));
-          const opsBtoA = membrosB.map(m => visitacaoService.trocarGrupo(m.id, grupoAId));
-          await Promise.all([...opsAtoB, ...opsBtoA]);
-          toast.success(`Troca completa realizada! ${opsAtoB.length + opsBtoA.length} vínculo(s) atualizados.`);
-          break;
-        }
+      const selectedLinkIds = mode === 'individual' ? Array.from(selectedIds) : [];
+      const result = await visitacaoService.trocarEncontristasEntreDuplas(
+        grupoAId,
+        grupoBId,
+        mode,
+        selectedLinkIds
+      );
+      const total = result.movidos_a_para_b + result.movidos_b_para_a;
+
+      if (mode === 'swap_completo') {
+        toast.success(`Troca completa realizada! ${total} vínculo(s) atualizados.`);
+      } else if (mode === 'mover_todos') {
+        toast.success(`${result.movidos_a_para_b} encontrista(s) movido(s) para ${grupoB?.nome}!`);
+      } else {
+        toast.success(`${result.movidos_a_para_b} encontrista(s) movido(s) com sucesso!`);
       }
       onSuccess();
       handleReset();

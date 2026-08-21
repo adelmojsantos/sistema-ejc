@@ -34,6 +34,7 @@ import { formatPlate } from '../../utils/plateUtils';
 import { WhatsappLogo } from 'phosphor-react';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
+import { buildGoogleMapsStopUrl } from '../../utils/visitRoutePlanning';
 
 type VisitaListItem = VisitaParticipacaoEnriched & {
     is_history?: boolean;
@@ -174,7 +175,7 @@ export function VisitacaoMeusParticipantesPage() {
                         targetGrupoNome = (grupoData as { nome?: string } | null)?.nome || 'Minha Dupla';
 
                         // Set selectedGrupoId only if not already set (initial load)
-                        if (isCoordinator && !selectedGrupoId) {
+                        if (!selectedGrupoId) {
                             setSelectedGrupoId(targetGrupoId);
                         }
                     }
@@ -317,15 +318,15 @@ export function VisitacaoMeusParticipantesPage() {
             const bCancelado = b.status === 'cancelada';
             if (aCancelado !== bCancelado) return aCancelado ? 1 : -1;
 
+            const orderA = a.ordem_roteiro ?? Number.MAX_SAFE_INTEGER;
+            const orderB = b.ordem_roteiro ?? Number.MAX_SAFE_INTEGER;
+            if (orderA !== orderB) return orderA - orderB;
+
             const nomeA = a.participacoes?.pessoas?.nome_completo || '';
             const nomeB = b.participacoes?.pessoas?.nome_completo || '';
             return nomeA.localeCompare(nomeB, 'pt-BR', { sensitivity: 'base' });
         });
     }, [participantes, filterStatus, filterVeiculo]);
-
-    const urgentes = useMemo(() => {
-        return participantes.filter(p => !p.taxa_paga && p.status === 'pendente');
-    }, [participantes]);
 
     const handleToggleTax = async (pId: string, currentStatus: boolean) => {
         try {
@@ -446,21 +447,6 @@ export function VisitacaoMeusParticipantesPage() {
                             <p style={{ margin: '0.5rem 0 0', fontSize: '0.7rem', opacity: 0.6 }}>Conclua para bater a meta!</p>
                         </div>
                     </div>
-
-                    {/* URGENTES TRAY */}
-                    {urgentes.length > 0 && (
-                        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', padding: '1rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                            <div style={{ background: '#fee2e2', color: '#ef4444', padding: '0.5rem', borderRadius: '50%' }}>
-                                <AlertCircle size={24} />
-                            </div>
-                            <div>
-                                <h4 style={{ margin: 0, color: '#991b1b', fontSize: '0.95rem' }}>Atenção Necessária</h4>
-                                <p style={{ margin: 0, color: '#b91c1c', fontSize: '0.8rem', marginTop: '0.2rem' }}>
-                                    Você tem {urgentes.length} encontrista(s) pendente(s) de visita e pagamento. Planeje estas visitas em breve!
-                                </p>
-                            </div>
-                        </div>
-                    )}
                 </div>
             )}
 
@@ -558,6 +544,7 @@ export function VisitacaoMeusParticipantesPage() {
                                     const fotoUrl = p.participacoes?.foto_url;
                                     const fotoPosicaoY = p.participacoes?.foto_posicao_y ?? 50;
                                     const veiculo = getVehicleData(p.participacoes?.recepcao_dados);
+                                    const mapsUrl = pessoa ? buildGoogleMapsStopUrl({ ...pessoa, id: p.id }) : null;
                                     return (
                                         <div key={p.id} className="card card-hover" style={{ padding: '1.25rem', position: 'relative', overflow: 'hidden', maxWidth: '100%' }}>
                                             {/* Indicador de status lateral (borda) */}
@@ -649,12 +636,14 @@ export function VisitacaoMeusParticipantesPage() {
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', padding: '0.75rem 1rem', background: 'var(--secondary-bg)', borderRadius: '8px', fontSize: '0.85rem', overflow: 'hidden' }}>
                                                     <div style={{ flex: '1 1 200px', minWidth: 0 }}>
                                                         <a
-                                                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${pessoa?.endereco}, ${pessoa?.numero}, ${pessoa?.bairro}, ${pessoa?.cidade}`)}`}
+                                                            href={mapsUrl || undefined}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             style={{ display: 'inline-flex', alignItems: 'flex-start', gap: '6px', color: 'var(--text-color)', textDecoration: 'none', transition: 'color 0.2s' }}
                                                             onClick={(e) => e.stopPropagation()}
-                                                            className="hover-primary"
+                                                            className={mapsUrl ? 'hover-primary' : undefined}
+                                                            aria-disabled={!mapsUrl}
+                                                            title={mapsUrl ? 'Abrir no Google Maps' : 'Navegação indisponível: endereço incompleto'}
                                                         >
                                                             <MapPin size={16} style={{ color: 'var(--primary-color)', flexShrink: 0, marginTop: '2px' }} />
                                                             <span style={{ lineHeight: 1.4, wordBreak: 'break-word', overflowWrap: 'anywhere' }}>

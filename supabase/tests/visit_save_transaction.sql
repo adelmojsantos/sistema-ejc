@@ -1,7 +1,7 @@
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(11);
+SELECT extensions.plan(18);
 
 INSERT INTO auth.users (
   id, email, aud, role, encrypted_password, email_confirmed_at,
@@ -61,7 +61,7 @@ SELECT set_config('request.jwt.claim.role', 'authenticated', true);
 SET LOCAL ROLE authenticated;
 
 SELECT extensions.lives_ok(
-  $$SELECT public.salvar_visita_completa(
+  $$SELECT public.salvar_visita_completa_v2(
     '59000000-0000-0000-0000-000000000001',
     jsonb_build_object(
       'status', 'realizada',
@@ -73,6 +73,30 @@ SELECT extensions.lives_ok(
       'pessoa', jsonb_build_object(
         'nome_completo', 'Encontrista Atualizado',
         'telefone', '(16) 99999-9999',
+        'endereco', 'Rua das Flores',
+        'numero', '10',
+        'cep', '14400000',
+        'bairro', 'Centro',
+        'cidade', 'Franca',
+        'estado', 'SP',
+        'latitude', -20.538,
+        'longitude', -47.401,
+        'geo_status', 'verified',
+        'geo_source', 'manual',
+        'geo_precision', 'manual',
+        'geo_address_fingerprint', public.build_address_fingerprint(
+          'Rua das Flores', '10', NULL, '14400000', 'Centro', 'Franca', 'SP'
+        ),
+        'geo_checked_at', now(),
+        'geo_verified_at', now(),
+        'geo_reference_latitude', -20.54,
+        'geo_reference_longitude', -47.40,
+        'geo_reference_source', 'nominatim',
+        'geo_reference_precision', 'street',
+        'geo_reference_address_fingerprint', public.build_address_fingerprint(
+          'Rua das Flores', '10', NULL, '14400000', 'Centro', 'Franca', 'SP'
+        ),
+        'geo_reference_checked_at', now(),
         'possui_alergia', true,
         'alergia', 'Dipirona'
       ),
@@ -104,6 +128,62 @@ SELECT extensions.is(
   (SELECT nome_completo FROM public.pessoas WHERE id = '39000000-0000-0000-0000-000000000001'),
   'Encontrista Atualizado',
   'dados cadastrais são atualizados na mesma operação'
+);
+
+SELECT extensions.ok(
+  (SELECT geo_status = 'verified' AND latitude = -20.538 AND longitude = -47.401
+   FROM public.pessoas
+   WHERE id = '39000000-0000-0000-0000-000000000001'),
+  'salvamento da visita persiste somente a localização marcada como verificada'
+);
+
+SELECT extensions.is(
+  (SELECT geo_verified_by FROM public.pessoas WHERE id = '39000000-0000-0000-0000-000000000001'),
+  '19000000-0000-0000-0000-000000000001'::uuid,
+  'confirmação manual registra o usuário autenticado no banco'
+);
+
+SELECT extensions.ok(
+  (SELECT geo_reference_latitude = -20.54 AND geo_reference_precision = 'street'
+   FROM public.pessoas
+   WHERE id = '39000000-0000-0000-0000-000000000001'),
+  'salvamento transacional preserva a referência regional separada'
+);
+
+SET LOCAL ROLE authenticated;
+
+SELECT extensions.lives_ok(
+  $$SELECT public.atualizar_endereco_visitacao_v2(
+    '49000000-0000-0000-0000-000000000001',
+    jsonb_build_object(
+      'endereco', 'Rua das Flores',
+      'numero', '10',
+      'cep', '14400000',
+      'bairro', 'Centro',
+      'cidade', 'Franca',
+      'estado', 'SP',
+      'latitude', -20.538,
+      'longitude', -47.401,
+      'geo_status', 'verified',
+      'geo_source', 'manual',
+      'geo_precision', 'manual',
+      'geo_address_fingerprint', public.build_address_fingerprint(
+        'Rua das Flores', '10', NULL, '14400000', 'Centro', 'Franca', 'SP'
+      ),
+      'geo_checked_at', now(),
+      'geo_verified_at', now()
+    )
+  )$$,
+  'cliente anterior à migration pode salvar sem enviar os novos campos'
+);
+
+RESET ROLE;
+
+SELECT extensions.ok(
+  (SELECT geo_reference_latitude = -20.54 AND geo_reference_precision = 'street'
+   FROM public.pessoas
+   WHERE id = '39000000-0000-0000-0000-000000000001'),
+  'RPC preserva referência regional quando cliente antigo omite os campos'
 );
 
 SELECT extensions.ok(
@@ -157,6 +237,48 @@ SELECT extensions.is(
   (SELECT nome_completo FROM public.pessoas WHERE id = '39000000-0000-0000-0000-000000000001'),
   'Encontrista Atualizado',
   'falha da intenção também desfaz alterações da pessoa'
+);
+
+SET LOCAL ROLE authenticated;
+
+SELECT extensions.throws_ok(
+  $$SELECT public.salvar_visita_completa_v2(
+    '59000000-0000-0000-0000-000000000001',
+    jsonb_build_object(
+      'status', 'ausente',
+      'observacoes', 'Não deve persistir por falha geográfica',
+      'taxa_paga', true,
+      'pessoa', jsonb_build_object(
+        'nome_completo', 'Encontrista Atualizado',
+        'telefone', '16999999999',
+        'endereco', 'Rua Alterada',
+        'numero', '99',
+        'cidade', 'Franca',
+        'estado', 'SP',
+        'latitude', -20.5,
+        'longitude', -47.4,
+        'geo_status', 'verified',
+        'geo_source', 'manual',
+        'geo_precision', 'manual',
+        'geo_address_fingerprint', 'incorreto',
+        'geo_checked_at', now(),
+        'geo_verified_at', now()
+      ),
+      'intencoes', '[]'::jsonb
+    )
+  )$$,
+  'P0001',
+  'A localização não corresponde ao endereço atual.',
+  'fingerprint divergente rejeita toda a transação da visita'
+);
+
+RESET ROLE;
+
+SELECT extensions.ok(
+  (SELECT status = 'realizada' AND observacoes = 'Família confirmou presença'
+   FROM public.visita_participacao
+   WHERE id = '59000000-0000-0000-0000-000000000001'),
+  'falha geográfica também desfaz as alterações operacionais da visita'
 );
 
 SET LOCAL ROLE authenticated;

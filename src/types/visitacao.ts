@@ -24,6 +24,7 @@ export interface VisitaParticipacao {
     foto_familia_url: string | null;
     taxa_paga: boolean;
     data_visita: string | null;
+    ordem_roteiro?: number | null;
 }
 
 export interface VisitaParticipacaoEnriched extends VisitaParticipacao {
@@ -81,5 +82,13 @@ export interface VisitaGrupoDeleteImpact {
     intencoes_camiseta_total: number;
     presencas_total: number;
     desistentes_total: number;
+}
+
+export type VisitaGrupoMoveMode = 'individual' | 'mover_todos' | 'swap_completo';
+
+export interface VisitaGrupoMoveResult {
+    modo: VisitaGrupoMoveMode;
+    movidos_a_para_b: number;
+    movidos_b_para_a: number;
 }
 

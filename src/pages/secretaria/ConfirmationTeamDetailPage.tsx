@@ -211,6 +211,18 @@ export function ConfirmationTeamDetailPage() {
   };
 
   // ─── Salvar edição de pessoa ─────────────────────────────────────
+  const handleOpenPessoaEdit = async (pessoaId: string) => {
+    setIsActionLoading(true);
+    try {
+      setEditingPessoa(await pessoaService.buscarPorId(pessoaId));
+    } catch (error) {
+      console.error('Erro ao carregar dados completos da pessoa:', error);
+      toast.error('Não foi possível carregar os dados completos para edição.');
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
   const handleEditSubmit = async (data: PessoaFormData, shouldConfirm: boolean) => {
     if (!editingPessoa?.id) {
       toast.error('Erro: ID do integrante não encontrado.');
@@ -220,12 +232,12 @@ export function ConfirmationTeamDetailPage() {
     try {
       const participacao = participacoes.find(p => p.pessoa_id === editingPessoa.id);
 
-      await pessoaService.atualizar(editingPessoa.id, data);
+      const updatedPessoa = await pessoaService.atualizar(editingPessoa.id, data);
 
       // Atualiza dados locais da pessoa
       setParticipacoes(prev => prev.map(p => {
         if (p.pessoa_id !== editingPessoa.id) return p;
-        return { ...p, pessoas: { ...p.pessoas, ...data } as Pessoa };
+        return { ...p, pessoas: { ...p.pessoas, ...updatedPessoa } as Pessoa };
       }));
 
       if (participacao && shouldConfirm) {
@@ -1041,7 +1053,8 @@ export function ConfirmationTeamDetailPage() {
                       <span>Ver resumo</span>
                     </button>
                     <button
-                      onClick={() => setEditingPessoa(p.pessoas)}
+                      onClick={() => void handleOpenPessoaEdit(p.pessoas.id)}
+                      disabled={isActionLoading}
                       className="btn-icon secretaria-team-member-card__desktop-action"
                       style={{
                         backgroundColor: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)',
@@ -1094,7 +1107,7 @@ export function ConfirmationTeamDetailPage() {
                   </div>
 
                   <div className="secretaria-team-member-card__mobile-actions">
-                    <button type="button" onClick={() => setEditingPessoa(p.pessoas)} className="btn-secondary">
+                    <button type="button" onClick={() => void handleOpenPessoaEdit(p.pessoas.id)} disabled={isActionLoading} className="btn-secondary">
                       <Pencil size={16} />
                       Editar dados
                     </button>

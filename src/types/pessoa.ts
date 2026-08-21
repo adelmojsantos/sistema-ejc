@@ -1,4 +1,6 @@
-export interface Pessoa {
+import type { PersonGeolocationMetadata } from './geolocation';
+
+export interface Pessoa extends PersonGeolocationMetadata {
     id: string;
     nome_completo: string;
     cpf: string | null;

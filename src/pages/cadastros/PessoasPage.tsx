@@ -106,12 +106,21 @@ export function PessoasPage() {
         setMode('create');
         window.scrollTo(0, 0);
     };
-    const openEdit = (p: Pessoa) => {
+    const openEdit = async (p: Pessoa) => {
         scrollPositionRef.current = window.scrollY;
-        setSelected(p);
         setFormError(null);
-        setMode('edit');
-        window.scrollTo(0, 0);
+        setIsFetching(true);
+        try {
+            const current = await pessoaService.buscarPorId(p.id);
+            setSelected(current);
+            setMode('edit');
+            window.scrollTo(0, 0);
+        } catch (error) {
+            console.error('Erro ao carregar cadastro completo da pessoa:', error);
+            toast.error('Não foi possível carregar os dados atuais para edição.');
+        } finally {
+            setIsFetching(false);
+        }
     };
     const backToList = () => {
         setMode('list');

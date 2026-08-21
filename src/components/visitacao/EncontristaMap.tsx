@@ -1,12 +1,11 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { InscricaoEnriched } from '../../types/inscricao';
 import type { VisitaParticipacaoEnriched } from '../../types/visitacao';
-import { Users, CheckCircle2, MapPin, Trash2, Edit2, RefreshCw, XCircle, Loader2 } from 'lucide-react';
-import { applyJitter } from '../../utils/geocoding';
-import { pessoaService } from '../../services/pessoaService';
+import { Users, CheckCircle2, MapPin, Trash2, Edit2, RefreshCw } from 'lucide-react';
+import { getPlanningCoordinate } from '../../types/geolocation';
 
 // Fix for default marker icons in Leaflet + Vite
 import icon from 'leaflet/dist/images/marker-icon.png';
@@ -21,24 +20,16 @@ const DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Custom Icons for Linked vs Available
-const AvailableIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
+const markerIcon = (color: string) => L.divIcon({
+  className: '',
+  html: `<span style="display:block;width:20px;height:20px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,.35)"></span>`,
+  iconSize: [26, 26],
+  iconAnchor: [13, 25],
+  popupAnchor: [0, -24],
 });
 
-const LinkedIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-grey.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
+const AvailableIcon = markerIcon('#2563eb');
+const LinkedIcon = markerIcon('#64748b');
 
 interface EncontristaMapProps {
   participantes: InscricaoEnriched[];
@@ -49,18 +40,18 @@ interface EncontristaMapProps {
   onShowUnmappedClick?: () => void;
   onEditAddress?: (p: InscricaoEnriched) => void;
   onRefresh?: () => void;
+  readOnly?: boolean;
 }
 
-export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVincular, onDesvincular, onShowUnmappedClick, onEditAddress, onRefresh }: EncontristaMapProps) {
-  const [clearingGeoId, setClearingGeoId] = useState<string | null>(null);
+export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVincular, onDesvincular, onShowUnmappedClick, onEditAddress, onRefresh, readOnly = false }: EncontristaMapProps) {
   const markers = useMemo(() => {
     return participantes
-      .filter(p => p.pessoas?.latitude && p.pessoas?.longitude)
+      .filter(p => p.pessoas && getPlanningCoordinate(p.pessoas))
       .map(p => {
         const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
+        const coordinate = getPlanningCoordinate(p.pessoas!)!;
         return {
           id: p.id,
-          pessoaId: p.pessoa_id,
           nome: p.pessoas?.nome_completo,
           bairro: p.pessoas?.bairro,
           endereco: p.pessoas?.endereco,
@@ -69,7 +60,8 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
           cidade: p.pessoas?.cidade,
           estado: p.pessoas?.estado,
           cep: p.pessoas?.cep,
-          coords: applyJitter([p.pessoas!.latitude!, p.pessoas!.longitude!]),
+          coords: [coordinate.latitude, coordinate.longitude] as [number, number],
+          isExact: coordinate.exact,
           isLinked: !!vinculo,
           vinculoGrupo: vinculo?.visita_grupos?.nome,
           vinculoGrupoId: vinculo?.grupo_id,
@@ -78,18 +70,6 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
         };
       });
   }, [participantes, vinculos]);
-
-  const handleClearGeo = async (pessoaId: string, markerId: string) => {
-    setClearingGeoId(markerId);
-    try {
-      await pessoaService.atualizar(pessoaId, { latitude: null, longitude: null });
-      onRefresh?.();
-    } catch (err) {
-      console.error('Erro ao remover geolocalização:', err);
-    } finally {
-      setClearingGeoId(null);
-    }
-  };
 
   const center: [number, number] = [-20.5383, -47.4008]; // Franca, SP center
 
@@ -128,7 +108,7 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
       <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }}>
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {markers.map(m => (
           <Marker 
@@ -141,6 +121,9 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
                 <div className="map-popup-header">
                   <h4 className="map-popup-name">{m.nome}</h4>
                   <span className="map-popup-bairro">{m.bairro || 'Bairro ñ informado'}</span>
+                  <div style={{ marginTop: '0.35rem', fontSize: '0.7rem', fontWeight: 700, color: m.isExact ? '#059669' : '#b45309' }}>
+                    {m.isExact ? 'PONTO EXATO CONFIRMADO' : 'Localização aproximada'}
+                  </div>
                 </div>
 
                 {/* Endereço Completo */}
@@ -165,8 +148,8 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
                 </div>
 
                 {/* Botões de Endereço e Geoloc */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                  {onEditAddress && (
+                {onEditAddress && (
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
                     <button
                       onClick={() => onEditAddress(m.raw)}
                       style={{
@@ -184,37 +167,12 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
                         color: 'var(--primary-color)',
                         cursor: 'pointer'
                       }}
-                      title="Editar endereço e re-geocodificar"
+                      title="Editar endereço"
                     >
                       <Edit2 size={13} /> Editar End.
                     </button>
-                  )}
-                  <button
-                    onClick={() => handleClearGeo(m.pessoaId, m.id)}
-                    disabled={clearingGeoId === m.id}
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px',
-                      padding: '0.4rem',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      borderRadius: '6px',
-                      border: '1px solid var(--danger-border)',
-                      background: 'transparent',
-                      color: 'var(--danger-text)',
-                      cursor: 'pointer'
-                    }}
-                    title="Remover latitude e longitude do banco"
-                  >
-                    {clearingGeoId === m.id
-                      ? <Loader2 size={13} className="animate-spin" />
-                      : <XCircle size={13} />}
-                    {clearingGeoId === m.id ? 'Removendo...' : 'Remover Geo'}
-                  </button>
-                </div>
+                  </div>
+                )}
 
                 {m.isLinked ? (
                   <div className="flex-col gap-2">
@@ -222,7 +180,7 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
                       <CheckCircle2 size={14} />
                       <span>Vinculado a: <strong>{m.vinculoGrupo}</strong></span>
                     </div>
-                    {m.vinculoGrupoId === selectedGrupoId && onDesvincular ? (
+                    {m.vinculoGrupoId === selectedGrupoId && onDesvincular && !readOnly ? (
                       <button 
                         onClick={() => m.vinculoId && onDesvincular(m.vinculoId)}
                         className="btn-outline-danger-sm w-full"
@@ -236,7 +194,7 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
                       </div>
                     )}
                   </div>
-                ) : (
+                ) : readOnly ? null : (
                   <div className="map-popup-actions">
                     <button 
                       onClick={() => onVincular(m.id)}
@@ -296,7 +254,7 @@ export function EncontristaMap({ participantes, vinculos, selectedGrupoId, onVin
           className={onShowUnmappedClick ? 'hover-opacity' : ''}
         >
           <MapPin size={14} style={{ color: 'var(--accent-color)' }} />
-          <span>{participantes.length - markers.length} s/ coordenadas</span>
+          <span>{participantes.length - markers.length} s/ referência</span>
         </div>
       )}
 

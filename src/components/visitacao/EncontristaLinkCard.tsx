@@ -2,6 +2,7 @@ import React from 'react';
 import { Link2, Link2Off, ExternalLink, Lock } from 'lucide-react';
 import type { VisitaParticipacaoEnriched } from '../../types/visitacao';
 import type { InscricaoEnriched } from '../../types/inscricao';
+import { buildGoogleMapsStopUrl } from '../../utils/visitRoutePlanning';
 
 interface EncontristaLinkCardProps {
   participante: InscricaoEnriched;
@@ -23,6 +24,7 @@ export const EncontristaLinkCard: React.FC<EncontristaLinkCardProps> = ({
   const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
   const isLinkedToOther = vinculo && vinculo.grupo_id !== selectedGrupoId;
   const pessoa = participante.pessoas;
+  const mapsUrl = pessoa ? buildGoogleMapsStopUrl({ ...pessoa, id: participante.id }) : null;
 
   return (
     <div className={`item-link-card compact ${vinculo ? 'linked' : ''} ${isLinkedToSelected ? 'selected' : ''} ${isLinkedToOther ? 'busy' : ''}`}>
@@ -35,15 +37,11 @@ export const EncontristaLinkCard: React.FC<EncontristaLinkCardProps> = ({
             {pessoa?.endereco}{pessoa?.numero ? `, ${pessoa.numero}` : ''} - {pessoa?.bairro || 'Sem Bairro'}
           </span>
           <a
-            href={
-              pessoa?.latitude && pessoa?.longitude
-                ? `https://www.google.com/maps/search/?api=1&query=${pessoa.latitude},${pessoa.longitude}`
-                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${pessoa?.endereco || ''}, ${pessoa?.numero || ''}, ${pessoa?.bairro || ''}, Franca, SP`)}`
-            }
+            href={mapsUrl || undefined}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary hover-opacity"
-            title="Abrir no Google Maps"
+            title={mapsUrl ? 'Abrir no Google Maps' : 'Endereço incompleto'}
             style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 600, textDecoration: 'none' }}
             onClick={(e) => e.stopPropagation()}
           >
