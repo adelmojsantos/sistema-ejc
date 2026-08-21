@@ -17,7 +17,7 @@ VALUES ('69100000-0000-0000-0000-000000000001', 'Gestão de roteiro teste', 'Fix
 INSERT INTO public.grupo_permissoes (grupo_id, permissao_id)
 SELECT '69100000-0000-0000-0000-000000000001'::uuid, id
 FROM public.permissoes
-WHERE chave = 'modulo_visitacao_coordenar';
+WHERE chave = 'modulo_admin';
 
 INSERT INTO public.usuario_grupos (usuario_id, grupo_id, encontro_id)
 VALUES ('19100000-0000-0000-0000-000000000001', '69100000-0000-0000-0000-000000000001', NULL);

@@ -20,7 +20,7 @@ VALUES ('69200000-0000-0000-0000-000000000001', 'Gestão ativa de duplas', 'Fixt
 INSERT INTO public.grupo_permissoes (grupo_id, permissao_id)
 SELECT '69200000-0000-0000-0000-000000000001'::uuid, id
 FROM public.permissoes
-WHERE chave = 'modulo_visitacao_coordenar';
+WHERE chave = 'modulo_admin';
 
 INSERT INTO public.usuario_grupos (usuario_id, grupo_id, encontro_id)
 VALUES ('19200000-0000-0000-0000-000000000001', '69200000-0000-0000-0000-000000000001', NULL);

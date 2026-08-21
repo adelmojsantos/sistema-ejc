@@ -198,7 +198,7 @@ SELECT extensions.throws_ok(
 );
 
 SELECT extensions.ok(
-  public.claim_geocoding_provider_slot('nominatim-test', 1100) <= now(),
+  public.claim_geocoding_provider_slot('nominatim-test', 1100) <= clock_timestamp(),
   'primeiro slot do provedor pode ser usado imediatamente'
 );
 
