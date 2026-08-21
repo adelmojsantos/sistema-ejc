@@ -1,16 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { updateMock, eqMock, selectMock, singleMock, fromMock, rpcMock } = vi.hoisted(() => ({
+const { updateMock, insertMock, eqMock, selectMock, singleMock, fromMock, rpcMock, resolveReferenceMock } = vi.hoisted(() => ({
   updateMock: vi.fn(),
+  insertMock: vi.fn(),
   eqMock: vi.fn(),
   selectMock: vi.fn(),
   singleMock: vi.fn(),
   fromMock: vi.fn(),
   rpcMock: vi.fn(),
+  resolveReferenceMock: vi.fn(),
 }));
 
 vi.mock('../lib/supabase', () => ({
   supabase: { from: fromMock, rpc: rpcMock },
+}));
+
+vi.mock('./geolocationService', () => ({
+  geolocationService: {
+    resolveRegionalReferenceForPersistence: resolveReferenceMock,
+  },
 }));
 
 import {
@@ -29,8 +37,20 @@ describe('pessoaService', () => {
     selectMock.mockReturnValue({ single: singleMock });
     eqMock.mockReturnValue({ select: selectMock });
     updateMock.mockReturnValue({ eq: eqMock });
-    fromMock.mockReturnValue({ update: updateMock });
+    insertMock.mockReturnValue({ select: selectMock });
+    fromMock.mockReturnValue({ update: updateMock, insert: insertMock });
     rpcMock.mockResolvedValue({ data: null, error: null });
+    resolveReferenceMock.mockResolvedValue({
+      result: { status: 'failed' },
+      update: {
+        geo_reference_latitude: -20.54,
+        geo_reference_longitude: -47.40,
+        geo_reference_source: 'nominatim',
+        geo_reference_precision: 'street',
+        geo_reference_address_fingerprint: 'fingerprint-atual',
+        geo_reference_checked_at: '2026-08-21T12:00:00.000Z',
+      },
+    });
   });
 
   it('normaliza somente campos pessoais e preserva atualizações parciais', () => {
@@ -49,6 +69,49 @@ describe('pessoaService', () => {
     });
   });
 
+  it('preserva uma localização manual verificada na atualização', () => {
+    expect(normalizarPessoaUpdate({
+      latitude: -20.5,
+      longitude: -47.4,
+      geo_status: 'verified',
+      geo_source: 'manual',
+      geo_precision: 'manual',
+      geo_address_fingerprint: 'fingerprint-atual',
+      geo_checked_at: '2026-08-18T12:00:00.000Z',
+      geo_verified_at: '2026-08-18T12:00:00.000Z',
+    })).toMatchObject({
+      latitude: -20.5,
+      longitude: -47.4,
+      geo_status: 'verified',
+      geo_source: 'manual',
+      geo_precision: 'manual',
+      geo_address_fingerprint: 'fingerprint-atual',
+    });
+  });
+
+  it('preserva referência regional sem convertê-la em localização exata', () => {
+    const update = normalizarPessoaUpdate({
+      latitude: null,
+      longitude: null,
+      geo_status: 'pending',
+      geo_reference_latitude: -20.54,
+      geo_reference_longitude: -47.40,
+      geo_reference_source: 'nominatim',
+      geo_reference_precision: 'street',
+      geo_reference_address_fingerprint: 'fingerprint-atual',
+      geo_reference_checked_at: '2026-08-19T12:00:00.000Z',
+    });
+
+    expect(update).toMatchObject({
+      latitude: null,
+      longitude: null,
+      geo_status: 'pending',
+      geo_reference_latitude: -20.54,
+      geo_reference_longitude: -47.40,
+      geo_reference_precision: 'street',
+    });
+  });
+
   it('não envia vínculo de encontro quando uma tela edita a pessoa', async () => {
     await pessoaService.atualizar('pessoa-1', {
       nome_completo: '  Ana Silva  ',
@@ -61,6 +124,54 @@ describe('pessoaService', () => {
     });
     expect(updateMock.mock.calls[0][0]).not.toHaveProperty('participante');
     expect(updateMock.mock.calls[0][0]).not.toHaveProperty('encontro_id');
+  });
+
+  it('obtém localização aproximada automaticamente ao criar pessoa com endereço suficiente', async () => {
+    await pessoaService.criar({
+      nome_completo: 'Ana Silva',
+      telefone: '35999990000',
+      endereco: 'Rua Um',
+      numero: '10',
+      cidade: 'Franca',
+      estado: 'SP',
+    } as never);
+
+    expect(resolveReferenceMock).toHaveBeenCalledWith(expect.objectContaining({
+      endereco: 'Rua Um',
+      numero: '10',
+      cidade: 'Franca',
+      estado: 'SP',
+    }));
+    expect(insertMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        geo_reference_latitude: -20.54,
+        geo_reference_longitude: -47.40,
+        geo_reference_precision: 'street',
+      }),
+    ]);
+  });
+
+  it('salva a pessoa mesmo quando a localização aproximada está indisponível', async () => {
+    resolveReferenceMock.mockRejectedValueOnce(new Error('provider unavailable'));
+
+    await pessoaService.criar({
+      nome_completo: 'Ana Silva',
+      telefone: '35999990000',
+      endereco: 'Rua Um',
+      numero: '10',
+      cidade: 'Franca',
+      estado: 'SP',
+    } as never);
+
+    expect(insertMock).toHaveBeenCalledWith([
+      expect.not.objectContaining({ geo_reference_latitude: expect.any(Number) }),
+    ]);
+  });
+
+  it('não consulta localização aproximada em atualização sem campos de endereço', async () => {
+    await pessoaService.atualizar('pessoa-1', { email: 'ana@example.com' });
+
+    expect(resolveReferenceMock).not.toHaveBeenCalled();
   });
 
   it('envia o filtro específico e a paginação para a busca de pessoas', async () => {

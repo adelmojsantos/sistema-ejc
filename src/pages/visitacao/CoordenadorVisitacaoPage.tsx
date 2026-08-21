@@ -38,7 +38,9 @@ import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { EncontristaMap } from '../../components/visitacao/EncontristaMap';
 import { TrocaDuplasModal } from '../../components/visitacao/TrocaDuplasModal';
+import { AddressGeolocationControls, type GeolocationFormValue } from '../../components/geolocation/AddressGeolocationControls';
 import { inscricaoService } from '../../services/inscricaoService';
+import { geolocationService } from '../../services/geolocationService';
 import { visitacaoService } from '../../services/visitacaoService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useEquipes } from '../../hooks/useEquipes';
@@ -46,8 +48,19 @@ import type { InscricaoEnriched } from '../../types/inscricao';
 import type { VisitaGrupo, VisitaGrupoDeleteImpact, VisitaParticipacaoEnriched, VisitaStatus } from '../../types/visitacao';
 import type { ParticipacaoCancelada } from '../../services/inscricaoService';
 import { normalizeString, formatPhone } from '../../utils/stringUtils';
-import { geocodeWithFallback, getAddressByCEP } from '../../utils/geocoding';
-import { resolveAddressCoordinates } from '../../utils/addressCoordinates';
+import { getAddressByCEP } from '../../services/cepService';
+import { getPlanningCoordinate, hasRegionalAddress, isRouteReadyLocation } from '../../types/geolocation';
+import { buildGoogleMapsStopUrl } from '../../utils/visitRoutePlanning';
+
+type AddressFormState = GeolocationFormValue & {
+  endereco: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  cep: string;
+  estado: string;
+};
 
 type GrupoMonitoramento = VisitaGrupo & {
   visitantes: VisitaParticipacaoEnriched[];
@@ -65,10 +78,51 @@ type GrupoMonitoramento = VisitaGrupo & {
 
 type GrupoComDesistentes = Pick<GrupoMonitoramento, 'nome' | 'desistentes'>;
 
+type ParticipantFilterMode = 'all' | 'exclude_current' | 'current' | 'unlinked' | 'unmapped';
+
+const PARTICIPANT_FILTER_OPTIONS: Array<{ value: ParticipantFilterMode; label: string }> = [
+  { value: 'all', label: 'Todos' },
+  { value: 'exclude_current', label: 'Exceto esta dupla' },
+  { value: 'current', label: 'Nesta dupla' },
+  { value: 'unlinked', label: 'Sem dupla' },
+  { value: 'unmapped', label: 'Sem localização' },
+];
+
+function ParticipantFilterChips({
+  value,
+  onChange,
+  count,
+}: {
+  value: ParticipantFilterMode;
+  onChange: (value: ParticipantFilterMode) => void;
+  count: number;
+}) {
+  return (
+    <div className="participant-filter-row">
+      <div className="participant-filter-chips" role="group" aria-label="Filtrar encontristas">
+        {PARTICIPANT_FILTER_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={value === option.value}
+            className={`participant-filter-chip ${value === option.value ? 'active' : ''}`}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <span className="participant-result-count">
+        {count} {count === 1 ? 'encontrista' : 'encontristas'}
+      </span>
+    </div>
+  );
+}
+
 export function CoordenadorVisitacaoPage() {
   const [searchParams] = useSearchParams();
   const requestedGroupId = searchParams.get('grupo');
-  const { encontroSelecionadoId: selectedEncontroId } = useEncontros();
+  const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
   const { equipes } = useEquipes();
   const [activeTab, setActiveTab] = useState<'painel' | 'vincular'>('painel');
 
@@ -83,6 +137,7 @@ export function CoordenadorVisitacaoPage() {
   // Selection states 
   const [selectedPessoa1, setSelectedPessoa1] = useState<string>('');
   const [selectedPessoa2, setSelectedPessoa2] = useState<string>('');
+  const [listParticipantSearch, setListParticipantSearch] = useState('');
   const [searchParticipant, setSearchParticipant] = useState('');
   const [editingName, setEditingName] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
@@ -97,15 +152,17 @@ export function CoordenadorVisitacaoPage() {
     visitanteNome: string;
   } | null>(null);
   const [replacementParticipationId, setReplacementParticipationId] = useState('');
+  const [moveParticipantTarget, setMoveParticipantTarget] = useState<{
+    vinculoId: string;
+    pessoaNome: string;
+    sourceGrupoId: string;
+    sourceGrupoNome: string;
+  } | null>(null);
   const [vincularSubTab, setVincularSubTab] = useState<'lista' | 'buscar' | 'mapa'>('lista');
   const [neighborhoodFilter, setNeighborhoodFilter] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // New Filter States
-  const [hideLinkedToSelected, setHideLinkedToSelected] = useState(false);
-  const [showOnlyUnmapped, setShowOnlyUnmapped] = useState(false);
-  const [showOnlyLinkedToSelected, setShowOnlyLinkedToSelected] = useState(false);
-  const [showOnlyUnlinkedGeral, setShowOnlyUnlinkedGeral] = useState(false);
+  const [participantFilterMode, setParticipantFilterMode] = useState<ParticipantFilterMode>('all');
   const [monitorFilter, setMonitorFilter] = useState<'todos' | 'pendentes' | 'concluidos' | 'nao_iniciados'>('todos');
   const [selectedDuoForDetails, setSelectedDuoForDetails] = useState<GrupoMonitoramento | null>(null);
   const [selectedDuoForCanceled, setSelectedDuoForCanceled] = useState<GrupoComDesistentes | null>(null);
@@ -120,15 +177,38 @@ export function CoordenadorVisitacaoPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
   const [editingAddressPessoa, setEditingAddressPessoa] = useState<InscricaoEnriched | null>(null);
-  const [addressForm, setAddressForm] = useState({
+  const [addressForm, setAddressForm] = useState<AddressFormState>({
     endereco: '',
     numero: '',
     complemento: '',
     bairro: '',
     cidade: '',
     cep: '',
-    estado: 'SP'
+    estado: 'SP',
+    latitude: null,
+    longitude: null,
+    geo_status: 'pending',
+    geo_retry_count: 0,
   });
+  const isHistoricalEncounter = encontroSelecionado?.ativo !== true;
+
+  const requireActiveEncounter = () => {
+    if (!isHistoricalEncounter) return true;
+    toast.error('Encontro encerrado. A composição das duplas está disponível apenas para consulta.');
+    return false;
+  };
+
+  useEffect(() => {
+    if (!isHistoricalEncounter) return;
+    setIsCreateModalOpen(false);
+    setIsSwapModalOpen(false);
+    setEditingName(null);
+    setPendingRename(null);
+    setDeleteImpact(null);
+    setReplacementTarget(null);
+    setMoveParticipantTarget(null);
+    setEditingAddressPessoa(null);
+  }, [isHistoricalEncounter]);
 
   const loadData = useCallback(async () => {
     if (!selectedEncontroId) return;
@@ -190,6 +270,7 @@ export function CoordenadorVisitacaoPage() {
   }, [equipeVisitacao, vinculos]);
 
   const handleVincular = async (participacaoId: string) => {
+    if (!requireActiveEncounter()) return;
     if (!selectedGrupoId || !selectedEncontroId) return;
     const existingVinculo = vinculos.find(v => v.participacao_id === participacaoId);
     if (existingVinculo?.grupo_id) {
@@ -209,7 +290,30 @@ export function CoordenadorVisitacaoPage() {
     }
   };
 
+  const confirmMoveParticipant = async () => {
+    if (!requireActiveEncounter()) return;
+    if (!moveParticipantTarget || !selectedGrupoId) return;
+
+    setIsLoading(true);
+    try {
+      await visitacaoService.trocarEncontristasEntreDuplas(
+        moveParticipantTarget.sourceGrupoId,
+        selectedGrupoId,
+        'individual',
+        [moveParticipantTarget.vinculoId]
+      );
+      setMoveParticipantTarget(null);
+      await loadData();
+      toast.success('Dupla do encontrista alterada com sucesso.');
+    } catch {
+      toast.error('Não foi possível alterar a dupla do encontrista.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleCreateGroup = async () => {
+    if (!requireActiveEncounter()) return;
     if (!selectedEncontroId || !selectedPessoa1 || !selectedPessoa2) return;
     setIsLoading(true);
     try {
@@ -233,6 +337,7 @@ export function CoordenadorVisitacaoPage() {
   };
 
   const handleRenameGroup = async () => {
+    if (!requireActiveEncounter()) return;
     if (!editingName || !tempName.trim()) return;
     const group = grupos.find(item => item.id === editingName);
     const currentName = group?.nome?.trim() || '';
@@ -245,6 +350,7 @@ export function CoordenadorVisitacaoPage() {
   };
 
   const confirmRenameGroup = async () => {
+    if (!requireActiveEncounter()) return;
     if (!pendingRename) return;
     setIsLoading(true);
     try {
@@ -261,6 +367,7 @@ export function CoordenadorVisitacaoPage() {
   };
 
   const handleDesvincular = async (id: string) => {
+    if (!requireActiveEncounter()) return;
     setIsLoading(true);
     try {
       await visitacaoService.desvincular(id);
@@ -274,6 +381,7 @@ export function CoordenadorVisitacaoPage() {
   };
 
   const handleDeleteGroup = async (id: string) => {
+    if (!requireActiveEncounter()) return;
     setIsLoadingDeleteImpact(true);
     try {
       const impact = await visitacaoService.obterImpactoExclusaoGrupo(id);
@@ -287,6 +395,7 @@ export function CoordenadorVisitacaoPage() {
   };
 
   const confirmDeleteGroup = async () => {
+    if (!requireActiveEncounter()) return;
     if (!deleteImpact) return;
     setIsLoading(true);
     try {
@@ -305,6 +414,7 @@ export function CoordenadorVisitacaoPage() {
   };
 
   const confirmVisitorReplacement = async () => {
+    if (!requireActiveEncounter()) return;
     if (!replacementTarget || !replacementParticipationId) return;
     setIsLoading(true);
     try {
@@ -326,6 +436,7 @@ export function CoordenadorVisitacaoPage() {
   };
 
   const openGroupPhotoPicker = (group: VisitaGrupo) => {
+    if (!requireActiveEncounter()) return;
     setPhotoTargetGroup(group);
     photoInputRef.current?.click();
   };
@@ -333,7 +444,7 @@ export function CoordenadorVisitacaoPage() {
   const handleGroupPhotoSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file || !photoTargetGroup) return;
+    if (!file || !photoTargetGroup || !requireActiveEncounter()) return;
 
     if (!file.type.startsWith('image/')) {
       toast.error('Selecione uma imagem para a foto da dupla.');
@@ -363,6 +474,7 @@ export function CoordenadorVisitacaoPage() {
   };
 
   const handleDeleteGroupPhoto = async (group: VisitaGrupo) => {
+    if (!requireActiveEncounter()) return;
     if (!group.foto_url || !confirm(`Deseja excluir a foto da dupla "${group.nome}"?`)) return;
 
     setUploadingGroupId(group.id);
@@ -380,6 +492,7 @@ export function CoordenadorVisitacaoPage() {
   };
 
   const handleEditAddress = (p: InscricaoEnriched) => {
+    if (!requireActiveEncounter()) return;
     if (!p.pessoas) return;
     setAddressForm({
       endereco: p.pessoas.endereco || '',
@@ -388,9 +501,53 @@ export function CoordenadorVisitacaoPage() {
       bairro: p.pessoas.bairro || '',
       cidade: p.pessoas.cidade || '',
       cep: p.pessoas.cep || '',
-      estado: p.pessoas.estado || 'SP'
+      estado: p.pessoas.estado || 'SP',
+      latitude: p.pessoas.latitude,
+      longitude: p.pessoas.longitude,
+      geo_status: p.pessoas.geo_status || (p.pessoas.latitude != null && p.pessoas.longitude != null ? 'legacy_review' : 'pending'),
+      geo_source: p.pessoas.geo_source,
+      geo_precision: p.pessoas.geo_precision,
+      geo_accuracy_m: p.pessoas.geo_accuracy_m,
+      geo_address_fingerprint: p.pessoas.geo_address_fingerprint,
+      geo_checked_at: p.pessoas.geo_checked_at,
+      geo_verified_at: p.pessoas.geo_verified_at,
+      geo_verified_by: p.pessoas.geo_verified_by,
+      geo_failure_code: p.pessoas.geo_failure_code,
+      geo_retry_count: p.pessoas.geo_retry_count || 0,
+      geo_next_retry_at: p.pessoas.geo_next_retry_at,
+      geo_reference_latitude: p.pessoas.geo_reference_latitude,
+      geo_reference_longitude: p.pessoas.geo_reference_longitude,
+      geo_reference_source: p.pessoas.geo_reference_source,
+      geo_reference_precision: p.pessoas.geo_reference_precision,
+      geo_reference_address_fingerprint: p.pessoas.geo_reference_address_fingerprint,
+      geo_reference_checked_at: p.pessoas.geo_reference_checked_at,
     });
     setEditingAddressPessoa(p);
+  };
+
+  const handleAddressFieldChange = (field: keyof Pick<AddressFormState, 'endereco' | 'numero' | 'complemento' | 'bairro' | 'cidade' | 'cep' | 'estado'>, value: string) => {
+    setAddressForm(prev => ({
+      ...prev,
+      [field]: value,
+      latitude: null,
+      longitude: null,
+      geo_status: 'pending',
+      geo_source: null,
+      geo_precision: null,
+      geo_accuracy_m: null,
+      geo_address_fingerprint: null,
+      geo_checked_at: null,
+      geo_verified_at: null,
+      geo_verified_by: null,
+      geo_failure_code: null,
+      geo_next_retry_at: null,
+      geo_reference_latitude: null,
+      geo_reference_longitude: null,
+      geo_reference_source: null,
+      geo_reference_precision: null,
+      geo_reference_address_fingerprint: null,
+      geo_reference_checked_at: null,
+    }));
   };
 
   const handleCEPBlur = async () => {
@@ -405,7 +562,25 @@ export function CoordenadorVisitacaoPage() {
             endereco: data.endereco || prev.endereco,
             bairro: data.bairro || prev.bairro,
             cidade: data.cidade || prev.cidade,
-            estado: data.estado || prev.estado
+            estado: data.estado || prev.estado,
+            latitude: null,
+            longitude: null,
+            geo_status: 'pending',
+            geo_source: null,
+            geo_precision: null,
+            geo_accuracy_m: null,
+            geo_address_fingerprint: null,
+            geo_checked_at: null,
+            geo_verified_at: null,
+            geo_verified_by: null,
+            geo_failure_code: null,
+            geo_next_retry_at: null,
+            geo_reference_latitude: null,
+            geo_reference_longitude: null,
+            geo_reference_source: null,
+            geo_reference_precision: null,
+            geo_reference_address_fingerprint: null,
+            geo_reference_checked_at: null,
           }));
         }
       } finally {
@@ -421,34 +596,16 @@ export function CoordenadorVisitacaoPage() {
   };
 
   const handleSaveAddress = async () => {
+    if (!requireActiveEncounter()) return;
     if (!editingAddressPessoa) return;
     setIsLoading(true);
     try {
-      // 1. Geocodificação antes de salvar (mesma lógica do cadastro)
-      const coords = await geocodeWithFallback(addressForm);
-      const originalAddress = editingAddressPessoa.pessoas;
-      const normalizeAddressValue = (value: string | null | undefined) => (value || '').trim().toLowerCase();
-      const addressChanged = [
-        ['endereco', addressForm.endereco, originalAddress?.endereco],
-        ['numero', addressForm.numero, originalAddress?.numero],
-        ['complemento', addressForm.complemento, originalAddress?.complemento],
-        ['bairro', addressForm.bairro, originalAddress?.bairro],
-        ['cidade', addressForm.cidade, originalAddress?.cidade],
-        ['cep', addressForm.cep.replace(/\D/g, ''), originalAddress?.cep?.replace(/\D/g, '')],
-        ['estado', addressForm.estado, originalAddress?.estado],
-      ].some(([, current, original]) => normalizeAddressValue(current) !== normalizeAddressValue(original));
-      const [latitude, longitude] = resolveAddressCoordinates(
-        coords,
-        addressChanged,
-        originalAddress?.latitude,
-        originalAddress?.longitude,
-      );
-
-      const updateData = {
-        ...addressForm,
-        latitude,
-        longitude,
-      };
+      const resolution = isRouteReadyLocation(addressForm)
+        ? null
+        : await geolocationService.resolveRegionalReferenceForPersistence(addressForm);
+      const updateData: AddressFormState = resolution
+        ? { ...addressForm, ...resolution.update }
+        : addressForm;
       // 2. Atualiza no banco
       await visitacaoService.atualizarEnderecoParticipante(editingAddressPessoa.id, updateData);
 
@@ -479,7 +636,13 @@ export function CoordenadorVisitacaoPage() {
         return v;
       }));
 
-      toast.success('Endereço e geolocalização atualizados!');
+      if (isRouteReadyLocation(updateData)) {
+        toast.success('Endereço e localização confiável atualizados.');
+      } else if (updateData.geo_reference_latitude != null) {
+        toast.success('Endereço e localização aproximada atualizados.');
+      } else {
+        toast('Endereço salvo sem referência geográfica. A navegação usará o endereço em texto.', { icon: 'ℹ️' });
+      }
       setEditingAddressPessoa(null);
     } catch (err) {
       console.error('Erro ao salvar endereço:', err);
@@ -522,53 +685,71 @@ export function CoordenadorVisitacaoPage() {
 
   const searchResults = useMemo(() => {
     const q = normalizeString(searchParticipant);
-    let results = [];
+    if (!q) return [];
 
-    if (!q) {
-      if (!selectedGrupoId) return [];
-      results = vinculos
-        .filter(v => v.grupo_id === selectedGrupoId && !v.visitante)
-        .map(v => ({
-          id: v.participacao_id,
-          vinculoId: v.id,
-          nome: v.participacoes?.pessoas?.nome_completo || 'Sem Nome',
-          status: 'in_this_group' as const,
-          grupoNome: null
-        }));
-    } else {
-      results = participantes
-        .filter(p => {
-          const name = normalizeString(p.pessoas?.nome_completo || '');
-          const email = normalizeString(p.pessoas?.email || '');
-          const phone = normalizeString(p.pessoas?.telefone || '');
-          return name.includes(q) || email.includes(q) || phone.includes(q);
-        })
-        .map(p => {
-          const vinculo = vinculos.find(v => v.participacao_id === p.id);
-          if (!vinculo?.grupo_id) return { id: p.id, vinculoId: vinculo?.id ?? null, nome: p.pessoas?.nome_completo, status: 'available' as const, grupoNome: null };
-          if (vinculo.grupo_id === selectedGrupoId) return { id: p.id, vinculoId: vinculo.id, nome: p.pessoas?.nome_completo, status: vinculo.visitante ? ('visitor_here' as const) : ('in_this_group' as const), grupoNome: null };
-          return { id: p.id, vinculoId: vinculo.id, nome: p.pessoas?.nome_completo, status: 'in_other_group' as const, grupoNome: vinculo.visita_grupos?.nome || 'Outra Visita' };
-        });
-    }
-    // Apply filters
+    return participantes
+      .filter(p => {
+        const name = normalizeString(p.pessoas?.nome_completo || '');
+        const email = normalizeString(p.pessoas?.email || '');
+        const phone = normalizeString(p.pessoas?.telefone || '');
+        return name.includes(q) || email.includes(q) || phone.includes(q);
+      })
+      .map(p => {
+        const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
+        if (!vinculo?.grupo_id) {
+          return {
+            id: p.id,
+            vinculoId: vinculo?.id ?? null,
+            nome: p.pessoas?.nome_completo,
+            status: 'available' as const,
+            grupoId: null,
+            grupoNome: null,
+          };
+        }
+        if (vinculo.grupo_id === selectedGrupoId) {
+          return {
+            id: p.id,
+            vinculoId: vinculo.id,
+            nome: p.pessoas?.nome_completo,
+            status: 'in_this_group' as const,
+            grupoId: vinculo.grupo_id,
+            grupoNome: currentGrupo?.nome || 'Dupla selecionada',
+          };
+        }
+        return {
+          id: p.id,
+          vinculoId: vinculo.id,
+          nome: p.pessoas?.nome_completo,
+          status: 'in_other_group' as const,
+          grupoId: vinculo.grupo_id,
+          grupoNome: vinculo.visita_grupos?.nome || 'Outra dupla',
+        };
+      })
+      .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+  }, [currentGrupo?.nome, participantes, searchParticipant, selectedGrupoId, vinculos]);
 
-    if (hideLinkedToSelected && selectedGrupoId) {
-      results = results.filter(r => r.status !== 'in_this_group' && r.status !== 'visitor_here');
-    }
+  const filteredParticipants = useMemo(() => participantes
+    .filter((participant) => {
+      const nameMatch = normalizeString(participant.pessoas?.nome_completo || '')
+        .includes(normalizeString(listParticipantSearch));
+      const neighborhoodMatch = normalizeString(participant.pessoas?.bairro || '')
+        .includes(normalizeString(neighborhoodFilter));
+      if (!nameMatch || !neighborhoodMatch) return false;
 
-    if (showOnlyUnlinkedGeral) {
-      results = results.filter(r => r.status === 'available');
-    } else if (showOnlyUnmapped) {
-      results = results.filter(r => {
-        const p = participantes.find(part => part.id === r.id);
-        return p && (!p.pessoas?.latitude || !p.pessoas?.longitude);
-      });
-    } else if (showOnlyLinkedToSelected) {
-      results = results.filter(r => r.status === 'in_this_group' || r.status === 'visitor_here');
-    }
+      const link = vinculos.find(item => item.participacao_id === participant.id && !item.visitante);
+      const isLinkedToSelected = link?.grupo_id === selectedGrupoId;
+      const isUnmapped = !participant.pessoas || !getPlanningCoordinate(participant.pessoas);
+      const hasNoLink = !link?.grupo_id;
 
-    return results.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
-  }, [participantes, vinculos, selectedGrupoId, searchParticipant, hideLinkedToSelected, showOnlyUnmapped, showOnlyUnlinkedGeral, showOnlyLinkedToSelected]);
+      if (participantFilterMode === 'exclude_current') return !isLinkedToSelected;
+      if (participantFilterMode === 'current') return isLinkedToSelected;
+      if (participantFilterMode === 'unlinked') return hasNoLink;
+      if (participantFilterMode === 'unmapped') return isUnmapped;
+      return true;
+    })
+    .sort((left, right) => (left.pessoas?.nome_completo || '')
+      .localeCompare(right.pessoas?.nome_completo || '')),
+  [listParticipantSearch, neighborhoodFilter, participantFilterMode, participantes, selectedGrupoId, vinculos]);
 
   const stats = useMemo(() => {
     const totalP = vinculos.filter(v => !v.visitante).length;
@@ -666,6 +847,13 @@ export function CoordenadorVisitacaoPage() {
         }
       />
 
+      {isHistoricalEncounter && (
+        <div className="card" role="status" style={{ padding: '0.9rem 1rem', marginBottom: '1.5rem', borderColor: 'var(--warning-border, rgba(245, 158, 11, 0.45))', background: 'var(--warning-bg, rgba(245, 158, 11, 0.08))', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <Lock size={17} />
+          <span><strong>Encontro encerrado.</strong> A composição das duplas está disponível apenas para consulta.</span>
+        </div>
+      )}
+
       {activeTab === 'painel' && (
         <div className="flex-col gap-8">
           {/* GLOBAL HERO STATS */}
@@ -760,9 +948,28 @@ export function CoordenadorVisitacaoPage() {
               </button>
             </div>
 
-            <button onClick={() => setIsCreateModalOpen(true)} className="btn-primary visitacao-create-duo-button" style={{ padding: '0.6rem 1.25rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Plus size={20} /> Montar Nova Dupla
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setIsSwapModalOpen(true)}
+                disabled={isHistoricalEncounter || grupos.length < 2}
+                className="btn-secondary"
+                title={isHistoricalEncounter ? 'Encontro encerrado' : 'Mover encontristas entre duplas'}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <ArrowLeftRight size={18} /> Trocar entre Duplas
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                disabled={isHistoricalEncounter}
+                title={isHistoricalEncounter ? 'Encontro encerrado' : 'Montar nova dupla'}
+                className="btn-primary visitacao-create-duo-button"
+                style={{ padding: '0.6rem 1.25rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              >
+                <Plus size={20} /> Montar Nova Dupla
+              </button>
+            </div>
           </div>
 
           {/* DUOS GRID */}
@@ -781,8 +988,8 @@ export function CoordenadorVisitacaoPage() {
                         <button
                           type="button"
                           onClick={() => g.foto_url ? setPhotoPreviewGroup(g) : openGroupPhotoPicker(g)}
-                          disabled={uploadingGroupId === g.id}
-                          title={g.foto_url ? 'Ver foto da dupla' : 'Adicionar foto da dupla'}
+                          disabled={uploadingGroupId === g.id || (isHistoricalEncounter && !g.foto_url)}
+                          title={g.foto_url ? 'Ver foto da dupla' : isHistoricalEncounter ? 'Encontro encerrado' : 'Adicionar foto da dupla'}
                           style={{
                           width: '40px', height: '40px', borderRadius: '10px',
                           background: 'var(--primary-color)15', color: 'var(--primary-color)',
@@ -829,15 +1036,17 @@ export function CoordenadorVisitacaoPage() {
                                     <Eye size={12} />
                                   </button>
                                 )}
-                                <button
-                                  onClick={() => openGroupPhotoPicker(g)}
-                                  className="icon-btn"
-                                  style={{ padding: '2px', opacity: 0.5 }}
-                                  title={g.foto_url ? 'Trocar foto' : 'Adicionar foto'}
-                                >
-                                  <ImagePlus size={12} />
-                                </button>
-                                {g.foto_url && (
+                                {!isHistoricalEncounter && (
+                                  <button
+                                    onClick={() => openGroupPhotoPicker(g)}
+                                    className="icon-btn"
+                                    style={{ padding: '2px', opacity: 0.5 }}
+                                    title={g.foto_url ? 'Trocar foto' : 'Adicionar foto'}
+                                  >
+                                    <ImagePlus size={12} />
+                                  </button>
+                                )}
+                                {!isHistoricalEncounter && g.foto_url && (
                                   <button
                                     onClick={() => handleDeleteGroupPhoto(g)}
                                     className="icon-btn text-danger"
@@ -847,20 +1056,25 @@ export function CoordenadorVisitacaoPage() {
                                     <Trash2 size={12} />
                                   </button>
                                 )}
-                                <button
-                                  onClick={() => { setEditingName(g.id); setTempName(g.nome || ''); }}
-                                  className="icon-btn" style={{ padding: '2px', opacity: 0.5 }}
-                                >
-                                  <Edit2 size={12} />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteGroup(g.id)}
-                                  disabled={isLoadingDeleteImpact}
-                                  className="icon-btn text-danger" style={{ padding: '2px', opacity: 0.5 }}
-                                  title="Dissolver dupla"
-                                >
-                                  {isLoadingDeleteImpact ? <Loader size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                                </button>
+                                {!isHistoricalEncounter && (
+                                  <>
+                                    <button
+                                      onClick={() => { setEditingName(g.id); setTempName(g.nome || ''); }}
+                                      className="icon-btn" style={{ padding: '2px', opacity: 0.5 }}
+                                      title="Renomear dupla"
+                                    >
+                                      <Edit2 size={12} />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteGroup(g.id)}
+                                      disabled={isLoadingDeleteImpact}
+                                      className="icon-btn text-danger" style={{ padding: '2px', opacity: 0.5 }}
+                                      title="Dissolver dupla"
+                                    >
+                                      {isLoadingDeleteImpact ? <Loader size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             </div>
                           )}
@@ -976,25 +1190,27 @@ export function CoordenadorVisitacaoPage() {
                   }}>
                     <Shield size={14} />
                     Visitante: {v.participacoes?.pessoas?.nome_completo}
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      title="Substituir visitante"
-                      aria-label={`Substituir ${v.participacoes?.pessoas?.nome_completo || 'visitante'}`}
-                      onClick={() => {
-                        setReplacementParticipationId('');
-                        setReplacementTarget({
-                          grupoId: selectedDuoForDetails.id,
-                          grupoNome: selectedDuoForDetails.nome || 'Dupla',
-                          vinculoId: v.id,
-                          visitanteNome: v.participacoes?.pessoas?.nome_completo || 'Visitante'
-                        });
-                        setSelectedDuoForDetails(null);
-                      }}
-                      style={{ marginLeft: '2px', padding: '2px' }}
-                    >
-                      <ArrowLeftRight size={13} />
-                    </button>
+                    {!isHistoricalEncounter && (
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        title="Substituir visitante"
+                        aria-label={`Substituir ${v.participacoes?.pessoas?.nome_completo || 'visitante'}`}
+                        onClick={() => {
+                          setReplacementParticipationId('');
+                          setReplacementTarget({
+                            grupoId: selectedDuoForDetails.id,
+                            grupoNome: selectedDuoForDetails.nome || 'Dupla',
+                            vinculoId: v.id,
+                            visitanteNome: v.participacoes?.pessoas?.nome_completo || 'Visitante'
+                          });
+                          setSelectedDuoForDetails(null);
+                        }}
+                        style={{ marginLeft: '2px', padding: '2px' }}
+                      >
+                        <ArrowLeftRight size={13} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1071,7 +1287,7 @@ export function CoordenadorVisitacaoPage() {
                   className="btn-primary"
                   style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                 >
-                  <Link2 size={18} /> Gerenciar Vínculos
+                  <Link2 size={18} /> {isHistoricalEncounter ? 'Ver Vínculos' : 'Gerenciar Vínculos'}
                 </button>
               </div>
             </div>
@@ -1160,14 +1376,16 @@ export function CoordenadorVisitacaoPage() {
                   alt={`Foto da dupla ${photoPreviewGroup.nome}`}
                   style={{ width: '100%', maxHeight: '62vh', objectFit: 'contain', borderRadius: '12px', background: 'var(--secondary-bg)' }}
                 />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  <button type="button" className="btn-secondary" onClick={() => openGroupPhotoPicker(photoPreviewGroup)}>
-                    <ImagePlus size={16} /> Trocar foto
-                  </button>
-                  <button type="button" className="btn-danger-solid" onClick={() => handleDeleteGroupPhoto(photoPreviewGroup)}>
-                    <Trash2 size={16} /> Excluir foto
-                  </button>
-                </div>
+                {!isHistoricalEncounter && (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <button type="button" className="btn-secondary" onClick={() => openGroupPhotoPicker(photoPreviewGroup)}>
+                      <ImagePlus size={16} /> Trocar foto
+                    </button>
+                    <button type="button" className="btn-danger-solid" onClick={() => handleDeleteGroupPhoto(photoPreviewGroup)}>
+                      <Trash2 size={16} /> Excluir foto
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </Modal>
@@ -1378,6 +1596,8 @@ export function CoordenadorVisitacaoPage() {
                 <div style={{ marginLeft: 'auto' }}>
                   <button
                     onClick={() => setIsSwapModalOpen(true)}
+                    disabled={isHistoricalEncounter || grupos.length < 2}
+                    title={isHistoricalEncounter ? 'Encontro encerrado' : 'Mover encontristas entre duplas'}
                     className="btn-secondary"
                     style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.45rem 1rem', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 600 }}
                   >
@@ -1393,10 +1613,10 @@ export function CoordenadorVisitacaoPage() {
                       <div className="search-bar-container">
                         <div className="search-bar" style={{ flex: 1, marginBottom: 0, width: '100%' }}>
                           <SearchIcon size={18} style={{ opacity: 0.5 }} />
-                          <input className="search-input" placeholder="Filtrar por nome..." value={searchParticipant} onChange={e => setSearchParticipant(e.target.value)} />
+                          <input className="search-input" placeholder="Filtrar por nome..." value={listParticipantSearch} onChange={e => setListParticipantSearch(e.target.value)} />
                         </div>
-                        {searchParticipant && (
-                          <button className="btn-clear-input" onClick={() => setSearchParticipant('')}>
+                        {listParticipantSearch && (
+                          <button className="btn-clear-input" onClick={() => setListParticipantSearch('')}>
                             <X size={14} />
                           </button>
                         )}
@@ -1414,115 +1634,20 @@ export function CoordenadorVisitacaoPage() {
                       </div>
                     </div>
 
-                    {/* Enhanced Filter Bar */}
-                    <div style={{
-                      display: 'flex',
-                      gap: '1rem',
-                      alignItems: 'center',
-                      marginBottom: '1.5rem',
-                      padding: '1rem',
-                      backgroundColor: 'var(--secondary-bg)',
-                      borderRadius: '12px',
-                      flexWrap: 'wrap',
-                      border: '1px solid var(--border-color)'
-                    }}>
-
-                      <label className="filter-checkbox-modern">
-                        <input type="checkbox" checked={hideLinkedToSelected} onChange={e => {
-                          setHideLinkedToSelected(e.target.checked);
-                          if (e.target.checked) {
-                            setShowOnlyLinkedToSelected(false);
-                            setShowOnlyUnlinkedGeral(false);
-                            setShowOnlyUnmapped(false);
-                          }
-                        }} />
-                        <span>Ocultar desta Dupla</span>
-                      </label>
-
-                      <label className="filter-checkbox-modern">
-                        <input type="checkbox" checked={showOnlyLinkedToSelected} onChange={e => {
-                          setShowOnlyLinkedToSelected(e.target.checked);
-                          if (e.target.checked) {
-                            setHideLinkedToSelected(false);
-                            setShowOnlyUnlinkedGeral(false);
-                            setShowOnlyUnmapped(false);
-                          }
-                        }} />
-                        <span>Somente desta Dupla</span>
-                      </label>
-
-                      <label className="filter-checkbox-modern">
-                        <input type="checkbox" checked={showOnlyUnlinkedGeral} onChange={e => {
-                          setShowOnlyUnlinkedGeral(e.target.checked);
-                          if (e.target.checked) {
-                            setHideLinkedToSelected(false);
-                            setShowOnlyLinkedToSelected(false);
-                            setShowOnlyUnmapped(false);
-                          }
-                        }} />
-                        <span>Apenas Sem Grupo</span>
-                      </label>
-
-                      <label className="filter-checkbox-modern">
-                        <input type="checkbox" checked={showOnlyUnmapped} onChange={e => {
-                          setShowOnlyUnmapped(e.target.checked);
-                          if (e.target.checked) {
-                            setHideLinkedToSelected(false);
-                            setShowOnlyLinkedToSelected(false);
-                            setShowOnlyUnlinkedGeral(false);
-                          }
-                        }} />
-                        <span>Apenas Sem Geolocalização</span>
-                      </label>
-
-                      <div style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--primary-color)', fontWeight: 600 }}>
-                        {participantes.filter(p => {
-                          const q = normalizeString(searchParticipant);
-                          const n = normalizeString(neighborhoodFilter);
-                          const nameMatch = normalizeString(p.pessoas?.nome_completo || '').includes(q);
-                          const neighborhoodMatch = normalizeString(p.pessoas?.bairro || '').includes(n);
-
-                          if (!nameMatch || !neighborhoodMatch) return false;
-
-                          const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
-                          const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
-                          const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
-                          const hasNoLink = !vinculo?.grupo_id;
-
-                          if (hideLinkedToSelected && isLinkedToSelected) return false;
-                          if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
-                          if (showOnlyUnlinkedGeral && !hasNoLink) return false;
-                          if (showOnlyUnmapped && !isUnmapped) return false;
-                          return true;
-                        }).length} Encontristas
-                      </div>
-                    </div>
+                    <ParticipantFilterChips
+                      value={participantFilterMode}
+                      onChange={setParticipantFilterMode}
+                      count={filteredParticipants.length}
+                    />
 
                     <div className="link-cards-grid">
-                      {participantes
-                        .filter(p => {
-                          const q = normalizeString(searchParticipant);
-                          const n = normalizeString(neighborhoodFilter);
-                          const nameMatch = normalizeString(p.pessoas?.nome_completo || '').includes(q);
-                          const neighborhoodMatch = normalizeString(p.pessoas?.bairro || '').includes(n);
-
+                      {filteredParticipants.map(p => {
                           const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
-                          const isLinkedToSelected = vinculo?.grupo_id === selectedGrupoId;
-                          const isUnmapped = !p.pessoas?.latitude || !p.pessoas?.longitude;
-                          const hasNoLink = !vinculo?.grupo_id;
-
-                          if (hideLinkedToSelected && isLinkedToSelected) return false;
-                          if (showOnlyLinkedToSelected && !isLinkedToSelected) return false;
-                          if (showOnlyUnlinkedGeral && !hasNoLink) return false;
-                          if (showOnlyUnmapped && !isUnmapped) return false;
-
-                          return nameMatch && neighborhoodMatch;
-                        })
-                        .sort((a, b) => (a.pessoas?.nome_completo || '').localeCompare(b.pessoas?.nome_completo || ''))
-                        .map(p => {
-                          const vinculo = vinculos.find(v => v.participacao_id === p.id && !v.visitante);
+                          const mapsUrl = p.pessoas ? buildGoogleMapsStopUrl({ ...p.pessoas, id: p.id }) : null;
+                          const isCurrentGroup = vinculo?.grupo_id === selectedGrupoId;
+                          const isOtherGroup = Boolean(vinculo?.grupo_id && !isCurrentGroup);
                           return (
-                            <div key={p.id} className={`item-link-card compact ${vinculo?.grupo_id ? 'linked' : ''} ${vinculo?.grupo_id === selectedGrupoId ? 'selected' : ''} ${vinculo?.grupo_id && vinculo.grupo_id !== selectedGrupoId ? 'busy' : ''}`}>
+                            <div key={p.id} className={`participant-link-row ${isCurrentGroup ? 'selected' : ''} ${isOtherGroup ? 'busy' : ''}`}>
                               <div className="item-link-card-info" style={{ flex: 1 }}>
                                 <h4 className="item-link-card-name">{p.pessoas?.nome_completo}</h4>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1530,11 +1655,7 @@ export function CoordenadorVisitacaoPage() {
                                     {p.pessoas?.endereco}{p.pessoas?.numero ? `, ${p.pessoas.numero}` : ''} - {p.pessoas?.bairro || 'Sem Bairro'}
                                   </span>
                                   <a
-                                    href={
-                                      p.pessoas?.latitude && p.pessoas?.longitude
-                                        ? `https://www.google.com/maps/search/?api=1&query=${p.pessoas.latitude},${p.pessoas.longitude}`
-                                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.pessoas?.endereco || ''}, ${p.pessoas?.numero || ''}, ${p.pessoas?.bairro || ''}, Franca, SP`)}`
-                                    }
+                                    href={mapsUrl || undefined}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-primary hover-opacity"
@@ -1547,37 +1668,55 @@ export function CoordenadorVisitacaoPage() {
                                 </div>
                               </div>
 
+                              <span className={`participant-link-status ${isCurrentGroup ? 'current' : isOtherGroup ? 'busy' : 'available'}`}>
+                                {isCurrentGroup
+                                  ? currentGrupo?.nome || 'Dupla selecionada'
+                                  : isOtherGroup
+                                    ? vinculo?.visita_grupos?.nome || 'Outra dupla'
+                                    : 'Disponível'}
+                              </span>
                               <div className="item-link-card-actions">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleEditAddress(p); }}
-                                  className="btn-secondary btn-icon"
-                                  style={{ width: '42px', height: '42px', padding: 0, color: 'var(--primary-color)' }}
-                                  title="Editar Endereço"
+                                  disabled={isHistoricalEncounter}
+                                  className="participant-row-action"
+                                  title={isHistoricalEncounter ? 'Encontro encerrado' : 'Editar Endereço'}
                                 >
-                                  <Edit2 size={18} />
+                                  <Edit2 size={16} /> <span>Editar</span>
                                 </button>
                                 {!vinculo?.grupo_id ? (
                                   <button
                                     onClick={() => handleVincular(p.id)}
-                                    disabled={isLoading || !selectedGrupoId}
-                                    className="btn-primary-sm btn-icon"
+                                    disabled={isLoading || !selectedGrupoId || isHistoricalEncounter}
+                                    className="participant-row-action primary"
                                     title={selectedGrupoId ? 'Vincular' : 'Selecione uma Dupla'}
                                   >
-                                    <Link2 size={18} />
+                                    <Link2 size={16} /> <span>Vincular</span>
                                   </button>
                                 ) : (
                                   vinculo.grupo_id === selectedGrupoId ? (
                                     <button
                                       onClick={() => handleDesvincular(vinculo.id)}
-                                      className="btn-outline-danger-sm btn-icon"
+                                      disabled={isLoading || isHistoricalEncounter}
+                                      className="participant-row-action danger"
                                       title="Desvincular"
                                     >
-                                      <Link2OffIcon size={18} />
+                                      <Link2OffIcon size={16} /> <span>Desvincular</span>
                                     </button>
                                   ) : (
-                                    <div className="busy-badge" title={`Vinculado em ${vinculo.visita_grupos?.nome}`}>
-                                      <Lock size={16} />
-                                    </div>
+                                    <button
+                                      onClick={() => setMoveParticipantTarget({
+                                        vinculoId: vinculo.id,
+                                        pessoaNome: p.pessoas?.nome_completo || 'Encontrista',
+                                        sourceGrupoId: vinculo.grupo_id!,
+                                        sourceGrupoNome: vinculo.visita_grupos?.nome || 'Outra dupla',
+                                      })}
+                                      disabled={isLoading || !selectedGrupoId || isHistoricalEncounter}
+                                      className="participant-row-action primary"
+                                      title="Alterar para a dupla selecionada"
+                                    >
+                                      <ArrowLeftRight size={16} /> <span>Alterar dupla</span>
+                                    </button>
                                   )
                                 )}
                               </div>
@@ -1591,15 +1730,21 @@ export function CoordenadorVisitacaoPage() {
 
                 {vincularSubTab === 'buscar' && (
                   <div className="flex-col gap-6">
-                    <div className="card-glass" style={{ padding: '2rem', textAlign: 'center' }}>
-                      <h3 style={{ margin: '0 0 0.5rem' }}>Busca Rápida</h3>
-                      <p style={{ opacity: 0.6, fontSize: '0.9rem', marginBottom: '1.5rem' }}>Busque por nome, e-mail ou telefone para vincular à dupla <strong>{currentGrupo?.nome}</strong></p>
+                    <div className="participant-search-panel">
+                      <div className="participant-search-heading">
+                        <div>
+                          <strong>Buscar encontrista</strong>
+                          <span>Nome, e-mail ou telefone</span>
+                        </div>
+                        <span>Dupla: <strong>{currentGrupo?.nome}</strong></span>
+                      </div>
                       <div className="search-bar-container" style={{ width: '100%' }}>
-                        <div className="search-bar-large">
-                          <SearchIcon size={24} />
+                        <div className="search-bar" style={{ width: '100%', marginBottom: 0 }}>
+                          <SearchIcon size={18} />
                           <input
                             autoFocus
-                            placeholder="Ex: joao@email.com ou 16 99999..."
+                            className="search-input"
+                            placeholder="Digite nome, e-mail ou telefone..."
                             value={searchParticipant}
                             onChange={e => setSearchParticipant(e.target.value)}
                           />
@@ -1610,72 +1755,25 @@ export function CoordenadorVisitacaoPage() {
                           </button>
                         )}
                       </div>
-
-                      {/* Filter Bar for Search Tab */}
-                      <div style={{
-                        display: 'flex',
-                        gap: '1rem',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginTop: '1.5rem',
-                        flexWrap: 'wrap'
-                      }}>
-                        <label className="filter-checkbox-modern">
-                          <input type="checkbox" checked={hideLinkedToSelected} onChange={e => {
-                            setHideLinkedToSelected(e.target.checked);
-                            if (e.target.checked) {
-                              setShowOnlyLinkedToSelected(false);
-                              setShowOnlyUnlinkedGeral(false);
-                              setShowOnlyUnmapped(false);
-                            }
-                          }} />
-                          <span>Ocultar desta Dupla</span>
-                        </label>
-
-                        <label className="filter-checkbox-modern">
-                          <input type="checkbox" checked={showOnlyLinkedToSelected} onChange={e => {
-                            setShowOnlyLinkedToSelected(e.target.checked);
-                            if (e.target.checked) {
-                              setHideLinkedToSelected(false);
-                              setShowOnlyUnlinkedGeral(false);
-                              setShowOnlyUnmapped(false);
-                            }
-                          }} />
-                          <span>Somente desta Dupla</span>
-                        </label>
-
-                        <label className="filter-checkbox-modern">
-                          <input type="checkbox" checked={showOnlyUnlinkedGeral} onChange={e => {
-                            setShowOnlyUnlinkedGeral(e.target.checked);
-                            if (e.target.checked) {
-                              setHideLinkedToSelected(false);
-                              setShowOnlyLinkedToSelected(false);
-                              setShowOnlyUnmapped(false);
-                            }
-                          }} />
-                          <span>Apenas Sem Grupo</span>
-                        </label>
-
-                        <label className="filter-checkbox-modern">
-                          <input type="checkbox" checked={showOnlyUnmapped} onChange={e => {
-                            setShowOnlyUnmapped(e.target.checked);
-                            if (e.target.checked) {
-                              setHideLinkedToSelected(false);
-                              setShowOnlyLinkedToSelected(false);
-                              setShowOnlyUnlinkedGeral(false);
-                            }
-                          }} />
-                          <span>Apenas Sem Geolocalização</span>
-                        </label>
-                      </div>
                     </div>
 
                     <div className="link-cards-grid">
+                      {!searchParticipant.trim() && (
+                        <div className="empty-state compact">
+                          <SearchIcon size={24} />
+                          <span>Digite para localizar um encontrista.</span>
+                        </div>
+                      )}
+                      {searchParticipant.trim() && searchResults.length === 0 && (
+                        <div className="empty-state compact">
+                          <SearchIcon size={24} />
+                          <span>Nenhum encontrista encontrado.</span>
+                        </div>
+                      )}
                       {searchResults
-                        .filter(item => item.status !== 'visitor_here')
                         .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
                         .map(item => (
-                          <div key={item.id} className={`item-link-card compact ${item.status === 'in_this_group' ? 'selected' : ''} ${item.status === 'in_other_group' ? 'busy' : ''}`}>
+                          <div key={item.id} className={`participant-link-row ${item.status === 'in_this_group' ? 'selected' : ''} ${item.status === 'in_other_group' ? 'busy' : ''}`}>
                             <div className="item-link-card-info" style={{ flex: 1 }}>
                               <span className="item-link-card-name">{item.nome}</span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1688,13 +1786,10 @@ export function CoordenadorVisitacaoPage() {
                                 {(() => {
                                   const p = participantes.find(p => p.id === item.id);
                                   if (!p?.pessoas?.endereco) return null;
+                                  const mapsUrl = buildGoogleMapsStopUrl({ ...p.pessoas, id: p.id });
                                   return (
                                     <a
-                                      href={
-                                        p.pessoas?.latitude && p.pessoas?.longitude
-                                          ? `https://www.google.com/maps/search/?api=1&query=${p.pessoas.latitude},${p.pessoas.longitude}`
-                                          : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.pessoas?.endereco || ''}, ${p.pessoas?.numero || ''}, ${p.pessoas?.bairro || ''}, Franca, SP`)}`
-                                      }
+                                      href={mapsUrl || undefined}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-primary hover-opacity"
@@ -1707,39 +1802,52 @@ export function CoordenadorVisitacaoPage() {
                                   );
                                 })()}
                               </div>
-                              <div className="item-link-card-status-compact">
-                                {item.status === 'in_other_group' && <span className="busy-text">Ocupado: {item.grupoNome}</span>}
-                                {item.status === 'in_this_group' && <span className="selected-text">Vinculado aqui</span>}
-                              </div>
                             </div>
+                            <span className={`participant-link-status ${item.status === 'in_this_group' ? 'current' : item.status === 'in_other_group' ? 'busy' : 'available'}`}>
+                              {item.status === 'in_this_group'
+                                ? item.grupoNome
+                                : item.status === 'in_other_group'
+                                  ? item.grupoNome
+                                  : 'Disponível'}
+                            </span>
                             <div className="item-link-card-actions">
                               {(() => {
                                 const p = participantes.find(p => p.id === item.id);
                                 return p && (
                                   <button
                                     onClick={(e) => { e.stopPropagation(); handleEditAddress(p); }}
-                                    className="btn-secondary btn-icon"
-                                    style={{ width: '42px', height: '42px', padding: 0, color: 'var(--primary-color)' }}
-                                    title="Editar Endereço"
+                                    disabled={isHistoricalEncounter}
+                                    className="participant-row-action"
+                                    title={isHistoricalEncounter ? 'Encontro encerrado' : 'Editar Endereço'}
                                   >
-                                    <Edit2 size={18} />
+                                    <Edit2 size={16} /> <span>Editar</span>
                                   </button>
                                 );
                               })()}
                               {item.status === 'available' && (
-                                <button onClick={() => handleVincular(item.id)} disabled={isLoading || !selectedGrupoId} className="btn-primary-sm btn-icon">
-                                  <Link2 size={18} />
+                                <button onClick={() => handleVincular(item.id)} disabled={isLoading || !selectedGrupoId || isHistoricalEncounter} className="participant-row-action primary">
+                                  <Link2 size={16} /> <span>Vincular</span>
                                 </button>
                               )}
                               {item.status === 'in_this_group' && item.vinculoId && (
-                                <button onClick={() => handleDesvincular(item.vinculoId!)} disabled={isLoading} className="btn-outline-danger-sm btn-icon">
-                                  <Link2OffIcon size={18} />
+                                <button onClick={() => handleDesvincular(item.vinculoId!)} disabled={isLoading || isHistoricalEncounter} className="participant-row-action danger">
+                                  <Link2OffIcon size={16} /> <span>Desvincular</span>
                                 </button>
                               )}
-                              {item.status === 'in_other_group' && (
-                                <div className="busy-badge">
-                                  <Lock size={16} />
-                                </div>
+                              {item.status === 'in_other_group' && item.vinculoId && item.grupoId && (
+                                <button
+                                  onClick={() => setMoveParticipantTarget({
+                                    vinculoId: item.vinculoId!,
+                                    pessoaNome: item.nome || 'Encontrista',
+                                    sourceGrupoId: item.grupoId!,
+                                    sourceGrupoNome: item.grupoNome || 'Outra dupla',
+                                  })}
+                                  disabled={isLoading || !selectedGrupoId || isHistoricalEncounter}
+                                  className="participant-row-action primary"
+                                  title="Alterar para a dupla selecionada"
+                                >
+                                  <ArrowLeftRight size={16} /> <span>Alterar dupla</span>
+                                </button>
                               )}
                             </div>
                           </div>
@@ -1755,10 +1863,11 @@ export function CoordenadorVisitacaoPage() {
                     selectedGrupoId={selectedGrupoId}
                     onVincular={handleVincular}
                     onDesvincular={handleDesvincular}
-                    onEditAddress={handleEditAddress}
+                    onEditAddress={isHistoricalEncounter ? undefined : handleEditAddress}
+                    readOnly={isHistoricalEncounter}
                     onRefresh={loadData}
                     onShowUnmappedClick={() => {
-                      setShowOnlyUnmapped(true);
+                      setParticipantFilterMode('unmapped');
                       setVincularSubTab('lista');
                     }}
                   />
@@ -1787,6 +1896,22 @@ export function CoordenadorVisitacaoPage() {
         confirmText="Alterar nome"
         onConfirm={confirmRenameGroup}
         onCancel={() => setPendingRename(null)}
+        isLoading={isLoading}
+      />
+
+      <ConfirmDialog
+        isOpen={!!moveParticipantTarget}
+        title="Alterar dupla?"
+        message={moveParticipantTarget && (
+          <p style={{ margin: 0 }}>
+            Alterar <strong>{moveParticipantTarget.pessoaNome}</strong> da dupla{' '}
+            <strong>{moveParticipantTarget.sourceGrupoNome}</strong> para{' '}
+            <strong>{currentGrupo?.nome || 'a dupla selecionada'}</strong>?
+          </p>
+        )}
+        confirmText="Alterar dupla"
+        onConfirm={confirmMoveParticipant}
+        onCancel={() => setMoveParticipantTarget(null)}
         isLoading={isLoading}
       />
 
@@ -1947,7 +2072,7 @@ export function CoordenadorVisitacaoPage() {
             <FormField
               label="Rua / Logradouro"
               value={addressForm.endereco}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, endereco: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAddressFieldChange('endereco', e.target.value)}
               placeholder="Ex: Rua Major Claudiano"
               colSpan={9}
               required
@@ -1955,7 +2080,7 @@ export function CoordenadorVisitacaoPage() {
             <FormField
               label="Número"
               value={addressForm.numero}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, numero: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAddressFieldChange('numero', e.target.value)}
               placeholder="Ex: 123"
               colSpan={3}
             />
@@ -1965,7 +2090,7 @@ export function CoordenadorVisitacaoPage() {
             <FormField
               label="Complemento"
               value={addressForm.complemento}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, complemento: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAddressFieldChange('complemento', e.target.value)}
               placeholder="Ex: Apt 12, Bloco B, Chácara Sto Antonio..."
               colSpan={12}
             />
@@ -1975,14 +2100,14 @@ export function CoordenadorVisitacaoPage() {
             <FormField
               label="Bairro"
               value={addressForm.bairro}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, bairro: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAddressFieldChange('bairro', e.target.value)}
               placeholder="Ex: Centro"
               colSpan={6}
             />
             <FormField
               label="CEP"
               value={addressForm.cep}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, cep: formatCEP(e.target.value) })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAddressFieldChange('cep', formatCEP(e.target.value))}
               onBlur={handleCEPBlur}
               placeholder="Ex: 14400-000"
               maxLength={9}
@@ -1994,21 +2119,24 @@ export function CoordenadorVisitacaoPage() {
             <FormField
               label="Cidade"
               value={addressForm.cidade}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, cidade: e.target.value })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAddressFieldChange('cidade', e.target.value)}
               colSpan={9}
             />
             <FormField
               label="Estado"
               value={addressForm.estado}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddressForm({ ...addressForm, estado: e.target.value.toUpperCase() })}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleAddressFieldChange('estado', e.target.value.toUpperCase())}
               maxLength={2}
               colSpan={3}
             />
           </FormRow>
 
-          <p style={{ fontSize: '0.75rem', opacity: 0.6, fontStyle: 'italic' }}>
-            * Ao salvar, o sistema tentará atualizar automaticamente a geolocalização (latitude/longitude) no mapa.
-          </p>
+          <AddressGeolocationControls
+            address={addressForm}
+            value={addressForm}
+            onChange={(geolocation) => setAddressForm(prev => ({ ...prev, ...geolocation }))}
+            disabled={isLoading}
+          />
 
           <div className="form-actions" style={{ marginTop: '1rem', borderTop: 'none', paddingTop: 0 }}>
             <button
@@ -2020,11 +2148,11 @@ export function CoordenadorVisitacaoPage() {
             </button>
             <button
               onClick={handleSaveAddress}
-              disabled={isLoading || !addressForm.endereco || !addressForm.cidade}
+              disabled={isLoading || !hasRegionalAddress(addressForm)}
               className="btn-primary"
               style={{ minWidth: '140px' }}
             >
-              {isLoading ? <Loader size={18} className="animate-spin" /> : 'Salvar e Geolocalizar'}
+              {isLoading ? <Loader size={18} className="animate-spin" /> : 'Salvar endereço'}
             </button>
           </div>
         </div>

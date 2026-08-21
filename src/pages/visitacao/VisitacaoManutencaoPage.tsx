@@ -16,10 +16,12 @@ import { FormField } from '../../components/ui/FormField';
 import { RadioGroup } from '../../components/ui/RadioGroup';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { StorageLink } from '../../components/storage/StorageLink';
+import { AddressGeolocationControls, type GeolocationFormValue } from '../../components/geolocation/AddressGeolocationControls';
 import { formatTelefone, formatCpf } from '../../utils/cpfUtils';
 import { cleanPlate, formatPlate } from '../../utils/plateUtils';
-import { geocodeWithFallback } from '../../utils/geocoding';
-import { resolveAddressCoordinates } from '../../utils/addressCoordinates';
+import { geolocationService } from '../../services/geolocationService';
+import type { PersonGeolocationMetadata } from '../../types/geolocation';
+import { hasRegionalAddress, isRouteReadyLocation } from '../../types/geolocation';
 import {
     countVisitFormPendingSections,
     getCancelledVisitIntentions,
@@ -34,7 +36,7 @@ type ParticipacaoComPessoa = {
     id: string;
     encontro_id: string;
     foto_url: string | null;
-    pessoas: {
+    pessoas: ({
         id: string;
         nome_completo: string;
         cpf: string | null;
@@ -61,7 +63,7 @@ type ParticipacaoComPessoa = {
         possui_alergia: boolean | null;
         usa_medicamento_continuo: boolean | null;
         possui_observacao_saude: boolean | null;
-    } | null;
+    } & PersonGeolocationMetadata) | null;
 };
 
 type CamisetaModeloComStatus = CamisetaModelo & {
@@ -246,6 +248,12 @@ export function VisitacaoManutencaoPage() {
     const [bairro, setBairro] = useState('');
     const [cidade, setCidade] = useState('');
     const [estado, setEstado] = useState('');
+    const [geolocation, setGeolocation] = useState<GeolocationFormValue>({
+        latitude: null,
+        longitude: null,
+        geo_status: 'pending',
+        geo_retry_count: 0,
+    });
     const [dataNascimento, setDataNascimento] = useState('');
     const [nomePai, setNomePai] = useState('');
     const [telefonePai, setTelefonePai] = useState('');
@@ -307,6 +315,7 @@ export function VisitacaoManutencaoPage() {
         bairro,
         cidade,
         estado,
+        geolocation,
         dataNascimento,
         nomePai,
         telefonePai,
@@ -322,7 +331,7 @@ export function VisitacaoManutencaoPage() {
         possuiObservacaoSaude,
         intencoes,
     }), [
-        alergia, bairro, cep, cidade, complemento, dataNascimento, endereco, estado,
+        alergia, bairro, cep, cidade, complemento, dataNascimento, endereco, estado, geolocation,
         intencoes, medicamentoContinuo, nomeCompleto, nomeMae, nomePai, numero,
         observacoes, observacoesSaude, possuiAlergia, possuiObservacaoSaude,
         possuiRestricaoAlimentar, restricaoAlimentar, status, taxaPaga, telefone,
@@ -685,6 +694,27 @@ export function VisitacaoManutencaoPage() {
                         setBairro(p.bairro || '');
                         setCidade(p.cidade || '');
                         setEstado(p.estado || '');
+                        setGeolocation({
+                            latitude: p.latitude,
+                            longitude: p.longitude,
+                            geo_status: p.geo_status || (p.latitude != null && p.longitude != null ? 'legacy_review' : 'pending'),
+                            geo_source: p.geo_source,
+                            geo_precision: p.geo_precision,
+                            geo_accuracy_m: p.geo_accuracy_m,
+                            geo_address_fingerprint: p.geo_address_fingerprint,
+                            geo_checked_at: p.geo_checked_at,
+                            geo_verified_at: p.geo_verified_at,
+                            geo_verified_by: p.geo_verified_by,
+                            geo_failure_code: p.geo_failure_code,
+                            geo_retry_count: p.geo_retry_count || 0,
+                            geo_next_retry_at: p.geo_next_retry_at,
+                            geo_reference_latitude: p.geo_reference_latitude,
+                            geo_reference_longitude: p.geo_reference_longitude,
+                            geo_reference_source: p.geo_reference_source,
+                            geo_reference_precision: p.geo_reference_precision,
+                            geo_reference_address_fingerprint: p.geo_reference_address_fingerprint,
+                            geo_reference_checked_at: p.geo_reference_checked_at,
+                        });
                         setDataNascimento(p.data_nascimento || '');
                         setNomePai(p.nome_pai || '');
                         setTelefonePai(formatTelefone(p.telefone_pai || ''));
@@ -868,23 +898,14 @@ export function VisitacaoManutencaoPage() {
                 throw new Error('Encontrista não encontrado para esta visita.');
             }
 
-                const normalizeAddressValue = (value: string | null | undefined) => (value || '').trim().toLowerCase();
-                const addressChanged = [
-                    [endereco, pessoaAtual?.endereco],
-                    [numero, pessoaAtual?.numero],
-                    [complemento, pessoaAtual?.complemento],
-                    [bairro, pessoaAtual?.bairro],
-                    [cidade, pessoaAtual?.cidade],
-                    [estado, pessoaAtual?.estado],
-                    [cep.replace(/\D/g, ''), pessoaAtual?.cep?.replace(/\D/g, '')],
-                ].some(([current, original]) => normalizeAddressValue(current) !== normalizeAddressValue(original));
-                const geocoded = endereco.trim() ? await geocodeWithFallback({ endereco, numero, bairro, cidade, estado, cep }) : null;
-                const [latitude, longitude] = resolveAddressCoordinates(
-                    geocoded,
-                    addressChanged,
-                    pessoaAtual?.latitude,
-                    pessoaAtual?.longitude,
-                );
+                const address = { endereco, numero, complemento, bairro, cidade, estado, cep };
+                const hasCompleteAddress = hasRegionalAddress(address);
+                const resolution = hasCompleteAddress && !isRouteReadyLocation(geolocation)
+                    ? await geolocationService.resolveRegionalReferenceForPersistence(address)
+                    : null;
+                const geolocationUpdate: GeolocationFormValue = hasCompleteAddress
+                    ? { ...geolocation, ...resolution?.update }
+                    : { latitude: null, longitude: null, geo_status: 'pending', geo_retry_count: 0 };
 
                 await visitacaoService.salvarVisitaCompleta(id, {
                     status,
@@ -903,8 +924,7 @@ export function VisitacaoManutencaoPage() {
                     bairro,
                     cidade,
                     estado,
-                    latitude,
-                    longitude,
+                    ...geolocationUpdate,
                     data_nascimento: dataNascimento,
                     nome_pai: nomePai,
                     telefone_pai: telefonePai,
@@ -922,7 +942,13 @@ export function VisitacaoManutencaoPage() {
                     intencoes,
                 });
 
-            toast.success('Dados salvos com sucesso!');
+            if (isRouteReadyLocation(geolocationUpdate)) {
+                toast.success('Dados e localização confiável salvos com sucesso.');
+            } else if (geolocationUpdate.geo_reference_latitude != null) {
+                toast.success('Dados e localização aproximada salvos com sucesso.');
+            } else {
+                toast('Dados salvos sem referência geográfica. O endereço em texto continua disponível.', { icon: 'ℹ️' });
+            }
             initialFormSnapshotRef.current = serializedForm;
             allowNavigationRef.current = true;
             navigate(VISIT_LIST_PATH);
@@ -1811,7 +1837,7 @@ export function VisitacaoManutencaoPage() {
                                 <FormField
                                     label="CEP"
                                     value={cep}
-                                    onChange={e => setCep(e.target.value)}
+                                    onChange={e => { setCep(e.target.value); setGeolocation({ latitude: null, longitude: null, geo_status: 'pending', geo_retry_count: 0 }); }}
                                     colSpan={2}
                                     icon={<Home size={18} />}
                                     disabled={isHistory}
@@ -1819,21 +1845,21 @@ export function VisitacaoManutencaoPage() {
                                 <FormField
                                     label="Bairro"
                                     value={bairro}
-                                    onChange={e => setBairro(e.target.value)}
+                                    onChange={e => { setBairro(e.target.value); setGeolocation({ latitude: null, longitude: null, geo_status: 'pending', geo_retry_count: 0 }); }}
                                     colSpan={4}
                                     disabled={isHistory}
                                 />
                                 <FormField
                                     label="Cidade"
                                     value={cidade}
-                                    onChange={e => setCidade(e.target.value)}
+                                    onChange={e => { setCidade(e.target.value); setGeolocation({ latitude: null, longitude: null, geo_status: 'pending', geo_retry_count: 0 }); }}
                                     colSpan={4}
                                     disabled={isHistory}
                                 />
                                 <FormField
                                     label="Estado (UF)"
                                     value={estado}
-                                    onChange={e => setEstado(e.target.value)}
+                                    onChange={e => { setEstado(e.target.value.toUpperCase()); setGeolocation({ latitude: null, longitude: null, geo_status: 'pending', geo_retry_count: 0 }); }}
                                     colSpan={2}
                                     disabled={isHistory}
                                 />
@@ -1843,25 +1869,31 @@ export function VisitacaoManutencaoPage() {
                                 <FormField
                                     label="Endereço / Rua"
                                     value={endereco}
-                                    onChange={e => setEndereco(e.target.value)}
+                                    onChange={e => { setEndereco(e.target.value); setGeolocation({ latitude: null, longitude: null, geo_status: 'pending', geo_retry_count: 0 }); }}
                                     colSpan={6}
                                     disabled={isHistory}
                                 />
                                 <FormField
                                     label="Nº"
                                     value={numero}
-                                    onChange={e => setNumero(e.target.value)}
+                                    onChange={e => { setNumero(e.target.value); setGeolocation({ latitude: null, longitude: null, geo_status: 'pending', geo_retry_count: 0 }); }}
                                     colSpan={2}
                                     disabled={isHistory}
                                 />
                                 <FormField
                                     label="Complemento"
                                     value={complemento}
-                                    onChange={e => setComplemento(e.target.value)}
+                                    onChange={e => { setComplemento(e.target.value); setGeolocation({ latitude: null, longitude: null, geo_status: 'pending', geo_retry_count: 0 }); }}
                                     colSpan={4}
                                     disabled={isHistory}
                                 />
                             </FormRow>
+                            <AddressGeolocationControls
+                                address={{ endereco, numero, complemento, cep, bairro, cidade, estado }}
+                                value={geolocation}
+                                onChange={setGeolocation}
+                                disabled={isHistory || saving}
+                            />
                         </FormSection>
                         </div>
                         <div id="visit-section-family" className="visit-form-anchor">

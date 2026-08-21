@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { Pessoa, PessoaFormData } from '../types/pessoa';
+import { geolocationService } from './geolocationService';
+import { hasRegionalAddress, hasRegionalReference } from '../types/geolocation';
 
 const TABLE = 'pessoas';
 
@@ -56,6 +58,10 @@ export function normalizarHistoricoParticipacao(
 
 /** Campos pessoais aceitos pela edição. Vínculos de encontro pertencem a participacoes. */
 export type PessoaUpdateData = Partial<PessoaFormData>;
+
+export interface PessoaPersistenceOptions {
+    automaticApproximateLocation?: boolean;
+}
 
 export interface ExclusaoPessoaImpacto {
     pessoa_id: string;
@@ -126,6 +132,18 @@ export function normalizarPessoaUpdate(data: PessoaUpdateData): PessoaUpdateData
     }
 
     return normalized as PessoaUpdateData;
+}
+
+async function withAutomaticApproximateLocation<T extends PessoaUpdateData>(data: T): Promise<T> {
+    if (!hasRegionalAddress(data) || hasRegionalReference(data)) return data;
+
+    try {
+        const { update } = await geolocationService.resolveRegionalReferenceForPersistence(data);
+        return { ...data, ...update };
+    } catch {
+        // A indisponibilidade de um provedor nunca pode impedir o cadastro.
+        return data;
+    }
 }
 
 export const pessoaService = {
@@ -214,10 +232,13 @@ export const pessoaService = {
         return (data || []).map(normalizarHistoricoParticipacao);
     },
 
-    async criar(formData: PessoaFormData): Promise<Pessoa> {
+    async criar(formData: PessoaFormData, options: PessoaPersistenceOptions = {}): Promise<Pessoa> {
+        const payload = options.automaticApproximateLocation === false
+            ? formData
+            : await withAutomaticApproximateLocation(formData);
         const { data, error } = await supabase
             .from(TABLE)
-            .insert([formData])
+            .insert([payload])
             .select()
             .single();
 
@@ -225,10 +246,30 @@ export const pessoaService = {
         return data as Pessoa;
     },
 
-    async atualizar(id: string, formData: PessoaUpdateData): Promise<Pessoa> {
+    async atualizar(id: string, formData: PessoaUpdateData, options: PessoaPersistenceOptions = {}): Promise<Pessoa> {
+        const normalized = normalizarPessoaUpdate(formData);
+        const payload = options.automaticApproximateLocation === false
+            ? normalized
+            : await withAutomaticApproximateLocation(normalized);
         const { data, error } = await supabase
             .from(TABLE)
-            .update(normalizarPessoaUpdate(formData))
+            .update(payload)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data as Pessoa;
+    },
+
+    async atualizarLocalizacaoAproximada(id: string): Promise<Pessoa> {
+        const pessoa = await this.buscarPorId(id);
+        if (!hasRegionalAddress(pessoa)) return pessoa;
+
+        const { update } = await geolocationService.resolveRegionalReferenceForPersistence(pessoa);
+        const { data, error } = await supabase
+            .from(TABLE)
+            .update(update)
             .eq('id', id)
             .select()
             .single();

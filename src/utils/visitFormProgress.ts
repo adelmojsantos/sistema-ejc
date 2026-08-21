@@ -1,5 +1,6 @@
 import type { VisitaStatus } from '../types/visitacao';
 import type { IntencaoCamisetaItem } from '../services/visitacaoService';
+import type { GeolocationFormValue } from '../components/geolocation/AddressGeolocationControls';
 
 export type VisitFormSectionId = 'visit' | 'operation' | 'personal' | 'family' | 'health' | 'notes';
 export type VisitFormSectionStatus = 'neutral' | 'complete' | 'pending' | 'attention';
@@ -17,6 +18,7 @@ export interface VisitFormSnapshot {
   bairro: string;
   cidade: string;
   estado: string;
+  geolocation?: GeolocationFormValue;
   dataNascimento: string;
   nomePai: string;
   telefonePai: string;

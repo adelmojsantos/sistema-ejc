@@ -70,6 +70,28 @@ describe('ciclo seguro das duplas de visitação', () => {
     });
   });
 
+  it('troca encontristas entre duplas por uma única operação transacional', async () => {
+    rpcMock.mockResolvedValue({
+      data: { modo: 'individual', movidos_a_para_b: 2, movidos_b_para_a: 0 },
+      error: null,
+    });
+
+    await expect(visitacaoService.trocarEncontristasEntreDuplas(
+      'grupo-a',
+      'grupo-b',
+      'individual',
+      ['visita-1', 'visita-2']
+    )).resolves.toEqual({ modo: 'individual', movidos_a_para_b: 2, movidos_b_para_a: 0 });
+
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+    expect(rpcMock).toHaveBeenCalledWith('move_visita_group_participants', {
+      p_grupo_a_id: 'grupo-a',
+      p_grupo_b_id: 'grupo-b',
+      p_modo: 'individual',
+      p_vinculo_ids: ['visita-1', 'visita-2'],
+    });
+  });
+
   it('consulta o impacto antes da dissolução', async () => {
     rpcMock.mockResolvedValue({ data: impact, error: null });
 
@@ -132,7 +154,7 @@ describe('ciclo seguro das duplas de visitação', () => {
     });
 
     expect(rpcMock).toHaveBeenCalledTimes(1);
-    expect(rpcMock).toHaveBeenCalledWith('salvar_visita_completa', {
+    expect(rpcMock).toHaveBeenCalledWith('salvar_visita_completa_v2', {
       p_visita_id: 'visita-1',
       p_dados: expect.objectContaining({
         status: 'realizada',

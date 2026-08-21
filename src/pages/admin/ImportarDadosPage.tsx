@@ -358,7 +358,9 @@ export function ImportarDadosPage() {
                 fez_ejc_outra_paroquia: false,
                 qual_paroquia_ejc: null
               };
-              const newPessoa = await pessoaService.criar(pessoaData);
+              const newPessoa = await pessoaService.criar(pessoaData, {
+                automaticApproximateLocation: false,
+              });
               finalPessoaId = newPessoa.id;
             }
 

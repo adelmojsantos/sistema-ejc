@@ -114,6 +114,7 @@ export function CoordenadorMinhaEquipePage() {
   const [equipeNome, setEquipeNome] = useState('');
   const [equipeAcesso, setEquipeAcesso] = useState<EquipeAcesso>('verde');
   const [editingPessoa, setEditingPessoa] = useState<Pessoa | null>(null);
+  const [isLoadingPessoaEdit, setIsLoadingPessoaEdit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
@@ -487,6 +488,18 @@ export function CoordenadorMinhaEquipePage() {
       toast.error('Erro ao salvar alterações.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleOpenPessoaEdit = async (pessoaId: string) => {
+    setIsLoadingPessoaEdit(true);
+    try {
+      setEditingPessoa(await pessoaService.buscarPorId(pessoaId));
+    } catch (error) {
+      console.error('Erro ao carregar dados completos da pessoa:', error);
+      toast.error('Não foi possível carregar os dados completos para edição.');
+    } finally {
+      setIsLoadingPessoaEdit(false);
     }
   };
 
@@ -1516,7 +1529,8 @@ export function CoordenadorMinhaEquipePage() {
                       </button>
                     )}
                     <button
-                      onClick={() => setEditingPessoa(p)}
+                      onClick={() => void handleOpenPessoaEdit(p.id)}
+                      disabled={isLoadingPessoaEdit}
                       className="btn-secondary"
                       style={{
                         backgroundColor: 'rgba(0,0,0,0.05)',

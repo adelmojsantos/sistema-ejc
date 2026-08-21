@@ -34,6 +34,28 @@ describe('campos de pessoa permitidos nas listas da Secretaria', () => {
     expect(SECRETARIA_SAFE_PERSON_FIELDS).toContain('endereco');
   });
 
+  it.each([
+    'geo_status',
+    'geo_source',
+    'geo_precision',
+    'geo_accuracy_m',
+    'geo_address_fingerprint',
+    'geo_checked_at',
+    'geo_verified_at',
+    'geo_verified_by',
+    'geo_failure_code',
+    'geo_retry_count',
+    'geo_next_retry_at',
+    'geo_reference_latitude',
+    'geo_reference_longitude',
+    'geo_reference_source',
+    'geo_reference_precision',
+    'geo_reference_address_fingerprint',
+    'geo_reference_checked_at',
+  ])('preserva o metadado de geolocalização %s nos objetos editáveis', (field) => {
+    expect(SECRETARIA_SAFE_PERSON_FIELDS).toContain(field);
+  });
+
   it('desvincula integrantes somente pela operação transacional', async () => {
     rpcMock.mockResolvedValueOnce({ data: { participacao_id: 'participacao-1' }, error: null });
 

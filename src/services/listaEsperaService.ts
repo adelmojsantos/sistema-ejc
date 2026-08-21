@@ -3,6 +3,35 @@ import type { ListaEsperaFormData, ListaEsperaEntry } from '../types/listaEspera
 import { encontroService } from './encontroService';
 import { pessoaService } from './pessoaService';
 
+interface AprovacaoListaEsperaResult {
+    pessoa_id: string;
+    participacao_id: string;
+    lista_espera_id: string;
+}
+
+function parseAprovacaoResult(value: unknown): AprovacaoListaEsperaResult {
+    if (!value || typeof value !== 'object') {
+        throw new Error('A aprovação retornou uma resposta inválida.');
+    }
+    const result = value as Partial<AprovacaoListaEsperaResult>;
+    if (!result.pessoa_id || !result.participacao_id) {
+        throw new Error('A aprovação retornou uma resposta incompleta.');
+    }
+    return {
+        pessoa_id: result.pessoa_id,
+        participacao_id: result.participacao_id,
+        lista_espera_id: result.lista_espera_id || '',
+    };
+}
+
+async function updateApprovedPersonApproximateLocation(pessoaId: string): Promise<void> {
+    try {
+        await pessoaService.atualizarLocalizacaoAproximada(pessoaId);
+    } catch {
+        // A inscrição já foi aprovada. Geolocalização é complementar e pode ser repetida depois.
+    }
+}
+
 export const listaEsperaService = {
     async join(data: ListaEsperaFormData): Promise<void> {
         // Encontra o encontro ativo
@@ -128,19 +157,23 @@ export const listaEsperaService = {
     },
 
     async efetivarListaEspera(preId: string, _formData: Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>): Promise<void> {
-        const { error } = await supabase.rpc('aprovar_lista_espera', {
+        const { data, error } = await supabase.rpc('aprovar_lista_espera', {
             p_lista_espera_id: preId,
             p_pessoa_id: null,
         });
         if (error) throw error;
+        const result = parseAprovacaoResult(data);
+        await updateApprovedPersonApproximateLocation(result.pessoa_id);
     },
 
     async vincularPessoaExistente(preId: string, pessoaOriginalId: string, _formData: Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>): Promise<void> {
-        const { error } = await supabase.rpc('aprovar_lista_espera', {
+        const { data, error } = await supabase.rpc('aprovar_lista_espera', {
             p_lista_espera_id: preId,
             p_pessoa_id: pessoaOriginalId,
         });
         if (error) throw error;
+        const result = parseAprovacaoResult(data);
+        await updateApprovedPersonApproximateLocation(result.pessoa_id);
     },
 
     async recusarListaEspera(id: string): Promise<void> {

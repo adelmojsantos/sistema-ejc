@@ -12,7 +12,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
-import { geocodeWithFallback } from '../../utils/geocoding';
+import { geolocationService } from '../../services/geolocationService';
+import { getPlanningCoordinate, hasRegionalAddress } from '../../types/geolocation';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -309,9 +310,9 @@ export function SecretariaParticipantesPage() {
   const selectedEncontro = encontros.find(e => e.id === selectedEncontroId);
 
   const handleUpdateGeolocalizacao = () => {
-    const pending = filteredParticipantes.filter(p => !p.pessoas?.latitude || !p.pessoas?.longitude);
+    const pending = filteredParticipantes.filter(p => p.pessoas && !getPlanningCoordinate(p.pessoas));
     if (pending.length === 0) {
-      toast.success('Todos os encontristas já possuem geolocalização!');
+      toast.success('Todos os encontristas já possuem referência para planejamento.');
       return;
     }
     setPendingGeoCount(pending.length);
@@ -320,7 +321,7 @@ export function SecretariaParticipantesPage() {
 
   const executeBulkGeocoding = async () => {
     setShowConfirmGeoModal(false);
-    const pending = filteredParticipantes.filter(p => !p.pessoas?.latitude || !p.pessoas?.longitude);
+    const pending = filteredParticipantes.filter(p => p.pessoas && !getPlanningCoordinate(p.pessoas));
 
     // Build initial progress items
     const initialItems: GeoProgressItem[] = pending.map(p => ({
@@ -352,41 +353,47 @@ export function SecretariaParticipantesPage() {
           el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }, 50);
 
-        if (!p.pessoas?.endereco) {
+        const pessoa = p.pessoas;
+        if (!pessoa || !hasRegionalAddress(pessoa)) {
           setGeoProgressItems(prev =>
-            prev.map((item, idx) => idx === i ? { ...item, status: 'skipped', message: 'Sem endereço' } : item)
+            prev.map((item, idx) => idx === i ? { ...item, status: 'skipped', message: 'Endereço incompleto' } : item)
           );
           skippedCount++;
           continue;
         }
 
-        const coords = await geocodeWithFallback(p.pessoas);
-        if (coords) {
-          await pessoaService.atualizar(p.pessoa_id, {
-            latitude: coords[0],
-            longitude: coords[1],
-          });
+        try {
+          const resolution = await geolocationService.resolveRegionalReferenceForPersistence(pessoa, true);
+          await pessoaService.atualizar(p.pessoa_id, resolution.update);
+
+          if (resolution.update.geo_reference_latitude != null) {
+            setGeoProgressItems(prev =>
+              prev.map((item, idx) => idx === i
+                ? { ...item, status: 'success', message: 'Localização aproximada encontrada' }
+                : item
+              )
+            );
+            successCount++;
+          } else {
+            setGeoProgressItems(prev =>
+              prev.map((item, idx) => idx === i
+                ? { ...item, status: 'error', message: 'Localização aproximada não encontrada' }
+                : item
+              )
+            );
+            errorCount++;
+          }
+        } catch (error) {
+          console.error('Falha ao persistir resultado de geolocalização:', error);
           setGeoProgressItems(prev =>
-            prev.map((item, idx) => idx === i
-              ? { ...item, status: 'success', message: `${coords[0].toFixed(5)}, ${coords[1].toFixed(5)}` }
-              : item
-            )
-          );
-          successCount++;
-        } else {
-          setGeoProgressItems(prev =>
-            prev.map((item, idx) => idx === i ? { ...item, status: 'error', message: 'Endereço não encontrado' } : item)
+            prev.map((item, idx) => idx === i ? { ...item, status: 'error', message: 'Falha ao salvar o resultado' } : item)
           );
           errorCount++;
         }
-
-        // geocodeWithFallback already handles internal delays; add a small
-        // extra gap only when the address was found on the first variant
-        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
       await loadParticipantes();
-      toast.success(`Geocodificação concluída: ${successCount} sucesso(s), ${errorCount} erro(s), ${skippedCount} pulado(s).`);
+      toast.success(`Referências regionais atualizadas: ${successCount} encontrada(s), ${errorCount} não encontrada(s), ${skippedCount} endereço(s) incompleto(s).`);
     } catch (error) {
       console.error('Erro no bulk geocode:', error);
     } finally {
@@ -806,7 +813,7 @@ export function SecretariaParticipantesPage() {
                 className="btn-secondary secretaria-header-action"
               >
                 {isUpdatingGeo ? <Loader size={16} className="animate-spin" /> : <MapPin size={16} />}
-                <span className="hide-mobile">{isUpdatingGeo ? 'Atualizando...' : 'Atualizar Geo'}</span>
+                <span className="hide-mobile">{isUpdatingGeo ? 'Atualizando...' : 'Referências regionais'}</span>
               </button>
 
               <div style={{ position: 'relative' }}>
@@ -1120,7 +1127,7 @@ export function SecretariaParticipantesPage() {
 
               <div className="pessoa-grid secretaria-pessoa-grid">
                 {filteredParticipantes.map((p) => {
-                  const hasGeo = !!(p.pessoas?.latitude && p.pessoas?.longitude);
+                  const hasGeo = Boolean(p.pessoas && getPlanningCoordinate(p.pessoas));
                   const endereco = p.pessoas?.endereco
                     ? `${p.pessoas.endereco}${p.pessoas.numero ? `, ${p.pessoas.numero}` : ''}`
                     : 'Endereço não informado';
@@ -1276,10 +1283,10 @@ export function SecretariaParticipantesPage() {
           }}>
             <MapPin size={32} />
           </div>
-          <h3 style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Atualizar coordenadas?</h3>
+          <h3 style={{ marginBottom: '1rem', fontSize: '1.25rem' }}>Atualizar referências regionais?</h3>
           <p style={{ opacity: 0.7, marginBottom: '2rem' }}>
-            Serão processados <strong>{pendingGeoCount}</strong> encontrista(s) sem geolocalização.
-            <br />O processo pode levar alguns minutos (1 req/s).
+            Serão processados <strong>{pendingGeoCount}</strong> encontrista(s) sem referência para planejamento.
+            <br />Os pontos encontrados são aproximados e não serão usados como destino de navegação. O processo pode levar alguns minutos (1 req/s).
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
             <button onClick={() => setShowConfirmGeoModal(false)} className="btn-secondary">Cancelar</button>
@@ -1292,7 +1299,7 @@ export function SecretariaParticipantesPage() {
       <Modal
         isOpen={showProgressModal}
         onClose={() => { if (geoDone) setShowProgressModal(false); }}
-        title="Atualizando Geolocalização"
+        title="Atualizando referências regionais"
         maxWidth="680px"
       >
         <div style={{ width: '100%' }}>
@@ -1306,7 +1313,7 @@ export function SecretariaParticipantesPage() {
               { label: 'Total', count: geoProgressItems.length, color: 'var(--text-color)' },
               { label: 'Sucesso', count: geoProgressItems.filter(i => i.status === 'success').length, color: '#10b981' },
               { label: 'Erro', count: geoProgressItems.filter(i => i.status === 'error').length, color: '#ef4444' },
-              { label: 'Sem endereço', count: geoProgressItems.filter(i => i.status === 'skipped').length, color: '#f59e0b' },
+              { label: 'Endereço incompleto', count: geoProgressItems.filter(i => i.status === 'skipped').length, color: '#f59e0b' },
               { label: 'Pendente', count: geoProgressItems.filter(i => i.status === 'pending' || i.status === 'processing').length, color: '#94a3b8' },
             ] as { label: string; count: number; color: string }[]).map(({ label, count, color }) => (
               <div key={label} style={{ flex: '1 1 80px', textAlign: 'center' }}>

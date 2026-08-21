@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { AlertTriangle, CheckCircle2, Users, Search, History } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, Users, Search, History } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { PessoaForm } from '../components/pessoa/PessoaForm';
 import { ConfirmDialog } from '../components/ConfirmDialog';
@@ -13,9 +13,11 @@ import type { Pessoa, PessoaFormData } from '../types/pessoa';
 import type { PreCadastroEntry } from '../types/preCadastro';
 import { calculateAge } from '../utils/dateUtils';
 import { useEncontros } from '../contexts/EncontroContext';
+import { useAuth } from '../hooks/useAuth';
 
 export function InscricaoPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const {
     encontros,
     encontroAtivo,
@@ -39,10 +41,35 @@ export function InscricaoPage() {
   const [preCadastroResults, setPreCadastroResults] = useState<PreCadastroEntry[]>([]);
   const [isSearchingPre, setIsSearchingPre] = useState(false);
   const [selectedPreCadastro, setSelectedPreCadastro] = useState<PreCadastroEntry | null>(null);
+  const [selectedPreCadastroId, setSelectedPreCadastroId] = useState<string | null>(null);
+  const [isPreCadastroOpen, setIsPreCadastroOpen] = useState(false);
   const [pessoaFormKey, setPessoaFormKey] = useState(0);
   const [initialFormData, setInitialFormData] = useState<Partial<PessoaFormData> | undefined>(undefined);
   const [showAgeModal, setShowAgeModal] = useState(false);
   const [userAge, setUserAge] = useState<number | null>(null);
+  const draftStorageKey = user && encontroAtivo
+    ? `inscricao-draft:${user.id}:${encontroAtivo.id}`
+    : undefined;
+  const preCadastroDraftKey = draftStorageKey ? `${draftStorageKey}:pre-cadastro-id` : undefined;
+
+  useEffect(() => {
+    if (!preCadastroDraftKey || selectedPreCadastroId) return;
+    try {
+      setSelectedPreCadastroId(sessionStorage.getItem(preCadastroDraftKey));
+    } catch {
+      // A inscrição continua funcional quando o navegador bloqueia o storage.
+    }
+  }, [preCadastroDraftKey, selectedPreCadastroId]);
+
+  const clearDraft = () => {
+    if (!draftStorageKey) return;
+    try {
+      sessionStorage.removeItem(draftStorageKey);
+      if (preCadastroDraftKey) sessionStorage.removeItem(preCadastroDraftKey);
+    } catch {
+      // O encerramento da inscrição não depende da disponibilidade do storage.
+    }
+  };
 
   const performRegistration = async (pessoaId: string, isNew: boolean) => {
     setIsSaving(true);
@@ -64,14 +91,16 @@ export function InscricaoPage() {
       });
 
       // Se veio de um pré-cadastro, marca como convertido
-      if (selectedPreCadastro?.id) {
-        await preCadastroService.updateStatus(selectedPreCadastro.id, 'convertido');
+      if (selectedPreCadastroId) {
+        await preCadastroService.updateStatus(selectedPreCadastroId, 'convertido');
       }
 
       toast.success(isNew ? 'Pessoa cadastrada e inscrita com sucesso!' : 'Pessoa vinculada ao encontro com sucesso!');
       
       // Reset form and state for next registration instead of navigating away
+      clearDraft();
       setSelectedPreCadastro(null);
+      setSelectedPreCadastroId(null);
       setInitialFormData(undefined);
       setPendingData(null);
       setPotentialMatches([]);
@@ -137,7 +166,19 @@ export function InscricaoPage() {
   };
 
   const handleSelectPreCadastro = (pre: PreCadastroEntry) => {
+    if (!pre.id) {
+      toast.error('Pré-cadastro inválido. Faça a busca novamente.');
+      return;
+    }
     setSelectedPreCadastro(pre);
+    setSelectedPreCadastroId(pre.id);
+    if (preCadastroDraftKey) {
+      try {
+        sessionStorage.setItem(preCadastroDraftKey, pre.id);
+      } catch {
+        // O preenchimento importado continua disponível em memória.
+      }
+    }
     setInitialFormData({
       nome_completo: pre.nome_completo,
       email: pre.email || '',
@@ -148,6 +189,7 @@ export function InscricaoPage() {
     setPessoaFormKey(prev => prev + 1);
     setPreCadastroResults([]);
     setPreCadastroSearch('');
+    setIsPreCadastroOpen(false);
     toast.success(`Dados de ${pre.nome_completo} carregados!`);
   };
 
@@ -314,67 +356,32 @@ export function InscricaoPage() {
       {pageHeader}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', margin: '0 auto' }}>
-          {/* Step 1: Event Selection */}
-          <div className="card" style={{ padding: '1.35rem 1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-              <div>
-                <span style={{ display: 'block', color: 'var(--muted-text)', fontSize: '0.78rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                  Inscrição para
-                </span>
-                <h3 style={{ margin: '0.25rem 0 0', color: 'var(--text-color)', fontSize: '1.35rem' }}>
-                  {encontroAtivo.nome} <span style={{ color: '#10b981', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>Ativo</span>
-                </h3>
+          <section className="inscription-toolbar" aria-label="Ações da inscrição">
+            <div className="inscription-toolbar__summary">
+              <div className="inscription-toolbar__actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  aria-expanded={isPreCadastroOpen}
+                  onClick={() => setIsPreCadastroOpen((open) => !open)}
+                >
+                  <History size={17} /> Importar pré-cadastro
+                  <ChevronDown size={16} className={isPreCadastroOpen ? 'inscription-toolbar__chevron--open' : ''} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/inscricao/participantes?encontro=${encontroAtivo.id}`)}
+                  className="btn-secondary"
+                >
+                  <Users size={17} /> Ver inscritos
+                </button>
               </div>
-              <button
-                onClick={() => navigate(`/inscricao/participantes?encontro=${encontroAtivo.id}`)}
-                className="btn-text"
-                style={{
-                  fontSize: '0.85rem',
-                  color: 'var(--primary-color)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontWeight: 600
-                }}
-              >
-                <Users size={16} /> Ver Encontristas Inscritos
-              </button>
             </div>
 
-          </div>
-
-          {/* Step 1.5: Pre-Cadastro Search (Optional/Toggle) */}
-          <div className="card">
-            <button 
-              onClick={() => {
-                const el = document.getElementById('pre-cadastro-content');
-                if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
-              }}
-              style={{ 
-                width: '100%', 
-                background: 'none', 
-                border: 'none', 
-                padding: 0, 
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '1.1rem', color: 'var(--text-color)' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <History size={18} className="text-gradient" /> Importar do Pré-Cadastro
-                </span>
-                <span style={{ fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 600 }}>Clique para buscar</span>
-              </h3>
-            </button>
-            
-            <div id="pre-cadastro-content" style={{ display: 'none', marginTop: '1.5rem' }}>
-            <p style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '1rem' }}>
-              Se o jovem realizou o pré-cadastro na landing page, você pode buscar os dados dele aqui para agilizar o preenchimento.
-            </p>
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
+            {isPreCadastroOpen && (
+              <div className="inscription-toolbar__search">
+                <p>Busque por nome ou telefone para preencher os dados de um pré-cadastro pendente.</p>
+                <div className="inscription-toolbar__search-row">
               <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
                 <input
                   type="text"
@@ -397,21 +404,13 @@ export function InscricaoPage() {
             </div>
 
             {preCadastroResults.length > 0 && (
-              <div style={{ marginTop: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+              <div className="inscription-toolbar__results">
                 {preCadastroResults.map(pre => (
-                  <div
+                  <button
+                    type="button"
                     key={pre.id}
                     onClick={() => handleSelectPreCadastro(pre)}
-                    style={{
-                      padding: '0.75rem 1rem',
-                      borderBottom: '1px solid var(--border-color)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      backgroundColor: 'var(--card-bg)'
-                    }}
-                    className="transition-colors"
+                    className="inscription-toolbar__result"
                   >
                     <div>
                       <div style={{ fontWeight: 600 }}>{pre.nome_completo}</div>
@@ -419,32 +418,25 @@ export function InscricaoPage() {
                         {pre.telefone} {pre.email ? `| ${pre.email}` : ''}
                       </div>
                     </div>
-                    <button className="btn-text" style={{ color: 'var(--primary-color)', fontSize: '0.8rem', fontWeight: 600 }}>
-                      Selecionar
-                    </button>
-                  </div>
+                    <span>Selecionar</span>
+                  </button>
                 ))}
+              </div>
+            )}
               </div>
             )}
 
             {selectedPreCadastro && (
-              <div style={{
-                marginTop: '1rem',
-                padding: '0.75rem',
-                backgroundColor: 'var(--success-bg)',
-                border: '1px solid var(--success-border)',
-                borderRadius: '8px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
+              <div className="inscription-toolbar__selected">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--success-text)', fontSize: '0.9rem' }}>
                   <CheckCircle2 size={16} />
-                  <span>Utilizando dados de: <strong>{selectedPreCadastro.nome_completo}</strong></span>
+                  <span>Pré-cadastro carregado: <strong>{selectedPreCadastro.nome_completo}</strong></span>
                 </div>
                 <button
                   onClick={() => {
+                    clearDraft();
                     setSelectedPreCadastro(null);
+                    setSelectedPreCadastroId(null);
                     setInitialFormData(undefined);
                     setPessoaFormKey(prev => prev + 1);
                   }}
@@ -455,8 +447,7 @@ export function InscricaoPage() {
                 </button>
               </div>
             )}
-            </div>
-          </div>
+          </section>
 
           {/* Step 2: Person Data */}
           <div className="card">
@@ -466,14 +457,121 @@ export function InscricaoPage() {
             <PessoaForm
               key={pessoaFormKey}
               onSubmit={handleSubmit}
-              onCancel={() => navigate(-1)}
+              onCancel={() => {
+                clearDraft();
+                navigate(-1);
+              }}
               isLoading={isSaving}
               initialData={initialFormData}
               requireBirthDate={true}
               requireFezEjc={true}
+              draftStorageKey={draftStorageKey}
             />
           </div>
         </div>
+
+      <style>{`
+        .inscription-toolbar {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .inscription-toolbar__summary {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 1rem;
+        }
+        .inscription-toolbar__actions {
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          flex-wrap: wrap;
+        }
+        .inscription-toolbar__actions button {
+          min-height: 42px;
+          white-space: nowrap;
+        }
+        .inscription-toolbar__actions svg:last-child {
+          transition: transform 0.2s ease;
+        }
+        .inscription-toolbar__chevron--open {
+          transform: rotate(180deg);
+        }
+        .inscription-toolbar__search {
+          margin-top: 0.75rem;
+          padding: 1rem;
+          border: 1px solid var(--border-color);
+          border-radius: 12px;
+          background: var(--card-bg);
+        }
+        .inscription-toolbar__search p {
+          margin: 0 0 0.75rem;
+          color: var(--muted-text);
+          font-size: 0.84rem;
+        }
+        .inscription-toolbar__search-row {
+          display: flex;
+          gap: 0.75rem;
+        }
+        .inscription-toolbar__results {
+          margin-top: 0.75rem;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          overflow: hidden;
+        }
+        .inscription-toolbar__result {
+          width: 100%;
+          padding: 0.7rem 0.85rem;
+          border: 0;
+          border-bottom: 1px solid var(--border-color);
+          background: transparent;
+          color: var(--text-color);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 1rem;
+          text-align: left;
+          cursor: pointer;
+        }
+        .inscription-toolbar__result:last-child {
+          border-bottom: 0;
+        }
+        .inscription-toolbar__result:hover {
+          background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+        }
+        .inscription-toolbar__result > span {
+          color: var(--primary-color);
+          font-size: 0.8rem;
+          font-weight: 700;
+        }
+        .inscription-toolbar__selected {
+          margin-top: 0.75rem;
+          padding: 0.65rem 0.8rem;
+          background: var(--success-bg);
+          border: 1px solid var(--success-border);
+          border-radius: 8px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 0.75rem;
+        }
+        @media (max-width: 760px) {
+          .inscription-toolbar__summary {
+            align-items: stretch;
+          }
+          .inscription-toolbar__actions,
+          .inscription-toolbar__actions button {
+            width: 100%;
+          }
+          .inscription-toolbar__search-row {
+            flex-direction: column;
+          }
+          .inscription-toolbar__search-row button {
+            width: 100%;
+          }
+        }
+      `}</style>
 
       <ConfirmDialog
         isOpen={showMatchDialog}

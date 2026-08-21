@@ -67,7 +67,7 @@ VALUES (
   'Reconciliação financeira fixture',
   current_date,
   current_date + 2,
-  false,
+  true,
   999905,
   100.00
 );

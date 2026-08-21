@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { normalizarPessoaUpdate, pessoaService, type PessoaUpdateData } from './pessoaService';
-import type { VisitaGrupo, VisitaGrupoDeleteImpact, VisitaParticipacao, VisitaParticipacaoEnriched, VisitaStatus } from '../types/visitacao';
+import type { VisitaGrupo, VisitaGrupoDeleteImpact, VisitaGrupoMoveMode, VisitaGrupoMoveResult, VisitaParticipacao, VisitaParticipacaoEnriched, VisitaStatus } from '../types/visitacao';
 import { getFileExtension, IMMUTABLE_PUBLIC_UPLOAD_OPTIONS, optimizeImageForUpload } from '../utils/imageOptimization';
 import { createPrivateStorageReference, removeStorageReference } from './privateStorageService';
 import { removePublicImage, uploadPublicImage } from './publicImageStorageService';
@@ -25,7 +25,12 @@ export interface IntencaoCamisetaItem {
  * da dupla de visitação e na revisão da equipe responsável.
  */
 export type EnderecoVisitacaoUpdate = Pick<PessoaUpdateData,
-    'endereco' | 'numero' | 'complemento' | 'cep' | 'bairro' | 'cidade' | 'estado' | 'latitude' | 'longitude'
+    | 'endereco' | 'numero' | 'complemento' | 'cep' | 'bairro' | 'cidade' | 'estado'
+    | 'latitude' | 'longitude' | 'geo_status' | 'geo_source' | 'geo_precision'
+    | 'geo_accuracy_m' | 'geo_address_fingerprint' | 'geo_checked_at' | 'geo_verified_at'
+    | 'geo_verified_by' | 'geo_failure_code' | 'geo_retry_count' | 'geo_next_retry_at'
+    | 'geo_reference_latitude' | 'geo_reference_longitude' | 'geo_reference_source'
+    | 'geo_reference_precision' | 'geo_reference_address_fingerprint' | 'geo_reference_checked_at'
 >;
 
 export interface SalvarVisitaCompletaPayload {
@@ -161,6 +166,22 @@ export const visitacaoService = {
         return data as VisitaGrupo;
     },
 
+    async trocarEncontristasEntreDuplas(
+        grupoAId: string,
+        grupoBId: string,
+        modo: VisitaGrupoMoveMode,
+        vinculoIds: string[] = []
+    ): Promise<VisitaGrupoMoveResult> {
+        const { data, error } = await supabase.rpc('move_visita_group_participants', {
+            p_grupo_a_id: grupoAId,
+            p_grupo_b_id: grupoBId,
+            p_modo: modo,
+            p_vinculo_ids: vinculoIds,
+        });
+        if (error) throw error;
+        return data as VisitaGrupoMoveResult;
+    },
+
     async desvincular(id: string): Promise<void> {
         const { error } = await supabase
             .from(PARTICIPACAO_TABLE)
@@ -214,7 +235,7 @@ export const visitacaoService = {
     },
 
     async salvarVisitaCompleta(visitaId: string, payload: SalvarVisitaCompletaPayload): Promise<void> {
-        const { error } = await supabase.rpc('salvar_visita_completa', {
+        const { error } = await supabase.rpc('salvar_visita_completa_v2', {
             p_visita_id: visitaId,
             p_dados: {
                 status: payload.status,
@@ -237,17 +258,18 @@ export const visitacaoService = {
     },
 
     async atualizarEnderecoParticipante(participacaoId: string, updates: EnderecoVisitacaoUpdate): Promise<void> {
-        const { error } = await supabase.rpc('atualizar_endereco_visitacao', {
+        const { error } = await supabase.rpc('atualizar_endereco_visitacao_v2', {
             p_participacao_id: participacaoId,
-            p_endereco: updates.endereco ?? null,
-            p_numero: updates.numero ?? null,
-            p_complemento: updates.complemento ?? null,
-            p_cep: updates.cep ?? null,
-            p_bairro: updates.bairro ?? null,
-            p_cidade: updates.cidade ?? null,
-            p_estado: updates.estado ?? null,
-            p_latitude: updates.latitude ?? null,
-            p_longitude: updates.longitude ?? null,
+            p_endereco: updates,
+        });
+
+        if (error) throw error;
+    },
+
+    async salvarOrdemRoteiro(grupoId: string, visitaIds: string[]): Promise<void> {
+        const { error } = await supabase.rpc('save_visita_route_order', {
+            p_grupo_id: grupoId,
+            p_visita_ids: visitaIds,
         });
 
         if (error) throw error;
@@ -257,15 +279,6 @@ export const visitacaoService = {
         const { error } = await supabase
             .from('participacoes')
             .update(updates)
-            .eq('id', id);
-
-        if (error) throw error;
-    },
-
-    async trocarGrupo(id: string, novoGrupoId: string): Promise<void> {
-        const { error } = await supabase
-            .from(PARTICIPACAO_TABLE)
-            .update({ grupo_id: novoGrupoId })
             .eq('id', id);
 
         if (error) throw error;
