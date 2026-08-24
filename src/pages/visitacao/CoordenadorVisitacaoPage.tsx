@@ -23,7 +23,6 @@ import {
   AlertTriangle,
   ChevronRight,
   Camera,
-  Eye,
   ImagePlus
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -36,6 +35,7 @@ import { FormField } from '../../components/ui/FormField';
 import { FormRow } from '../../components/ui/FormRow';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { MobileFileUploadButton } from '../../components/ui/MobileFileUploadButton';
 import { EncontristaMap } from '../../components/visitacao/EncontristaMap';
 import { TrocaDuplasModal } from '../../components/visitacao/TrocaDuplasModal';
 import { AddressGeolocationControls, type GeolocationFormValue } from '../../components/geolocation/AddressGeolocationControls';
@@ -168,8 +168,9 @@ export function CoordenadorVisitacaoPage() {
   const [selectedDuoForCanceled, setSelectedDuoForCanceled] = useState<GrupoComDesistentes | null>(null);
   const [photoPreviewGroup, setPhotoPreviewGroup] = useState<VisitaGrupo | null>(null);
   const [photoTargetGroup, setPhotoTargetGroup] = useState<VisitaGrupo | null>(null);
+  const [photoDeleteTarget, setPhotoDeleteTarget] = useState<VisitaGrupo | null>(null);
   const [uploadingGroupId, setUploadingGroupId] = useState<string | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const photoPickerTriggerRef = useRef<HTMLButtonElement>(null);
 
   // UI States
   const [isFetching, setIsFetching] = useState(false);
@@ -205,6 +206,7 @@ export function CoordenadorVisitacaoPage() {
     setEditingName(null);
     setPendingRename(null);
     setDeleteImpact(null);
+    setPhotoDeleteTarget(null);
     setReplacementTarget(null);
     setMoveParticipantTarget(null);
     setEditingAddressPessoa(null);
@@ -438,12 +440,11 @@ export function CoordenadorVisitacaoPage() {
   const openGroupPhotoPicker = (group: VisitaGrupo) => {
     if (!requireActiveEncounter()) return;
     setPhotoTargetGroup(group);
-    photoInputRef.current?.click();
+    photoPickerTriggerRef.current?.click();
   };
 
-  const handleGroupPhotoSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
+  const handleGroupPhotoSelected = async (files: File[]) => {
+    const file = files[0];
     if (!file || !photoTargetGroup || !requireActiveEncounter()) return;
 
     if (!file.type.startsWith('image/')) {
@@ -473,13 +474,15 @@ export function CoordenadorVisitacaoPage() {
     }
   };
 
-  const handleDeleteGroupPhoto = async (group: VisitaGrupo) => {
+  const handleDeleteGroupPhoto = async () => {
     if (!requireActiveEncounter()) return;
-    if (!group.foto_url || !confirm(`Deseja excluir a foto da dupla "${group.nome}"?`)) return;
+    const fotoUrl = photoDeleteTarget?.foto_url;
+    if (!photoDeleteTarget || !fotoUrl) return;
 
+    const group = photoDeleteTarget;
     setUploadingGroupId(group.id);
     try {
-      await visitacaoService.removerFotoGrupo(group.id, group.foto_url);
+      await visitacaoService.removerFotoGrupo(group.id, fotoUrl);
       setGrupos(current => current.map(item => item.id === group.id ? { ...item, foto_url: null } : item));
       setPhotoPreviewGroup(null);
       toast.success('Foto da dupla excluída.');
@@ -488,6 +491,7 @@ export function CoordenadorVisitacaoPage() {
       toast.error('Erro ao excluir foto da dupla.');
     } finally {
       setUploadingGroupId(null);
+      setPhotoDeleteTarget(null);
     }
   };
 
@@ -982,20 +986,17 @@ export function CoordenadorVisitacaoPage() {
             ) : (
               monitoramentoGrupos.map(g => (
                 <div key={g.id} className="card duo-monitor-card" style={{ padding: 0, overflow: 'hidden' }}>
-                  <div style={{ padding: '1.25rem', overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', gap: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+                  <div className="duo-card-content">
+                    <div className="duo-card-header">
+                      <div className="duo-card-main">
                         <button
                           type="button"
                           onClick={() => g.foto_url ? setPhotoPreviewGroup(g) : openGroupPhotoPicker(g)}
                           disabled={uploadingGroupId === g.id || (isHistoricalEncounter && !g.foto_url)}
                           title={g.foto_url ? 'Ver foto da dupla' : isHistoricalEncounter ? 'Encontro encerrado' : 'Adicionar foto da dupla'}
-                          style={{
-                          width: '40px', height: '40px', borderRadius: '10px',
-                          background: 'var(--primary-color)15', color: 'var(--primary-color)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700,
-                          flexShrink: 0, overflow: 'hidden', padding: 0, border: 'none', cursor: 'pointer'
-                        }}>
+                          aria-label={g.foto_url ? `Ver foto da dupla ${g.nome}` : `Adicionar foto à dupla ${g.nome}`}
+                          className="duo-photo-button"
+                        >
                           {uploadingGroupId === g.id ? (
                             <Loader size={18} className="animate-spin" />
                           ) : g.foto_url ? (
@@ -1004,80 +1005,8 @@ export function CoordenadorVisitacaoPage() {
                             <Camera size={18} />
                           )}
                         </button>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          {editingName === g.id ? (
-                            <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-                              <input
-                                className="form-input"
-                                style={{ height: '32px', fontSize: '0.9rem', padding: '0 8px' }}
-                                value={tempName}
-                                onChange={e => setTempName(e.target.value)}
-                                autoFocus
-                                onKeyDown={e => e.key === 'Enter' && handleRenameGroup()}
-                              />
-                              <button onClick={handleRenameGroup} className="icon-btn text-primary" title="Salvar">
-                                <Check size={16} />
-                              </button>
-                              <button onClick={() => setEditingName(null)} className="icon-btn" title="Cancelar">
-                                <X size={16} />
-                              </button>
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                              <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.nome}</h4>
-                              <div className="duo-actions-on-hover" style={{ display: 'flex', gap: '4px' }}>
-                                {g.foto_url && (
-                                  <button
-                                    onClick={() => setPhotoPreviewGroup(g)}
-                                    className="icon-btn"
-                                    style={{ padding: '2px', opacity: 0.5 }}
-                                    title="Ver foto"
-                                  >
-                                    <Eye size={12} />
-                                  </button>
-                                )}
-                                {!isHistoricalEncounter && (
-                                  <button
-                                    onClick={() => openGroupPhotoPicker(g)}
-                                    className="icon-btn"
-                                    style={{ padding: '2px', opacity: 0.5 }}
-                                    title={g.foto_url ? 'Trocar foto' : 'Adicionar foto'}
-                                  >
-                                    <ImagePlus size={12} />
-                                  </button>
-                                )}
-                                {!isHistoricalEncounter && g.foto_url && (
-                                  <button
-                                    onClick={() => handleDeleteGroupPhoto(g)}
-                                    className="icon-btn text-danger"
-                                    style={{ padding: '2px', opacity: 0.5 }}
-                                    title="Excluir foto"
-                                  >
-                                    <Trash2 size={12} />
-                                  </button>
-                                )}
-                                {!isHistoricalEncounter && (
-                                  <>
-                                    <button
-                                      onClick={() => { setEditingName(g.id); setTempName(g.nome || ''); }}
-                                      className="icon-btn" style={{ padding: '2px', opacity: 0.5 }}
-                                      title="Renomear dupla"
-                                    >
-                                      <Edit2 size={12} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteGroup(g.id)}
-                                      disabled={isLoadingDeleteImpact}
-                                      className="icon-btn text-danger" style={{ padding: '2px', opacity: 0.5 }}
-                                      title="Dissolver dupla"
-                                    >
-                                      {isLoadingDeleteImpact ? <Loader size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          )}
+                        <div className="duo-card-identity">
+                          <h4>{g.nome}</h4>
                           <div style={{ display: 'flex', gap: '4px', marginTop: '2px', flexWrap: 'wrap', overflow: 'hidden' }}>
                             {g.visitantes.map(v => (
                               <span key={v.id} style={{ fontSize: '0.7rem', opacity: 0.6 }}>
@@ -1088,7 +1017,7 @@ export function CoordenadorVisitacaoPage() {
                           </div>
                         </div>
                       </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div className="duo-card-meta">
                         <span style={{
                           fontSize: '0.7rem', fontWeight: 800, padding: '3px 8px', borderRadius: '8px',
                           background: g.progresso === 100 ? '#10b98120' : g.progresso > 0 ? '#3b82f620' : '#6b728020',
@@ -1096,8 +1025,59 @@ export function CoordenadorVisitacaoPage() {
                         }}>
                           {g.progresso === 100 ? 'CONCLUÍDO' : g.progresso > 0 ? 'EM ANDAMENTO' : 'PENDENTE'}
                         </span>
+                        {!isHistoricalEncounter && (
+                          <div className="duo-card-direct-actions" aria-label={`Ações da dupla ${g.nome}`}>
+                            <button
+                              type="button"
+                              className="icon-btn"
+                              onClick={() => {
+                                setEditingName(g.id);
+                                setTempName(g.nome || '');
+                              }}
+                              aria-label={`Renomear dupla ${g.nome}`}
+                              title="Renomear dupla"
+                            >
+                              <Edit2 size={17} />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-btn text-danger"
+                              onClick={() => handleDeleteGroup(g.id)}
+                              disabled={isLoadingDeleteImpact}
+                              aria-label={`Dissolver dupla ${g.nome}`}
+                              title="Dissolver dupla"
+                            >
+                              {isLoadingDeleteImpact ? <Loader size={17} className="animate-spin" /> : <Trash2 size={17} />}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
+
+                    {editingName === g.id && (
+                      <div className="duo-name-editor">
+                        <label htmlFor={`duo-name-${g.id}`}>Nome da dupla</label>
+                        <input
+                          id={`duo-name-${g.id}`}
+                          className="form-input"
+                          value={tempName}
+                          onChange={e => setTempName(e.target.value)}
+                          autoFocus
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleRenameGroup();
+                            if (e.key === 'Escape') setEditingName(null);
+                          }}
+                        />
+                        <div className="duo-name-editor__actions">
+                          <button type="button" onClick={() => setEditingName(null)} className="btn-secondary btn-sm">
+                            Cancelar
+                          </button>
+                          <button type="button" onClick={handleRenameGroup} className="btn-primary btn-sm" disabled={!tempName.trim()}>
+                            <Check size={16} /> Salvar
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     <div style={{ marginBottom: '1.25rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', fontSize: '0.8rem' }}>
@@ -1381,7 +1361,7 @@ export function CoordenadorVisitacaoPage() {
                     <button type="button" className="btn-secondary" onClick={() => openGroupPhotoPicker(photoPreviewGroup)}>
                       <ImagePlus size={16} /> Trocar foto
                     </button>
-                    <button type="button" className="btn-danger-solid" onClick={() => handleDeleteGroupPhoto(photoPreviewGroup)}>
+                    <button type="button" className="btn-danger-solid" onClick={() => setPhotoDeleteTarget(photoPreviewGroup)}>
                       <Trash2 size={16} /> Excluir foto
                     </button>
                   </div>
@@ -1459,18 +1439,8 @@ export function CoordenadorVisitacaoPage() {
           <style>{`
                 .duo-grid {
                     display: grid;
-                    grid-template-columns: 1fr;
+                    grid-template-columns: repeat(auto-fit, minmax(min(100%, 350px), 1fr));
                     gap: 1.25rem;
-                }
-                @media (min-width: 640px) {
-                    .duo-grid {
-                        grid-template-columns: repeat(2, 1fr);
-                    }
-                }
-                @media (min-width: 1200px) {
-                    .duo-grid {
-                        grid-template-columns: repeat(3, 1fr);
-                    }
                 }
                 .filter-chip-modern {
                     padding: 0.5rem 1rem;
@@ -1510,12 +1480,115 @@ export function CoordenadorVisitacaoPage() {
                     box-shadow: 0 12px 24px rgba(0,0,0,0.08);
                     border-color: rgba(var(--primary-rgb), 0.2);
                 }
-                .duo-actions-on-hover {
-                    opacity: 0;
-                    transition: opacity 0.2s ease;
+                .duo-card-content {
+                    padding: 1.25rem;
+                    overflow: hidden;
                 }
-                .duo-monitor-card:hover .duo-actions-on-hover {
-                    opacity: 1;
+                .duo-card-header,
+                .duo-card-main,
+                .duo-card-meta {
+                    display: flex;
+                    align-items: flex-start;
+                }
+                .duo-card-header {
+                    justify-content: space-between;
+                    gap: 0.75rem;
+                    margin-bottom: 1rem;
+                }
+                .duo-card-main {
+                    align-items: center;
+                    flex: 1;
+                    gap: 0.75rem;
+                }
+                .duo-photo-button {
+                    align-items: center;
+                    background: var(--primary-color)15;
+                    border: 1px solid transparent;
+                    border-radius: 12px;
+                    color: var(--primary-color);
+                    cursor: pointer;
+                    display: flex;
+                    flex: 0 0 52px;
+                    font-weight: 700;
+                    height: 52px;
+                    justify-content: center;
+                    overflow: hidden;
+                    padding: 0;
+                    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+                    width: 52px;
+                }
+                .duo-photo-button:hover,
+                .duo-photo-button:focus-visible {
+                    border-color: var(--primary-color);
+                    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.14);
+                }
+                .duo-photo-button:disabled {
+                    cursor: default;
+                    opacity: 0.65;
+                }
+                .duo-card-identity {
+                    flex: 1;
+                    min-width: 0;
+                }
+                .duo-card-identity h4 {
+                    font-size: 1rem;
+                    font-weight: 700;
+                    margin: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                .duo-card-meta {
+                    align-items: flex-end;
+                    flex: 0 0 auto;
+                    flex-direction: column;
+                    gap: 0.5rem;
+                }
+                .duo-card-direct-actions {
+                    display: flex;
+                    gap: 0.4rem;
+                }
+                .duo-card-direct-actions .icon-btn {
+                    height: 40px;
+                    width: 40px;
+                }
+                .duo-name-editor {
+                    background: var(--secondary-bg);
+                    border: 1px solid var(--border-color);
+                    border-radius: 12px;
+                    display: grid;
+                    gap: 0.65rem;
+                    margin: -0.25rem 0 1.25rem;
+                    padding: 0.85rem;
+                }
+                .duo-name-editor label {
+                    font-size: 0.78rem;
+                    font-weight: 700;
+                }
+                .duo-name-editor .form-input {
+                    font-size: 0.95rem;
+                    min-height: 44px;
+                    width: 100%;
+                }
+                .duo-name-editor__actions {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 0.5rem;
+                    justify-content: flex-end;
+                }
+                .duo-name-editor__actions button {
+                    align-items: center;
+                    display: inline-flex;
+                    justify-content: center;
+                    min-height: 40px;
+                }
+                @media (max-width: 430px) {
+                    .duo-card-content {
+                        padding: 1rem;
+                    }
+                    .duo-name-editor__actions button {
+                        flex: 1;
+                    }
                 }
                 .modal-participant-card {
                     background: var(--card-bg);
@@ -1900,6 +1973,21 @@ export function CoordenadorVisitacaoPage() {
       />
 
       <ConfirmDialog
+        isOpen={!!photoDeleteTarget}
+        title="Excluir foto da dupla?"
+        message={photoDeleteTarget && (
+          <p style={{ margin: 0 }}>
+            A foto da dupla <strong>{photoDeleteTarget.nome || 'sem nome'}</strong> será removida.
+          </p>
+        )}
+        confirmText="Excluir foto"
+        onConfirm={handleDeleteGroupPhoto}
+        onCancel={() => setPhotoDeleteTarget(null)}
+        isLoading={uploadingGroupId === photoDeleteTarget?.id}
+        isDestructive
+      />
+
+      <ConfirmDialog
         isOpen={!!moveParticipantTarget}
         title="Alterar dupla?"
         message={moveParticipantTarget && (
@@ -2166,12 +2254,17 @@ export function CoordenadorVisitacaoPage() {
         vinculos={vinculos}
         onSuccess={loadData}
       />
-      <input
-        ref={photoInputRef}
-        type="file"
+      <MobileFileUploadButton
+        triggerRef={photoPickerTriggerRef}
+        className="duo-photo-upload-trigger"
+        hideTrigger
+        label={photoTargetGroup?.foto_url ? 'Trocar foto da dupla' : 'Adicionar foto da dupla'}
+        sheetDescription="Escolha se deseja tirar uma foto agora ou selecionar uma imagem existente."
+        galleryLabel="Escolher da galeria"
+        multiple={false}
         accept="image/*"
-        onChange={handleGroupPhotoSelected}
-        style={{ display: 'none' }}
+        disabled={isHistoricalEncounter}
+        onFiles={handleGroupPhotoSelected}
       />
     </>
   );
