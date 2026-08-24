@@ -1,5 +1,5 @@
 import { Camera, FolderOpen, Upload, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useRef, useState, type Ref } from 'react';
 
 interface MobileFileUploadButtonProps {
   label: string;
@@ -7,6 +7,10 @@ interface MobileFileUploadButtonProps {
   multiple?: boolean;
   accept?: string;
   className?: string;
+  triggerRef?: Ref<HTMLButtonElement>;
+  hideTrigger?: boolean;
+  sheetDescription?: string;
+  galleryLabel?: string;
   onFiles: (files: File[]) => void;
 }
 
@@ -18,6 +22,10 @@ export function MobileFileUploadButton({
   multiple = true,
   accept = 'image/*,.pdf',
   className = 'btn-secondary btn-sm almox-proof-button',
+  triggerRef,
+  hideTrigger = false,
+  sheetDescription = 'Escolha como deseja anexar o comprovante.',
+  galleryLabel = 'Galeria ou arquivo',
   onFiles,
 }: MobileFileUploadButtonProps) {
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -46,7 +54,14 @@ export function MobileFileUploadButton({
 
   return (
     <>
-      <button type="button" className={className} disabled={disabled} onClick={handleOpen}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={className}
+        disabled={disabled}
+        onClick={handleOpen}
+        style={hideTrigger ? { display: 'none' } : undefined}
+      >
         <Upload size={16} />
         {label}
       </button>
@@ -77,7 +92,7 @@ export function MobileFileUploadButton({
             <div className="mobile-file-sheet__header">
               <div>
                 <h3>{label}</h3>
-                <p>Escolha como deseja anexar o comprovante.</p>
+                <p>{sheetDescription}</p>
               </div>
               <button type="button" className="mobile-file-sheet__close" onClick={() => setActionSheetOpen(false)} aria-label="Fechar">
                 <X size={18} />
@@ -103,7 +118,7 @@ export function MobileFileUploadButton({
                 }}
               >
                 <FolderOpen size={20} />
-                Galeria ou arquivo
+                {galleryLabel}
               </button>
             </div>
 
