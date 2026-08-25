@@ -35,6 +35,12 @@ export interface PesquisaSatisfacaoRespondente {
   enviadoEm: string | null;
 }
 
+export interface PesquisaSatisfacaoCoordenador {
+  participacaoId: string;
+  nome: string;
+  telefone: string | null;
+}
+
 export interface PesquisaSatisfacaoOpcaoResumo {
   label: string;
   count: number;
@@ -460,6 +466,28 @@ export const pesquisaSatisfacaoService = {
       totalPendentes: Math.max(totalParticipantes - totalEnviados - totalRascunhos, 0),
       integrantes,
     };
+  },
+
+  async listarCoordenadoresEquipe(encontroId: string, equipeId: string): Promise<PesquisaSatisfacaoCoordenador[]> {
+    const { data, error } = await supabase
+      .from('participacoes')
+      .select('id, pessoas(nome_completo, telefone)')
+      .eq('encontro_id', encontroId)
+      .eq('equipe_id', equipeId)
+      .eq('coordenador', true);
+
+    if (error) throw error;
+
+    return (data ?? [])
+      .map((participacao) => {
+        const pessoa = getRelated(participacao.pessoas);
+        return {
+          participacaoId: participacao.id,
+          nome: pessoa?.nome_completo?.trim() || 'Coordenador sem nome',
+          telefone: pessoa?.telefone?.trim() || null,
+        };
+      })
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   },
 
   async listarPainel(encontroId: string, equipeId?: string | null): Promise<PesquisaSatisfacaoPainel> {

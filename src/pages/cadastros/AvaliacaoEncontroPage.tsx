@@ -1,6 +1,7 @@
-import { BarChart3, ChevronLeft, ClipboardList, Copy, FileQuestion, Loader, Pencil, Plus, Save, Search, Share2, Sparkles, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BarChart3, ChevronDown, ChevronLeft, ClipboardList, Copy, Download, FileQuestion, Loader, MessageCircle, Pencil, Plus, Save, Search, Share2, Sparkles, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { QRCodeCanvas, QRCodeSVG } from 'qrcode.react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
 
@@ -9,6 +10,7 @@ import { Modal } from '../../components/ui/Modal';
 import { useEncontros } from '../../contexts/EncontroContext';
 import {
   pesquisaSatisfacaoService,
+  type PesquisaSatisfacaoCoordenador,
   type PesquisaSatisfacaoPainel,
   type PesquisaSatisfacaoPerguntaResumo,
   type PesquisaSatisfacaoRelatorioIAResultado,
@@ -21,9 +23,11 @@ import type {
   PesquisaSatisfacaoQuestionType,
   PesquisaSatisfacaoStatus,
 } from '../../types/pesquisaSatisfacao';
+import { formatTelefone } from '../../utils/cpfUtils';
 
 type Tab = 'perguntas' | 'respostas';
 type StatusFilter = 'todos' | PesquisaSatisfacaoStatus;
+type ShareEquipe = { id: string; nome: string };
 const RESUMOS_IA_LIMITE = 5;
 
 const typeLabels: Record<PesquisaSatisfacaoQuestionType, string> = {
@@ -60,20 +64,41 @@ function formatPercent(value: number) {
   return `${Math.round(value)}%`;
 }
 
+function whatsappPhone(phone: string) {
+  const digits = phone.replace(/\D/g, '');
+  return digits.startsWith('55') && digits.length >= 12 ? digits : `55${digits}`;
+}
+
+function qrFileName(equipeNome: string) {
+  const safeName = equipeNome
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+  return `pesquisa-satisfacao-${safeName || 'equipe'}.png`;
+}
+
 export function AvaliacaoEncontroPage() {
   const navigate = useNavigate();
-  const { encontroSelecionadoId: selectedEncontroId } = useEncontros();
+  const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
   const [tab, setTab] = useState<Tab>('respostas');
   const [perguntas, setPerguntas] = useState<PesquisaSatisfacaoQuestion[]>([]);
   const [painel, setPainel] = useState<PesquisaSatisfacaoPainel | null>(null);
   const [painelGeral, setPainelGeral] = useState<PesquisaSatisfacaoPainel | null>(null);
   const [resumosIA, setResumosIA] = useState<PesquisaSatisfacaoResumoIA[]>([]);
   const [publicada, setPublicada] = useState(false);
+  const [loadedEncontroId, setLoadedEncontroId] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generatingResumoIA, setGeneratingResumoIA] = useState(false);
+  const [aiExpanded, setAiExpanded] = useState(false);
   const [questionModalOpen, setQuestionModalOpen] = useState(false);
   const [linksModalOpen, setLinksModalOpen] = useState(false);
+  const [shareEquipe, setShareEquipe] = useState<ShareEquipe | null>(null);
+  const [shareCoordenadores, setShareCoordenadores] = useState<PesquisaSatisfacaoCoordenador[]>([]);
+  const [shareDestination, setShareDestination] = useState('whatsapp-picker');
+  const [loadingShareCoordenadores, setLoadingShareCoordenadores] = useState(false);
   const [responsesModalSummary, setResponsesModalSummary] = useState<PesquisaSatisfacaoPerguntaResumo | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<PesquisaSatisfacaoQuestion | null>(null);
   const [formData, setFormData] = useState<PesquisaSatisfacaoPerguntaFormData>(emptyForm());
@@ -82,39 +107,109 @@ export function AvaliacaoEncontroPage() {
   const [equipeFilter, setEquipeFilter] = useState('todas');
   const [questionFilter, setQuestionFilter] = useState('todas');
   const [search, setSearch] = useState('');
+  const loadRequestRef = useRef(0);
+  const shareRequestRef = useRef(0);
+  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const selectedEncontroIdRef = useRef(selectedEncontroId);
+  selectedEncontroIdRef.current = selectedEncontroId;
 
   const load = useCallback(async () => {
-    if (!selectedEncontroId) return;
+    const encontroId = selectedEncontroId;
+    const requestId = ++loadRequestRef.current;
+    if (!encontroId) {
+      setLoadedEncontroId('');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
+    setLoadedEncontroId('');
     try {
-      await pesquisaSatisfacaoService.garantirPerguntasPadrao(selectedEncontroId);
-      const [configData, perguntasData, painelGeralData, resumosIAData, painelFiltradoData] = await Promise.all([
-        pesquisaSatisfacaoService.obterConfig(selectedEncontroId),
-        pesquisaSatisfacaoService.listarPerguntas(selectedEncontroId, true),
-        pesquisaSatisfacaoService.listarPainel(selectedEncontroId),
-        pesquisaSatisfacaoService.listarResumosIA(selectedEncontroId),
-        equipeFilter === 'todas'
-          ? Promise.resolve(null)
-          : pesquisaSatisfacaoService.listarPainel(selectedEncontroId, equipeFilter),
+      await pesquisaSatisfacaoService.garantirPerguntasPadrao(encontroId);
+      const [configData, perguntasData, painelGeralData, resumosIAData] = await Promise.all([
+        pesquisaSatisfacaoService.obterConfig(encontroId),
+        pesquisaSatisfacaoService.listarPerguntas(encontroId, true),
+        pesquisaSatisfacaoService.listarPainel(encontroId),
+        pesquisaSatisfacaoService.listarResumosIA(encontroId),
       ]);
+      if (loadRequestRef.current !== requestId || selectedEncontroIdRef.current !== encontroId) return;
+
       setPublicada(configData.publicada);
       setPerguntas(perguntasData);
       setPainelGeral(painelGeralData);
-      setPainel(painelFiltradoData ?? painelGeralData);
+      setPainel(painelGeralData);
       setResumosIA(resumosIAData);
+      setLoadedEncontroId(encontroId);
     } catch (error) {
+      if (loadRequestRef.current !== requestId) return;
       console.error('Erro ao carregar pesquisa de satisfação:', error);
       toast.error('Erro ao carregar avaliação.');
     } finally {
-      setLoading(false);
+      if (loadRequestRef.current === requestId) setLoading(false);
     }
-  }, [selectedEncontroId, equipeFilter]);
+  }, [selectedEncontroId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    setPublicada(false);
+    setPerguntas([]);
+    setPainel(null);
+    setPainelGeral(null);
+    setResumosIA([]);
+    setAiExpanded(false);
+    setEquipeFilter('todas');
+    setQuestionFilter('todas');
+    setStatusFilter('todos');
+    setSearch('');
+    setLinksModalOpen(false);
+    setShareEquipe(null);
+    setShareCoordenadores([]);
+    setShareDestination('whatsapp-picker');
+    shareRequestRef.current += 1;
+    setQuestionModalOpen(false);
+    setResponsesModalSummary(null);
+    setEditingQuestion(null);
+    setDeleteTarget(null);
+    setFormData(emptyForm(selectedEncontroId));
+    void load();
 
-  const activeQuestions = useMemo(() => perguntas.filter((pergunta) => pergunta.active !== false), [perguntas]);
+    return () => {
+      loadRequestRef.current += 1;
+    };
+  }, [load, selectedEncontroId]);
+
+  const encounterReady = !!selectedEncontroId
+    && loadedEncontroId === selectedEncontroId
+    && !loading;
+
+  useEffect(() => {
+    if (!encounterReady || !painelGeral) return;
+    if (equipeFilter === 'todas') {
+      setPainel(painelGeral);
+      return;
+    }
+
+    const encontroId = loadedEncontroId;
+    const equipeId = equipeFilter;
+    let cancelled = false;
+    pesquisaSatisfacaoService.listarPainel(encontroId, equipeId)
+      .then((nextPainel) => {
+        if (!cancelled && selectedEncontroIdRef.current === encontroId) setPainel(nextPainel);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error('Erro ao filtrar painel da pesquisa:', error);
+        toast.error('Erro ao filtrar avaliação por equipe.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [encounterReady, equipeFilter, loadedEncontroId, painelGeral]);
+
+  const activeQuestions = useMemo(
+    () => encounterReady ? perguntas.filter((pergunta) => pergunta.active !== false) : [],
+    [encounterReady, perguntas]
+  );
   const sections = useMemo(() => {
     const map = new Map<string, string>();
     for (const pergunta of perguntas) {
@@ -124,6 +219,7 @@ export function AvaliacaoEncontroPage() {
   }, [perguntas]);
 
   const equipeOptions = useMemo(() => {
+    if (!encounterReady) return [];
     const map = new Map<string, string>();
     for (const respondente of painelGeral?.respondentes ?? []) {
       map.set(respondente.equipeId, respondente.equipeNome);
@@ -131,7 +227,7 @@ export function AvaliacaoEncontroPage() {
     return Array.from(map.entries())
       .map(([id, nome]) => ({ id, nome }))
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-  }, [painelGeral]);
+  }, [encounterReady, painelGeral]);
 
   const filteredRespondentes = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -176,31 +272,39 @@ export function AvaliacaoEncontroPage() {
     return summaries.filter((summary) => summary.pergunta.id === questionFilter);
   }, [painel, questionFilter]);
 
-  const completion = painel && painel.totalParticipantes > 0
+  const completion = encounterReady && painel && painel.totalParticipantes > 0
     ? (painel.totalEnviados / painel.totalParticipantes) * 100
     : 0;
   const notaGeral = painel?.perguntaResumos.find((summary) => summary.pergunta.title.toLowerCase().includes('nota geral'));
   const serviria = painel?.perguntaResumos.find((summary) => summary.pergunta.title.toLowerCase().includes('serviria novamente'));
   const relatorioAtual = resumosIA[0] ?? null;
   const relatorioEmAndamento = resumosIA.find((item) => item.status === 'pending' || item.status === 'generating') ?? null;
+  const relatorioEmAndamentoStatus = relatorioEmAndamento?.status;
   const ultimoResumoIA = resumosIA.find((item) => item.status === 'completed') ?? null;
   const resumosRestantes = Math.max(RESUMOS_IA_LIMITE - resumosIA.length, 0);
-  const podeGerarResumoIA = !!selectedEncontroId
+  const podeGerarResumoIA = encounterReady
+    && !!loadedEncontroId
     && (painel?.totalEnviados ?? 0) > 0
     && (resumosRestantes > 0 || !!relatorioEmAndamento || relatorioAtual?.status === 'error')
     && !generatingResumoIA;
 
+  useEffect(() => {
+    if (relatorioEmAndamentoStatus || relatorioAtual?.status === 'error') setAiExpanded(true);
+  }, [relatorioAtual?.status, relatorioEmAndamentoStatus]);
+
   const openCreateModal = () => {
+    if (!encounterReady || !loadedEncontroId) return;
     const nextOrder = perguntas.length > 0 ? Math.max(...perguntas.map((item) => item.ordem ?? 0)) + 1 : 1;
     setEditingQuestion(null);
-    setFormData(emptyForm(selectedEncontroId, nextOrder));
+    setFormData(emptyForm(loadedEncontroId, nextOrder));
     setQuestionModalOpen(true);
   };
 
   const openEditModal = (question: PesquisaSatisfacaoQuestion) => {
+    if (!encounterReady || !loadedEncontroId) return;
     setEditingQuestion(question);
     setFormData({
-      encontro_id: selectedEncontroId,
+      encontro_id: loadedEncontroId,
       ordem: question.ordem ?? 1,
       section_id: question.sectionId,
       section_title: question.sectionTitle,
@@ -222,26 +326,28 @@ export function AvaliacaoEncontroPage() {
 
   const saveQuestion = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!selectedEncontroId || !formData.title.trim()) return;
+    if (!encounterReady || !loadedEncontroId || !formData.title.trim()) return;
+    const encontroId = loadedEncontroId;
     setSaving(true);
     try {
       const payload = {
         ...formData,
-        encontro_id: selectedEncontroId,
+        encontro_id: encontroId,
         section_id: formData.section_id || normalizeSectionId(formData.section_title),
         section_title: formData.section_title.trim(),
         title: formData.title.trim(),
       };
       if (editingQuestion) {
         await pesquisaSatisfacaoService.atualizarPergunta(editingQuestion.id, payload);
-        toast.success('Pergunta atualizada.');
       } else {
         await pesquisaSatisfacaoService.criarPergunta(payload);
-        toast.success('Pergunta criada.');
       }
+      if (selectedEncontroIdRef.current !== encontroId) return;
+      toast.success(editingQuestion ? 'Pergunta atualizada.' : 'Pergunta criada.');
       setQuestionModalOpen(false);
       await load();
     } catch (error) {
+      if (selectedEncontroIdRef.current !== encontroId) return;
       console.error('Erro ao salvar pergunta:', error);
       toast.error('Erro ao salvar pergunta.');
     } finally {
@@ -250,14 +356,17 @@ export function AvaliacaoEncontroPage() {
   };
 
   const deleteQuestion = async () => {
-    if (!deleteTarget) return;
+    if (!encounterReady || !loadedEncontroId || !deleteTarget) return;
+    const encontroId = loadedEncontroId;
     setSaving(true);
     try {
       await pesquisaSatisfacaoService.excluirPergunta(deleteTarget.id);
+      if (selectedEncontroIdRef.current !== encontroId) return;
       toast.success('Pergunta removida.');
       setDeleteTarget(null);
       await load();
     } catch (error) {
+      if (selectedEncontroIdRef.current !== encontroId) return;
       console.error('Erro ao remover pergunta:', error);
       toast.error('Erro ao remover pergunta.');
     } finally {
@@ -266,18 +375,27 @@ export function AvaliacaoEncontroPage() {
   };
 
   const togglePublicacao = async () => {
-    if (!selectedEncontroId) return;
+    if (!encounterReady || !loadedEncontroId) return;
     if (!publicada && activeQuestions.length === 0) {
       toast.error('Cadastre ou ative ao menos uma pergunta antes de publicar.');
       setTab('perguntas');
       return;
     }
+    const encontroId = loadedEncontroId;
+    const nextPublishedState = !publicada;
     setSaving(true);
     try {
-      const next = await pesquisaSatisfacaoService.atualizarPublicacao(selectedEncontroId, !publicada);
+      const next = await pesquisaSatisfacaoService.atualizarPublicacao(encontroId, nextPublishedState);
+      if (selectedEncontroIdRef.current !== encontroId) return;
       setPublicada(next.publicada);
+      if (!next.publicada) {
+        setLinksModalOpen(false);
+        setShareEquipe(null);
+        shareRequestRef.current += 1;
+      }
       toast.success(next.publicada ? 'Pesquisa publicada para os coordenadores.' : 'Pesquisa despublicada.');
     } catch (error) {
+      if (selectedEncontroIdRef.current !== encontroId) return;
       console.error('Erro ao atualizar publicação:', error);
       toast.error('Erro ao atualizar publicação.');
     } finally {
@@ -286,8 +404,8 @@ export function AvaliacaoEncontroPage() {
   };
 
   const equipeLink = (equipeId: string) => {
-    if (!selectedEncontroId) return '';
-    return `${window.location.origin}/pesquisa-satisfacao/equipe/${equipeId}?encontro=${selectedEncontroId}`;
+    if (!encounterReady || !loadedEncontroId || !publicada) return '';
+    return `${window.location.origin}/pesquisa-satisfacao/equipe/${equipeId}?encontro=${loadedEncontroId}`;
   };
 
   const copyEquipeLink = async (equipeId: string) => {
@@ -297,10 +415,67 @@ export function AvaliacaoEncontroPage() {
     toast.success('Link copiado.');
   };
 
+  const openShareModal = async (equipe: ShareEquipe) => {
+    if (!encounterReady || !loadedEncontroId || !publicada) return;
+    const encontroId = loadedEncontroId;
+    const requestId = ++shareRequestRef.current;
+    setLinksModalOpen(false);
+    setShareEquipe(equipe);
+    setShareCoordenadores([]);
+    setShareDestination('whatsapp-picker');
+    setLoadingShareCoordenadores(true);
+    try {
+      const coordenadores = await pesquisaSatisfacaoService.listarCoordenadoresEquipe(encontroId, equipe.id);
+      if (shareRequestRef.current !== requestId || selectedEncontroIdRef.current !== encontroId) return;
+      setShareCoordenadores(coordenadores);
+    } catch (error) {
+      if (shareRequestRef.current !== requestId) return;
+      console.error('Erro ao carregar coordenadores da equipe:', error);
+      toast.error('Não foi possível carregar os coordenadores. Você ainda pode escolher um contato no WhatsApp.');
+    } finally {
+      if (shareRequestRef.current === requestId) setLoadingShareCoordenadores(false);
+    }
+  };
+
+  const closeShareModal = (returnToLinks = false) => {
+    shareRequestRef.current += 1;
+    setShareEquipe(null);
+    setShareCoordenadores([]);
+    setShareDestination('whatsapp-picker');
+    setLoadingShareCoordenadores(false);
+    if (returnToLinks && encounterReady && publicada) setLinksModalOpen(true);
+  };
+
+  const shareOnWhatsApp = () => {
+    if (!shareEquipe) return;
+    const link = equipeLink(shareEquipe.id);
+    if (!link) return;
+    const coordenador = shareCoordenadores.find((item) => item.participacaoId === shareDestination);
+    const greeting = coordenador ? `Olá, ${coordenador.nome}! ` : '';
+    const message = `${greeting}A pesquisa de satisfação da equipe ${shareEquipe.nome} está disponível: ${link}`;
+    const destination = coordenador?.telefone ? whatsappPhone(coordenador.telefone) : '';
+    const whatsappUrl = destination
+      ? `https://wa.me/${destination}?text=${encodeURIComponent(message)}`
+      : `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const downloadShareQrCode = () => {
+    if (!shareEquipe || !qrCanvasRef.current) return;
+    const anchor = document.createElement('a');
+    anchor.download = qrFileName(shareEquipe.nome);
+    anchor.href = qrCanvasRef.current.toDataURL('image/png');
+    anchor.click();
+    toast.success('QR Code baixado.');
+  };
+
   const gerarResumoIA = async () => {
-    if (!selectedEncontroId || !podeGerarResumoIA) return;
+    if (!encounterReady || !loadedEncontroId || !podeGerarResumoIA) return;
+    const encontroId = loadedEncontroId;
+    setAiExpanded(true);
     setGeneratingResumoIA(true);
     const updateProgress = (report: PesquisaSatisfacaoResumoIA) => {
+      if (selectedEncontroIdRef.current !== encontroId) return;
       setResumosIA((current) => [
         report,
         ...current.filter((item) => item.id !== report.id),
@@ -310,15 +485,17 @@ export function AvaliacaoEncontroPage() {
       if (relatorioAtual?.status === 'error') {
         await pesquisaSatisfacaoService.tentarNovamenteResumoIA(relatorioAtual.id, updateProgress);
       } else {
-        await pesquisaSatisfacaoService.gerarResumoIA(selectedEncontroId, updateProgress);
+        await pesquisaSatisfacaoService.gerarResumoIA(encontroId, updateProgress);
       }
+      if (selectedEncontroIdRef.current !== encontroId) return;
       toast.success('Relatório detalhado concluído.');
-      const next = await pesquisaSatisfacaoService.listarResumosIA(selectedEncontroId);
-      setResumosIA(next);
+      const next = await pesquisaSatisfacaoService.listarResumosIA(encontroId);
+      if (selectedEncontroIdRef.current === encontroId) setResumosIA(next);
     } catch (error) {
+      if (selectedEncontroIdRef.current !== encontroId) return;
       console.error('Erro ao gerar relatório IA:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao gerar relatório.');
-      const next = await pesquisaSatisfacaoService.listarResumosIA(selectedEncontroId);
+      const next = await pesquisaSatisfacaoService.listarResumosIA(encontroId);
       setResumosIA(next);
     } finally {
       setGeneratingResumoIA(false);
@@ -339,23 +516,33 @@ export function AvaliacaoEncontroPage() {
         </div>
       </header>
 
-      <section className={`card pesquisa-publicacao-card ${publicada ? 'is-published' : ''}`}>
+      <section className={`card pesquisa-publicacao-card ${encounterReady && publicada ? 'is-published' : ''}`}>
         <div>
-          <span>Publicação</span>
-          <h2>{publicada ? 'Pesquisa publicada' : 'Pesquisa não publicada'}</h2>
+          <span>
+            Publicação · {encontroSelecionado?.nome ?? 'Encontro'} · {encontroSelecionado?.ativo ? 'Ativo' : 'Histórico'}
+          </span>
+          <h2>{!encounterReady ? 'Carregando publicação...' : publicada ? 'Pesquisa publicada' : 'Pesquisa não publicada'}</h2>
           <p>
-            {publicada
+            {!encounterReady
+              ? 'Aguarde a confirmação dos dados do encontro selecionado.'
+              : publicada
               ? 'Os coordenadores conseguem acessar a pesquisa e compartilhar o link público da equipe.'
               : 'Os coordenadores ainda não conseguem acessar a pesquisa. Publique quando as perguntas estiverem prontas.'}
           </p>
         </div>
         <div className="pesquisa-publicacao-actions">
-          <button type="button" className="btn-secondary" onClick={() => setLinksModalOpen(true)} disabled={!selectedEncontroId}>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setLinksModalOpen(true)}
+            disabled={!encounterReady || !publicada}
+            title={encounterReady && !publicada ? 'Publique a pesquisa para disponibilizar os links.' : undefined}
+          >
             <Copy size={16} />
             Ver links por equipe
           </button>
-          <button type="button" className={publicada ? 'btn-secondary' : 'btn-primary'} onClick={togglePublicacao} disabled={saving || !selectedEncontroId}>
-            {saving ? <Loader className="animate-spin" size={16} /> : <Share2 size={16} />}
+          <button type="button" className={publicada ? 'btn-secondary' : 'btn-primary'} onClick={togglePublicacao} disabled={saving || !encounterReady}>
+            {saving || !encounterReady ? <Loader className="animate-spin" size={16} /> : <Share2 size={16} />}
             {publicada ? 'Despublicar' : 'Publicar'}
           </button>
         </div>
@@ -374,26 +561,26 @@ export function AvaliacaoEncontroPage() {
 
       <section className="pesquisa-admin-summary">
         <StatCard label="Perguntas ativas" value={activeQuestions.length} icon={<FileQuestion size={20} />} />
-        <StatCard label="Respondidas" value={painel?.totalEnviados ?? 0} tone="success" />
-        <StatCard label="Rascunhos" value={painel?.totalRascunhos ?? 0} tone="warning" />
-        <StatCard label="Pendentes" value={painel?.totalPendentes ?? 0} tone="muted" />
+        <StatCard label="Respondidas" value={encounterReady ? painel?.totalEnviados ?? 0 : 0} tone="success" />
+        <StatCard label="Rascunhos" value={encounterReady ? painel?.totalRascunhos ?? 0 : 0} tone="warning" />
+        <StatCard label="Pendentes" value={encounterReady ? painel?.totalPendentes ?? 0 : 0} tone="muted" />
       </section>
 
-      {loading && (
+      {!encounterReady && (
         <div className="empty-state">
           <Loader className="animate-spin" size={20} />
           Carregando dados...
         </div>
       )}
 
-      {!loading && tab === 'perguntas' && (
+      {encounterReady && tab === 'perguntas' && (
         <section className="card pesquisa-admin-card">
           <div className="pesquisa-admin-section-header">
             <div>
               <h2>Perguntas cadastradas</h2>
               <p>Altere, adicione ou remova perguntas da pesquisa deste encontro.</p>
             </div>
-            <button type="button" className="btn-primary" onClick={openCreateModal} disabled={!selectedEncontroId}>
+            <button type="button" className="btn-primary" onClick={openCreateModal} disabled={!encounterReady}>
               <Plus size={16} />
               Adicionar pergunta
             </button>
@@ -429,31 +616,123 @@ export function AvaliacaoEncontroPage() {
         </section>
       )}
 
-      {!loading && tab === 'respostas' && (
+      {encounterReady && tab === 'respostas' && (
         <section className="pesquisa-dashboard">
-          <div className="card pesquisa-admin-card pesquisa-overview">
-            <div className="pesquisa-admin-section-header">
-              <div>
-                <h2>Resumo geral</h2>
-                <p>Visão rápida do preenchimento e dos principais indicadores.</p>
+          <section className={`card pesquisa-admin-card pesquisa-ai-summary ${aiExpanded ? 'is-expanded' : ''}`}>
+            <div className="pesquisa-ai-disclosure-header">
+              <button
+                type="button"
+                className="pesquisa-ai-disclosure"
+                onClick={() => setAiExpanded((current) => !current)}
+                aria-expanded={aiExpanded}
+                aria-controls="pesquisa-ai-content"
+              >
+                <span className="pesquisa-ai-icon"><Sparkles size={18} /></span>
+                <span className="pesquisa-ai-disclosure-copy">
+                  <strong>Resumo geral com IA</strong>
+                  <small>Relatório consolidado do encontro; não é afetado pelos filtros.</small>
+                </span>
+                <span className="pesquisa-ai-disclosure-status">
+                  <Badge tone={relatorioAtual?.status === 'error' ? 'warning' : relatorioEmAndamento ? 'primary' : ultimoResumoIA ? 'success' : 'muted'}>
+                    {relatorioAtual?.status === 'error'
+                      ? 'Com erro'
+                      : relatorioEmAndamento
+                        ? 'Processando'
+                        : ultimoResumoIA
+                          ? 'Disponível'
+                          : 'Não gerado'}
+                  </Badge>
+                  <small>
+                    {relatorioEmAndamento
+                      ? `${relatorioEmAndamento.perguntas_concluidas}/${relatorioEmAndamento.total_perguntas} perguntas analisadas`
+                      : relatorioAtual?.status === 'error'
+                        ? 'Abra para consultar e tentar novamente'
+                        : ultimoResumoIA
+                          ? `${ultimoResumoIA.total_respostas} respostas · ${new Date(ultimoResumoIA.created_at).toLocaleDateString('pt-BR')}`
+                          : `${painelGeral?.totalEnviados ?? 0} respostas disponíveis`}
+                  </small>
+                </span>
+                <ChevronDown className="pesquisa-ai-chevron" size={20} aria-hidden="true" />
+              </button>
+            </div>
+
+            {aiExpanded && (
+              <div id="pesquisa-ai-content" className="pesquisa-ai-disclosure-content">
+                <div className="pesquisa-ai-expanded-actions">
+                  <div className="pesquisa-ai-meta">
+                    <Badge tone={resumosRestantes > 0 ? 'primary' : 'muted'}>
+                      {resumosIA.length}/{RESUMOS_IA_LIMITE} relatórios iniciados
+                    </Badge>
+                    <span>
+                      {relatorioEmAndamento
+                        ? `${relatorioEmAndamento.perguntas_concluidas} de ${relatorioEmAndamento.total_perguntas} perguntas concluídas.`
+                        : resumosRestantes > 0
+                        ? `${resumosRestantes} ${resumosRestantes === 1 ? 'geração restante' : 'gerações restantes'} neste encontro.`
+                        : 'Limite de relatórios atingido para este encontro.'}
+                    </span>
+                  </div>
+                  <button type="button" className="btn-primary" onClick={gerarResumoIA} disabled={!podeGerarResumoIA}>
+                    {generatingResumoIA ? <Loader className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                    {relatorioAtual?.status === 'error'
+                      ? 'Tentar novamente'
+                      : relatorioEmAndamento
+                        ? 'Continuar relatório'
+                        : ultimoResumoIA
+                          ? 'Gerar novo relatório'
+                          : 'Gerar relatório com IA'}
+                  </button>
+                </div>
+                {relatorioEmAndamento && (
+                  <div className="pesquisa-ai-progress" role="status">
+                    <div>
+                      <Loader className="animate-spin" size={16} />
+                      <strong>Relatório em processamento</strong>
+                      <span>
+                        {relatorioEmAndamento.erro_mensagem
+                          || 'O trabalho salvo pode ser retomado se esta página for fechada.'}
+                      </span>
+                    </div>
+                    <div className="pesquisa-progress-bar">
+                      <span
+                        style={{
+                          width: `${relatorioEmAndamento.total_perguntas > 0
+                            ? (relatorioEmAndamento.perguntas_concluidas / relatorioEmAndamento.total_perguntas) * 100
+                            : 0}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+                {relatorioAtual?.status === 'error' && (
+                  <div className="pesquisa-ai-error" role="alert">
+                    <strong>O processamento foi interrompido.</strong>
+                    <span>{relatorioAtual.erro_mensagem || 'Tente novamente para continuar das etapas já salvas.'}</span>
+                  </div>
+                )}
+                {ultimoResumoIA ? (
+                  <article className="pesquisa-ai-content">
+                    <div>
+                      <strong>Último relatório concluído</strong>
+                      <span>
+                        Gerado em {new Date(ultimoResumoIA.created_at).toLocaleString('pt-BR')} · {ultimoResumoIA.total_respostas} respostas consideradas
+                      </span>
+                    </div>
+                    {ultimoResumoIA.resultado
+                      ? <StructuredAiReport result={ultimoResumoIA.resultado} />
+                      : (
+                        <div className="pesquisa-ai-markdown">
+                          <ReactMarkdown>{ultimoResumoIA.conteudo ?? ''}</ReactMarkdown>
+                        </div>
+                      )}
+                  </article>
+                ) : (
+                  !relatorioEmAndamento
+                  && relatorioAtual?.status !== 'error'
+                  && <div className="empty-state">Nenhum relatório gerado para este encontro.</div>
+                )}
               </div>
-            </div>
-            <div className="pesquisa-progress">
-              <div>
-                <strong>{formatPercent(completion)} concluído</strong>
-                <span>{painel?.totalEnviados ?? 0} de {painel?.totalParticipantes ?? 0} integrantes enviaram.</span>
-              </div>
-              <div className="pesquisa-progress-bar"><span style={{ width: `${completion}%` }} /></div>
-            </div>
-            <div className="pesquisa-overview-grid">
-              <MiniMetric label="Nota média" value={notaGeral?.media ? notaGeral.media.toFixed(1) : '-'} />
-              <MiniMetric
-                label="Serviriam novamente"
-                value={serviria?.opcoes?.find((item) => item.label === 'Sim')?.count ?? 0}
-              />
-              <MiniMetric label="Equipes no filtro" value={equipeFilter === 'todas' ? equipeOptions.length : 1} />
-            </div>
-          </div>
+            )}
+          </section>
 
           <div className="card pesquisa-admin-card">
             <div className="pesquisa-filters">
@@ -494,87 +773,29 @@ export function AvaliacaoEncontroPage() {
             </div>
           </div>
 
-          <section className="card pesquisa-admin-card pesquisa-ai-summary">
+          <div className="card pesquisa-admin-card pesquisa-overview">
             <div className="pesquisa-admin-section-header">
-              <div className="pesquisa-ai-title">
-                <span><Sparkles size={18} /></span>
-                <div>
-                  <h2>Resumo geral com IA</h2>
-                  <p>Analisa todas as respostas em lotes, detalha cada pergunta e consolida ações prioritárias.</p>
-                </div>
+              <div>
+                <h2>Resumo geral</h2>
+                <p>Visão rápida do preenchimento e dos principais indicadores conforme os filtros selecionados.</p>
               </div>
-              <button type="button" className="btn-primary" onClick={gerarResumoIA} disabled={!podeGerarResumoIA}>
-                {generatingResumoIA ? <Loader className="animate-spin" size={16} /> : <Sparkles size={16} />}
-                {relatorioAtual?.status === 'error'
-                  ? 'Tentar novamente'
-                  : relatorioEmAndamento
-                    ? 'Continuar relatório'
-                    : ultimoResumoIA
-                      ? 'Gerar novo relatório'
-                      : 'Gerar relatório com IA'}
-              </button>
             </div>
-            <div className="pesquisa-ai-meta">
-              <Badge tone={resumosRestantes > 0 ? 'primary' : 'muted'}>
-                {resumosIA.length}/{RESUMOS_IA_LIMITE} relatórios iniciados
-              </Badge>
-              <span>
-                {relatorioEmAndamento
-                  ? `${relatorioEmAndamento.perguntas_concluidas} de ${relatorioEmAndamento.total_perguntas} perguntas concluídas.`
-                  : resumosRestantes > 0
-                  ? `${resumosRestantes} ${resumosRestantes === 1 ? 'geração restante' : 'gerações restantes'} neste encontro.`
-                  : 'Limite de relatórios atingido para este encontro.'}
-              </span>
+            <div className="pesquisa-progress">
+              <div>
+                <strong>{formatPercent(completion)} concluído</strong>
+                <span>{painel?.totalEnviados ?? 0} de {painel?.totalParticipantes ?? 0} integrantes enviaram.</span>
+              </div>
+              <div className="pesquisa-progress-bar"><span style={{ width: `${completion}%` }} /></div>
             </div>
-            {relatorioEmAndamento && (
-              <div className="pesquisa-ai-progress" role="status">
-                <div>
-                  <Loader className="animate-spin" size={16} />
-                  <strong>Relatório em processamento</strong>
-                  <span>
-                    {relatorioEmAndamento.erro_mensagem
-                      || 'O trabalho salvo pode ser retomado se esta página for fechada.'}
-                  </span>
-                </div>
-                <div className="pesquisa-progress-bar">
-                  <span
-                    style={{
-                      width: `${relatorioEmAndamento.total_perguntas > 0
-                        ? (relatorioEmAndamento.perguntas_concluidas / relatorioEmAndamento.total_perguntas) * 100
-                        : 0}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-            {relatorioAtual?.status === 'error' && (
-              <div className="pesquisa-ai-error" role="alert">
-                <strong>O processamento foi interrompido.</strong>
-                <span>{relatorioAtual.erro_mensagem || 'Tente novamente para continuar das etapas já salvas.'}</span>
-              </div>
-            )}
-            {ultimoResumoIA ? (
-              <article className="pesquisa-ai-content">
-                <div>
-                  <strong>Último relatório concluído</strong>
-                  <span>
-                    Gerado em {new Date(ultimoResumoIA.created_at).toLocaleString('pt-BR')} · {ultimoResumoIA.total_respostas} respostas consideradas
-                  </span>
-                </div>
-                {ultimoResumoIA.resultado
-                  ? <StructuredAiReport result={ultimoResumoIA.resultado} />
-                  : (
-                    <div className="pesquisa-ai-markdown">
-                      <ReactMarkdown>{ultimoResumoIA.conteudo ?? ''}</ReactMarkdown>
-                    </div>
-                  )}
-              </article>
-            ) : (
-              !relatorioEmAndamento
-              && relatorioAtual?.status !== 'error'
-              && <div className="empty-state">Nenhum relatório gerado para este encontro.</div>
-            )}
-          </section>
+            <div className="pesquisa-overview-grid">
+              <MiniMetric label="Nota média" value={notaGeral?.media ? notaGeral.media.toFixed(1) : '-'} />
+              <MiniMetric
+                label="Serviriam novamente"
+                value={serviria?.opcoes?.find((item) => item.label === 'Sim')?.count ?? 0}
+              />
+              <MiniMetric label="Equipes no filtro" value={equipeFilter === 'todas' ? equipeOptions.length : 1} />
+            </div>
+          </div>
 
           <div className="pesquisa-dashboard-grid">
             <section className="card pesquisa-admin-card">
@@ -712,7 +933,7 @@ export function AvaliacaoEncontroPage() {
       </Modal>
 
       <Modal
-        isOpen={linksModalOpen}
+        isOpen={linksModalOpen && encounterReady && publicada}
         onClose={() => setLinksModalOpen(false)}
         title="Links públicos por equipe"
         maxWidth="760px"
@@ -729,19 +950,118 @@ export function AvaliacaoEncontroPage() {
               const link = equipeLink(equipe.id);
               return (
                 <article key={equipe.id} className="pesquisa-team-link-card">
-                  <div>
+                  <div className="pesquisa-team-link-qr" aria-label={`QR Code da equipe ${equipe.nome}`}>
+                    <QRCodeSVG value={link} size={84} level="M" marginSize={1} />
+                  </div>
+                  <div className="pesquisa-team-link-info">
                     <strong>{equipe.nome}</strong>
                     <code>{link}</code>
                   </div>
-                  <button type="button" className="btn-secondary" onClick={() => copyEquipeLink(equipe.id)}>
-                    <Copy size={16} />
-                    Copiar
-                  </button>
+                  <div className="pesquisa-team-link-actions">
+                    <button type="button" className="btn-secondary" onClick={() => copyEquipeLink(equipe.id)}>
+                      <Copy size={16} />
+                      Copiar
+                    </button>
+                    <button type="button" className="btn-primary" onClick={() => openShareModal(equipe)}>
+                      <MessageCircle size={16} />
+                      Compartilhar
+                    </button>
+                  </div>
                 </article>
               );
             })}
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={!!shareEquipe && encounterReady && publicada}
+        onClose={() => closeShareModal(false)}
+        title={shareEquipe ? `Compartilhar pesquisa · ${shareEquipe.nome}` : 'Compartilhar pesquisa'}
+        maxWidth="680px"
+      >
+        {shareEquipe && (
+          <div className="pesquisa-share-modal">
+            <div className="pesquisa-share-preview">
+              <div className="pesquisa-share-qr">
+                <QRCodeCanvas
+                  ref={qrCanvasRef}
+                  value={equipeLink(shareEquipe.id)}
+                  size={512}
+                  level="M"
+                  marginSize={2}
+                />
+              </div>
+              <div className="pesquisa-share-link">
+                <strong>{shareEquipe.nome}</strong>
+                <p>Envie o QR Code ou compartilhe o link diretamente pelo WhatsApp.</p>
+                <code>{equipeLink(shareEquipe.id)}</code>
+                <div className="pesquisa-share-link-actions">
+                  <button type="button" className="btn-secondary" onClick={() => copyEquipeLink(shareEquipe.id)}>
+                    <Copy size={16} />
+                    Copiar link
+                  </button>
+                  <button type="button" className="btn-secondary" onClick={downloadShareQrCode}>
+                    <Download size={16} />
+                    Baixar QR Code
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <fieldset className="pesquisa-share-destinations">
+              <legend>Escolha para quem enviar</legend>
+              <label className="pesquisa-share-destination">
+                <input
+                  type="radio"
+                  name="pesquisa-share-destination"
+                  value="whatsapp-picker"
+                  checked={shareDestination === 'whatsapp-picker'}
+                  onChange={(event) => setShareDestination(event.target.value)}
+                />
+                <span>
+                  <strong>Escolher contato ou grupo no WhatsApp</strong>
+                  <small>O WhatsApp abrirá sem um destinatário definido.</small>
+                </span>
+              </label>
+
+              {loadingShareCoordenadores ? (
+                <div className="pesquisa-share-loading">
+                  <Loader className="animate-spin" size={16} />
+                  Carregando coordenadores...
+                </div>
+              ) : shareCoordenadores.length === 0 ? (
+                <p className="pesquisa-share-empty">Nenhum coordenador encontrado para esta equipe.</p>
+              ) : shareCoordenadores.map((coordenador) => (
+                <label
+                  key={coordenador.participacaoId}
+                  className={`pesquisa-share-destination ${!coordenador.telefone ? 'is-disabled' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name="pesquisa-share-destination"
+                    value={coordenador.participacaoId}
+                    checked={shareDestination === coordenador.participacaoId}
+                    onChange={(event) => setShareDestination(event.target.value)}
+                    disabled={!coordenador.telefone}
+                  />
+                  <span>
+                    <strong>{coordenador.nome}</strong>
+                    <small>{coordenador.telefone ? formatTelefone(coordenador.telefone) : 'WhatsApp não cadastrado'}</small>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+
+            <div className="pesquisa-modal-actions pesquisa-share-modal-actions">
+              <button type="button" className="btn-secondary" onClick={() => closeShareModal(true)}>Voltar aos links</button>
+              <button type="button" className="btn-primary" onClick={shareOnWhatsApp}>
+                <MessageCircle size={16} />
+                Abrir WhatsApp
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <Modal
@@ -1010,8 +1330,27 @@ export function AvaliacaoEncontroPage() {
           border-radius: 10px;
           display: grid;
           gap: 0.75rem;
-          grid-template-columns: minmax(0, 1fr) auto;
+          grid-template-columns: 84px minmax(0, 1fr) auto;
           padding: 0.85rem;
+        }
+
+        .pesquisa-team-link-qr,
+        .pesquisa-share-qr {
+          align-items: center;
+          background: #fff;
+          border-radius: 10px;
+          display: flex;
+          justify-content: center;
+          overflow: hidden;
+        }
+
+        .pesquisa-team-link-qr {
+          height: 84px;
+          width: 84px;
+        }
+
+        .pesquisa-team-link-info {
+          min-width: 0;
         }
 
         .pesquisa-team-link-card strong {
@@ -1025,6 +1364,17 @@ export function AvaliacaoEncontroPage() {
           display: block;
           font-size: 0.78rem;
           overflow-wrap: anywhere;
+        }
+
+        .pesquisa-team-link-actions,
+        .pesquisa-share-link-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
+
+        .pesquisa-team-link-actions {
+          justify-content: flex-end;
         }
 
         .pesquisa-links-modal {
@@ -1045,10 +1395,235 @@ export function AvaliacaoEncontroPage() {
           margin: 0;
         }
 
+        .pesquisa-share-modal,
+        .pesquisa-share-destinations {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .pesquisa-share-preview {
+          align-items: center;
+          display: grid;
+          gap: 1rem;
+          grid-template-columns: 180px minmax(0, 1fr);
+        }
+
+        .pesquisa-share-qr {
+          height: 180px;
+          width: 180px;
+        }
+
+        .pesquisa-share-qr canvas {
+          height: 180px !important;
+          width: 180px !important;
+        }
+
+        .pesquisa-share-link {
+          min-width: 0;
+        }
+
+        .pesquisa-share-link > strong {
+          color: var(--text-color);
+          display: block;
+          font-size: 1.05rem;
+        }
+
+        .pesquisa-share-link p,
+        .pesquisa-share-empty {
+          color: var(--muted-text);
+          line-height: 1.45;
+          margin: 0.4rem 0 0.75rem;
+        }
+
+        .pesquisa-share-link code {
+          background: var(--secondary-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          color: var(--muted-text);
+          display: block;
+          font-size: 0.78rem;
+          margin-bottom: 0.75rem;
+          overflow-wrap: anywhere;
+          padding: 0.65rem;
+        }
+
+        .pesquisa-share-destinations {
+          border: 0;
+          margin: 0;
+          padding: 0;
+        }
+
+        .pesquisa-share-destinations legend {
+          color: var(--text-color);
+          font-weight: 800;
+          margin-bottom: 0.65rem;
+        }
+
+        .pesquisa-share-destination {
+          align-items: center;
+          background: var(--secondary-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 10px;
+          cursor: pointer;
+          display: flex;
+          gap: 0.75rem;
+          padding: 0.8rem;
+        }
+
+        .pesquisa-share-destination:has(input:checked) {
+          border-color: var(--primary-color);
+          box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.12);
+        }
+
+        .pesquisa-share-destination.is-disabled {
+          cursor: not-allowed;
+          opacity: 0.55;
+        }
+
+        .pesquisa-share-destination input {
+          flex: 0 0 auto;
+          margin: 0;
+        }
+
+        .pesquisa-share-destination span,
+        .pesquisa-share-destination strong,
+        .pesquisa-share-destination small {
+          display: block;
+        }
+
+        .pesquisa-share-destination strong {
+          color: var(--text-color);
+          margin-bottom: 0.2rem;
+        }
+
+        .pesquisa-share-destination small,
+        .pesquisa-share-loading {
+          color: var(--muted-text);
+          font-size: 0.8rem;
+        }
+
+        .pesquisa-share-loading {
+          align-items: center;
+          display: flex;
+          gap: 0.5rem;
+          padding: 0.75rem;
+        }
+
+        .pesquisa-share-modal-actions {
+          border-top: 1px solid var(--border-color);
+          padding-top: 1rem;
+        }
+
         .pesquisa-dashboard,
         .pesquisa-dashboard-grid {
           display: grid;
           gap: 1rem;
+        }
+
+        .pesquisa-ai-disclosure-header {
+          align-items: center;
+          display: block;
+        }
+
+        .pesquisa-ai-disclosure {
+          align-items: center;
+          background: transparent;
+          border: 0;
+          color: inherit;
+          cursor: pointer;
+          display: grid;
+          gap: 0.75rem;
+          grid-template-columns: 40px minmax(0, 1fr) auto 20px;
+          min-width: 0;
+          padding: 0;
+          text-align: left;
+          width: 100%;
+        }
+
+        .pesquisa-ai-disclosure:hover {
+          background: rgba(var(--primary-rgb), 0.05);
+          box-shadow: none;
+          color: inherit;
+          transform: none;
+        }
+
+        .pesquisa-ai-disclosure:focus-visible {
+          border-radius: 8px;
+          outline: 2px solid var(--primary-color);
+          outline-offset: 4px;
+        }
+
+        .pesquisa-ai-icon {
+          align-items: center;
+          background: rgba(var(--primary-rgb), 0.12);
+          border-radius: 9px;
+          color: var(--primary-color);
+          display: flex;
+          height: 40px;
+          justify-content: center;
+          width: 40px;
+        }
+
+        .pesquisa-ai-disclosure-copy,
+        .pesquisa-ai-disclosure-status {
+          min-width: 0;
+        }
+
+        .pesquisa-ai-disclosure-copy strong,
+        .pesquisa-ai-disclosure-copy small,
+        .pesquisa-ai-disclosure-status small {
+          display: block;
+        }
+
+        .pesquisa-ai-disclosure-copy strong {
+          color: var(--text-color);
+          font-size: 1rem;
+          margin-bottom: 0.2rem;
+        }
+
+        .pesquisa-ai-disclosure-copy small,
+        .pesquisa-ai-disclosure-status small {
+          color: var(--muted-text);
+          font-size: 0.78rem;
+          line-height: 1.4;
+        }
+
+        .pesquisa-ai-disclosure-status {
+          display: grid;
+          gap: 0.25rem;
+          justify-items: end;
+        }
+
+        .pesquisa-ai-chevron {
+          color: var(--muted-text);
+          transition: transform 0.2s ease;
+        }
+
+        .pesquisa-ai-summary.is-expanded .pesquisa-ai-chevron {
+          transform: rotate(180deg);
+        }
+
+        .pesquisa-ai-disclosure-content {
+          border-top: 1px solid var(--border-color);
+          display: grid;
+          gap: 1rem;
+          margin-top: 1rem;
+          padding-top: 1rem;
+        }
+
+        .pesquisa-ai-disclosure-content .pesquisa-ai-meta {
+          margin-bottom: 0;
+        }
+
+        .pesquisa-ai-expanded-actions {
+          align-items: center;
+          display: flex;
+          gap: 1rem;
+          justify-content: space-between;
+        }
+
+        .pesquisa-ai-expanded-actions .pesquisa-ai-meta {
+          flex: 1;
         }
 
         .pesquisa-ai-title {
@@ -1574,7 +2149,52 @@ export function AvaliacaoEncontroPage() {
             flex-direction: column;
           }
 
+          .pesquisa-ai-expanded-actions {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .pesquisa-ai-expanded-actions > .btn-primary {
+            width: 100%;
+          }
+
+          .pesquisa-ai-disclosure {
+            grid-template-columns: 40px minmax(0, 1fr) 20px;
+          }
+
+          .pesquisa-ai-disclosure-status {
+            grid-column: 2;
+            justify-items: start;
+          }
+
+          .pesquisa-ai-chevron {
+            grid-column: 3;
+            grid-row: 1 / span 2;
+          }
+
           .pesquisa-team-link-card {
+            grid-template-columns: 1fr;
+          }
+
+          .pesquisa-team-link-qr,
+          .pesquisa-share-qr {
+            justify-self: center;
+          }
+
+          .pesquisa-team-link-actions,
+          .pesquisa-share-link-actions,
+          .pesquisa-share-modal-actions {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .pesquisa-team-link-actions button,
+          .pesquisa-share-link-actions button,
+          .pesquisa-share-modal-actions button {
+            width: 100%;
+          }
+
+          .pesquisa-share-preview {
             grid-template-columns: 1fr;
           }
 
