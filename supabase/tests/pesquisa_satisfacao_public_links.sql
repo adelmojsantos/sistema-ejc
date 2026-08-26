@@ -1,7 +1,7 @@
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(13);
+SELECT extensions.plan(14);
 
 INSERT INTO public.encontros (id, nome, data_inicio, data_fim, ativo, edicao)
 VALUES
@@ -26,9 +26,9 @@ VALUES
 INSERT INTO public.pesquisa_satisfacao_perguntas (
   encontro_id, ordem, section_id, section_title, title, type, required, active
 )
-VALUES (
-  '2a000000-0000-0000-0000-000000000001', 1, 'geral', 'Geral', 'Pergunta pública?', 'texto', true, true
-);
+VALUES
+  ('2a000000-0000-0000-0000-000000000001', 30, 'geral', 'Geral', 'Pergunta pública?', 'texto', true, true),
+  ('2a000000-0000-0000-0000-000000000001', 31, 'geral', 'Geral', 'Pergunta inativa', 'texto', true, false);
 
 INSERT INTO public.pesquisa_satisfacao_config (encontro_id, publicada, publicada_em)
 VALUES
@@ -107,9 +107,20 @@ SELECT extensions.is(
   (SELECT count(*)::integer
    FROM public.get_pesquisa_satisfacao_public_questions(
      '2a000000-0000-0000-0000-000000000001'
-   )),
+   )
+   WHERE title = 'Pergunta pública?'),
   1,
-  'RPC pública retorna somente as perguntas ativas do encontro publicado'
+  'RPC pública retorna a pergunta ativa do encontro publicado'
+);
+
+SELECT extensions.is(
+  (SELECT count(*)::integer
+   FROM public.get_pesquisa_satisfacao_public_questions(
+     '2a000000-0000-0000-0000-000000000001'
+   )
+   WHERE title = 'Pergunta inativa'),
+  0,
+  'RPC pública não retorna perguntas inativas'
 );
 
 RESET ROLE;
