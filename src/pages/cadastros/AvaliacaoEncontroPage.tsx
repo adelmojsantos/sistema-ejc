@@ -1,7 +1,7 @@
-import { BarChart3, ChevronDown, ChevronLeft, ClipboardList, Copy, Download, FileQuestion, Loader, MessageCircle, Pencil, Plus, Save, Search, Share2, Sparkles, Trash2 } from 'lucide-react';
+import { BarChart3, ChevronDown, ChevronLeft, ClipboardList, Copy, Download, FileQuestion, Loader, MessageCircle, Pencil, Plus, QrCode, Save, Search, Share2, Sparkles, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { QRCodeCanvas, QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,7 +10,6 @@ import { Modal } from '../../components/ui/Modal';
 import { useEncontros } from '../../contexts/EncontroContext';
 import {
   pesquisaSatisfacaoService,
-  type PesquisaSatisfacaoCoordenador,
   type PesquisaSatisfacaoPainel,
   type PesquisaSatisfacaoPerguntaResumo,
   type PesquisaSatisfacaoRelatorioIAResultado,
@@ -23,11 +22,9 @@ import type {
   PesquisaSatisfacaoQuestionType,
   PesquisaSatisfacaoStatus,
 } from '../../types/pesquisaSatisfacao';
-import { formatTelefone } from '../../utils/cpfUtils';
 
 type Tab = 'perguntas' | 'respostas';
 type StatusFilter = 'todos' | PesquisaSatisfacaoStatus;
-type ShareEquipe = { id: string; nome: string };
 const RESUMOS_IA_LIMITE = 5;
 
 const typeLabels: Record<PesquisaSatisfacaoQuestionType, string> = {
@@ -64,21 +61,6 @@ function formatPercent(value: number) {
   return `${Math.round(value)}%`;
 }
 
-function whatsappPhone(phone: string) {
-  const digits = phone.replace(/\D/g, '');
-  return digits.startsWith('55') && digits.length >= 12 ? digits : `55${digits}`;
-}
-
-function qrFileName(equipeNome: string) {
-  const safeName = equipeNome
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .toLowerCase();
-  return `pesquisa-satisfacao-${safeName || 'equipe'}.png`;
-}
-
 export function AvaliacaoEncontroPage() {
   const navigate = useNavigate();
   const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
@@ -94,11 +76,7 @@ export function AvaliacaoEncontroPage() {
   const [generatingResumoIA, setGeneratingResumoIA] = useState(false);
   const [aiExpanded, setAiExpanded] = useState(false);
   const [questionModalOpen, setQuestionModalOpen] = useState(false);
-  const [linksModalOpen, setLinksModalOpen] = useState(false);
-  const [shareEquipe, setShareEquipe] = useState<ShareEquipe | null>(null);
-  const [shareCoordenadores, setShareCoordenadores] = useState<PesquisaSatisfacaoCoordenador[]>([]);
-  const [shareDestination, setShareDestination] = useState('whatsapp-picker');
-  const [loadingShareCoordenadores, setLoadingShareCoordenadores] = useState(false);
+  const [generalShareOpen, setGeneralShareOpen] = useState(false);
   const [responsesModalSummary, setResponsesModalSummary] = useState<PesquisaSatisfacaoPerguntaResumo | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<PesquisaSatisfacaoQuestion | null>(null);
   const [formData, setFormData] = useState<PesquisaSatisfacaoPerguntaFormData>(emptyForm());
@@ -108,8 +86,7 @@ export function AvaliacaoEncontroPage() {
   const [questionFilter, setQuestionFilter] = useState('todas');
   const [search, setSearch] = useState('');
   const loadRequestRef = useRef(0);
-  const shareRequestRef = useRef(0);
-  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const generalQrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const selectedEncontroIdRef = useRef(selectedEncontroId);
   selectedEncontroIdRef.current = selectedEncontroId;
 
@@ -160,11 +137,7 @@ export function AvaliacaoEncontroPage() {
     setQuestionFilter('todas');
     setStatusFilter('todos');
     setSearch('');
-    setLinksModalOpen(false);
-    setShareEquipe(null);
-    setShareCoordenadores([]);
-    setShareDestination('whatsapp-picker');
-    shareRequestRef.current += 1;
+    setGeneralShareOpen(false);
     setQuestionModalOpen(false);
     setResponsesModalSummary(null);
     setEditingQuestion(null);
@@ -389,9 +362,7 @@ export function AvaliacaoEncontroPage() {
       if (selectedEncontroIdRef.current !== encontroId) return;
       setPublicada(next.publicada);
       if (!next.publicada) {
-        setLinksModalOpen(false);
-        setShareEquipe(null);
-        shareRequestRef.current += 1;
+        setGeneralShareOpen(false);
       }
       toast.success(next.publicada ? 'Pesquisa publicada para os coordenadores.' : 'Pesquisa despublicada.');
     } catch (error) {
@@ -403,68 +374,31 @@ export function AvaliacaoEncontroPage() {
     }
   };
 
-  const equipeLink = (equipeId: string) => {
+  const generalLink = () => {
     if (!encounterReady || !loadedEncontroId || !publicada) return '';
-    return `${window.location.origin}/pesquisa-satisfacao/equipe/${equipeId}?encontro=${loadedEncontroId}`;
+    return `${window.location.origin}/pesquisa-satisfacao?encontro=${loadedEncontroId}`;
   };
 
-  const copyEquipeLink = async (equipeId: string) => {
-    const link = equipeLink(equipeId);
+  const copyGeneralLink = async () => {
+    const link = generalLink();
     if (!link) return;
     await navigator.clipboard.writeText(link);
-    toast.success('Link copiado.');
+    toast.success('Link da pesquisa copiado.');
   };
 
-  const openShareModal = async (equipe: ShareEquipe) => {
-    if (!encounterReady || !loadedEncontroId || !publicada) return;
-    const encontroId = loadedEncontroId;
-    const requestId = ++shareRequestRef.current;
-    setLinksModalOpen(false);
-    setShareEquipe(equipe);
-    setShareCoordenadores([]);
-    setShareDestination('whatsapp-picker');
-    setLoadingShareCoordenadores(true);
-    try {
-      const coordenadores = await pesquisaSatisfacaoService.listarCoordenadoresEquipe(encontroId, equipe.id);
-      if (shareRequestRef.current !== requestId || selectedEncontroIdRef.current !== encontroId) return;
-      setShareCoordenadores(coordenadores);
-    } catch (error) {
-      if (shareRequestRef.current !== requestId) return;
-      console.error('Erro ao carregar coordenadores da equipe:', error);
-      toast.error('Não foi possível carregar os coordenadores. Você ainda pode escolher um contato no WhatsApp.');
-    } finally {
-      if (shareRequestRef.current === requestId) setLoadingShareCoordenadores(false);
-    }
-  };
-
-  const closeShareModal = (returnToLinks = false) => {
-    shareRequestRef.current += 1;
-    setShareEquipe(null);
-    setShareCoordenadores([]);
-    setShareDestination('whatsapp-picker');
-    setLoadingShareCoordenadores(false);
-    if (returnToLinks && encounterReady && publicada) setLinksModalOpen(true);
-  };
-
-  const shareOnWhatsApp = () => {
-    if (!shareEquipe) return;
-    const link = equipeLink(shareEquipe.id);
+  const shareGeneralOnWhatsApp = () => {
+    const link = generalLink();
     if (!link) return;
-    const coordenador = shareCoordenadores.find((item) => item.participacaoId === shareDestination);
-    const greeting = coordenador ? `Olá, ${coordenador.nome}! ` : '';
-    const message = `${greeting}A pesquisa de satisfação da equipe ${shareEquipe.nome} está disponível: ${link}`;
-    const destination = coordenador?.telefone ? whatsappPhone(coordenador.telefone) : '';
-    const whatsappUrl = destination
-      ? `https://wa.me/${destination}?text=${encodeURIComponent(message)}`
-      : `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+    const encontroNome = encontroSelecionado?.nome?.trim() || 'encontro';
+    const message = `A pesquisa de satisfação do ${encontroNome} está disponível. Escolha sua equipe para acessar: ${link}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   };
 
-  const downloadShareQrCode = () => {
-    if (!shareEquipe || !qrCanvasRef.current) return;
+  const downloadGeneralQrCode = () => {
+    if (!generalQrCanvasRef.current) return;
     const anchor = document.createElement('a');
-    anchor.download = qrFileName(shareEquipe.nome);
-    anchor.href = qrCanvasRef.current.toDataURL('image/png');
+    anchor.download = 'pesquisa-satisfacao-link.png';
+    anchor.href = generalQrCanvasRef.current.toDataURL('image/png');
     anchor.click();
     toast.success('QR Code baixado.');
   };
@@ -526,7 +460,7 @@ export function AvaliacaoEncontroPage() {
             {!encounterReady
               ? 'Aguarde a confirmação dos dados do encontro selecionado.'
               : publicada
-              ? 'Os coordenadores conseguem acessar a pesquisa e compartilhar o link público da equipe.'
+              ? 'O link público da pesquisa está disponível para compartilhamento.'
               : 'Os coordenadores ainda não conseguem acessar a pesquisa. Publique quando as perguntas estiverem prontas.'}
           </p>
         </div>
@@ -534,12 +468,13 @@ export function AvaliacaoEncontroPage() {
           <button
             type="button"
             className="btn-secondary"
-            onClick={() => setLinksModalOpen(true)}
+            onClick={() => setGeneralShareOpen(true)}
             disabled={!encounterReady || !publicada}
-            title={encounterReady && !publicada ? 'Publique a pesquisa para disponibilizar os links.' : undefined}
+            title={encounterReady && !publicada ? 'Publique a pesquisa para disponibilizar o link.' : undefined}
+            style={{display: 'flex', alignItems: 'center'}}
           >
-            <Copy size={16} />
-            Ver links por equipe
+            <QrCode size={16} />
+            Link da pesquisa
           </button>
           <button type="button" className={publicada ? 'btn-secondary' : 'btn-primary'} onClick={togglePublicacao} disabled={saving || !encounterReady}>
             {saving || !encounterReady ? <Loader className="animate-spin" size={16} /> : <Share2 size={16} />}
@@ -933,135 +868,47 @@ export function AvaliacaoEncontroPage() {
       </Modal>
 
       <Modal
-        isOpen={linksModalOpen && encounterReady && publicada}
-        onClose={() => setLinksModalOpen(false)}
-        title="Links públicos por equipe"
-        maxWidth="760px"
-      >
-        <div className="pesquisa-links-modal">
-          <div className="pesquisa-links-modal__header">
-            <p>Copie o link direto de cada equipe para enviar junto com o QR ou mensagem da coordenação.</p>
-            <Badge tone={publicada ? 'success' : 'warning'}>{publicada ? 'Publicado' : 'Não publicado'}</Badge>
-          </div>
-          <div className="pesquisa-team-links">
-            {equipeOptions.length === 0 ? (
-              <div className="empty-state">Nenhuma equipe encontrada neste encontro.</div>
-            ) : equipeOptions.map((equipe) => {
-              const link = equipeLink(equipe.id);
-              return (
-                <article key={equipe.id} className="pesquisa-team-link-card">
-                  <div className="pesquisa-team-link-qr" aria-label={`QR Code da equipe ${equipe.nome}`}>
-                    <QRCodeSVG value={link} size={84} level="M" marginSize={1} />
-                  </div>
-                  <div className="pesquisa-team-link-info">
-                    <strong>{equipe.nome}</strong>
-                    <code>{link}</code>
-                  </div>
-                  <div className="pesquisa-team-link-actions">
-                    <button type="button" className="btn-secondary" onClick={() => copyEquipeLink(equipe.id)}>
-                      <Copy size={16} />
-                      Copiar
-                    </button>
-                    <button type="button" className="btn-primary" onClick={() => openShareModal(equipe)}>
-                      <MessageCircle size={16} />
-                      Compartilhar
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={!!shareEquipe && encounterReady && publicada}
-        onClose={() => closeShareModal(false)}
-        title={shareEquipe ? `Compartilhar pesquisa · ${shareEquipe.nome}` : 'Compartilhar pesquisa'}
+        isOpen={generalShareOpen && encounterReady && publicada}
+        onClose={() => setGeneralShareOpen(false)}
+        title="Link público da pesquisa"
         maxWidth="680px"
       >
-        {shareEquipe && (
-          <div className="pesquisa-share-modal">
-            <div className="pesquisa-share-preview">
-              <div className="pesquisa-share-qr">
-                <QRCodeCanvas
-                  ref={qrCanvasRef}
-                  value={equipeLink(shareEquipe.id)}
-                  size={512}
-                  level="M"
-                  marginSize={2}
-                />
-              </div>
-              <div className="pesquisa-share-link">
-                <strong>{shareEquipe.nome}</strong>
-                <p>Envie o QR Code ou compartilhe o link diretamente pelo WhatsApp.</p>
-                <code>{equipeLink(shareEquipe.id)}</code>
-                <div className="pesquisa-share-link-actions">
-                  <button type="button" className="btn-secondary" onClick={() => copyEquipeLink(shareEquipe.id)}>
-                    <Copy size={16} />
-                    Copiar link
-                  </button>
-                  <button type="button" className="btn-secondary" onClick={downloadShareQrCode}>
-                    <Download size={16} />
-                    Baixar QR Code
-                  </button>
-                </div>
-              </div>
+        <div className="pesquisa-share-modal">
+          <div className="pesquisa-share-preview">
+            <div className="pesquisa-share-qr">
+              <QRCodeCanvas
+                ref={generalQrCanvasRef}
+                value={generalLink()}
+                size={512}
+                level="M"
+                marginSize={2}
+              />
             </div>
-
-            <fieldset className="pesquisa-share-destinations">
-              <legend>Escolha para quem enviar</legend>
-              <label className="pesquisa-share-destination">
-                <input
-                  type="radio"
-                  name="pesquisa-share-destination"
-                  value="whatsapp-picker"
-                  checked={shareDestination === 'whatsapp-picker'}
-                  onChange={(event) => setShareDestination(event.target.value)}
-                />
-                <span>
-                  <strong>Escolher contato ou grupo no WhatsApp</strong>
-                  <small>O WhatsApp abrirá sem um destinatário definido.</small>
-                </span>
-              </label>
-
-              {loadingShareCoordenadores ? (
-                <div className="pesquisa-share-loading">
-                  <Loader className="animate-spin" size={16} />
-                  Carregando coordenadores...
-                </div>
-              ) : shareCoordenadores.length === 0 ? (
-                <p className="pesquisa-share-empty">Nenhum coordenador encontrado para esta equipe.</p>
-              ) : shareCoordenadores.map((coordenador) => (
-                <label
-                  key={coordenador.participacaoId}
-                  className={`pesquisa-share-destination ${!coordenador.telefone ? 'is-disabled' : ''}`}
-                >
-                  <input
-                    type="radio"
-                    name="pesquisa-share-destination"
-                    value={coordenador.participacaoId}
-                    checked={shareDestination === coordenador.participacaoId}
-                    onChange={(event) => setShareDestination(event.target.value)}
-                    disabled={!coordenador.telefone}
-                  />
-                  <span>
-                    <strong>{coordenador.nome}</strong>
-                    <small>{coordenador.telefone ? formatTelefone(coordenador.telefone) : 'WhatsApp não cadastrado'}</small>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-
-            <div className="pesquisa-modal-actions pesquisa-share-modal-actions">
-              <button type="button" className="btn-secondary" onClick={() => closeShareModal(true)}>Voltar aos links</button>
-              <button type="button" className="btn-primary" onClick={shareOnWhatsApp}>
-                <MessageCircle size={16} />
-                Abrir WhatsApp
-              </button>
+            <div className="pesquisa-share-link">
+              <strong>Link da pesquisa</strong>
+              <p>A pessoa escolhe primeiro sua equipe e depois seleciona o próprio nome.</p>
+              <code>{generalLink()}</code>
+              <div className="pesquisa-share-link-actions">
+                <button type="button" className="btn-secondary" onClick={copyGeneralLink}>
+                  <Copy size={16} />
+                  Copiar link
+                </button>
+                <button type="button" className="btn-secondary" onClick={downloadGeneralQrCode}>
+                  <Download size={16} />
+                  Baixar QR Code
+                </button>
+              </div>
             </div>
           </div>
-        )}
+
+          <div className="pesquisa-modal-actions pesquisa-share-modal-actions">
+            <button type="button" className="btn-secondary" onClick={() => setGeneralShareOpen(false)}>Fechar</button>
+            <button type="button" className="btn-primary" onClick={shareGeneralOnWhatsApp}>
+              <MessageCircle size={16} />
+              Compartilhar no WhatsApp
+            </button>
+          </div>
+        </div>
       </Modal>
 
       <Modal
@@ -1275,7 +1122,6 @@ export function AvaliacaoEncontroPage() {
 
         .pesquisa-question-admin-list,
         .pesquisa-question-analysis-list,
-        .pesquisa-team-links,
         .pesquisa-respondentes-list {
           display: grid;
           gap: 0.75rem;
@@ -1323,18 +1169,6 @@ export function AvaliacaoEncontroPage() {
           gap: 0.5rem;
         }
 
-        .pesquisa-team-link-card {
-          align-items: center;
-          background: var(--secondary-bg);
-          border: 1px solid var(--border-color);
-          border-radius: 10px;
-          display: grid;
-          gap: 0.75rem;
-          grid-template-columns: 84px minmax(0, 1fr) auto;
-          padding: 0.85rem;
-        }
-
-        .pesquisa-team-link-qr,
         .pesquisa-share-qr {
           align-items: center;
           background: #fff;
@@ -1344,59 +1178,13 @@ export function AvaliacaoEncontroPage() {
           overflow: hidden;
         }
 
-        .pesquisa-team-link-qr {
-          height: 84px;
-          width: 84px;
-        }
-
-        .pesquisa-team-link-info {
-          min-width: 0;
-        }
-
-        .pesquisa-team-link-card strong {
-          color: var(--text-color);
-          display: block;
-          margin-bottom: 0.35rem;
-        }
-
-        .pesquisa-team-link-card code {
-          color: var(--muted-text);
-          display: block;
-          font-size: 0.78rem;
-          overflow-wrap: anywhere;
-        }
-
-        .pesquisa-team-link-actions,
         .pesquisa-share-link-actions {
           display: flex;
           flex-wrap: wrap;
           gap: 0.5rem;
         }
 
-        .pesquisa-team-link-actions {
-          justify-content: flex-end;
-        }
-
-        .pesquisa-links-modal {
-          display: grid;
-          gap: 1rem;
-        }
-
-        .pesquisa-links-modal__header {
-          align-items: center;
-          display: flex;
-          gap: 1rem;
-          justify-content: space-between;
-        }
-
-        .pesquisa-links-modal__header p {
-          color: var(--muted-text);
-          line-height: 1.45;
-          margin: 0;
-        }
-
-        .pesquisa-share-modal,
-        .pesquisa-share-destinations {
+        .pesquisa-share-modal {
           display: grid;
           gap: 1rem;
         }
@@ -1428,8 +1216,7 @@ export function AvaliacaoEncontroPage() {
           font-size: 1.05rem;
         }
 
-        .pesquisa-share-link p,
-        .pesquisa-share-empty {
+        .pesquisa-share-link p {
           color: var(--muted-text);
           line-height: 1.45;
           margin: 0.4rem 0 0.75rem;
@@ -1445,68 +1232,6 @@ export function AvaliacaoEncontroPage() {
           margin-bottom: 0.75rem;
           overflow-wrap: anywhere;
           padding: 0.65rem;
-        }
-
-        .pesquisa-share-destinations {
-          border: 0;
-          margin: 0;
-          padding: 0;
-        }
-
-        .pesquisa-share-destinations legend {
-          color: var(--text-color);
-          font-weight: 800;
-          margin-bottom: 0.65rem;
-        }
-
-        .pesquisa-share-destination {
-          align-items: center;
-          background: var(--secondary-bg);
-          border: 1px solid var(--border-color);
-          border-radius: 10px;
-          cursor: pointer;
-          display: flex;
-          gap: 0.75rem;
-          padding: 0.8rem;
-        }
-
-        .pesquisa-share-destination:has(input:checked) {
-          border-color: var(--primary-color);
-          box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.12);
-        }
-
-        .pesquisa-share-destination.is-disabled {
-          cursor: not-allowed;
-          opacity: 0.55;
-        }
-
-        .pesquisa-share-destination input {
-          flex: 0 0 auto;
-          margin: 0;
-        }
-
-        .pesquisa-share-destination span,
-        .pesquisa-share-destination strong,
-        .pesquisa-share-destination small {
-          display: block;
-        }
-
-        .pesquisa-share-destination strong {
-          color: var(--text-color);
-          margin-bottom: 0.2rem;
-        }
-
-        .pesquisa-share-destination small,
-        .pesquisa-share-loading {
-          color: var(--muted-text);
-          font-size: 0.8rem;
-        }
-
-        .pesquisa-share-loading {
-          align-items: center;
-          display: flex;
-          gap: 0.5rem;
-          padding: 0.75rem;
         }
 
         .pesquisa-share-modal-actions {
@@ -2172,23 +1897,16 @@ export function AvaliacaoEncontroPage() {
             grid-row: 1 / span 2;
           }
 
-          .pesquisa-team-link-card {
-            grid-template-columns: 1fr;
-          }
-
-          .pesquisa-team-link-qr,
           .pesquisa-share-qr {
             justify-self: center;
           }
 
-          .pesquisa-team-link-actions,
           .pesquisa-share-link-actions,
           .pesquisa-share-modal-actions {
             align-items: stretch;
             flex-direction: column;
           }
 
-          .pesquisa-team-link-actions button,
           .pesquisa-share-link-actions button,
           .pesquisa-share-modal-actions button {
             width: 100%;
@@ -2196,11 +1914,6 @@ export function AvaliacaoEncontroPage() {
 
           .pesquisa-share-preview {
             grid-template-columns: 1fr;
-          }
-
-          .pesquisa-links-modal__header {
-            align-items: flex-start;
-            flex-direction: column;
           }
 
           .pesquisa-team-response-badges {

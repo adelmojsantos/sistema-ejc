@@ -128,6 +128,11 @@ function LegacyExportConfigRedirect() {
   return <Navigate to={`/secretaria/configuracoes-exportacao/${id}`} replace />;
 }
 
+function LegacyPesquisaSatisfacaoEquipeRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/pesquisa-satisfacao${location.search}`} replace />;
+}
+
 export function PlaceholderPage({ title }: { title: string }) {
   return (
     <div className="app-shell">
@@ -188,7 +193,8 @@ function AnimatedRoutes() {
           <Route path="/pos-encontro/circulo/:circulo_id" element={<PageTransition><FormCirculoAccessPage /></PageTransition>} />
           <Route path="/pos-encontro/ficha" element={<PageTransition><FormCirculoFichaPage /></PageTransition>} />
         </Route>
-        <Route path="/pesquisa-satisfacao/equipe/:equipeId" element={<PageTransition><PesquisaSatisfacaoPublicPage /></PageTransition>} />
+        <Route path="/pesquisa-satisfacao" element={<PageTransition><PesquisaSatisfacaoPublicPage /></PageTransition>} />
+        <Route path="/pesquisa-satisfacao/equipe/:equipeId" element={<LegacyPesquisaSatisfacaoEquipeRedirect />} />
 
         <Route path="/alterar-senha" element={
           <ProtectedRoute allowTemporaryPassword={true}>

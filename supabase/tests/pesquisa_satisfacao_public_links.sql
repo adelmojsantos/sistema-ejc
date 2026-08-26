@@ -1,7 +1,7 @@
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(4);
+SELECT extensions.plan(14);
 
 INSERT INTO public.encontros (id, nome, data_inicio, data_fim, ativo, edicao)
 VALUES
@@ -23,6 +23,13 @@ VALUES
   ('5a000000-0000-0000-0000-000000000001', '4a000000-0000-0000-0000-000000000001', '2a000000-0000-0000-0000-000000000001', '3a000000-0000-0000-0000-000000000001', false, false),
   ('5a000000-0000-0000-0000-000000000002', '4a000000-0000-0000-0000-000000000002', '2a000000-0000-0000-0000-000000000002', '3a000000-0000-0000-0000-000000000002', false, false);
 
+INSERT INTO public.pesquisa_satisfacao_perguntas (
+  encontro_id, ordem, section_id, section_title, title, type, required, active
+)
+VALUES
+  ('2a000000-0000-0000-0000-000000000001', 30, 'geral', 'Geral', 'Pergunta pública?', 'texto', true, true),
+  ('2a000000-0000-0000-0000-000000000001', 31, 'geral', 'Geral', 'Pergunta inativa', 'texto', true, false);
+
 INSERT INTO public.pesquisa_satisfacao_config (encontro_id, publicada, publicada_em)
 VALUES
   ('2a000000-0000-0000-0000-000000000001', true, now()),
@@ -36,6 +43,20 @@ SELECT extensions.has_function(
   'get_pesquisa_satisfacao_public_info',
   ARRAY['uuid', 'uuid'],
   'RPC público da pesquisa está disponível'
+);
+
+SELECT extensions.has_function(
+  'public',
+  'get_pesquisa_satisfacao_general_info',
+  ARRAY['uuid'],
+  'RPC do acesso geral está disponível'
+);
+
+SELECT extensions.has_function(
+  'public',
+  'get_pesquisa_satisfacao_public_questions',
+  ARRAY['uuid'],
+  'RPC de perguntas públicas está disponível'
 );
 
 SET LOCAL ROLE anon;
@@ -65,6 +86,91 @@ SELECT extensions.throws_ok(
   'P0001',
   'Equipe não encontrada neste encontro.',
   'link que combina encontro e equipe diferentes é rejeitado'
+);
+
+SELECT extensions.lives_ok(
+  $$SELECT public.get_pesquisa_satisfacao_general_info(
+    '2a000000-0000-0000-0000-000000000001'
+  )$$,
+  'acesso geral de uma pesquisa publicada é aceito'
+);
+
+SELECT extensions.is(
+  jsonb_array_length(public.get_pesquisa_satisfacao_general_info(
+    '2a000000-0000-0000-0000-000000000001'
+  )->'equipes'),
+  1,
+  'acesso geral retorna somente equipes vinculadas ao encontro'
+);
+
+SELECT extensions.is(
+  (SELECT count(*)::integer
+   FROM public.get_pesquisa_satisfacao_public_questions(
+     '2a000000-0000-0000-0000-000000000001'
+   )
+   WHERE title = 'Pergunta pública?'),
+  1,
+  'RPC pública retorna a pergunta ativa do encontro publicado'
+);
+
+SELECT extensions.is(
+  (SELECT count(*)::integer
+   FROM public.get_pesquisa_satisfacao_public_questions(
+     '2a000000-0000-0000-0000-000000000001'
+   )
+   WHERE title = 'Pergunta inativa'),
+  0,
+  'RPC pública não retorna perguntas inativas'
+);
+
+RESET ROLE;
+
+UPDATE public.pesquisa_satisfacao_config
+SET publicada = false,
+    publicada_em = NULL
+WHERE encontro_id = '2a000000-0000-0000-0000-000000000001';
+
+SET LOCAL ROLE anon;
+
+SELECT extensions.throws_ok(
+  $$SELECT public.get_pesquisa_satisfacao_general_info(
+    '2a000000-0000-0000-0000-000000000001'
+  )$$,
+  'P0001',
+  'Pesquisa ainda não publicada.',
+  'acesso geral é bloqueado quando a pesquisa não está publicada'
+);
+
+SELECT extensions.throws_ok(
+  $$SELECT * FROM public.get_pesquisa_satisfacao_public_questions(
+    '2a000000-0000-0000-0000-000000000001'
+  )$$,
+  'P0001',
+  'Pesquisa ainda não publicada.',
+  'perguntas públicas são bloqueadas quando a pesquisa não está publicada'
+);
+
+RESET ROLE;
+
+UPDATE public.pesquisa_satisfacao_config
+SET publicada = true,
+    publicada_em = now()
+WHERE encontro_id = '2a000000-0000-0000-0000-000000000001';
+
+SET LOCAL ROLE authenticated;
+
+SELECT extensions.lives_ok(
+  $$SELECT public.get_pesquisa_satisfacao_general_info(
+    '2a000000-0000-0000-0000-000000000001'
+  )$$,
+  'usuário autenticado também acessa o link da pesquisa'
+);
+
+SELECT extensions.lives_ok(
+  $$SELECT * FROM public.get_pesquisa_satisfacao_public_questions(
+    '2a000000-0000-0000-0000-000000000001'
+  )$$,
+  'usuário autenticado também carrega as perguntas públicas'
 );
 
 RESET ROLE;
