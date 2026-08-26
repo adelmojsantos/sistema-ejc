@@ -1,41 +1,45 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { CheckCircle, Loader, ShieldCheck } from 'lucide-react';
 import logoEjc from '../../assets/logo-ejc.svg';
 import { PesquisaSatisfacaoForm, pesquisaSatisfacaoCompleta } from '../../components/pesquisa-satisfacao/PesquisaSatisfacaoForm';
 import { pesquisaSatisfacaoService } from '../../services/pesquisaSatisfacaoService';
-import type { PesquisaSatisfacaoAcesso, PesquisaSatisfacaoPublicInfo, PesquisaSatisfacaoQuestion, PesquisaSatisfacaoRespostas } from '../../types/pesquisaSatisfacao';
+import type { PesquisaSatisfacaoAcesso, PesquisaSatisfacaoGeneralInfo, PesquisaSatisfacaoPublicInfo, PesquisaSatisfacaoQuestion, PesquisaSatisfacaoRespostas } from '../../types/pesquisaSatisfacao';
 
 export default function PesquisaSatisfacaoPublicPage() {
-  const { equipeId } = useParams<{ equipeId: string }>();
   const [searchParams] = useSearchParams();
   const encontroId = searchParams.get('encontro');
+  const [generalInfo, setGeneralInfo] = useState<PesquisaSatisfacaoGeneralInfo | null>(null);
   const [info, setInfo] = useState<PesquisaSatisfacaoPublicInfo | null>(null);
   const [perguntas, setPerguntas] = useState<PesquisaSatisfacaoQuestion[]>([]);
   const [acesso, setAcesso] = useState<PesquisaSatisfacaoAcesso | null>(null);
+  const [selectedEquipeId, setSelectedEquipeId] = useState('');
   const [selectedParticipacaoId, setSelectedParticipacaoId] = useState('');
   const [telefone, setTelefone] = useState('');
   const [respostas, setRespostas] = useState<PesquisaSatisfacaoRespostas>({});
   const [loading, setLoading] = useState(true);
+  const [loadingTeam, setLoadingTeam] = useState(false);
   const [validating, setValidating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [invalid, setInvalid] = useState(false);
+  const teamRequestRef = useRef(0);
 
   useEffect(() => {
     async function load() {
-      if (!encontroId || !equipeId) {
+      if (!encontroId) {
         setInvalid(true);
         setLoading(false);
         return;
       }
 
       try {
+        const perguntasPromise = pesquisaSatisfacaoService.listarPerguntasPublicas(encontroId);
         const [data, perguntasData] = await Promise.all([
-          pesquisaSatisfacaoService.obterPublicInfo(encontroId, equipeId),
-          pesquisaSatisfacaoService.listarPerguntas(encontroId),
+          pesquisaSatisfacaoService.obterGeneralInfo(encontroId),
+          perguntasPromise,
         ]);
-        setInfo(data);
+        setGeneralInfo(data);
         setPerguntas(perguntasData);
       } catch (error) {
         console.error('Erro ao carregar pesquisa pública:', error);
@@ -46,11 +50,36 @@ export default function PesquisaSatisfacaoPublicPage() {
     }
 
     load();
-  }, [encontroId, equipeId]);
+  }, [encontroId]);
+
+  const selectEquipe = async (nextEquipeId: string) => {
+    const requestId = ++teamRequestRef.current;
+    setSelectedEquipeId(nextEquipeId);
+    setSelectedParticipacaoId('');
+    setInfo(null);
+    if (!encontroId || !nextEquipeId) {
+      setLoadingTeam(false);
+      return;
+    }
+
+    setLoadingTeam(true);
+    try {
+      const data = await pesquisaSatisfacaoService.obterPublicInfo(encontroId, nextEquipeId);
+      if (teamRequestRef.current !== requestId) return;
+      setInfo(data);
+    } catch (error) {
+      if (teamRequestRef.current !== requestId) return;
+      console.error('Erro ao carregar integrantes da equipe:', error);
+      setSelectedEquipeId('');
+      toast.error('Não foi possível carregar os integrantes desta equipe.');
+    } finally {
+      if (teamRequestRef.current === requestId) setLoadingTeam(false);
+    }
+  };
 
   const validate = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!encontroId || !equipeId || !selectedParticipacaoId) return;
+    if (!encontroId || !selectedEquipeId || !selectedParticipacaoId) return;
     if (telefone.replace(/\D/g, '').length < 4) {
       toast.error('Informe os 4 últimos dígitos do telefone.');
       return;
@@ -60,7 +89,7 @@ export default function PesquisaSatisfacaoPublicPage() {
     try {
       const result = await pesquisaSatisfacaoService.validarAcessoPublico({
         encontroId,
-        equipeId,
+        equipeId: selectedEquipeId,
         participacaoId: selectedParticipacaoId,
         telefone,
       });
@@ -78,7 +107,7 @@ export default function PesquisaSatisfacaoPublicPage() {
   };
 
   const save = async (status: 'rascunho' | 'enviado') => {
-    if (!encontroId || !equipeId || !acesso) return;
+    if (!encontroId || !selectedEquipeId || !acesso) return;
     if (status === 'enviado' && !pesquisaSatisfacaoCompleta(respostas, perguntas)) {
       toast.error('Preencha todas as respostas obrigatórias antes de enviar.');
       return;
@@ -88,7 +117,7 @@ export default function PesquisaSatisfacaoPublicPage() {
     try {
       const result = await pesquisaSatisfacaoService.salvarPublico({
         encontroId,
-        equipeId,
+        equipeId: selectedEquipeId,
         participacaoId: acesso.participacao_id,
         telefone,
         respostas,
@@ -112,13 +141,25 @@ export default function PesquisaSatisfacaoPublicPage() {
 
   if (loading) {
     return (
-      <div className="pesquisa-public-shell">
+      <div
+        className="pesquisa-public-shell"
+        role="status"
+        aria-label="Carregando pesquisa"
+        style={{
+          alignItems: 'center',
+          background: 'var(--bg-color)',
+          display: 'flex',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          width: '100%',
+        }}
+      >
         <Loader className="animate-spin" size={32} color="var(--primary-color)" />
       </div>
     );
   }
 
-  if (invalid || !info) {
+  if (invalid || !generalInfo) {
     return (
       <div className="pesquisa-public-shell">
         <div className="card pesquisa-public-card">
@@ -137,22 +178,52 @@ export default function PesquisaSatisfacaoPublicPage() {
         <header className="card pesquisa-public-header">
           <img src={logoEjc} alt="Logo EJC" className="public-logo-img" />
           <span>Pesquisa de satisfação</span>
-          <h1>{info.encontro_nome}</h1>
-          <p>{info.equipe_nome}</p>
+          <h1>{info?.encontro_nome ?? generalInfo?.encontro_nome}</h1>
+          <p>{info?.equipe_nome ?? 'Link da pesquisa'}</p>
         </header>
 
         {!acesso ? (
           <form className="card pesquisa-public-card" onSubmit={validate}>
             <div className="pesquisa-public-alert">
               <ShieldCheck size={18} />
-              Selecione seu nome e confirme o telefone para acessar a pesquisa.
+              Selecione sua equipe, seu nome e confirme o telefone para acessar a pesquisa.
             </div>
 
             <div className="form-group">
-              <label className="form-label">Meu nome é</label>
-              <select className="form-input" value={selectedParticipacaoId} onChange={(event) => setSelectedParticipacaoId(event.target.value)} required>
-                <option value="">Selecione seu nome...</option>
-                {info.participantes.map((participante) => (
+              <label className="form-label" htmlFor="pesquisa-equipe">Minha equipe é</label>
+              <select
+                id="pesquisa-equipe"
+                className="form-input"
+                value={selectedEquipeId}
+                onChange={(event) => void selectEquipe(event.target.value)}
+                required
+              >
+                <option value="">Selecione sua equipe...</option>
+                {generalInfo.equipes.map((equipe) => (
+                  <option key={equipe.equipe_id} value={equipe.equipe_id}>
+                    {equipe.nome}
+                  </option>
+                ))}
+              </select>
+              {generalInfo.equipes.length === 0 && (
+                <p className="pesquisa-public-help">Nenhuma equipe está disponível para esta pesquisa.</p>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="pesquisa-integrante">Meu nome é</label>
+              <select
+                id="pesquisa-integrante"
+                className="form-input"
+                value={selectedParticipacaoId}
+                onChange={(event) => setSelectedParticipacaoId(event.target.value)}
+                disabled={!selectedEquipeId || loadingTeam || !info}
+                required
+              >
+                <option value="">
+                  {loadingTeam ? 'Carregando integrantes...' : selectedEquipeId ? 'Selecione seu nome...' : 'Selecione primeiro sua equipe'}
+                </option>
+                {(info?.participantes ?? []).map((participante) => (
                   <option key={participante.participacao_id} value={participante.participacao_id}>
                     {participante.nome}
                   </option>
@@ -161,8 +232,9 @@ export default function PesquisaSatisfacaoPublicPage() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">4 últimos dígitos do telefone</label>
+              <label className="form-label" htmlFor="pesquisa-telefone">4 últimos dígitos do telefone</label>
               <input
+                id="pesquisa-telefone"
                 type="tel"
                 className="form-input pesquisa-phone-input"
                 value={telefone}
@@ -173,7 +245,7 @@ export default function PesquisaSatisfacaoPublicPage() {
               />
             </div>
 
-            <button type="submit" className="btn-primary" disabled={validating}>
+            <button type="submit" className="btn-primary" disabled={validating || loadingTeam || !info}>
               {validating ? <Loader className="animate-spin" size={18} /> : 'Acessar pesquisa'}
             </button>
           </form>
@@ -277,6 +349,12 @@ export default function PesquisaSatisfacaoPublicPage() {
           font-size: 1.25rem;
           letter-spacing: 0.28em;
           text-align: center;
+        }
+
+        .pesquisa-public-help {
+          color: var(--muted-text);
+          font-size: 0.85rem;
+          margin: 0.45rem 0 0;
         }
 
         .pesquisa-public-success {

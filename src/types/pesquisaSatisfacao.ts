@@ -50,6 +50,17 @@ export interface PesquisaSatisfacaoPublicParticipante {
   nome: string;
 }
 
+export interface PesquisaSatisfacaoPublicEquipe {
+  equipe_id: string;
+  nome: string;
+}
+
+export interface PesquisaSatisfacaoGeneralInfo {
+  encontro_id: string;
+  encontro_nome: string;
+  equipes: PesquisaSatisfacaoPublicEquipe[];
+}
+
 export interface PesquisaSatisfacaoPublicInfo {
   encontro_id: string;
   encontro_nome: string;

@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import type {
   PesquisaSatisfacaoAcesso,
   PesquisaSatisfacaoEnvio,
+  PesquisaSatisfacaoGeneralInfo,
   PesquisaSatisfacaoPerguntaFormData,
   PesquisaSatisfacaoPublicInfo,
   PesquisaSatisfacaoQuestion,
@@ -33,12 +34,6 @@ export interface PesquisaSatisfacaoRespondente {
   status: PesquisaSatisfacaoStatus;
   respostas: PesquisaSatisfacaoRespostas;
   enviadoEm: string | null;
-}
-
-export interface PesquisaSatisfacaoCoordenador {
-  participacaoId: string;
-  nome: string;
-  telefone: string | null;
 }
 
 export interface PesquisaSatisfacaoOpcaoResumo {
@@ -468,28 +463,6 @@ export const pesquisaSatisfacaoService = {
     };
   },
 
-  async listarCoordenadoresEquipe(encontroId: string, equipeId: string): Promise<PesquisaSatisfacaoCoordenador[]> {
-    const { data, error } = await supabase
-      .from('participacoes')
-      .select('id, pessoas(nome_completo, telefone)')
-      .eq('encontro_id', encontroId)
-      .eq('equipe_id', equipeId)
-      .eq('coordenador', true);
-
-    if (error) throw error;
-
-    return (data ?? [])
-      .map((participacao) => {
-        const pessoa = getRelated(participacao.pessoas);
-        return {
-          participacaoId: participacao.id,
-          nome: pessoa?.nome_completo?.trim() || 'Coordenador sem nome',
-          telefone: pessoa?.telefone?.trim() || null,
-        };
-      })
-      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-  },
-
   async listarPainel(encontroId: string, equipeId?: string | null): Promise<PesquisaSatisfacaoPainel> {
     const [perguntas, participacoesResult, enviosResult] = await Promise.all([
       this.listarPerguntas(encontroId, true),
@@ -587,6 +560,24 @@ export const pesquisaSatisfacaoService = {
 
     if (error) throw error;
     return data as PesquisaSatisfacaoPublicInfo;
+  },
+
+  async obterGeneralInfo(encontroId: string): Promise<PesquisaSatisfacaoGeneralInfo> {
+    const { data, error } = await supabase.rpc('get_pesquisa_satisfacao_general_info', {
+      p_encontro_id: encontroId,
+    });
+
+    if (error) throw error;
+    return data as PesquisaSatisfacaoGeneralInfo;
+  },
+
+  async listarPerguntasPublicas(encontroId: string): Promise<PesquisaSatisfacaoQuestion[]> {
+    const { data, error } = await supabase.rpc('get_pesquisa_satisfacao_public_questions', {
+      p_encontro_id: encontroId,
+    });
+
+    if (error) throw error;
+    return ((data ?? []) as PerguntaRow[]).map(mapPergunta);
   },
 
   async validarAcessoPublico(params: {

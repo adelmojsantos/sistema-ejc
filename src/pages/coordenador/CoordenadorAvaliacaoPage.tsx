@@ -36,9 +36,9 @@ export function CoordenadorAvaliacaoPage() {
   const isReleased = isAdmin || publicada;
 
   const publicLink = useMemo(() => {
-    if (!encontroId || !equipeId) return '';
-    return `${window.location.origin}/pesquisa-satisfacao/equipe/${equipeId}?encontro=${encontroId}`;
-  }, [encontroId, equipeId]);
+    if (!encontroId) return '';
+    return `${window.location.origin}/pesquisa-satisfacao?encontro=${encontroId}`;
+  }, [encontroId]);
 
   const loadPesquisa = useCallback(async () => {
     if (!encontroId || !equipeId || !participacaoId || !userParticipacao?.coordenador) {
@@ -194,9 +194,9 @@ export function CoordenadorAvaliacaoPage() {
       <section className="card pesquisa-public-link">
         <div className="pesquisa-public-link__content">
           <div>
-            <span><Share2 size={15} /> Link público da equipe</span>
-            <h2>Compartilhe com os integrantes da equipe</h2>
-            <p>Cada pessoa seleciona o próprio nome, valida pelo telefone e só pode enviar uma vez.</p>
+            <span><Share2 size={15} /> Link público da pesquisa</span>
+            <h2>Compartilhe o link da pesquisa</h2>
+            <p>Cada pessoa escolhe sua equipe, seleciona o próprio nome e valida pelo telefone.</p>
           </div>
           <div className="pesquisa-public-link__actions">
             <button type="button" className="btn-secondary" onClick={copyLink}>

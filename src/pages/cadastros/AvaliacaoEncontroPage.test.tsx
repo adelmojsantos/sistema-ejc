@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   listarPerguntas: vi.fn(),
   listarPainel: vi.fn(),
   listarResumosIA: vi.fn(),
-  listarCoordenadoresEquipe: vi.fn(),
   atualizarPublicacao: vi.fn(),
 }));
 
@@ -35,7 +34,6 @@ vi.mock('../../services/pesquisaSatisfacaoService', () => ({
     listarPerguntas: mocks.listarPerguntas,
     listarPainel: mocks.listarPainel,
     listarResumosIA: mocks.listarResumosIA,
-    listarCoordenadoresEquipe: mocks.listarCoordenadoresEquipe,
     atualizarPublicacao: mocks.atualizarPublicacao,
   },
 }));
@@ -80,11 +78,6 @@ describe('AvaliacaoEncontroPage', () => {
     mocks.listarPerguntas.mockResolvedValue([]);
     mocks.listarPainel.mockImplementation((encontroId: string) => Promise.resolve(painel(encontroId)));
     mocks.listarResumosIA.mockResolvedValue([]);
-    mocks.listarCoordenadoresEquipe.mockResolvedValue([{
-      participacaoId: 'coordenador-ativo',
-      nome: 'Coordenadora Ativa',
-      telefone: '33999990000',
-    }]);
     mocks.atualizarPublicacao.mockImplementation((encontroId: string, publicada: boolean) => Promise.resolve({
       encontro_id: encontroId,
       publicada,
@@ -92,7 +85,7 @@ describe('AvaliacaoEncontroPage', () => {
     }));
   });
 
-  it('não mistura publicação nem equipes quando uma resposta antiga termina após a troca de encontro', async () => {
+  it('não mistura publicação nem link geral quando uma resposta antiga termina após a troca de encontro', async () => {
     const configHistorico = deferred<{ encontro_id: string; publicada: boolean; publicada_em: string | null }>();
     const configAtivo = deferred<{ encontro_id: string; publicada: boolean; publicada_em: string | null }>();
     mocks.obterConfig.mockImplementation((encontroId: string) => (
@@ -108,7 +101,8 @@ describe('AvaliacaoEncontroPage', () => {
     view.rerender(<AvaliacaoEncontroPage />);
 
     await waitFor(() => expect(mocks.obterConfig).toHaveBeenCalledWith('ativo'));
-    expect(screen.getByRole('button', { name: 'Ver links por equipe' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Link da pesquisa' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Ver links por equipe' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Publicar' })).toBeDisabled();
 
     await act(async () => {
@@ -116,10 +110,9 @@ describe('AvaliacaoEncontroPage', () => {
     });
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Despublicar' })).toBeEnabled());
-    fireEvent.click(screen.getByRole('button', { name: 'Ver links por equipe' }));
-    expect((await screen.findAllByText('Equipe ativa')).length).toBeGreaterThan(0);
-    expect(screen.getByText(/equipe-ativo\?encontro=ativo/)).toBeInTheDocument();
-    expect(screen.queryByText('Equipe histórica')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Link da pesquisa' }));
+    expect(await screen.findByText(/pesquisa-satisfacao\?encontro=ativo/)).toBeInTheDocument();
+    expect(screen.queryByText(/pesquisa-satisfacao\/equipe\//)).not.toBeInTheDocument();
 
     await act(async () => {
       configHistorico.resolve({ encontro_id: 'historico', publicada: false, publicada_em: null });
@@ -127,20 +120,14 @@ describe('AvaliacaoEncontroPage', () => {
 
     expect(screen.getByRole('button', { name: 'Despublicar' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Publicar' })).not.toBeInTheDocument();
-    expect(screen.getByText(/equipe-ativo\?encontro=ativo/)).toBeInTheDocument();
+    expect(screen.getByText(/pesquisa-satisfacao\?encontro=ativo/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar' }));
-    await waitFor(() => {
-      expect(mocks.listarCoordenadoresEquipe).toHaveBeenCalledWith('ativo', 'equipe-ativo');
-    });
-    expect(await screen.findByText('Coordenadora Ativa')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Baixar QR Code' })).toBeInTheDocument();
 
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
-    fireEvent.click(screen.getByLabelText(/Coordenadora Ativa/));
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir WhatsApp' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Compartilhar no WhatsApp' }));
     expect(openSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/^https:\/\/wa\.me\/5533999990000\?text=/),
+      expect.stringMatching(/^https:\/\/wa\.me\/\?text=/),
       '_blank',
       'noopener,noreferrer'
     );
@@ -163,12 +150,12 @@ describe('AvaliacaoEncontroPage', () => {
     render(<AvaliacaoEncontroPage />);
     const publishButton = await screen.findByRole('button', { name: 'Publicar' });
     await waitFor(() => expect(publishButton).toBeEnabled());
-    expect(screen.getByRole('button', { name: 'Ver links por equipe' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Ver links por equipe' })).not.toBeInTheDocument();
     fireEvent.click(publishButton);
 
     await waitFor(() => {
       expect(mocks.atualizarPublicacao).toHaveBeenCalledWith('historico', true);
-      expect(screen.getByRole('button', { name: 'Ver links por equipe' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Link da pesquisa' })).toBeEnabled();
     });
   });
 });
