@@ -190,6 +190,7 @@ function AnimatedRoutes() {
         <Route path="/quadrante/:token/publico" element={<QuadrantePage isAdminView={false} />} />
         {/* Rotas públicas — Ficha Pós-Encontro por Círculo */}
         <Route element={<CirculoAccessProvider><Outlet /></CirculoAccessProvider>}>
+          <Route path="/pos-encontro/acesso" element={<PageTransition><FormCirculoAccessPage /></PageTransition>} />
           <Route path="/pos-encontro/circulo/:circulo_id" element={<PageTransition><FormCirculoAccessPage /></PageTransition>} />
           <Route path="/pos-encontro/ficha" element={<PageTransition><FormCirculoFichaPage /></PageTransition>} />
         </Route>

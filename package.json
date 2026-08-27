@@ -16,6 +16,7 @@
     "migrate:public-images-r2": "node scripts/migrate-public-images-to-r2.mjs",
     "migrate:legacy-images": "node scripts/migrate-legacy-images.mjs",
     "migrate:private-proofs": "node scripts/migrate-private-comprovantes.mjs",
+    "geolocation:active-encontreiros": "node scripts/update-active-encontreiros-geolocation.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

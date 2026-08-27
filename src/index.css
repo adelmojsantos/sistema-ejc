@@ -3763,6 +3763,33 @@ tbody tr:hover {
   }
 }
 
+.leaflet-numbered-marker {
+  background: transparent;
+  border: 0;
+}
+
+.leaflet-numbered-marker__pin {
+  display: block;
+  position: relative;
+  width: 25px;
+  height: 41px;
+  background-repeat: no-repeat;
+  background-size: 25px 41px;
+}
+
+.leaflet-numbered-marker__label {
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 25px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 70%);
+}
+
 .mobile-visitacao-tabs { display: none; }
 
 @media (max-width: 720px) {

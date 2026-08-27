@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import jsPDF from 'jspdf';
-import { BookOpenCheck, CalendarCheck, CheckSquare, Download, Paperclip, Square, FileText } from 'lucide-react';
+import { BookOpenCheck, CalendarCheck, CheckSquare, Download, Paperclip, QrCode, Square, FileText } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { PesquisaSatisfacaoShareModal } from '../../components/pesquisa/PesquisaSatisfacaoShareModal';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { circuloParticipacaoService } from '../../services/circuloParticipacaoService';
+import { circuloPublicoService } from '../../services/circuloPublicoService';
 import { circuloService } from '../../services/circuloService';
 import { posEncontroService } from '../../services/posEncontroService';
 import type { Circulo } from '../../types/circulo';
@@ -76,12 +78,28 @@ export function PosEncontroCirculosPage() {
   const [isSavingPresencas, setIsSavingPresencas] = useState(false);
   const [isGeneratingFichasPdf, setIsGeneratingFichasPdf] = useState(false);
   const [isNoPresenceDialogOpen, setIsNoPresenceDialogOpen] = useState(false);
+  const [isPesquisaPublished, setIsPesquisaPublished] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [equipes, setEquipes] = useState<Equipe[]>([]);
   const canChooseCirculo = hasPermission('modulo_circulos_coordenador') || hasPermission('modulo_admin');
   const isMediatorOnly = hasPermission('modulo_circulos_mediador') && !canChooseCirculo;
   const isDetailRoute = !!routePosId;
 
   const selectedEncontroId = isDetailRoute ? routeSelectedEncontroId : encontroSelecionadoId;
+  const shareUrl = selectedEncontroId && isPesquisaPublished
+    ? `${window.location.origin}/pos-encontro/acesso?encontro=${selectedEncontroId}`
+    : '';
+
+  useEffect(() => {
+    if (!selectedEncontroId) {
+      setIsPesquisaPublished(false);
+      return;
+    }
+
+    circuloPublicoService.obterPesquisaGeneralInfo(selectedEncontroId)
+      .then(() => setIsPesquisaPublished(true))
+      .catch(() => setIsPesquisaPublished(false));
+  }, [selectedEncontroId]);
 
   // Carregar Equipes Ativas
   useEffect(() => {
@@ -597,6 +615,16 @@ export function PosEncontroCirculosPage() {
               <div className="pos-encontro-card-header" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
 
                 <div className="pos-encontro-card-actions">
+                  {isPesquisaPublished && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setShowShareModal(true)}
+                    >
+                      <QrCode size={18} />
+                      Link da pesquisa
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -781,6 +809,16 @@ export function PosEncontroCirculosPage() {
           </div>
         )}
       </section>
+
+      <PesquisaSatisfacaoShareModal
+        isOpen={showShareModal && isPesquisaPublished}
+        onClose={() => setShowShareModal(false)}
+        link={shareUrl}
+        encounterName={selectedEncontro?.nome}
+        description="A pessoa escolhe primeiro seu círculo e depois confirma a identidade para acessar a pesquisa e a ficha."
+        downloadFilename="pesquisa-encontristas-link.png"
+        whatsappMessage={`A pesquisa dos encontristas${selectedEncontro?.nome ? ` do ${selectedEncontro.nome}` : ''} está disponível. Escolha seu círculo para acessar: ${shareUrl}`}
+      />
 
       <ConfirmDialog
         isOpen={isNoPresenceDialogOpen}

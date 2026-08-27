@@ -38,6 +38,12 @@ vi.mock('../../services/pesquisaSatisfacaoService', () => ({
   },
 }));
 
+vi.mock('../../services/pesquisaPublicacaoService', () => ({
+  pesquisaPublicacaoService: {
+    listarAuditoria: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 import { AvaliacaoEncontroPage } from './AvaliacaoEncontroPage';
 
 function deferred<T>() {

@@ -9,6 +9,7 @@ import {
   MessageSquareText,
   Pencil,
   Plus,
+  QrCode,
   Save,
   Sparkles,
   Trash2,
@@ -18,6 +19,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '../../components/ui/Modal';
+import { PesquisaPublicacaoAudit } from '../../components/pesquisa/PesquisaPublicacaoAudit';
+import { PesquisaSatisfacaoShareModal } from '../../components/pesquisa/PesquisaSatisfacaoShareModal';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { pesquisaEncontristaService } from '../../services/pesquisaEncontristaService';
 import type {
@@ -70,7 +73,7 @@ function emptyForm(encontroId: string, ordem: number): PesquisaSatisfacaoPergunt
 
 export function AvaliacaoEncontristasPage() {
   const navigate = useNavigate();
-  const { encontroSelecionadoId: encontroId } = useEncontros();
+  const { encontroSelecionadoId: encontroId, encontroSelecionado } = useEncontros();
   const [config, setConfig] = useState<PesquisaEncontristaConfig | null>(null);
   const [perguntas, setPerguntas] = useState<PesquisaSatisfacaoQuestion[]>([]);
   const [envios, setEnvios] = useState<PesquisaEncontristaEnvio[]>([]);
@@ -86,6 +89,7 @@ export function AvaliacaoEncontristasPage() {
   const [responsesModalSummary, setResponsesModalSummary] = useState<PesquisaEncontristaPerguntaResumo | null>(null);
   const [selectedEquipeResumo, setSelectedEquipeResumo] = useState<PesquisaEncontristaEquipeResumo | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [form, setForm] = useState<PesquisaSatisfacaoPerguntaFormData>(emptyForm('', 1));
 
   useEffect(() => {
@@ -136,6 +140,9 @@ export function AvaliacaoEncontristasPage() {
   const totalResumosIA = resumosIA.length;
   const limiteResumosIAAtingido = totalResumosIA >= MAX_RESUMOS_IA_POR_ENCONTRO;
   const podeGerarResumoIA = !!encontroId && (painel?.totalEnviados ?? 0) > 0 && !generatingResumoIA && !limiteResumosIAAtingido;
+  const generalLink = config?.publicada && encontroId
+    ? `${window.location.origin}/pos-encontro/acesso?encontro=${encontroId}`
+    : '';
 
   const openNew = () => {
     setEditingId(null);
@@ -261,11 +268,25 @@ export function AvaliacaoEncontristasPage() {
         <div>
           <strong>{config?.publicada ? 'Pesquisa publicada' : 'Pesquisa não publicada'}</strong>
           <span>{config?.publicada ? 'Os encontristas devem respondê-la antes da ficha.' : 'O acesso segue diretamente para a ficha atual.'}</span>
+          {config && (
+            <PesquisaPublicacaoAudit
+              encontroId={encontroId}
+              tipo="encontristas"
+              refreshKey={`${config.publicada}:${config.publicada_em ?? ''}`}
+            />
+          )}
         </div>
-        <button className={config?.publicada ? 'btn-secondary' : 'btn-primary'} onClick={togglePublication} disabled={saving || loading}>
-          {saving ? <Loader className="animate-spin" size={16} /> : <ClipboardCheck size={16} />}
-          {config?.publicada ? 'Despublicar' : 'Publicar pesquisa'}
-        </button>
+        <div className="pesquisa-encontristas-admin__publication-actions">
+          {config?.publicada && (
+            <button type="button" className="btn-secondary" onClick={() => setShareOpen(true)}>
+              <QrCode size={16} /> Link da pesquisa
+            </button>
+          )}
+          <button className={config?.publicada ? 'btn-secondary' : 'btn-primary'} onClick={togglePublication} disabled={saving || loading}>
+            {saving ? <Loader className="animate-spin" size={16} /> : <ClipboardCheck size={16} />}
+            {config?.publicada ? 'Despublicar' : 'Publicar pesquisa'}
+          </button>
+        </div>
       </div>
 
       <nav className="pesquisa-encontristas-admin__tabs">
@@ -615,6 +636,16 @@ export function AvaliacaoEncontristasPage() {
         )}
       </Modal>
 
+      <PesquisaSatisfacaoShareModal
+        isOpen={shareOpen && Boolean(config?.publicada)}
+        onClose={() => setShareOpen(false)}
+        link={generalLink}
+        encounterName={encontroSelecionado?.nome}
+        description="A pessoa escolhe primeiro seu círculo e depois seleciona o próprio nome."
+        downloadFilename="pesquisa-encontristas-link.png"
+        whatsappMessage={`A pesquisa dos encontristas${encontroSelecionado?.nome ? ` do ${encontroSelecionado.nome}` : ''} está disponível. Escolha seu círculo para acessar: ${generalLink}`}
+      />
+
       <style>{`
         .pesquisa-encontristas-admin { display: grid; gap: 1rem; max-width: 100%; overflow-x: hidden; padding: 1.25rem; }
         .pesquisa-encontristas-admin * { min-width: 0; }
@@ -624,6 +655,7 @@ export function AvaliacaoEncontristasPage() {
         .pesquisa-encontristas-admin__header span { color: var(--primary-color); font-size: .75rem; font-weight: 800; text-transform: uppercase; }
         .pesquisa-encontristas-admin__header p, .pesquisa-encontristas-admin__toolbar span, .pesquisa-encontristas-admin__section-heading p { color: var(--muted-text); }
         .pesquisa-encontristas-admin__toolbar { align-items: center; display: flex; justify-content: space-between; padding: 1rem; }
+        .pesquisa-encontristas-admin__publication-actions { display: flex; flex-wrap: wrap; gap: .65rem; }
         .pesquisa-encontristas-admin__toolbar span { display: block; font-size: .85rem; margin-top: .2rem; }
         .pesquisa-encontristas-admin__tabs { background: color-mix(in srgb, var(--card-bg) 82%, var(--primary-color) 18%); border: 1px solid var(--border-color); border-radius: 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,.04); display: flex; gap: .45rem; overflow-x: auto; padding: .45rem; scrollbar-width: thin; }
         .pesquisa-encontristas-admin__tabs button { align-items: center; background: transparent; border: 1px solid transparent; border-radius: 14px; color: var(--muted-text); cursor: pointer; display: inline-flex; flex: 1 0 auto; font-weight: 800; gap: .55rem; justify-content: center; min-height: 46px; padding: .7rem 1rem; transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease; white-space: nowrap; }

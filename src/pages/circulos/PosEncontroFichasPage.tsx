@@ -1,14 +1,15 @@
-import { Bike, Camera, Car, Check, CheckSquare, ChevronLeft, ChevronRight, Copy, FileText, ImagePlus, Loader, Music, Share2, Sparkles, Square, UserCheck, X } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { Bike, Camera, Car, CheckSquare, ChevronLeft, ChevronRight, FileText, ImagePlus, Loader, Music, Share2, Sparkles, Square, UserCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ActionStepper, type ActionStep } from '../../components/ui/ActionStepper';
+import { PesquisaSatisfacaoShareModal } from '../../components/pesquisa/PesquisaSatisfacaoShareModal';
 import { GroupedDropdown } from '../../components/ui/GroupedDropdown';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useAuth } from '../../hooks/useAuth';
 import { circuloService } from '../../services/circuloService';
+import { circuloPublicoService } from '../../services/circuloPublicoService';
 import { equipeService } from '../../services/equipeService';
 import { posEncontroService } from '../../services/posEncontroService';
 import type { Circulo } from '../../types/circulo';
@@ -40,18 +41,21 @@ export function PosEncontroFichasPage() {
 
   // Modal de compartilhamento de link
   const [showShareModal, setShowShareModal] = useState(false);
-  const [linkCopiado, setLinkCopiado] = useState(false);
+  const [isPesquisaPublished, setIsPesquisaPublished] = useState(false);
 
-  const shareUrl = selectedCirculoId && selectedEncontroId
-    ? `${window.location.origin}/pos-encontro/circulo/${selectedCirculoId}?encontro=${selectedEncontroId}`
+  const shareUrl = selectedEncontroId && isPesquisaPublished
+    ? `${window.location.origin}/pos-encontro/acesso?encontro=${selectedEncontroId}`
     : '';
 
-  const handleCopyLink = () => {
-    if (!shareUrl) return;
-    navigator.clipboard.writeText(shareUrl);
-    setLinkCopiado(true);
-    setTimeout(() => setLinkCopiado(false), 2500);
-  };
+  useEffect(() => {
+    if (!selectedEncontroId) {
+      setIsPesquisaPublished(false);
+      return;
+    }
+    circuloPublicoService.obterPesquisaGeneralInfo(selectedEncontroId)
+      .then(() => setIsPesquisaPublished(true))
+      .catch(() => setIsPesquisaPublished(false));
+  }, [selectedEncontroId]);
 
   // Stepper Modal State
   const [stepperStep, setStepperStep] = useState(1);
@@ -429,7 +433,7 @@ export function PosEncontroFichasPage() {
                 Preencha as informações pós-encontro de cada encontrista.
               </p>
             </div>
-            {selectedCirculoId && selectedEncontroId && (
+            {selectedEncontroId && isPesquisaPublished && (
               <button
                 type="button"
                 className="btn btn-secondary"
@@ -437,7 +441,7 @@ export function PosEncontroFichasPage() {
                 style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem' }}
               >
                 <Share2 size={15} />
-                Compartilhar Ficha
+                Link da pesquisa
               </button>
             )}
           </div>
@@ -518,62 +522,15 @@ export function PosEncontroFichasPage() {
         </section>
       </section>
 
-      {/* Modal de Compartilhar Link */}
-      {showShareModal && (
-        <div className="ficha-modal-overlay" onClick={() => setShowShareModal(false)}>
-          <div className="ficha-modal-container" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
-            <header className="ficha-modal-header">
-              <div>
-                <span className="ficha-modal-eyebrow">Link de Acesso Público</span>
-                <h3>Compartilhar Ficha do Círculo</h3>
-              </div>
-              <button type="button" className="ficha-modal-close" onClick={() => setShowShareModal(false)}>
-                <X size={20} />
-              </button>
-            </header>
-
-            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', alignItems: 'center' }}>
-              <p style={{ fontSize: '0.875rem', opacity: 0.7, textAlign: 'center', margin: 0 }}>
-                Envie este link ou QR Code no grupo do círculo. Cada encontrista acessa com seu próprio nome + data de nascimento + últimos 4 dígitos do telefone.
-              </p>
-
-              {/* QR Code */}
-              <div style={{ padding: '1rem', background: '#fff', borderRadius: '12px', boxShadow: '0 2px 12px rgba(0,0,0,0.1)' }}>
-                <QRCodeSVG
-                  value={shareUrl}
-                  size={200}
-                  bgColor="#ffffff"
-                  fgColor="#1e293b"
-                  level="M"
-                />
-              </div>
-
-              {/* Link copiável */}
-              <div className="share-link-wrapper">
-                <input
-                  type="text"
-                  readOnly
-                  value={shareUrl}
-                  style={{ flex: 1, padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--surface-2)', fontSize: '0.75rem', color: 'var(--text-color)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  onClick={e => (e.target as HTMLInputElement).select()}
-                />
-                <button
-                  type="button"
-                  onClick={handleCopyLink}
-                  className="btn btn-primary"
-                  style={{ padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
-                >
-                  {linkCopiado ? <><Check size={14} /> Copiado!</> : <><Copy size={14} /> Copiar</>}
-                </button>
-              </div>
-
-              <p style={{ fontSize: '0.72rem', opacity: 0.5, textAlign: 'center', margin: 0 }}>
-                ⏱ O token de acesso do encontrista expira em 24 horas após o login.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      <PesquisaSatisfacaoShareModal
+        isOpen={showShareModal && isPesquisaPublished}
+        onClose={() => setShowShareModal(false)}
+        link={shareUrl}
+        encounterName={selectedEncontro?.nome}
+        description="A pessoa escolhe primeiro seu círculo e depois confirma a identidade para acessar a pesquisa e a ficha."
+        downloadFilename="pesquisa-encontristas-link.png"
+        whatsappMessage={`A pesquisa dos encontristas${selectedEncontro?.nome ? ` do ${selectedEncontro.nome}` : ''} está disponível. Escolha seu círculo para acessar: ${shareUrl}`}
+      />
 
       {selectedParticipantForFicha && (
         <div className="ficha-modal-overlay">

@@ -697,7 +697,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                         <button
                             type="button"
                             className="btn-primary-secondary"
-                            onClick={(e) => handleSubmit(e, false)}
+                            onClick={(e) => handleSubmit(e, true)}
                             disabled={isLoading || isSubmitting}
                             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                         >
@@ -714,7 +714,7 @@ export function PessoaForm({ initialData, onSubmit, onCancel, isLoading = false,
                             <button
                             type="button"
                             className="btn-primary"
-                            onClick={(e) => handleSubmit(e, true)}
+                            onClick={(e) => handleSubmit(e, false)}
                                 disabled={isLoading || isSubmitting}
                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                             >
