@@ -14,9 +14,13 @@ export default function FormCirculoAccessPage() {
 
   const { validateAndAccess, isValidating, isAuthenticated, isLoading } = useCirculoAccess();
 
-  const circulo_id = circuloIdParam ? parseInt(circuloIdParam, 10) : null;
+  const legacyCirculoId = circuloIdParam ? parseInt(circuloIdParam, 10) : null;
+  const isGeneralAccess = !legacyCirculoId;
 
   const [isLoadingInfo, setIsLoadingInfo] = useState(true);
+  const [encontroNome, setEncontroNome] = useState('');
+  const [circulos, setCirculos] = useState<Array<{ circulo_id: number; nome: string }>>([]);
+  const [selectedCirculoId, setSelectedCirculoId] = useState<number | null>(legacyCirculoId);
   const [circuloNome, setCirculoNome] = useState('');
   const [mediadores, setMediadores] = useState<{ nome: string }[]>([]);
   const [participantes, setParticipantes] = useState<CirculoPublicParticipante[]>([]);
@@ -36,17 +40,26 @@ export default function FormCirculoAccessPage() {
   // Carrega informações públicas do círculo
   useEffect(() => {
     async function loadInfo() {
-      if (!circulo_id || !encontro_id) {
+      if (!encontro_id) {
         setInvalid(true);
         setIsLoadingInfo(false);
         return;
       }
 
       try {
-        const info = await circuloPublicoService.obterInfo(circulo_id, encontro_id);
-        setCirculoNome(info.circulo_nome);
-        setMediadores(info.mediadores);
-        setParticipantes(info.participantes);
+        if (isGeneralAccess) {
+          const generalInfo = await circuloPublicoService.obterPesquisaGeneralInfo(encontro_id);
+          setEncontroNome(generalInfo.encontro_nome);
+          setCirculos(generalInfo.circulos);
+          setCirculoNome('');
+          setMediadores([]);
+          setParticipantes([]);
+        } else if (legacyCirculoId) {
+          const info = await circuloPublicoService.obterInfo(legacyCirculoId, encontro_id);
+          setCirculoNome(info.circulo_nome);
+          setMediadores(info.mediadores);
+          setParticipantes(info.participantes);
+        }
       } catch {
         setInvalid(true);
       } finally {
@@ -54,11 +67,34 @@ export default function FormCirculoAccessPage() {
       }
     }
     loadInfo();
-  }, [circulo_id, encontro_id]);
+  }, [encontro_id, isGeneralAccess, legacyCirculoId]);
+
+  useEffect(() => {
+    if (!isGeneralAccess || !selectedCirculoId || !encontro_id) return;
+    let active = true;
+    setIsLoadingInfo(true);
+    setSelectedParticipacaoId('');
+    setDataNascimento('');
+    setTelefoneFim('');
+    circuloPublicoService.obterPesquisaCirculoInfo(selectedCirculoId, encontro_id)
+      .then((info) => {
+        if (!active) return;
+        setCirculoNome(info.circulo_nome);
+        setMediadores(info.mediadores);
+        setParticipantes(info.participantes);
+      })
+      .catch(() => { if (active) setInvalid(true); })
+      .finally(() => { if (active) setIsLoadingInfo(false); });
+    return () => { active = false; };
+  }, [encontro_id, isGeneralAccess, selectedCirculoId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!selectedCirculoId) {
+      toast.error('Por favor, selecione seu círculo.');
+      return;
+    }
     if (!selectedParticipacaoId) {
       toast.error('Por favor, selecione seu nome na lista.');
       return;
@@ -77,7 +113,7 @@ export default function FormCirculoAccessPage() {
 
     const success = await validateAndAccess(
       {
-        circulo_id: circulo_id!,
+        circulo_id: selectedCirculoId,
         encontro_id: encontro_id!,
         participacao_id: selectedParticipacaoId,
         data_nascimento: dataNascimento,
@@ -99,7 +135,7 @@ export default function FormCirculoAccessPage() {
     );
   }
 
-  if (invalid || !circulo_id || !encontro_id) {
+  if (invalid || !encontro_id || (!isGeneralAccess && !selectedCirculoId)) {
     return (
       <div className="fade-in" style={{ minHeight: '100vh', background: 'var(--bg-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
         <div className="card" style={{ maxWidth: '450px', width: '100%', textAlign: 'center', padding: '3rem 2rem' }}>
@@ -126,7 +162,7 @@ export default function FormCirculoAccessPage() {
             marginBottom: '0.75rem'
           }}>
             <Users size={14} />
-            {circuloNome}
+            {circuloNome || encontroNome || 'Pesquisa dos encontristas'}
           </div>
 
           <h1 style={{ fontSize: '1.5rem', marginBottom: '0.4rem' }}>Avaliação e Ficha Pós-Encontro</h1>
@@ -156,16 +192,34 @@ export default function FormCirculoAccessPage() {
             Selecione seu nome e confirme sua identidade para responder à avaliação e acessar sua ficha.
           </div>
 
+          {isGeneralAccess && (
+            <div className="form-group">
+              <label className="form-label">Meu círculo é</label>
+              <select
+                className="form-input"
+                required
+                value={selectedCirculoId ?? ''}
+                onChange={(event) => setSelectedCirculoId(event.target.value ? Number(event.target.value) : null)}
+              >
+                <option value="">Selecione seu círculo...</option>
+                {circulos.map((circulo) => (
+                  <option key={circulo.circulo_id} value={circulo.circulo_id}>{circulo.nome}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Seleção do participante */}
           <div className="form-group">
             <label className="form-label">Meu nome é</label>
             <select
               className="form-input"
               required
+              disabled={!selectedCirculoId}
               value={selectedParticipacaoId}
               onChange={e => setSelectedParticipacaoId(e.target.value)}
             >
-              <option value="">Selecione seu nome...</option>
+              <option value="">{selectedCirculoId ? 'Selecione seu nome...' : 'Selecione primeiro o círculo'}</option>
               {participantes.map(p => (
                 <option key={p.participacao_id} value={p.participacao_id}>
                   {p.nome}

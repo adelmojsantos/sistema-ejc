@@ -57,6 +57,13 @@ function validateResult(value: unknown): GeocodingResult {
 }
 
 export const geolocationService = {
+  async geocodeTeamMember(personId: string, force = true): Promise<GeocodingResult> {
+    const { data, error } = await supabase.functions.invoke('geocode-address', {
+      body: { personId, force },
+    });
+    if (error) throw new Error('Não foi possível atualizar a localização do integrante.');
+    return validateResult(data);
+  },
   async geocode(address: AddressInput, force = false): Promise<GeocodingResult> {
     const { data, error } = await supabase.functions.invoke('geocode-address', {
       body: { address: cleanAddress(address), force },

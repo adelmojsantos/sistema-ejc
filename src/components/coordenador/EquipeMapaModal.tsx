@@ -1,34 +1,19 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { AlertTriangle, ExternalLink, MapPin } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Loader, MapPin, Pencil, RefreshCw } from 'lucide-react';
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { Modal } from '../ui/Modal';
 import type { Pessoa } from '../../types/pessoa';
-import { getPlanningCoordinate } from '../../types/geolocation';
-import { buildGoogleMapsStopUrl } from '../../utils/visitRoutePlanning';
-
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
-const teamIcon = L.icon({
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-});
-
-const regionalIcon = L.divIcon({
-  className: '',
-  html: '<span style="display:block;width:20px;height:20px;border-radius:50%;background:#f59e0b;border:3px dashed white;box-shadow:0 2px 6px rgba(0,0,0,.35)"></span>',
-  iconSize: [26, 26],
-  iconAnchor: [13, 13],
-});
+import { getPlanningCoordinate, hasRegionalReference } from '../../types/geolocation';
+import { geolocationService } from '../../services/geolocationService';
+import { createNumberedMarkerIcon, teamMapMarkerIcon } from '../../utils/leafletMarkerIcon';
 
 interface TeamMemberForMap {
   pessoa_id: string;
   pessoas: Pessoa;
+  coordenador?: boolean | null;
 }
 
 interface EquipeMapaModalProps {
@@ -36,6 +21,8 @@ interface EquipeMapaModalProps {
   onClose: () => void;
   equipeNome: string;
   members: TeamMemberForMap[];
+  onUpdated?: () => Promise<void> | void;
+  onEditMember?: (personId: string) => void;
 }
 
 function FitTeamBounds({ points }: { points: [number, number][] }) {
@@ -53,32 +40,173 @@ function FitTeamBounds({ points }: { points: [number, number][] }) {
 }
 
 function mapsUrl(pessoa: Pessoa): string | null {
-  return buildGoogleMapsStopUrl({ ...pessoa, id: pessoa.id });
+  const address = [pessoa.endereco, pessoa.numero, pessoa.bairro, pessoa.cidade, pessoa.estado, pessoa.cep]
+    .map(value => value?.trim()).filter(Boolean).join(', ');
+  return address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : null;
 }
 
-export function EquipeMapaModal({ isOpen, onClose, equipeNome, members }: EquipeMapaModalProps) {
+function canUpdateLocation(pessoa: Pessoa) {
+  return Boolean(pessoa.endereco?.trim() && pessoa.cidade?.trim()
+    && (pessoa.estado?.trim() || pessoa.cidade.trim().localeCompare('Franca', 'pt-BR', { sensitivity: 'base' }) === 0));
+}
+
+interface AddressIssue {
+  label: string;
+  retryable: boolean;
+}
+
+function getAddressIssue(pessoa: Pessoa): AddressIssue | null {
+  if (!pessoa.endereco?.trim()) return { label: 'Falta informar o logradouro', retryable: false };
+  if (!pessoa.cidade?.trim()) return { label: 'Falta informar a cidade', retryable: false };
+  const isFranca = pessoa.cidade.trim().localeCompare('Franca', 'pt-BR', { sensitivity: 'base' }) === 0;
+  if (!pessoa.estado?.trim() && !isFranca) return { label: 'Falta informar o estado (UF)', retryable: false };
+
+  switch (pessoa.geo_failure_code) {
+    case 'missing_street':
+      return { label: 'Falta informar o logradouro', retryable: false };
+    case 'missing_city':
+      return { label: 'Falta informar a cidade', retryable: false };
+    case 'missing_state':
+      return { label: 'Falta informar o estado (UF)', retryable: false };
+    case 'incomplete_address':
+      return { label: 'Endereço incompleto', retryable: false };
+    case 'cep_not_found':
+      return { label: 'CEP não encontrado', retryable: false };
+    case 'cep_selection_required':
+      return { label: 'Mais de um CEP possível', retryable: false };
+    case 'cep_address_mismatch':
+      return { label: 'CEP não corresponde à cidade/UF', retryable: false };
+    case 'manual_confirmation_required':
+      return { label: 'Endereço não localizado', retryable: false };
+    case 'provider_unavailable':
+      return { label: 'Serviço de localização indisponível', retryable: true };
+    default:
+      return null;
+  }
+}
+
+function getFailureMessage(code: string | null): string {
+  const messages: Record<string, string> = {
+    missing_street: 'Falta informar o logradouro.',
+    missing_city: 'Falta informar a cidade.',
+    missing_state: 'Falta informar o estado (UF).',
+    incomplete_address: 'O endereço está incompleto.',
+    cep_not_found: 'Não foi possível encontrar o CEP deste endereço.',
+    cep_selection_required: 'Há mais de um CEP possível. Revise o endereço para selecionar o correto.',
+    cep_address_mismatch: 'O CEP não corresponde à cidade ou ao estado informado.',
+    manual_confirmation_required: 'Não foi possível localizar este endereço. Revise os dados cadastrados.',
+    provider_unavailable: 'O serviço de localização está indisponível. Tente novamente.',
+  };
+  return code ? messages[code] ?? 'Não foi possível atualizar a localização.' : 'Não foi possível atualizar a localização.';
+}
+
+function getMapCoordinate(pessoa: Pessoa) {
+  if (hasRegionalReference(pessoa)) {
+    return {
+      latitude: pessoa.geo_reference_latitude!,
+      longitude: pessoa.geo_reference_longitude!,
+      exact: false,
+    };
+  }
+  return getPlanningCoordinate(pessoa);
+}
+
+export function EquipeMapaModal({ isOpen, onClose, equipeNome, members, onUpdated, onEditMember }: EquipeMapaModalProps) {
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [bulkUpdating, setBulkUpdating] = useState(false);
+  const mapMembers = useMemo(
+    () => members.filter(member => !member.coordenador),
+    [members],
+  );
   const mappedMembers = useMemo(
-    () => members.flatMap(member => {
-      const coordinate = getPlanningCoordinate(member.pessoas);
+    () => mapMembers.flatMap(member => {
+      const coordinate = getMapCoordinate(member.pessoas);
       return coordinate ? [{ ...member, coordinate }] : [];
     }),
-    [members],
+    [mapMembers],
   );
   const unmappedMembers = useMemo(
-    () => members.filter(member => !getPlanningCoordinate(member.pessoas)),
-    [members],
+    () => mapMembers.filter(member => !getMapCoordinate(member.pessoas)),
+    [mapMembers],
   );
+  const markerGroups = useMemo(() => {
+    const groups = new Map<string, { coordinate: { latitude: number; longitude: number }; members: typeof mappedMembers }>();
+    for (const member of mappedMembers) {
+      const key = `${member.coordinate.latitude.toFixed(6)}:${member.coordinate.longitude.toFixed(6)}`;
+      const group = groups.get(key);
+      if (group) {
+        group.members.push(member);
+      } else {
+        groups.set(key, {
+          coordinate: {
+            latitude: member.coordinate.latitude,
+            longitude: member.coordinate.longitude,
+          },
+          members: [member],
+        });
+      }
+    }
+    return [...groups.values()];
+  }, [mappedMembers]);
   const points = useMemo(
-    () => mappedMembers.map(member => [member.coordinate.latitude, member.coordinate.longitude] as [number, number]),
-    [mappedMembers],
+    () => markerGroups.map(group => [group.coordinate.latitude, group.coordinate.longitude] as [number, number]),
+    [markerGroups],
   );
   const center: [number, number] = points[0] ?? [-20.5383, -47.4008];
+
+  const updateMember = async (member: TeamMemberForMap, notify = true) => {
+    setUpdatingId(member.pessoa_id);
+    try {
+      const result = await geolocationService.geocodeTeamMember(member.pessoa_id);
+      if (result.candidate) {
+        if (notify) toast.success('Localização aproximada atualizada.');
+        return true;
+      }
+      if (notify) toast.error(getFailureMessage(result.failureCode));
+      return false;
+    } catch {
+      if (notify) toast.error('Não foi possível atualizar a localização.');
+      return false;
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const updatePending = async () => {
+    const eligible = unmappedMembers.filter((member) => {
+      const issue = getAddressIssue(member.pessoas);
+      return canUpdateLocation(member.pessoas) && (!issue || issue.retryable);
+    });
+    if (eligible.length === 0) {
+      toast.error('Nenhum endereço pendente possui dados suficientes para atualização.');
+      return;
+    }
+    setBulkUpdating(true);
+    try {
+      let updated = 0;
+      for (const member of eligible) {
+        if (await updateMember(member, false)) updated += 1;
+      }
+      await onUpdated?.();
+      toast.success(`${updated} de ${eligible.length} localizações atualizadas.`);
+    } finally {
+      setBulkUpdating(false);
+    }
+  };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Mapa da equipe — ${equipeNome || 'Minha equipe'}`} maxWidth="1000px">
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>
-          {mappedMembers.length} de {members.length} integrantes possuem referência no mapa. Pontos laranja são aproximados e servem apenas para conhecer a região.
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>
+            {mappedMembers.length} com localização · {unmappedMembers.length} sem localização. Todos os pontos são aproximados.
+          </div>
+          {unmappedMembers.length > 0 && (
+            <button type="button" className="btn-secondary" disabled={bulkUpdating} onClick={() => void updatePending()}>
+              {bulkUpdating ? <Loader className="animate-spin" size={15} /> : <RefreshCw size={15} />}
+              Atualizar pendentes
+            </button>
+          )}
         </div>
 
         <div style={{ height: 'min(58vh, 560px)', minHeight: '360px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
@@ -88,25 +216,55 @@ export function EquipeMapaModal({ isOpen, onClose, equipeNome, members }: Equipe
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <FitTeamBounds points={points} />
-            {mappedMembers.map(member => {
-              const pessoa = member.pessoas;
+            {markerGroups.map(group => {
+              const firstMember = group.members[0];
+              if (!firstMember) return null;
+              const isSharedLocation = group.members.length > 1;
               return (
-                <Marker key={member.pessoa_id} position={[member.coordinate.latitude, member.coordinate.longitude]} icon={member.coordinate.exact ? teamIcon : regionalIcon}>
+                <Marker
+                  key={`${group.coordinate.latitude}:${group.coordinate.longitude}`}
+                  position={[group.coordinate.latitude, group.coordinate.longitude]}
+                  icon={isSharedLocation ? createNumberedMarkerIcon(group.members.length) : teamMapMarkerIcon}
+                >
                   <Popup>
-                    <strong>{pessoa.nome_completo}</strong>
-                    <br />
-                    <span style={{ color: member.coordinate.exact ? '#059669' : '#b45309', fontWeight: 700 }}>
-                      {member.coordinate.exact ? 'Ponto exato' : 'Localização aproximada'}
-                    </span>
-                    <br />
-                    {[pessoa.endereco, pessoa.numero, pessoa.bairro, pessoa.cidade, pessoa.estado]
-                      .map(value => value?.trim())
-                      .filter(Boolean)
-                      .join(', ')}
-                    <br />
-                    {mapsUrl(pessoa) && <a href={mapsUrl(pessoa)!} target="_blank" rel="noopener noreferrer">
-                      Abrir rota no Maps
-                    </a>}
+                    {isSharedLocation ? (
+                      <div style={{ display: 'grid', gap: '.65rem', minWidth: 220 }}>
+                        <div>
+                          <strong>{group.members.length} integrantes neste local</strong>
+                          <br />
+                          <span style={{ color: '#b45309', fontWeight: 700 }}>Localização aproximada</span>
+                        </div>
+                        {group.members.map(member => {
+                          const pessoa = member.pessoas;
+                          return (
+                            <div key={member.pessoa_id} style={{ borderTop: '1px solid #e2e8f0', paddingTop: '.55rem' }}>
+                              <strong>{pessoa.nome_completo}</strong>
+                              <br />
+                              <span>{[pessoa.endereco, pessoa.numero, pessoa.bairro, pessoa.cidade, pessoa.estado]
+                                .map(value => value?.trim())
+                                .filter(Boolean)
+                                .join(', ')}</span>
+                              {mapsUrl(pessoa) && <><br /><a href={mapsUrl(pessoa)!} target="_blank" rel="noopener noreferrer">Abrir rota no Maps</a></>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <>
+                        <strong>{firstMember.pessoas.nome_completo}</strong>
+                        <br />
+                        <span style={{ color: '#b45309', fontWeight: 700 }}>Localização aproximada</span>
+                        <br />
+                        {[firstMember.pessoas.endereco, firstMember.pessoas.numero, firstMember.pessoas.bairro, firstMember.pessoas.cidade, firstMember.pessoas.estado]
+                          .map(value => value?.trim())
+                          .filter(Boolean)
+                          .join(', ')}
+                        <br />
+                        {mapsUrl(firstMember.pessoas) && <a href={mapsUrl(firstMember.pessoas)!} target="_blank" rel="noopener noreferrer">
+                          Abrir rota no Maps
+                        </a>}
+                      </>
+                    )}
                   </Popup>
                 </Marker>
               );
@@ -114,31 +272,35 @@ export function EquipeMapaModal({ isOpen, onClose, equipeNome, members }: Equipe
           </MapContainer>
         </div>
 
-        {unmappedMembers.length > 0 && (
-          <div style={{ padding: '0.85rem 1rem', borderRadius: '10px', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-              <AlertTriangle size={16} color="#f59e0b" />
-              Sem localização ({unmappedMembers.length})
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem 1rem', fontSize: '0.8rem' }}>
-              {unmappedMembers.map(member => (
-                <span key={member.pessoa_id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <MapPin size={13} /> {member.pessoas.nome_completo}
+        <div style={{ display: 'grid', gap: '.55rem' }}>
+          {mapMembers.map(member => {
+            const mapped = Boolean(getMapCoordinate(member.pessoas));
+            const canUpdate = canUpdateLocation(member.pessoas);
+            const addressIssue = getAddressIssue(member.pessoas);
+            const needsReview = Boolean(addressIssue && !addressIssue.retryable);
+            return (
+              <div key={member.pessoa_id} style={{ alignItems: 'center', border: '1px solid var(--border-color)', borderRadius: 10, display: 'flex', flexWrap: 'wrap', gap: '.6rem', justifyContent: 'space-between', padding: '.7rem .8rem' }}>
+                <span style={{ alignItems: 'center', display: 'inline-flex', gap: '.4rem', fontSize: '.84rem', fontWeight: 700 }}>
+                  {mapped && !addressIssue ? <MapPin size={15} color="#d97706" /> : <AlertTriangle size={15} color="#f59e0b" />}
+                  {member.pessoas.nome_completo}
+                  <small style={{ fontWeight: 600, opacity: .65 }}>
+                    {addressIssue?.label ?? (mapped ? 'Localização aproximada' : 'Sem localização')}
+                  </small>
                 </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {mappedMembers.length > 0 && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-            {mappedMembers.filter(member => mapsUrl(member.pessoas)).map(member => (
-              <a key={member.pessoa_id} href={mapsUrl(member.pessoas)!} target="_blank" rel="noopener noreferrer" className="btn-text" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                <ExternalLink size={14} /> {member.pessoas.nome_completo}
-              </a>
-            ))}
-          </div>
-        )}
+                <span style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
+                  {mapsUrl(member.pessoas) && <a href={mapsUrl(member.pessoas)!} target="_blank" rel="noopener noreferrer" className="btn-text"><ExternalLink size={14} /> Abrir mapa</a>}
+                  {!needsReview && (
+                    <button type="button" className="btn-text" disabled={updatingId === member.pessoa_id || bulkUpdating || !canUpdate} onClick={async () => { await updateMember(member); await onUpdated?.(); }}>
+                      {updatingId === member.pessoa_id ? <Loader className="animate-spin" size={14} /> : <RefreshCw size={14} />}
+                      {addressIssue?.retryable ? 'Tentar novamente' : 'Atualizar localização'}
+                    </button>
+                  )}
+                  {(needsReview || !canUpdate) && onEditMember && <button type="button" className="btn-text" onClick={() => onEditMember(member.pessoa_id)}><Pencil size={14} /> Revisar endereço</button>}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </Modal>
   );

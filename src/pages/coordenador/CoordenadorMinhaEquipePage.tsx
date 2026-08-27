@@ -26,6 +26,7 @@ import {
   Car,
   ClipboardCheck,
   Copy,
+  QrCode,
   LayoutGrid,
   ArrowRight,
   ExternalLink
@@ -36,6 +37,7 @@ import { BulkShirtOrderModal } from '../../components/coordenador/BulkShirtOrder
 import { TeamShirtSummaryModal } from '../../components/coordenador/TeamShirtSummaryModal';
 import { TeamTaxaSummaryModal } from '../../components/coordenador/TeamTaxaSummaryModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { PesquisaSatisfacaoShareModal } from '../../components/pesquisa/PesquisaSatisfacaoShareModal';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -194,10 +196,12 @@ export function CoordenadorMinhaEquipePage() {
     status: PesquisaSatisfacaoStatus;
     enviadoEm: string | null;
     liberada: boolean;
+    publicada: boolean;
     totalParticipantes: number;
     totalEnviados: number;
   } | null>(null);
   const [isLoadingAvaliacao, setIsLoadingAvaliacao] = useState(false);
+  const [isPesquisaShareOpen, setIsPesquisaShareOpen] = useState(false);
   const [publicFormPublished, setPublicFormPublished] = useState(false);
   const [publicFormLinkCopied, setPublicFormLinkCopied] = useState(false);
 
@@ -209,6 +213,10 @@ export function CoordenadorMinhaEquipePage() {
 
   const isMobile = windowWidth < 768;
   const isAdmin = hasPermission('modulo_admin');
+  const pesquisaPublicLink = useMemo(() => {
+    if (!userParticipacao?.encontro_id) return '';
+    return `${window.location.origin}/pesquisa-satisfacao?encontro=${userParticipacao.encontro_id}`;
+  }, [userParticipacao?.encontro_id]);
 
   const loadAvaliacao = useCallback(async () => {
     if (!userParticipacao?.encontro_id || !userParticipacao?.equipe_id || !userParticipacao.coordenador) {
@@ -232,6 +240,7 @@ export function CoordenadorMinhaEquipePage() {
         status: envio?.status ?? 'pendente',
         enviadoEm: envio?.enviado_em ?? null,
         liberada,
+        publicada: config.publicada,
         totalParticipantes: resumoEquipe.totalParticipantes,
         totalEnviados: resumoEquipe.totalEnviados,
       });
@@ -1093,7 +1102,7 @@ export function CoordenadorMinhaEquipePage() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
               <span style={{
                 fontSize: '0.72rem',
                 fontWeight: 800,
@@ -1106,6 +1115,25 @@ export function CoordenadorMinhaEquipePage() {
               }}>
                 {avaliacaoResumo.status === 'enviado' ? 'Enviada' : avaliacaoResumo.status === 'rascunho' ? 'Rascunho' : 'Pendente'}
               </span>
+              {avaliacaoResumo.publicada && (
+                <button
+                  type="button"
+                  className="btn-secondary show-mobile-full-width"
+                  onClick={() => setIsPesquisaShareOpen(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.45rem',
+                    minHeight: '40px',
+                    lineHeight: 1,
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <QrCode size={16} />
+                  Link da pesquisa
+                </button>
+              )}
               <button
                 type="button"
                 className="btn-primary show-mobile-full-width"
@@ -2059,6 +2087,17 @@ export function CoordenadorMinhaEquipePage() {
         onClose={() => setShowTeamMapModal(false)}
         equipeNome={equipeNome}
         members={members}
+        onUpdated={async () => { await loadMembers(); }}
+        onEditMember={(personId) => {
+          setShowTeamMapModal(false);
+          void handleOpenPessoaEdit(personId);
+        }}
+      />
+
+      <PesquisaSatisfacaoShareModal
+        isOpen={isPesquisaShareOpen && Boolean(avaliacaoResumo?.publicada)}
+        onClose={() => setIsPesquisaShareOpen(false)}
+        link={pesquisaPublicLink}
       />
 
       <BulkShirtOrderModal
