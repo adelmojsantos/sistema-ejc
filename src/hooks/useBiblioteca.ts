@@ -9,8 +9,13 @@ export type SortBy = 'name' | 'date' | 'size';
 interface UseBibliotecaProps {
   initialFolderId?: string | null;
   mode?: 'admin' | 'shared';
-  profile?: any; // Necessário para o modo compartilhado
-  userParticipacao?: any;
+  profile?: {
+    grupoIds?: string[];
+    permissions: string[];
+  } | null;
+  userParticipacao?: {
+    equipe_id?: string | null;
+  } | null;
 }
 
 export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile, userParticipacao }: UseBibliotecaProps = {}) {
@@ -58,7 +63,7 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
         // MODO COMPARTILHADO
         // Carregamos TUDO que o usuário tem acesso (a árvore permitida)
         const targetGrupoIds = profile?.grupoIds || [];
-        const targetEquipeId = userParticipacao?.equipe_id;
+        const targetEquipeId = userParticipacao?.equipe_id ?? undefined;
         const isAdmin = profile?.permissions.includes('modulo_admin');
 
         const data = await bibliotecaService.listarItensCompartilhados({ 
@@ -72,8 +77,8 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
 
         // A filtragem do que exibir (pasta atual) é feita pelo useEffect baseado no currentFolderId
       }
-    } catch (error: any) {
-      toast.error('Erro ao carregar biblioteca: ' + error.message);
+    } catch (error: unknown) {
+      toast.error('Erro ao carregar biblioteca: ' + (error instanceof Error ? error.message : 'falha desconhecida.'));
     } finally {
       setLoading(false);
     }
@@ -118,16 +123,18 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
     if (filterType === 'files') p = [];
     if (filterType === 'folders') a = [];
 
-    const sortFn = (x: any, y: any, field: string) => {
-      if (sortBy === 'name') return x[field].localeCompare(y[field]);
-      if (sortBy === 'date') return new Date(y.created_at).getTime() - new Date(x.created_at).getTime();
-      if (sortBy === 'size' && field === 'nome_exibicao') return (y.tamanho_bytes || 0) - (x.tamanho_bytes || 0);
-      return 0;
-    };
-
     return {
-      pastas: p.sort((x, y) => sortFn(x, y, 'nome')),
-      arquivos: a.sort((x, y) => sortFn(x, y, 'nome_exibicao'))
+      pastas: p.sort((x, y) => {
+        if (sortBy === 'name') return x.nome.localeCompare(y.nome);
+        if (sortBy === 'date') return new Date(y.created_at).getTime() - new Date(x.created_at).getTime();
+        return 0;
+      }),
+      arquivos: a.sort((x, y) => {
+        if (sortBy === 'name') return x.nome_exibicao.localeCompare(y.nome_exibicao);
+        if (sortBy === 'date') return new Date(y.created_at).getTime() - new Date(x.created_at).getTime();
+        if (sortBy === 'size') return y.tamanho_bytes - x.tamanho_bytes;
+        return 0;
+      })
     };
   }, [pastas, arquivos, searchQuery, filterType, sortBy]);
 
@@ -150,12 +157,14 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
     setUploadProgress(prev => ({ ...prev, active: true, percent: 0 }));
 
     // Implementação de Paralelismo Controlado (Pool de 2 uploads simultâneos)
+    let failedCount = 0;
     const uploadFile = async (file: File) => {
       try {
         setUploadProgress(prev => ({ ...prev, currentFile: file.name }));
         await bibliotecaService.uploadArquivo(file, currentFolderId);
-      } catch (err: any) {
-        toast.error(`Erro ao subir ${file.name}: ${err.message}`);
+      } catch (error: unknown) {
+        failedCount++;
+        toast.error(`Erro ao subir ${file.name}: ${error instanceof Error ? error.message : 'falha desconhecida.'}`);
       }
     };
 
@@ -168,7 +177,8 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
     }
 
     setUploadProgress({ active: false, percent: 0, currentFile: '' });
-    toast.success('Upload concluído!');
+    if (failedCount < validFiles.length) toast.success('Upload concluído no Sistema EJC.');
+    if (failedCount > 0) toast.error(`${failedCount} arquivo(s) não foram enviados.`);
     loadData();
   };
 
@@ -184,10 +194,11 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
 
         try {
           if (isFolder) await bibliotecaService.excluirPasta(id);
-          if (file) await bibliotecaService.excluirArquivo(file);
+          if (file?.google_managed) await bibliotecaService.moverArquivoGoogleParaLixeira(file.id);
+          else if (file) await bibliotecaService.excluirArquivo(file);
           deletedCount++;
-        } catch (err: any) {
-          toast.error(`Erro ao excluir item: ${err.message}`);
+        } catch (error: unknown) {
+          toast.error(`Erro ao excluir item: ${error instanceof Error ? error.message : 'falha desconhecida.'}`);
         }
       }
       if (deletedCount > 0) {

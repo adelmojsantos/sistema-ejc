@@ -1,0 +1,2 @@
+[functions.google-drive]
+verify_jwt = false

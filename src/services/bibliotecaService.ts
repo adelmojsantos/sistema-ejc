@@ -23,6 +23,10 @@ export interface BibliotecaArquivo {
     google_file_id: string | null;
     google_tipo: GoogleDriveFileType | null;
     url_externa: string | null;
+    google_managed: boolean;
+    google_sync_status: 'manual' | 'pending' | 'syncing' | 'synced' | 'error';
+    google_sync_error: string | null;
+    google_synced_at: string | null;
     created_at: string;
 }
 
@@ -32,7 +36,46 @@ export interface BibliotecaCompartilhamento {
     arquivo_id: string | null;
     equipe_id: string | null;
     grupo_id: string | null;
+    google_role: 'reader' | 'writer';
     criado_em: string;
+}
+
+export interface GoogleDriveIntegrationStatus {
+    connected: boolean;
+    accountEmail: string | null;
+    connectedAt: string | null;
+    lastError: string | null;
+    pendingCount: number;
+    errorCount: number;
+}
+
+interface GoogleDriveSyncResult {
+    accountEmail: string | null;
+    results: Array<{ arquivoId: string; errors: string[] }>;
+}
+
+export interface GoogleDriveUserAccess {
+    accessStatus: 'granted' | 'google_account_required' | 'pending' | 'sync_error' | 'not_managed';
+    googleEmail: string | null;
+}
+
+const GOOGLE_EDITABLE_EXTENSIONS = new Set(['doc', 'docx', 'txt', 'csv', 'xlsx']);
+
+export function isGoogleEditableFileName(fileName: string): boolean {
+    const extension = fileName.trim().toLowerCase().match(/\.([^.]+)$/)?.[1];
+    return Boolean(extension && GOOGLE_EDITABLE_EXTENSIONS.has(extension));
+}
+
+async function invokeGoogleDrive<T>(body: Record<string, unknown>): Promise<T> {
+    const { data, error } = await supabase.functions.invoke('google-drive', { body });
+    if (error) throw error;
+    if (!data || typeof data !== 'object') {
+        throw new Error('A integração Google Drive retornou uma resposta inválida.');
+    }
+    if ('error' in data && typeof data.error === 'string') {
+        throw new Error(data.error);
+    }
+    return data as T;
 }
 
 export const bibliotecaService = {
@@ -114,14 +157,14 @@ export const bibliotecaService = {
         // Limite arbitrário de 10 níveis para evitar loops infinitos caso a base seja corrompida
         let depth = 0;
         while (currentId && depth < 10) {
-            const result: any = await supabase
+            const result: { data: BibliotecaPasta | null; error: unknown } = await supabase
                 .from('biblioteca_pastas')
                 .select('*')
                 .eq('id', currentId)
                 .single();
 
             if (result.error || !result.data) break;
-            breadcrumbs.unshift(result.data as BibliotecaPasta);
+            breadcrumbs.unshift(result.data);
             currentId = result.data.parent_id;
             depth++;
         }
@@ -191,6 +234,45 @@ export const bibliotecaService = {
 
         if (onProgress) onProgress(100);
         return data;
+    },
+
+    async uploadArquivoEditavelGoogle(
+        file: File,
+        pastaId: string | null = null
+    ): Promise<{ file: BibliotecaArquivo; syncErrors: string[] }> {
+        if (!isGoogleEditableFileName(file.name)) {
+            throw new Error('Envie um arquivo DOC, DOCX, TXT, CSV ou XLSX.');
+        }
+        if (file.size <= 0 || file.size > 25 * 1024 * 1024) {
+            throw new Error('O arquivo editável deve possuir entre 1 byte e 25 MB.');
+        }
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        if (userError || !userData.user) {
+            throw new Error('Sessão expirada. Entre novamente para enviar ao Google Drive.');
+        }
+        const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const storagePath = `google-imports/${userData.user.id}/${crypto.randomUUID()}_${safeName}`;
+        const { error: uploadError } = await supabase.storage
+            .from('biblioteca')
+            .upload(storagePath, file, {
+                cacheControl: '3600',
+                upsert: false,
+            });
+        if (uploadError) throw uploadError;
+
+        try {
+            return await invokeGoogleDrive({
+                action: 'import-file',
+                storagePath,
+                fileName: file.name,
+                mimeType: file.type || 'application/octet-stream',
+                size: file.size,
+                pastaId,
+            });
+        } catch (error) {
+            await supabase.storage.from('biblioteca').remove([storagePath]);
+            throw error;
+        }
     },
 
     async cadastrarReferenciaGoogle(params: {
@@ -312,6 +394,20 @@ export const bibliotecaService = {
     async abrirArquivo(arquivo: BibliotecaArquivo): Promise<void> {
         if (arquivo.origem === 'google_drive') {
             if (!arquivo.url_externa) throw new Error('A referência do Google Drive está incompleta.');
+            if (arquivo.google_managed) {
+                const access = await this.obterMeuAcessoGoogleDrive(arquivo.id);
+                if (access.accessStatus === 'google_account_required') {
+                    const email = access.googleEmail ? ` (${access.googleEmail})` : '';
+                    throw new Error(
+                        `Você não possui acesso a este arquivo porque seu e-mail${email} não está associado a uma Conta Google. Solicite ao administrador o cadastro de um e-mail Google no sistema.`
+                    );
+                }
+                if (access.accessStatus !== 'granted') {
+                    throw new Error(
+                        'Seu acesso a este arquivo no Google Drive ainda não foi concedido. Aguarde a sincronização ou procure o administrador.'
+                    );
+                }
+            }
             window.open(arquivo.url_externa, '_blank', 'noopener,noreferrer');
             return;
         }
@@ -353,6 +449,7 @@ export const bibliotecaService = {
         arquivoId?: string;
         equipeId?: string;
         grupoId?: string;
+        googleRole?: 'reader' | 'writer';
     }): Promise<void> {
         const { error } = await supabase
             .from('biblioteca_compartilhamento')
@@ -360,7 +457,8 @@ export const bibliotecaService = {
                 pasta_id: params.pastaId || null,
                 arquivo_id: params.arquivoId || null,
                 equipe_id: params.equipeId || null,
-                grupo_id: params.grupoId || null
+                grupo_id: params.grupoId || null,
+                google_role: params.googleRole ?? 'reader'
             }]);
 
         if (error) throw error;
@@ -375,6 +473,18 @@ export const bibliotecaService = {
         if (error) throw error;
     },
 
+    async atualizarPapelGoogleCompartilhamento(
+        id: string,
+        googleRole: 'reader' | 'writer'
+    ): Promise<void> {
+        const { error } = await supabase
+            .from('biblioteca_compartilhamento')
+            .update({ google_role: googleRole })
+            .eq('id', id);
+
+        if (error) throw error;
+    },
+
     async listarCompartilhamentos(itemId: string, type: 'pasta' | 'arquivo'): Promise<BibliotecaCompartilhamento[]> {
         const field = type === 'pasta' ? 'pasta_id' : 'arquivo_id';
         const { data, error } = await supabase
@@ -384,6 +494,81 @@ export const bibliotecaService = {
 
         if (error) throw error;
         return data || [];
+    },
+
+    async obterStatusGoogleDrive(): Promise<GoogleDriveIntegrationStatus> {
+        return invokeGoogleDrive<GoogleDriveIntegrationStatus>({ action: 'status' });
+    },
+
+    async iniciarConexaoGoogleDrive(): Promise<string> {
+        const result = await invokeGoogleDrive<{ authorizationUrl: string }>({ action: 'start-oauth' });
+        return result.authorizationUrl;
+    },
+
+    async criarArquivoGoogle(params: {
+        name: string;
+        fileType: 'document' | 'spreadsheet';
+        pastaId?: string | null;
+    }): Promise<{ file: BibliotecaArquivo; syncErrors: string[] }> {
+        return invokeGoogleDrive({
+            action: 'create-file',
+            name: params.name,
+            fileType: params.fileType,
+            pastaId: params.pastaId ?? null,
+        });
+    },
+
+    async renomearArquivoGoogle(arquivoId: string, name: string): Promise<BibliotecaArquivo> {
+        const result = await invokeGoogleDrive<{ file: BibliotecaArquivo }>({
+            action: 'rename-file',
+            arquivoId,
+            name,
+        });
+        return result.file;
+    },
+
+    async moverArquivoGoogleParaLixeira(arquivoId: string): Promise<void> {
+        await invokeGoogleDrive<{ trashed: boolean }>({
+            action: 'trash-file',
+            arquivoId,
+        });
+    },
+
+    async sincronizarGoogleDrive(limit = 10): Promise<GoogleDriveSyncResult> {
+        return invokeGoogleDrive<GoogleDriveSyncResult>({ action: 'sync-pending', limit });
+    },
+
+    async sincronizarItemGoogle(params: {
+        pastaId?: string;
+        arquivoId?: string;
+    }): Promise<GoogleDriveSyncResult> {
+        return invokeGoogleDrive<GoogleDriveSyncResult>({
+            action: 'sync-item',
+            pastaId: params.pastaId ?? null,
+            arquivoId: params.arquivoId ?? null,
+        });
+    },
+
+    async moverArquivoEditavelParaGoogle(
+        arquivoId: string
+    ): Promise<{ file: BibliotecaArquivo; syncErrors: string[] }> {
+        return invokeGoogleDrive({ action: 'import-file', arquivoId });
+    },
+
+    async obterMeuAcessoGoogleDrive(arquivoId: string): Promise<GoogleDriveUserAccess> {
+        const { data, error } = await supabase.rpc('obter_meu_acesso_google_biblioteca', {
+            p_arquivo_id: arquivoId,
+        });
+        if (error) throw error;
+
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row || typeof row.access_status !== 'string') {
+            return { accessStatus: 'pending', googleEmail: null };
+        }
+        return {
+            accessStatus: row.access_status as GoogleDriveUserAccess['accessStatus'],
+            googleEmail: typeof row.google_email === 'string' ? row.google_email : null,
+        };
     },
 
     async listarItensCompartilhados(params: {
@@ -402,7 +587,26 @@ export const bibliotecaService = {
         const pastas: BibliotecaPasta[] = [];
         const arquivos: BibliotecaArquivo[] = [];
 
-        data.forEach((item: any) => {
+        type SharedLibraryRow = {
+            res_tipo: 'pasta' | 'arquivo';
+            res_id: string;
+            res_nome: string;
+            res_pasta_id: string | null;
+            res_storage_path: string | null;
+            res_tamanho_bytes: number;
+            res_tipo_mime: string;
+            res_origem: 'supabase' | 'google_drive' | null;
+            res_google_file_id: string | null;
+            res_google_tipo: GoogleDriveFileType | null;
+            res_url_externa: string | null;
+            res_google_managed?: boolean | null;
+            res_google_sync_status?: BibliotecaArquivo['google_sync_status'] | null;
+            res_google_sync_error?: string | null;
+            res_google_synced_at?: string | null;
+            res_criado_em: string;
+        };
+
+        (data as SharedLibraryRow[]).forEach((item) => {
             if (item.res_tipo === 'pasta') {
                 pastas.push({
                     id: item.res_id,
@@ -422,6 +626,10 @@ export const bibliotecaService = {
                     google_file_id: item.res_google_file_id || null,
                     google_tipo: item.res_google_tipo || null,
                     url_externa: item.res_url_externa || null,
+                    google_managed: item.res_google_managed ?? false,
+                    google_sync_status: item.res_google_sync_status ?? 'manual',
+                    google_sync_error: item.res_google_sync_error ?? null,
+                    google_synced_at: item.res_google_synced_at ?? null,
                     created_at: item.res_criado_em
                 });
             }
