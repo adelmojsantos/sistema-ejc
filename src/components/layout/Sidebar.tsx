@@ -7,6 +7,7 @@ import { NavItem } from './NavItem';
 import { GlobalSearchDialog } from './GlobalSearchDialog';
 import { PessoaContextDrawer } from '../secretaria/PessoaContextDrawer';
 import { useEncontros } from '../../contexts/EncontroContext';
+import { useSharedLibraryAccess } from '../../hooks/useSharedLibraryAccess';
 import ejcLogo from '../../assets/brand-experiments/ejc-logo.png';
 
 interface SidebarProps {
@@ -24,6 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { profile, userParticipacao, hasPermission, hasExactPermission } = useAuth();
   const { encontroSelecionadoId } = useEncontros();
+  const { hasSharedItems } = useSharedLibraryAccess();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [contextParticipacaoId, setContextParticipacaoId] = useState<string | null>(null);
@@ -33,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     hasExactPermission,
     isCoordinator: Boolean(userParticipacao?.coordenador),
     teamName: equipeNome,
+    hasSharedLibraryItems: hasSharedItems,
   };
   const homeLink = getNavigationModules('sidebar', navigationContext)
     .find((module) => module.id === 'inicio');
@@ -190,6 +193,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <GlobalSearchDialog
         isOpen={searchOpen}
         onClose={() => setSearchOpen(false)}
+        hasSharedLibraryItems={hasSharedItems}
         suspended={Boolean(contextParticipacaoId)}
         onSelectPerson={(participacaoId) => {
           setMobileOpen(false);

@@ -28,6 +28,7 @@ interface GlobalSearchDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectPerson: (participacaoId: string) => void;
+  hasSharedLibraryItems?: boolean;
   suspended?: boolean;
 }
 
@@ -53,6 +54,7 @@ export function GlobalSearchDialog({
   isOpen,
   onClose,
   onSelectPerson,
+  hasSharedLibraryItems = false,
   suspended = false,
 }: GlobalSearchDialogProps) {
   const navigate = useNavigate();
@@ -80,9 +82,10 @@ export function GlobalSearchDialog({
       hasExactPermission,
       isCoordinator: Boolean(userParticipacao?.coordenador),
       teamName: userParticipacao?.equipes?.nome ?? '',
+      hasSharedLibraryItems,
     };
     return getGlobalSearchCommands(context);
-  }, [hasExactPermission, hasPermission, userParticipacao]);
+  }, [hasExactPermission, hasPermission, hasSharedLibraryItems, userParticipacao]);
 
   const normalizedQuery = normalizeGlobalSearchText(query);
   const matchingCommands = useMemo(() => {

@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { getDashboardMetrics } from '../config/dashboard';
 import { getNavigationModules } from '../config/navigation';
 import { useAuth } from '../hooks/useAuth';
+import { useSharedLibraryAccess } from '../hooks/useSharedLibraryAccess';
 import { useEncontros } from '../contexts/EncontroContext';
 import { dashboardService } from '../services/dashboardService';
 import type { DashboardSummary } from '../types/dashboard';
@@ -37,6 +38,7 @@ export function Home() {
     hasExactPermission,
     userParticipacao,
   } = useAuth();
+  const { hasSharedItems } = useSharedLibraryAccess();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
@@ -79,6 +81,7 @@ export function Home() {
     hasExactPermission,
     isCoordinator: Boolean(userParticipacao?.coordenador),
     teamName: userParticipacao?.equipes?.nome,
+    hasSharedLibraryItems: hasSharedItems,
   }).sort((a, b) => a.label.localeCompare(b.label));
 
   return (

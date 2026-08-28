@@ -1,9 +1,10 @@
 import {
     FolderOpen
 } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useBiblioteca } from '../../hooks/useBiblioteca';
+import { useSharedLibraryAccess } from '../../hooks/useSharedLibraryAccess';
 import { LibraryBreadcrumbs } from '../../components/admin/biblioteca/LibraryBreadcrumbs';
 import { LibraryToolbar } from '../../components/admin/biblioteca/LibraryToolbar';
 import { LibraryItem } from '../../components/admin/biblioteca/LibraryItem';
@@ -12,12 +13,39 @@ import { bibliotecaService, type BibliotecaArquivo } from '../../services/biblio
 import { PageHeader } from '../../components/ui/PageHeader';
 import { toast } from 'react-hot-toast';
 import { useEffect, useState } from 'react';
+import { BibliotecaPage } from '../admin/BibliotecaPage';
 
-export default function SharedLibraryPage() {
+export default function LibraryPage() {
+    const { hasPermission } = useAuth();
+    const canManage = hasPermission('modulo_biblioteca') || hasPermission('modulo_admin');
+
+    if (canManage) {
+        return <BibliotecaPage />;
+    }
+
+    return <SharedLibraryAccessPage />;
+}
+
+function SharedLibraryAccessPage() {
+    const { error, hasSharedItems, isLoading } = useSharedLibraryAccess();
+
+    if (isLoading) {
+        return <div style={{ padding: '3rem', textAlign: 'center' }}>Carregando Biblioteca...</div>;
+    }
+
+    if (error) {
+        return <div style={{ padding: '3rem', textAlign: 'center' }}>Não foi possível carregar a Biblioteca.</div>;
+    }
+
+    if (!hasSharedItems) {
+        return <Navigate to="/dashboard" replace />;
+    }
+
+    return <SharedLibraryContent />;
+}
+
+function SharedLibraryContent() {
     const { profile, userParticipacao } = useAuth();
-    const location = useLocation();
-    const searchParams = new URLSearchParams(location.search);
-    const moduleName = searchParams.get('module') || 'Início';
 
     const {
         pastas,
@@ -48,16 +76,18 @@ export default function SharedLibraryPage() {
     const handleDownload = async (arquivo: BibliotecaArquivo) => {
         try {
             await bibliotecaService.baixarArquivo(arquivo);
-        } catch (err: any) {
-            toast.error('Erro ao baixar arquivo: ' + err.message);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Falha inesperada.';
+            toast.error('Erro ao baixar arquivo: ' + message);
         }
     };
 
     const handlePreview = async (arquivo: BibliotecaArquivo) => {
         try {
             await bibliotecaService.abrirArquivo(arquivo);
-        } catch (err: any) {
-            toast.error('Erro ao abrir arquivo: ' + err.message);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Falha inesperada.';
+            toast.error('Erro ao abrir arquivo: ' + message);
         }
     };
 
@@ -71,7 +101,7 @@ export default function SharedLibraryPage() {
         <div style={{ padding: '0 1rem' }}>
             <PageHeader
                 title="Biblioteca de Arquivos"
-                subtitle={`INÍCIO / ${moduleName.toUpperCase()}`}
+                subtitle="INÍCIO / BIBLIOTECA"
             // backPath automático para -1 se não definido
             />
 

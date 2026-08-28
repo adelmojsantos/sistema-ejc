@@ -2,6 +2,7 @@ import {
   FolderOpen,
   Upload,
   Loader,
+  ExternalLink,
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -16,6 +17,7 @@ import { LibraryBreadcrumbs } from '../../components/admin/biblioteca/LibraryBre
 import { LibraryToolbar } from '../../components/admin/biblioteca/LibraryToolbar';
 import { LibraryItem } from '../../components/admin/biblioteca/LibraryItem';
 import { LibraryEmptyState } from '../../components/admin/biblioteca/LibraryEmptyState';
+import type { GoogleDriveFileType } from '../../utils/googleDriveLink';
 
 export function BibliotecaPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,12 +50,18 @@ export function BibliotecaPage() {
   const [fileToRename, setFileToRename] = useState<BibliotecaArquivo | null>(null);
   const [fileName, setFileName] = useState('');
 
+  const [googleModalOpen, setGoogleModalOpen] = useState(false);
+  const [editingGoogleFile, setEditingGoogleFile] = useState<BibliotecaArquivo | null>(null);
+  const [googleName, setGoogleName] = useState('');
+  const [googleUrl, setGoogleUrl] = useState('');
+  const [googleType, setGoogleType] = useState<GoogleDriveFileType>('file');
+
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [itemToMove, setItemToMove] = useState<{ id: string, name: string, type: 'pasta' | 'arquivo' } | null>(null);
-  const [itemToShare, setItemToShare] = useState<{ id: string, name: string, type: 'pasta' | 'arquivo' } | null>(null);
+  const [itemToShare, setItemToShare] = useState<{ id: string, name: string, type: 'pasta' | 'arquivo', isGoogleDrive?: boolean } | null>(null);
 
   const [deleteTarget, setDeleteTarget] = useState<{
     type: 'pasta' | 'arquivo' | 'batch';
@@ -121,6 +129,59 @@ export function BibliotecaPage() {
     }
   };
 
+  const openGoogleModal = (arquivo?: BibliotecaArquivo) => {
+    setEditingGoogleFile(arquivo ?? null);
+    setGoogleName(arquivo?.nome_exibicao ?? '');
+    setGoogleUrl(arquivo?.url_externa ?? '');
+    setGoogleType(arquivo?.google_tipo ?? 'file');
+    setGoogleModalOpen(true);
+  };
+
+  const handleGoogleReferenceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleName.trim() || !googleUrl.trim() || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      if (editingGoogleFile) {
+        await bibliotecaService.atualizarReferenciaGoogle({
+          id: editingGoogleFile.id,
+          nome: googleName,
+          url: googleUrl,
+          tipo: googleType,
+        });
+        toast.success('Referência do Google atualizada.');
+      } else {
+        await bibliotecaService.cadastrarReferenciaGoogle({
+          nome: googleName,
+          url: googleUrl,
+          pastaId: currentFolderId,
+          tipo: googleType,
+        });
+        toast.success('Documento do Google adicionado.');
+      }
+
+      setGoogleModalOpen(false);
+      setEditingGoogleFile(null);
+      actions.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao salvar a referência do Google.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleFileRenameAction = (arquivo: BibliotecaArquivo) => {
+    if (arquivo.origem === 'google_drive') {
+      openGoogleModal(arquivo);
+      return;
+    }
+
+    setFileToRename(arquivo);
+    setFileName(arquivo.nome_exibicao);
+    setFileRenameModalOpen(true);
+  };
+
   const handleDownload = async (arquivo: BibliotecaArquivo) => {
     try {
       await bibliotecaService.baixarArquivo(arquivo);
@@ -151,7 +212,7 @@ export function BibliotecaPage() {
         toast.success('Pasta excluída.');
       } else if (deleteTarget.type === 'arquivo' && deleteTarget.arquivo) {
         await bibliotecaService.excluirArquivo(deleteTarget.arquivo);
-        toast.success('Arquivo excluído.');
+        toast.success(deleteTarget.arquivo.origem === 'google_drive' ? 'Referência removida.' : 'Arquivo excluído.');
       }
       actions.refresh();
     } catch (err: any) {
@@ -253,7 +314,7 @@ export function BibliotecaPage() {
         </h1>
 
         {/* Header Actions & Breadcrumbs */}
-        <div className="page-header" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem', backgroundColor: 'var(--surface-1)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+        <div className="page-header" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '1rem', backgroundColor: 'var(--surface-1)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
           <LibraryBreadcrumbs
             breadcrumbs={breadcrumbs}
             currentFolderId={currentFolderId}
@@ -261,7 +322,7 @@ export function BibliotecaPage() {
             stats={folderStats}
           />
 
-          <div style={{ display: 'flex', gap: '1rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
             <button className="btn-secondary" onClick={() => { setRenamingFolder(null); setFolderName(''); setFolderModalOpen(true); }}>
               Nova Pasta
             </button>
@@ -269,6 +330,9 @@ export function BibliotecaPage() {
               {uploadProgress.active ? (
                 <><Loader size={16} className="animate-spin" /> {uploadProgress.percent.toFixed(0)}%</>
               ) : 'Enviar Arquivo'}
+            </button>
+            <button className="btn-secondary" onClick={() => openGoogleModal()} disabled={uploadProgress.active}>
+              <ExternalLink size={16} /> Adicionar do Google
             </button>
             <input type="file" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={e => actions.handleFileUpload(e.target.files)} />
           </div>
@@ -338,10 +402,10 @@ export function BibliotecaPage() {
                       onToggleSelection={actions.toggleSelection} onToggleDropdown={setActiveDropdown}
                       onNavigate={() => {}} onDownload={handleDownload}
                       onPreview={handlePreview}
-                      onRename={(item) => { setFileToRename(item); setFileName(item.nome_exibicao); setFileRenameModalOpen(true); }}
+                      onRename={handleFileRenameAction}
                       onMove={(item) => { setItemToMove(item); setMoveModalOpen(true); }}
-                      onShare={(item) => { setItemToShare(item); setShareModalOpen(true); }}
-                      onDelete={(arquivo) => setDeleteTarget({ type: 'arquivo', arquivo, message: `Excluir "${arquivo.nome_exibicao}"?` })}
+                      onShare={(item) => { setItemToShare({ ...item, isGoogleDrive: a.origem === 'google_drive' }); setShareModalOpen(true); }}
+                      onDelete={(arquivo) => setDeleteTarget({ type: 'arquivo', arquivo, message: arquivo.origem === 'google_drive' ? `Remover a referência "${arquivo.nome_exibicao}"? O arquivo permanecerá no Google Drive.` : `Excluir "${arquivo.nome_exibicao}"?` })}
                     />
                   ))}
                 </div>
@@ -377,10 +441,10 @@ export function BibliotecaPage() {
                         onToggleSelection={actions.toggleSelection} onToggleDropdown={setActiveDropdown}
                         onNavigate={() => {}} onDownload={handleDownload}
                         onPreview={handlePreview}
-                        onRename={(item) => { setFileToRename(item); setFileName(item.nome_exibicao); setFileRenameModalOpen(true); }}
+                        onRename={handleFileRenameAction}
                         onMove={(item) => { setItemToMove(item); setMoveModalOpen(true); }}
-                        onShare={(item) => { setItemToShare(item); setShareModalOpen(true); }}
-                        onDelete={(arquivo) => setDeleteTarget({ type: 'arquivo', arquivo, message: `Excluir "${arquivo.nome_exibicao}"?` })}
+                        onShare={(item) => { setItemToShare({ ...item, isGoogleDrive: a.origem === 'google_drive' }); setShareModalOpen(true); }}
+                        onDelete={(arquivo) => setDeleteTarget({ type: 'arquivo', arquivo, message: arquivo.origem === 'google_drive' ? `Remover a referência "${arquivo.nome_exibicao}"? O arquivo permanecerá no Google Drive.` : `Excluir "${arquivo.nome_exibicao}"?` })}
                       />
                     ))}
                   </tbody>
@@ -422,6 +486,63 @@ export function BibliotecaPage() {
         </form>
       </Modal>
 
+      <Modal
+        isOpen={googleModalOpen}
+        onClose={() => setGoogleModalOpen(false)}
+        title={editingGoogleFile ? 'Editar referência do Google' : 'Adicionar do Google Drive'}
+      >
+        <form onSubmit={handleGoogleReferenceSubmit}>
+          <div className="form-group">
+            <label className="form-label" htmlFor="google-reference-name">Nome exibido</label>
+            <input
+              id="google-reference-name"
+              type="text"
+              className="form-input"
+              value={googleName}
+              onChange={e => setGoogleName(e.target.value)}
+              autoFocus
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="google-reference-url">Link do Google</label>
+            <input
+              id="google-reference-url"
+              type="url"
+              className="form-input"
+              value={googleUrl}
+              onChange={e => setGoogleUrl(e.target.value)}
+              placeholder="https://docs.google.com/..."
+              required
+            />
+            <small className="text-muted">Aceita links oficiais do Google Docs, Sheets e Drive.</small>
+          </div>
+          <div className="form-group">
+            <label className="form-label" htmlFor="google-reference-type">Tipo do conteúdo</label>
+            <select
+              id="google-reference-type"
+              className="form-input"
+              value={googleType}
+              onChange={e => setGoogleType(e.target.value as GoogleDriveFileType)}
+            >
+              <option value="document">Documento</option>
+              <option value="spreadsheet">Planilha</option>
+              <option value="file">Arquivo do Drive</option>
+            </select>
+            <small className="text-muted">Links do Docs e Sheets são identificados automaticamente.</small>
+          </div>
+          <div style={{ padding: '0.9rem', borderRadius: '8px', backgroundColor: 'rgba(37, 99, 235, 0.08)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+            O compartilhamento no Sistema EJC não concede acesso no Google. Compartilhe o arquivo manualmente com as Contas Google autorizadas.
+          </div>
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
+            <button type="button" className="btn-secondary" onClick={() => setGoogleModalOpen(false)} disabled={isSubmitting}>Cancelar</button>
+            <button type="submit" className="btn-primary" disabled={isSubmitting || !googleName.trim() || !googleUrl.trim()}>
+              {isSubmitting ? <Loader size={16} className="animate-spin" /> : 'Salvar referência'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {moveModalOpen && itemToMove && (
         <MoveItemModal
           isOpen={moveModalOpen}
@@ -448,6 +569,7 @@ export function BibliotecaPage() {
           itemId={itemToShare.id}
           itemName={itemToShare.name}
           itemType={itemToShare.type}
+          isGoogleDrive={itemToShare.isGoogleDrive}
         />
       )}
 

@@ -11,9 +11,10 @@ interface ShareItemModalProps {
     itemId: string;
     itemName: string;
     itemType: 'pasta' | 'arquivo';
+    isGoogleDrive?: boolean;
 }
 
-export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType }: ShareItemModalProps) {
+export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType, isGoogleDrive = false }: ShareItemModalProps) {
     const { equipes } = useEquipes();
     const [gruposAcesso, setGruposAcesso] = useState<{ id: string, nome: string }[]>([]);
     const [compartilhamentos, setCompartilhamentos] = useState<BibliotecaCompartilhamento[]>([]);
@@ -111,6 +112,11 @@ export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType }: 
                 <p style={{ fontSize: '0.95rem', opacity: 0.8, display: 'flex', gap: '0.5rem' }}>
                     Compartilhando: <strong style={{ color: 'var(--primary-color)' }}>{itemName}</strong>
                 </p>
+                {isGoogleDrive && (
+                    <p style={{ marginTop: '0.75rem', padding: '0.75rem', borderRadius: '8px', backgroundColor: 'rgba(245, 158, 11, 0.12)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                        Este compartilhamento controla apenas a visibilidade no Sistema EJC. O arquivo também precisa ser compartilhado manualmente no Google Drive.
+                    </p>
+                )}
             </div>
 
             <div className="card" style={{ 

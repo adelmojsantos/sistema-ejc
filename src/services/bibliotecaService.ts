@@ -1,4 +1,9 @@
 import { supabase } from '../lib/supabase';
+import {
+    googleDriveMimeType,
+    parseGoogleDriveLink,
+    type GoogleDriveFileType
+} from '../utils/googleDriveLink';
 
 export interface BibliotecaPasta {
     id: string;
@@ -11,9 +16,13 @@ export interface BibliotecaArquivo {
     id: string;
     nome_exibicao: string;
     pasta_id: string | null;
-    storage_path: string;
+    storage_path: string | null;
     tamanho_bytes: number;
     tipo_mime: string;
+    origem: 'supabase' | 'google_drive';
+    google_file_id: string | null;
+    google_tipo: GoogleDriveFileType | null;
+    url_externa: string | null;
     created_at: string;
 }
 
@@ -168,7 +177,8 @@ export const bibliotecaService = {
                 pasta_id: pastaId,
                 storage_path: storagePath,
                 tamanho_bytes: file.size,
-                tipo_mime: file.type || 'application/octet-stream'
+                tipo_mime: file.type || 'application/octet-stream',
+                origem: 'supabase'
             }])
             .select()
             .single();
@@ -181,6 +191,72 @@ export const bibliotecaService = {
 
         if (onProgress) onProgress(100);
         return data;
+    },
+
+    async cadastrarReferenciaGoogle(params: {
+        nome: string;
+        url: string;
+        pastaId?: string | null;
+        tipo?: GoogleDriveFileType;
+    }): Promise<BibliotecaArquivo> {
+        const nome = params.nome.trim();
+        if (!nome) throw new Error('Informe o nome do documento.');
+
+        const link = parseGoogleDriveLink(params.url, params.tipo);
+        const { data, error } = await supabase
+            .from('biblioteca_arquivos')
+            .insert([{
+                nome_exibicao: nome,
+                pasta_id: params.pastaId ?? null,
+                storage_path: null,
+                tamanho_bytes: 0,
+                tipo_mime: googleDriveMimeType(link.fileType),
+                origem: 'google_drive',
+                google_file_id: link.fileId,
+                google_tipo: link.fileType,
+                url_externa: link.normalizedUrl
+            }])
+            .select()
+            .single();
+
+        if (error) {
+            if (error.code === '23505') {
+                throw new Error('Este documento do Google já está cadastrado na Biblioteca.');
+            }
+            throw error;
+        }
+
+        return data;
+    },
+
+    async atualizarReferenciaGoogle(params: {
+        id: string;
+        nome: string;
+        url: string;
+        tipo?: GoogleDriveFileType;
+    }): Promise<void> {
+        const nome = params.nome.trim();
+        if (!nome) throw new Error('Informe o nome do documento.');
+
+        const link = parseGoogleDriveLink(params.url, params.tipo);
+        const { error } = await supabase
+            .from('biblioteca_arquivos')
+            .update({
+                nome_exibicao: nome,
+                tipo_mime: googleDriveMimeType(link.fileType),
+                google_file_id: link.fileId,
+                google_tipo: link.fileType,
+                url_externa: link.normalizedUrl
+            })
+            .eq('id', params.id)
+            .eq('origem', 'google_drive');
+
+        if (error) {
+            if (error.code === '23505') {
+                throw new Error('Este documento do Google já está cadastrado na Biblioteca.');
+            }
+            throw error;
+        }
     },
 
     async renomearArquivo(id: string, novoNome: string): Promise<void> {
@@ -211,6 +287,8 @@ export const bibliotecaService = {
         if (dbError) throw dbError;
 
         // 2. Deletar no Storage
+        if (arquivo.origem === 'google_drive' || !arquivo.storage_path) return;
+
         const { error: storageError } = await supabase.storage
             .from('biblioteca')
             .remove([arquivo.storage_path]);
@@ -232,11 +310,24 @@ export const bibliotecaService = {
     },
 
     async abrirArquivo(arquivo: BibliotecaArquivo): Promise<void> {
+        if (arquivo.origem === 'google_drive') {
+            if (!arquivo.url_externa) throw new Error('A referência do Google Drive está incompleta.');
+            window.open(arquivo.url_externa, '_blank', 'noopener,noreferrer');
+            return;
+        }
+
+        if (!arquivo.storage_path) throw new Error('O arquivo não possui um caminho de armazenamento válido.');
         const url = await this.gerarSignedUrl(arquivo.storage_path);
         window.open(url, '_blank', 'noopener,noreferrer');
     },
 
     async baixarArquivo(arquivo: BibliotecaArquivo): Promise<void> {
+        if (arquivo.origem === 'google_drive') {
+            await this.abrirArquivo(arquivo);
+            return;
+        }
+
+        if (!arquivo.storage_path) throw new Error('O arquivo não possui um caminho de armazenamento válido.');
         const url = await this.gerarSignedUrl(arquivo.storage_path);
         const response = await fetch(url);
 
@@ -327,6 +418,10 @@ export const bibliotecaService = {
                     storage_path: item.res_storage_path,
                     tamanho_bytes: item.res_tamanho_bytes,
                     tipo_mime: item.res_tipo_mime,
+                    origem: item.res_origem || 'supabase',
+                    google_file_id: item.res_google_file_id || null,
+                    google_tipo: item.res_google_tipo || null,
+                    url_externa: item.res_url_externa || null,
                     created_at: item.res_criado_em
                 });
             }

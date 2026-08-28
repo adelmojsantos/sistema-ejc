@@ -40,7 +40,6 @@ const ImportarDadosPage = lazyNamed(() => import('./pages/admin/ImportarDadosPag
 const AccessAdminPage = lazyNamed(() => import('./pages/admin/AccessAdminPage'), 'AccessAdminPage');
 const ExportConfigListPage = lazyNamed(() => import('./pages/admin/ExportConfigListPage'), 'ExportConfigListPage');
 const ExportConfigFormPage = lazyNamed(() => import('./pages/admin/ExportConfigFormPage'), 'ExportConfigFormPage');
-const BibliotecaPage = lazyNamed(() => import('./pages/admin/BibliotecaPage'), 'BibliotecaPage');
 const DirigenciaPage = lazyNamed(() => import('./pages/admin/DirigenciaPage'), 'DirigenciaPage');
 const DiagnosticsPage = lazyNamed(() => import('./pages/admin/DiagnosticsPage'), 'DiagnosticsPage');
 const Cadastros = lazyNamed(() => import('./pages/cadastros/Cadastros'), 'Cadastros');
@@ -116,7 +115,7 @@ const PesquisaSatisfacaoPublicPage = lazy(() => import('./pages/Public/PesquisaS
 const EncontroQuadranteConfigPage = lazyNamed(() => import('./pages/cadastros/EncontroQuadranteConfigPage'), 'EncontroQuadranteConfigPage');
 const QuadranteAuthPage = lazyNamed(() => import('./pages/Public/QuadranteAuthPage'), 'QuadranteAuthPage');
 const QuadrantePage = lazyNamed<{ isAdminView?: boolean }>(() => import('./pages/Public/QuadrantePage'), 'QuadrantePage');
-const SharedLibraryPage = lazy(() => import('./pages/shared/SharedLibraryPage'));
+const LibraryPage = lazy(() => import('./pages/shared/SharedLibraryPage'));
 const InscricaoPublicaPage = lazy(() => import('./pages/InscricaoPublicaPage'));
 const InscricaoPage = lazyNamed(() => import('./pages/InscricaoPage'), 'InscricaoPage');
 const AuthenticatedDataProviders = lazy(() => import('./components/providers/AuthenticatedDataProviders'));
@@ -265,7 +264,7 @@ function AnimatedRoutes() {
 
           <Route path="/admin/biblioteca" element={
             <ProtectedRoute requiredPermissions={['modulo_biblioteca', 'modulo_admin']}>
-              <PageTransition><BibliotecaPage /></PageTransition>
+              <Navigate to="/biblioteca" replace />
             </ProtectedRoute>
           } />
 
@@ -373,9 +372,15 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           } />
 
+          <Route path="/biblioteca" element={
+            <ProtectedRoute>
+              <PageTransition><LibraryPage /></PageTransition>
+            </ProtectedRoute>
+          } />
+
           <Route path="/biblioteca/compartilhada" element={
             <ProtectedRoute>
-              <PageTransition><SharedLibraryPage /></PageTransition>
+              <Navigate to="/biblioteca" replace />
             </ProtectedRoute>
           } />
 
