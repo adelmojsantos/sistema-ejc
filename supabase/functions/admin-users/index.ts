@@ -1,4 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
+import {
+  hasAccessInContext,
+  matchesContextMembershipFilters,
+  type AdminUserAccessScope,
+} from './listFilters.ts';
 
 type UserRole = 'admin' | 'secretaria' | 'visitacao' | 'coordenador' | 'viewer';
 
@@ -241,7 +246,7 @@ Deno.serve(async (request) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const publicAppUrl = (Deno.env.get('PUBLIC_APP_URL') || 'https://ejc-capelinha.vercel.app')
+    const publicAppUrl = (Deno.env.get('PUBLIC_APP_URL') || 'https://www.ejccapelinha.com.br')
       .replace(/\/+$/, '');
     const passwordRedirectUrl = `${publicAppUrl}/redefinir-senha`;
 
@@ -250,7 +255,6 @@ Deno.serve(async (request) => {
     }
 
     const body = await request.json();
-    console.log(`[admin-users] Received request:`, body);
     
     const rawAction = body?.action as string | undefined;
     const action = rawAction?.trim().toLowerCase();
@@ -258,6 +262,8 @@ Deno.serve(async (request) => {
     if (!action) {
       return jsonResponse(400, { error: 'Ação não informada (Missing action)' });
     }
+
+    console.log(`[admin-users] Received action: ${action}`);
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false }
@@ -368,6 +374,66 @@ Deno.serve(async (request) => {
       }
 
       return jsonResponse(200, await getFolderCoordinatorsAccessStatus(adminClient, encontroId, grupoId));
+    }
+
+    if (action === 'update-person-email') {
+      const pessoaId = String(body?.pessoaId ?? '').trim();
+      const email = normalizeEmail(body?.email);
+
+      if (!pessoaId || !email) {
+        return jsonResponse(400, { error: 'Pessoa e e-mail são obrigatórios.' });
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return jsonResponse(400, { error: 'Informe um e-mail válido.' });
+      }
+
+      const { data: selectedPerson, error: selectedPersonError } = await adminClient
+        .from('pessoas')
+        .select('id, nome_completo')
+        .eq('id', pessoaId)
+        .maybeSingle();
+
+      if (selectedPersonError || !selectedPerson) {
+        return jsonResponse(404, { error: 'Pessoa não encontrada.' });
+      }
+
+      const [{ data: peopleWithEmail, error: peopleError }, { data: profilesWithEmail, error: profilesError }] = await Promise.all([
+        adminClient.from('pessoas').select('id, email').not('email', 'is', null),
+        adminClient.from('profiles').select('id, email, pessoa_id').not('email', 'is', null),
+      ]);
+
+      if (peopleError || profilesError) {
+        return jsonResponse(500, { error: 'Não foi possível validar o e-mail informado.' });
+      }
+
+      const conflictingPerson = (peopleWithEmail ?? []).find(
+        (person) => person.id !== pessoaId && normalizeEmail(person.email) === email,
+      );
+      if (conflictingPerson) {
+        return jsonResponse(409, { error: 'Este e-mail já está cadastrado para outra pessoa.' });
+      }
+
+      const conflictingProfile = (profilesWithEmail ?? []).find(
+        (profile) => normalizeEmail(profile.email) === email
+          && profile.pessoa_id
+          && profile.pessoa_id !== pessoaId,
+      );
+      if (conflictingProfile) {
+        return jsonResponse(409, { error: 'Este e-mail já pertence a uma conta vinculada a outra pessoa.' });
+      }
+
+      const { data: updatedPerson, error: updateError } = await adminClient
+        .from('pessoas')
+        .update({ email })
+        .eq('id', pessoaId)
+        .select('id, nome_completo, email')
+        .single();
+
+      if (updateError) {
+        return jsonResponse(500, { error: 'Não foi possível salvar o e-mail.' });
+      }
+
+      return jsonResponse(200, { person: updatedPerson });
     }
 
     if (action === 'prepare-folder-coordinators') {
@@ -506,6 +572,12 @@ Deno.serve(async (request) => {
       const grupoId = String(body?.grupoId ?? 'all');
       const encontroId = String(body?.encontroId ?? 'all');
       const tempPassword = String(body?.tempPassword ?? 'all');
+      const targetEncontroId = body?.targetEncontroId ? String(body.targetEncontroId) : null;
+      // Mantém clientes antigos compatíveis; a interface atual envia explicitamente "with".
+      const requestedAccessScope = String(body?.accessScope ?? 'all');
+      const accessScope: AdminUserAccessScope = ['with', 'without', 'all'].includes(requestedAccessScope)
+        ? requestedAccessScope as AdminUserAccessScope
+        : 'all';
 
       const { data, error } = await adminClient
         .from('profiles')
@@ -596,12 +668,12 @@ Deno.serve(async (request) => {
       const totalUsers = enrichedUsers.length;
       const totalTemporaryPassword = enrichedUsers.filter((u) => u.temporary_password).length;
       const totalWithoutPerson = enrichedUsers.filter((u) => !u.nome).length;
-      const totalWithTargetAccess = body?.targetEncontroId
-        ? enrichedUsers.filter((u) => u.grupos.some((g) => g.encontro_id === body.targetEncontroId)).length
-        : enrichedUsers.filter((u) => u.grupos.some((g) => g.encontro_id === null)).length;
+      const totalWithTargetAccess = enrichedUsers.filter(
+        (user) => hasAccessInContext(user, targetEncontroId),
+      ).length;
 
       const filteredUsers = enrichedUsers.filter((user) => {
-        if (grupoId !== 'all' && !user.grupos.some((g) => g.grupo_id === grupoId)) return false;
+        if (!matchesContextMembershipFilters(user, { targetEncontroId, accessScope, grupoId })) return false;
         if (encontroId !== 'all' && !user.encontrosIds.includes(encontroId)) return false;
         if (tempPassword !== 'all') {
           const wantsTemporary = tempPassword === 'sim';

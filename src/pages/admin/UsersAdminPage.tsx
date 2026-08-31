@@ -23,6 +23,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { exportConfigService, type ExportConfig } from '../../services/exportConfigService';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { Modal } from '../../components/ui/Modal';
 
 export interface UserExtended {
     id: string;
@@ -69,7 +70,7 @@ export function UsersAdminPage() {
 
     // Bulk creation state
     const [creationMode, setCreationMode] = useState<'individual' | 'lote' | 'coordenadores'>('individual');
-    const { encontros, encontroAtivo } = useEncontros();
+    const { encontros, encontroSelecionadoId } = useEncontros();
     const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
     const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
     const [selectedEquipeNome, setSelectedEquipeNome] = useState<string>('');
@@ -85,11 +86,14 @@ export function UsersAdminPage() {
     const [loadingCoordenadores, setLoadingCoordenadores] = useState(false);
     const [preparingCoordenadores, setPreparingCoordenadores] = useState(false);
     const [coordenadorResults, setCoordenadorResults] = useState<CoordenadorPastaPrepareResult[]>([]);
+    const [coordenadorEmailTarget, setCoordenadorEmailTarget] = useState<CoordenadorPastaAccessItem | null>(null);
+    const [coordenadorEmail, setCoordenadorEmail] = useState('');
+    const [savingCoordenadorEmail, setSavingCoordenadorEmail] = useState(false);
 
     const [exportConfigs, setExportConfigs] = useState<ExportConfig[]>([]);
-    const [selectedExportConfigId, setSelectedExportConfigId] = useState<string>('none');
 
     const [targetEncontroId, setTargetEncontroId] = useState<string | null>(null); // The context for permissions
+    const [contextSelectionOverridden, setContextSelectionOverridden] = useState(false);
 
     // Filters
     const [searchTerm, setSearchTerm] = useState('');
@@ -97,6 +101,7 @@ export function UsersAdminPage() {
     const [filterGrupoId, setFilterGrupoId] = useState<string>('all');
     const [filterEncontroId, setFilterEncontroId] = useState<string>('all');
     const [filterTempPassword, setFilterTempPassword] = useState<'all' | 'sim' | 'nao'>('all');
+    const [filterAccessScope, setFilterAccessScope] = useState<'with' | 'without' | 'all'>('with');
 
     const loadSupportData = useCallback(async () => {
         try {
@@ -105,7 +110,6 @@ export function UsersAdminPage() {
 
             const configs = await exportConfigService.listarTodas();
             setExportConfigs(configs);
-            if (configs.length > 0) setSelectedExportConfigId(prev => prev === 'none' ? configs[0].id : prev);
         } catch (err) {
             console.warn('Could not load users support data', err);
         }
@@ -123,6 +127,7 @@ export function UsersAdminPage() {
                 encontroId: filterEncontroId,
                 tempPassword: filterTempPassword,
                 targetEncontroId,
+                accessScope: filterAccessScope,
             });
 
             setUsers(response.users as UserExtended[]);
@@ -135,7 +140,7 @@ export function UsersAdminPage() {
         } finally {
             setLoading(false);
         }
-    }, [currentPage, pageSize, debouncedSearchTerm, filterGrupoId, filterEncontroId, filterTempPassword, targetEncontroId]);
+    }, [currentPage, pageSize, debouncedSearchTerm, filterGrupoId, filterEncontroId, filterTempPassword, filterAccessScope, targetEncontroId]);
 
     useEffect(() => {
         loadSupportData();
@@ -147,17 +152,14 @@ export function UsersAdminPage() {
 
     useEffect(() => {
         setCurrentPage(0);
-    }, [debouncedSearchTerm, filterGrupoId, filterEncontroId, filterTempPassword, targetEncontroId]);
+    }, [debouncedSearchTerm, filterGrupoId, filterEncontroId, filterTempPassword, filterAccessScope, targetEncontroId]);
 
-    // Inicializa encontro a partir do contexto global
+    // Segue o encontro global até que o administrador escolha outro contexto nesta tela.
     useEffect(() => {
-        if (encontros.length === 0) return;
-        if (!selectedEncontroId) {
-            const active = encontroAtivo || encontros[0];
-            setSelectedEncontroId(active.id);
-            if (targetEncontroId === null) setTargetEncontroId(active.id);
-        }
-    }, [encontros, encontroAtivo, selectedEncontroId, targetEncontroId]);
+        if (contextSelectionOverridden || !encontroSelecionadoId) return;
+        setTargetEncontroId(encontroSelecionadoId);
+        if (!selectedEncontroId) setSelectedEncontroId(encontroSelecionadoId);
+    }, [contextSelectionOverridden, encontroSelecionadoId, selectedEncontroId]);
 
     useEffect(() => {
         if (creationMode !== 'lote') return;
@@ -213,6 +215,19 @@ export function UsersAdminPage() {
         if (creationMode !== 'coordenadores') return;
         void loadCoordenadoresPasta();
     }, [creationMode, loadCoordenadoresPasta]);
+
+    const handleContextChange = (value: string) => {
+        setContextSelectionOverridden(true);
+        setTargetEncontroId(value === 'global' ? null : value);
+    };
+
+    const handleClearFilters = () => {
+        setSearchTerm('');
+        setFilterGrupoId('all');
+        setFilterEncontroId('all');
+        setFilterTempPassword('all');
+        setFilterAccessScope('with');
+    };
 
     const handleClearSelection = () => {
         setSelectedPessoa(null);
@@ -436,6 +451,36 @@ export function UsersAdminPage() {
         }
     };
 
+    const handleOpenCoordenadorEmail = (coordenador: CoordenadorPastaAccessItem) => {
+        setCoordenadorEmailTarget(coordenador);
+        setCoordenadorEmail(coordenador.email || '');
+    };
+
+    const handleSaveCoordenadorEmail = async (event: SyntheticEvent) => {
+        event.preventDefault();
+        if (!coordenadorEmailTarget) return;
+
+        const normalizedEmail = coordenadorEmail.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            toast.error('Informe um e-mail válido.');
+            return;
+        }
+
+        setSavingCoordenadorEmail(true);
+        try {
+            await adminUserService.updatePersonEmail(coordenadorEmailTarget.pessoa_id, normalizedEmail);
+            toast.success('E-mail cadastrado. O coordenador já pode ter o acesso preparado.');
+            setCoordenadorEmailTarget(null);
+            setCoordenadorEmail('');
+            await loadCoordenadoresPasta();
+        } catch (saveError: unknown) {
+            const message = saveError instanceof Error ? saveError.message : 'Não foi possível salvar o e-mail.';
+            toast.error(message);
+        } finally {
+            setSavingCoordenadorEmail(false);
+        }
+    };
+
     const handleConfirmMemberInBulk = async (participacaoId: string) => {
         try {
             await inscricaoService.confirmarDados(participacaoId);
@@ -533,7 +578,9 @@ export function UsersAdminPage() {
             return;
         }
 
-        const config = exportConfigs.find(c => c.id === selectedExportConfigId);
+        const config = targetEncontroId
+            ? exportConfigs.find((current) => current.encontro_id === targetEncontroId)
+            : undefined;
         const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
         let startY = 30;
 
@@ -694,6 +741,13 @@ export function UsersAdminPage() {
         : 'Selecione o perfil de coordenador';
     const coordenadoresComEmail = coordenadoresPasta.filter((coordenador) => !!coordenador.email).length;
     const coordenadoresPendentes = coordenadoresPasta.filter((coordenador) => coordenador.email && (!coordenador.possui_usuario || !coordenador.possui_perfil)).length;
+    const activeFilterCount = [
+        searchTerm.trim() !== '',
+        filterGrupoId !== 'all',
+        filterEncontroId !== 'all',
+        filterTempPassword !== 'all',
+        filterAccessScope !== 'with',
+    ].filter(Boolean).length;
 
     return (
         <div className="container" style={{ paddingBottom: '2rem' }}>
@@ -713,7 +767,7 @@ export function UsersAdminPage() {
                         className="form-input"
                         style={{ padding: '0.2rem 2rem 0.2rem 0.5rem', height: '32px', minWidth: '220px', fontWeight: 600, color: targetEncontroId === null ? 'var(--danger-text)' : 'inherit' }}
                         value={targetEncontroId === null ? 'global' : (targetEncontroId || '')}
-                        onChange={e => setTargetEncontroId(e.target.value === 'global' ? null : e.target.value)}
+                        onChange={e => handleContextChange(e.target.value)}
                     >
                         <option value="global" style={{ color: 'var(--danger-text)' }}>Escopo global permanente</option>
                         {encontros.map(e => (
@@ -841,7 +895,7 @@ export function UsersAdminPage() {
                                             <select
                                                 className="form-input"
                                                 value={targetEncontroId === null ? 'global' : (targetEncontroId || '')}
-                                                onChange={e => setTargetEncontroId(e.target.value === 'global' ? null : e.target.value)}
+                                                onChange={e => handleContextChange(e.target.value)}
                                             >
                                                 <option value="global">Escopo global permanente</option>
                                                 {encontros.map(e => (
@@ -1377,7 +1431,15 @@ export function UsersAdminPage() {
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', flexWrap: 'wrap' }}>
                                                     {!coordenador.email ? (
-                                                        <span className="badge" style={{ color: 'var(--danger-text)', borderColor: 'var(--danger-text)' }}>Sem e-mail</span>
+                                                        <button
+                                                            type="button"
+                                                            className="btn-secondary"
+                                                            onClick={() => handleOpenCoordenadorEmail(coordenador)}
+                                                            style={{ fontSize: '0.78rem', padding: '0.35rem 0.6rem', color: 'var(--danger-text)' }}
+                                                        >
+                                                            <Mail size={13} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />
+                                                            Cadastrar e-mail
+                                                        </button>
                                                     ) : isReady ? (
                                                         <span className="badge" style={{ color: 'var(--success-text)', borderColor: 'var(--success-text)' }}>Pronto</span>
                                                     ) : !coordenador.possui_usuario ? (
@@ -1434,103 +1496,89 @@ export function UsersAdminPage() {
                 {!loading && error && <div className="alert alert--error">{error}</div>}
 
                 {/* Area de Filtros */}
-                <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', background: 'var(--surface-1)', borderRadius: '8px 8px 0 0' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'flex-end' }}>
+                <div style={{ padding: '1rem', border: '1px solid var(--border-color)', background: 'var(--surface-1)', borderRadius: '12px' }}>
+                    <div style={{ display: 'grid', gap: '1rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', alignItems: 'end' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Buscar por nome, e-mail ou equipe</label>
+                                <div className="form-input-wrapper">
+                                    <div className="form-input-icon"><Search size={16} /></div>
+                                    <input
+                                        type="text"
+                                        className="form-input form-input--with-icon"
+                                        placeholder="Digite para buscar usuários..."
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                    />
+                                    {searchTerm && (
+                                        <button type="button" onClick={() => setSearchTerm('')} className="icon-btn" title="Limpar busca" style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)' }}>
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            <button type="button" className="btn-secondary" onClick={handleClearFilters} disabled={activeFilterCount === 0} style={{ height: '39px', whiteSpace: 'nowrap' }}>
+                                Limpar filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+                            </button>
+                        </div>
 
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Consultar por nome, e-mail ou equipe</label>
-                            <div className="form-input-wrapper">
-                                <div className="form-input-icon">
-                                    <Search size={16} />
-                                </div>
-                                <input
-                                    type="text"
-                                    className="form-input form-input--with-icon"
-                                    placeholder="Buscar usuário..."
-                                    value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
-                                />
-                                {searchTerm && (
+                            <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Vínculo em {contextoLabel}</label>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                {([
+                                    ['with', 'Com acesso'],
+                                    ['without', 'Sem acesso'],
+                                    ['all', 'Todos'],
+                                ] as const).map(([value, label]) => (
                                     <button
+                                        key={value}
                                         type="button"
-                                        onClick={() => setSearchTerm('')}
-                                        style={{
-                                            position: 'absolute',
-                                            right: '0.6rem',
-                                            top: '50%',
-                                            transform: 'translateY(-50%)',
-                                            background: 'none',
-                                            border: 'none',
-                                            cursor: 'pointer',
-                                            color: 'var(--muted-text)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            padding: '0.2rem',
+                                        className={filterAccessScope === value ? 'btn-primary' : 'btn-secondary'}
+                                        onClick={() => {
+                                            setFilterAccessScope(value);
+                                            if (value === 'without') setFilterGrupoId('all');
                                         }}
-                                        title="Limpar busca"
+                                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.82rem' }}
                                     >
-                                        <X size={14} />
+                                        {label}
                                     </button>
-                                )}
+                                ))}
                             </div>
                         </div>
 
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Perfil de acesso</label>
-                            <select className="form-input" value={filterGrupoId} onChange={e => setFilterGrupoId(e.target.value)}>
-                                <option value="all">Todos os perfis</option>
-                                {grupos.map(g => (
-                                    <option key={g.id} value={g.id}>{g.nome}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Participação no encontro</label>
-                            <select className="form-input" value={filterEncontroId} onChange={e => setFilterEncontroId(e.target.value)}>
-                                <option value="all">Todos os encontros</option>
-                                {encontros.map(enc => (
-                                    <option key={enc.id} value={enc.id}>{enc.edicao} - {enc.tema}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Status da conta</label>
-                            <select className="form-input" value={filterTempPassword} onChange={e => setFilterTempPassword(e.target.value as 'all' | 'sim' | 'nao')}>
-                                <option value="all">Sem distinção</option>
-                                <option value="sim">Primeiro acesso pendente</option>
-                                <option value="nao">Primeiro acesso concluído</option>
-                            </select>
-                        </div>
-
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Cabeçalho Oficial do PDF</label>
-                            <select className="form-input" value={selectedExportConfigId} onChange={e => setSelectedExportConfigId(e.target.value)}>
-                                <option value="none">Sem cabeçalho (Simples)</option>
-                                {exportConfigs.map(c => (
-                                    <option key={c.id} value={c.id}>{c.titulo} {(c as ExportConfig & { encontros?: { nome: string } | null }).encontros?.nome ? `(${(c as ExportConfig & { encontros?: { nome: string } | null }).encontros!.nome})` : ''}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '0.5rem', justifySelf: 'start', minWidth: '220px' }}>
-                            <button onClick={handleExportCSV} className="btn-secondary" style={{ height: '39px', flex: 1, padding: '0 0.5rem', fontSize: '0.85rem' }}>
-                                Planilha CSV
-                            </button>
-                            <button onClick={handleExportPDF} className="btn-primary" style={{ height: '39px', flex: 1, padding: '0 0.5rem', fontSize: '0.85rem' }}>
-                                Acessos PDF
-                            </button>
-                        </div>
-
-                        <div className="form-group" style={{ marginBottom: 0, maxWidth: '160px' }}>
-                            <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Por página</label>
-                            <select className="form-input" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}>
-                                <option value={10}>10</option>
-                                <option value={20}>20</option>
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                            </select>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.85rem', alignItems: 'end' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Perfil neste contexto</label>
+                                <select className="form-input" value={filterGrupoId} onChange={e => setFilterGrupoId(e.target.value)} disabled={filterAccessScope === 'without'}>
+                                    <option value="all">Todos os perfis</option>
+                                    {grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+                                </select>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Participação cadastrada</label>
+                                <select className="form-input" value={filterEncontroId} onChange={e => setFilterEncontroId(e.target.value)}>
+                                    <option value="all">Qualquer encontro</option>
+                                    {encontros.map(enc => <option key={enc.id} value={enc.id}>{enc.edicao} - {enc.tema}</option>)}
+                                </select>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Status da conta</label>
+                                <select className="form-input" value={filterTempPassword} onChange={e => setFilterTempPassword(e.target.value as 'all' | 'sim' | 'nao')}>
+                                    <option value="all">Qualquer status</option>
+                                    <option value="sim">Primeiro acesso pendente</option>
+                                    <option value="nao">Primeiro acesso concluído</option>
+                                </select>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Resultados por página</label>
+                                <select className="form-input" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}>
+                                    <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option><option value={100}>100</option>
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', minWidth: '220px' }}>
+                                <button onClick={handleExportCSV} className="btn-secondary" style={{ height: '39px', flex: 1, padding: '0 0.5rem', fontSize: '0.85rem' }}>Planilha CSV</button>
+                                <button onClick={handleExportPDF} className="btn-primary" style={{ height: '39px', flex: 1, padding: '0 0.5rem', fontSize: '0.85rem' }}>Acessos PDF</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1668,6 +1716,58 @@ export function UsersAdminPage() {
                     </div>
                 )}
             </section>
+            <Modal
+                isOpen={!!coordenadorEmailTarget}
+                onClose={() => {
+                    if (savingCoordenadorEmail) return;
+                    setCoordenadorEmailTarget(null);
+                    setCoordenadorEmail('');
+                }}
+                title="Cadastrar e-mail do coordenador"
+            >
+                {coordenadorEmailTarget && (
+                    <form onSubmit={handleSaveCoordenadorEmail} style={{ display: 'grid', gap: '1rem' }}>
+                        <div style={{ padding: '0.85rem 1rem', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'var(--surface-1)' }}>
+                            <strong style={{ display: 'block' }}>{coordenadorEmailTarget.nome_completo}</strong>
+                            <small style={{ color: 'var(--muted-text)' }}>{coordenadorEmailTarget.equipe_nome || 'Equipe não informada'}</small>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" htmlFor="coordenador-email">E-mail</label>
+                            <input
+                                id="coordenador-email"
+                                type="email"
+                                className="form-input"
+                                value={coordenadorEmail}
+                                onChange={(event) => setCoordenadorEmail(event.target.value)}
+                                placeholder="nome@exemplo.com"
+                                autoComplete="email"
+                                autoFocus
+                                required
+                                disabled={savingCoordenadorEmail}
+                            />
+                            <small style={{ color: 'var(--muted-text)' }}>
+                                Salvar o e-mail não envia convite. Depois, use “Preparar coordenadores”.
+                            </small>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <button
+                                type="button"
+                                className="btn-secondary"
+                                disabled={savingCoordenadorEmail}
+                                onClick={() => {
+                                    setCoordenadorEmailTarget(null);
+                                    setCoordenadorEmail('');
+                                }}
+                            >
+                                Cancelar
+                            </button>
+                            <button type="submit" className="btn-primary" disabled={savingCoordenadorEmail || !coordenadorEmail.trim()}>
+                                {savingCoordenadorEmail ? 'Salvando...' : 'Salvar e-mail'}
+                            </button>
+                        </div>
+                    </form>
+                )}
+            </Modal>
             <ConfirmDialog
                 isOpen={!!userToDelete}
                 title="Remover Acesso"

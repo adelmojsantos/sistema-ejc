@@ -27,6 +27,7 @@ export interface AdminUsersQuery {
     encontroId?: string;
     tempPassword?: 'all' | 'sim' | 'nao';
     targetEncontroId?: string | null;
+    accessScope?: 'with' | 'without' | 'all';
 }
 
 export interface AdminUsersSummary {
@@ -123,6 +124,7 @@ export const adminUserService = {
                 encontroId: query.encontroId ?? 'all',
                 tempPassword: query.tempPassword ?? 'all',
                 targetEncontroId: query.targetEncontroId ?? null,
+                accessScope: query.accessScope ?? 'with',
             },
             headers,
         });
@@ -188,6 +190,29 @@ export const adminUserService = {
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
         return data;
+    },
+
+    async updatePersonEmail(pessoaId: string, email: string): Promise<{ id: string; nome_completo: string; email: string }> {
+        const headers = await getAuthHeaders();
+        const { data, error } = await supabase.functions.invoke('admin-users', {
+            body: { action: 'update-person-email', pessoaId, email },
+            headers,
+        });
+
+        if (error) {
+            const context = (error as { context?: Response }).context;
+            let contextMessage: string | undefined;
+            if (context) {
+                try {
+                    const payload = await context.clone().json() as { error?: string };
+                    contextMessage = payload.error;
+                } catch { /* mantém o erro original quando a resposta não contém JSON */ }
+            }
+            if (contextMessage) throw new Error(contextMessage);
+            throw error;
+        }
+        if (data?.error) throw new Error(data.error);
+        return data.person;
     },
 
     async searchPeople(search: string, page: number = 0, pageSize: number = 20): Promise<Pessoa[]> {
