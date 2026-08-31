@@ -60,4 +60,4 @@ PUBLIC_IMAGE_BASE_URL
 ```
 
 `PUBLIC_IMAGE_BASE_URL` pode ser omitida se o destino for
-`https://ejc-fotos.ejcsecretaria-sistema.workers.dev`.
+`https://arquivos.ejccapelinha.com.br`.

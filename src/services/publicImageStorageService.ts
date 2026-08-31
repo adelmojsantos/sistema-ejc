@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 
-const DEFAULT_PUBLIC_IMAGE_BASE_URL = 'https://ejc-fotos.ejcsecretaria-sistema.workers.dev';
+const DEFAULT_PUBLIC_IMAGE_BASE_URL = 'https://arquivos.ejccapelinha.com.br';
 const PUBLIC_IMAGE_BASE_URL = (
   import.meta.env.VITE_PUBLIC_IMAGE_BASE_URL || DEFAULT_PUBLIC_IMAGE_BASE_URL
 ).replace(/\/+$/, '');

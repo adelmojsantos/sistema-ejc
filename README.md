@@ -12,7 +12,7 @@
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript)](https://www.typescriptlang.org/)
   [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3fcf8e?logo=supabase)](https://supabase.com/)
 
-  **[Acessar o sistema](https://ejc-capelinha.vercel.app)**
+  **[Acessar o sistema](https://www.ejccapelinha.com.br)**
 </div>
 
 ---
