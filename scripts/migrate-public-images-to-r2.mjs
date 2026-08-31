@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { existsSync, readFileSync } from 'node:fs';
 
 const SOURCE_BUCKET = 'galeria';
-const DEFAULT_PUBLIC_IMAGE_BASE_URL = 'https://ejc-fotos.ejcsecretaria-sistema.workers.dev';
+const DEFAULT_PUBLIC_IMAGE_BASE_URL = 'https://arquivos.ejccapelinha.com.br';
 const DEFAULT_LIMIT = 25;
 
 function loadDotEnv(path = '.env') {

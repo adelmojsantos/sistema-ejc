@@ -528,7 +528,7 @@ Deno.serve(async (request) => {
       }
     }
 
-    const publicAppUrl = Deno.env.get('PUBLIC_APP_URL') || 'https://ejc-capelinha.vercel.app';
+    const publicAppUrl = Deno.env.get('PUBLIC_APP_URL') || 'https://www.ejccapelinha.com.br';
     const userAgent = Deno.env.get('GEOCODING_USER_AGENT')
       || `SistemaEJCCapelinha/1.0 (+${publicAppUrl})`;
     const nominatim = await queryNominatim(serviceClient, queryAddress, userAgent);
