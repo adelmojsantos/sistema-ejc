@@ -46,7 +46,7 @@ export const VISITATION_COORDINATION_PERMISSIONS = [
   'modulo_admin',
 ] as const;
 
-type NavigationAccessRule = 'coordinator-team' | 'kitchen-team';
+type NavigationAccessRule = 'coordinator-team' | 'kitchen-team' | 'library';
 
 export interface NavigationModule {
   id: string;
@@ -66,6 +66,7 @@ export interface NavigationAccessContext {
   hasExactPermission: (permission: string) => boolean;
   isCoordinator: boolean;
   teamName?: string | null;
+  hasSharedLibraryItems?: boolean;
 }
 
 export interface NavigationGroup {
@@ -225,12 +226,12 @@ export const NAVIGATION_MODULES: readonly NavigationModule[] = [
   {
     id: 'biblioteca',
     label: 'Biblioteca',
-    description: 'Documentos, manuais e arquivos globais do EJC.',
-    path: '/admin/biblioteca',
+    description: 'Acesse os documentos e arquivos disponíveis para você.',
+    path: '/biblioteca',
     icon: Folder,
     accent: 'violet',
     surfaces: ['sidebar', 'dashboard'],
-    permissions: ['modulo_biblioteca', 'modulo_admin'],
+    accessRule: 'library',
   },
   {
     id: 'compras',
@@ -343,6 +344,12 @@ export function canViewNavigationModule(
       isCoordinator: context.isCoordinator,
       teamName: context.teamName,
     });
+  }
+
+  if (module.accessRule === 'library') {
+    return context.hasPermission('modulo_biblioteca')
+      || context.hasPermission('modulo_admin')
+      || context.hasSharedLibraryItems === true;
   }
 
   return true;

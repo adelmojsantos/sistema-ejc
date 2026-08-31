@@ -7,6 +7,7 @@ interface ConfirmDialogProps {
     title: string;
     message: string | ReactNode;
     confirmText?: string;
+    loadingText?: string;
     cancelText?: string;
     onConfirm: () => void;
     onCancel: () => void;
@@ -21,6 +22,7 @@ export function ConfirmDialog({
     title,
     message,
     confirmText = 'Confirmar',
+    loadingText,
     cancelText = 'Cancelar',
     onConfirm,
     onCancel,
@@ -73,7 +75,7 @@ export function ConfirmDialog({
     };
 
     const handleOverlayClick = (event: MouseEvent<HTMLDivElement>) => {
-        if (overlayMouseDownRef.current && event.target === event.currentTarget) {
+        if (!isLoading && overlayMouseDownRef.current && event.target === event.currentTarget) {
             onCancel();
         }
         overlayMouseDownRef.current = false;
@@ -151,7 +153,7 @@ export function ConfirmDialog({
                             }}
                         >
                             {isLoading && <Loader2 size={18} className="animate-spin" />}
-                            {confirmText}
+                            {isLoading ? loadingText ?? confirmText : confirmText}
                         </button>
                     </div>
                 </div>

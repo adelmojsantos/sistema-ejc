@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest';
 import type { NavigationAccessContext } from './navigation';
 import { getGlobalSearchCommands, normalizeGlobalSearchText } from './globalSearchCommands';
 
-function context(permissions: string[]): NavigationAccessContext {
+function context(
+  permissions: string[],
+  options: { hasSharedLibraryItems?: boolean } = {}
+): NavigationAccessContext {
   const allowed = new Set(permissions);
   return {
     hasPermission: (permission) => allowed.has('modulo_admin') || allowed.has(permission),
     hasExactPermission: (permission) => allowed.has(permission),
     isCoordinator: false,
+    hasSharedLibraryItems: options.hasSharedLibraryItems ?? false,
   };
 }
 
@@ -40,5 +44,19 @@ describe('comandos da busca global', () => {
 
     expect(adminCommands.map(({ id }) => id)).not.toContain('root-diagnosticos');
     expect(developerCommands.map(({ id }) => id)).toContain('root-diagnosticos');
+  });
+
+  it('oferece uma única Biblioteca quando há gestão ou itens compartilhados', () => {
+    const withoutAccess = getGlobalSearchCommands(context(['modulo_recepcao']));
+    const sharedAccess = getGlobalSearchCommands(context(
+      ['modulo_recepcao'],
+      { hasSharedLibraryItems: true }
+    ));
+    const managerAccess = getGlobalSearchCommands(context(['modulo_biblioteca']));
+
+    expect(withoutAccess.map(({ id }) => id)).not.toContain('root-biblioteca');
+    expect(sharedAccess.filter(({ id }) => id === 'root-biblioteca')).toHaveLength(1);
+    expect(managerAccess.filter(({ id }) => id === 'root-biblioteca')).toHaveLength(1);
+    expect(sharedAccess.find(({ id }) => id === 'root-biblioteca')?.path).toBe('/biblioteca');
   });
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Modal } from '../../../components/ui/Modal';
 import { Users, Shield, Trash2, Loader, PlusCircle } from 'lucide-react';
 import { bibliotecaService, type BibliotecaCompartilhamento } from '../../../services/bibliotecaService';
@@ -11,9 +11,19 @@ interface ShareItemModalProps {
     itemId: string;
     itemName: string;
     itemType: 'pasta' | 'arquivo';
+    isGoogleDrive?: boolean;
+    isGoogleManaged?: boolean;
 }
 
-export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType }: ShareItemModalProps) {
+export function ShareItemModal({
+    isOpen,
+    onClose,
+    itemId,
+    itemName,
+    itemType,
+    isGoogleDrive = false,
+    isGoogleManaged = false,
+}: ShareItemModalProps) {
     const { equipes } = useEquipes();
     const [gruposAcesso, setGruposAcesso] = useState<{ id: string, nome: string }[]>([]);
     const [compartilhamentos, setCompartilhamentos] = useState<BibliotecaCompartilhamento[]>([]);
@@ -22,14 +32,9 @@ export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType }: 
 
     const [targetType, setTargetType] = useState<'grupo' | 'equipe'>('grupo');
     const [selectedTargetId, setSelectedTargetId] = useState('');
+    const [googleRole, setGoogleRole] = useState<'reader' | 'writer'>('reader');
 
-    useEffect(() => {
-        if (isOpen) {
-            loadInitialData();
-        }
-    }, [isOpen, itemId]);
-
-    const loadInitialData = async () => {
+    const loadInitialData = useCallback(async () => {
         setLoading(true);
         try {
             const [gData, cData] = await Promise.all([
@@ -44,7 +49,13 @@ export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType }: 
         } finally {
             setLoading(false);
         }
-    };
+    }, [itemId, itemType]);
+
+    useEffect(() => {
+        if (isOpen) {
+            void loadInitialData();
+        }
+    }, [isOpen, loadInitialData]);
 
     const handleAddShare = async () => {
         if (!selectedTargetId) return;
@@ -53,13 +64,24 @@ export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType }: 
             await bibliotecaService.compartilharItem({
                 [itemType === 'pasta' ? 'pastaId' : 'arquivoId']: itemId,
                 grupoId: targetType === 'grupo' ? selectedTargetId : undefined,
-                equipeId: targetType === 'equipe' ? selectedTargetId : undefined
+                equipeId: targetType === 'equipe' ? selectedTargetId : undefined,
+                googleRole
             });
-            toast.success('Compartilhamento adicionado');
+            try {
+                const sync = await bibliotecaService.sincronizarItemGoogle({
+                    [itemType === 'pasta' ? 'pastaId' : 'arquivoId']: itemId,
+                });
+                const failed = sync.results.reduce((total, result) => total + result.errors.length, 0);
+                toast.success(failed > 0
+                    ? 'Compartilhamento salvo; algumas permissões do Google ficaram pendentes.'
+                    : 'Compartilhamento adicionado e permissões sincronizadas.');
+            } catch {
+                toast.success('Compartilhamento salvo. A sincronização com o Google ficou pendente.');
+            }
             setSelectedTargetId('');
-            loadInitialData();
-        } catch (error: any) {
-            if (error.code === '23505') {
+            void loadInitialData();
+        } catch (error: unknown) {
+            if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') {
                 toast.error('Este item já está compartilhado com este destino');
             } else {
                 toast.error('Erro ao compartilhar item');
@@ -70,12 +92,53 @@ export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType }: 
     };
 
     const handleRemoveShare = async (id: string) => {
+        if (submitting) return;
+        setSubmitting(true);
         try {
             await bibliotecaService.removerCompartilhamento(id);
-            toast.success('Compartilhamento removido');
-            loadInitialData();
+            try {
+                const sync = await bibliotecaService.sincronizarItemGoogle({
+                    [itemType === 'pasta' ? 'pastaId' : 'arquivoId']: itemId,
+                });
+                const failed = sync.results.reduce((total, result) => total + result.errors.length, 0);
+                toast.success(failed > 0
+                    ? 'Compartilhamento removido; algumas revogações ficaram pendentes.'
+                    : 'Compartilhamento e permissões removidos.');
+            } catch {
+                toast.success('Compartilhamento removido. A revogação no Google ficou pendente.');
+            }
+            void loadInitialData();
         } catch (error) {
             toast.error('Erro ao remover compartilhamento');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleRoleChange = async (
+        share: BibliotecaCompartilhamento,
+        role: 'reader' | 'writer'
+    ) => {
+        if (share.google_role === role || submitting) return;
+        setSubmitting(true);
+        try {
+            await bibliotecaService.atualizarPapelGoogleCompartilhamento(share.id, role);
+            try {
+                const sync = await bibliotecaService.sincronizarItemGoogle({
+                    [itemType === 'pasta' ? 'pastaId' : 'arquivoId']: itemId,
+                });
+                const failed = sync.results.reduce((total, result) => total + result.errors.length, 0);
+                toast.success(failed > 0
+                    ? 'Permissão atualizada; a sincronização ficou pendente.'
+                    : 'Permissão atualizada no Google Drive.');
+            } catch {
+                toast.success('Permissão salva. A sincronização com o Google ficou pendente.');
+            }
+            void loadInitialData();
+        } catch {
+            toast.error('Erro ao atualizar a permissão');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -111,6 +174,21 @@ export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType }: 
                 <p style={{ fontSize: '0.95rem', opacity: 0.8, display: 'flex', gap: '0.5rem' }}>
                     Compartilhando: <strong style={{ color: 'var(--primary-color)' }}>{itemName}</strong>
                 </p>
+                {isGoogleManaged && (
+                    <p style={{ marginTop: '0.75rem', padding: '0.75rem', borderRadius: '8px', backgroundColor: 'rgba(245, 158, 11, 0.12)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                        As permissões individuais deste arquivo serão sincronizadas no Google Drive.
+                    </p>
+                )}
+                {isGoogleDrive && !isGoogleManaged && (
+                    <p style={{ marginTop: '0.75rem', padding: '0.75rem', borderRadius: '8px', backgroundColor: 'rgba(245, 158, 11, 0.12)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                        Este é um link manual. O acesso também precisa ser concedido diretamente no Google Drive.
+                    </p>
+                )}
+                {itemType === 'pasta' && (
+                    <p style={{ marginTop: '0.75rem', padding: '0.75rem', borderRadius: '8px', backgroundColor: 'rgba(37, 99, 235, 0.08)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                        A permissão escolhida será aplicada aos arquivos gerenciados nesta pasta e nas subpastas.
+                    </p>
+                )}
             </div>
 
             <div className="card" style={{ 
@@ -132,10 +210,24 @@ export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType }: 
                         <select 
                             style={selectStyle}
                             value={targetType}
-                            onChange={(e) => { setTargetType(e.target.value as any); setSelectedTargetId(''); }}
+                            onChange={(e) => { setTargetType(e.target.value as 'grupo' | 'equipe'); setSelectedTargetId(''); }}
                         >
                             <option value="grupo">Grupo de Acesso (Perfil de Usuário)</option>
                             <option value="equipe">Equipe EJC (Trabalho no Encontro)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.6rem', display: 'block', opacity: 0.9 }}>
+                            Permissão nos documentos Google:
+                        </label>
+                        <select
+                            style={selectStyle}
+                            value={googleRole}
+                            onChange={(event) => setGoogleRole(event.target.value as 'reader' | 'writer')}
+                        >
+                            <option value="reader">Leitor — pode visualizar</option>
+                            <option value="writer">Editor — pode alterar</option>
                         </select>
                     </div>
 
@@ -202,7 +294,7 @@ export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType }: 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                         {compartilhamentos.map(share => (
                             <div key={share.id} style={{ 
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap',
                                 padding: '1.2rem', background: 'var(--surface-1)', borderRadius: '12px',
                                 border: '1px solid var(--border-color)',
                                 boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
@@ -217,17 +309,35 @@ export function ShareItemModal({ isOpen, onClose, itemId, itemName, itemType }: 
                                     </div>
                                     <div>
                                         <div style={{ fontSize: '1rem', fontWeight: 600 }}>{getTargetName(share)}</div>
-                                        <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>{share.grupo_id ? 'Grupo de Acesso' : 'Equipe EJC'}</div>
+                                        <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+                                            {share.grupo_id ? 'Grupo de Acesso' : 'Equipe EJC'} · {share.google_role === 'writer' ? 'Editor' : 'Leitor'} no Google
+                                        </div>
                                     </div>
                                 </div>
-                                <button 
-                                    className="icon-btn text-danger" 
-                                    style={{ padding: '8px' }}
-                                    onClick={() => handleRemoveShare(share.id)}
-                                    title="Remover"
-                                >
-                                    <Trash2 size={20} />
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: 'auto' }}>
+                                    <select
+                                        aria-label={`Permissão Google de ${getTargetName(share)}`}
+                                        value={share.google_role}
+                                        disabled={submitting}
+                                        onChange={(event) => void handleRoleChange(
+                                            share,
+                                            event.target.value as 'reader' | 'writer'
+                                        )}
+                                        style={{ ...selectStyle, width: 'auto', minWidth: '110px', height: '40px' }}
+                                    >
+                                        <option value="reader">Leitor</option>
+                                        <option value="writer">Editor</option>
+                                    </select>
+                                    <button
+                                        className="icon-btn text-danger"
+                                        style={{ padding: '8px' }}
+                                        onClick={() => handleRemoveShare(share.id)}
+                                        disabled={submitting}
+                                        title="Remover"
+                                    >
+                                        <Trash2 size={20} />
+                                    </button>
+                                </div>
                             </div>
                         ))}
                     </div>

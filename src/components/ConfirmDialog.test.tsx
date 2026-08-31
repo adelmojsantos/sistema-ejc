@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -74,5 +74,34 @@ describe('ConfirmDialog', () => {
 
     expect(textarea).toHaveValue('Teste de cancelamento');
     expect(textarea).toHaveFocus();
+  });
+
+  it('bloqueia confirmação e fechamento enquanto a ação está em andamento', async () => {
+    const onCancel = vi.fn();
+    const user = userEvent.setup();
+    const { container } = render(
+      <ConfirmDialog
+        isOpen
+        title="Excluir arquivo"
+        message="Confirme a exclusão."
+        confirmText="Excluir"
+        loadingText="Excluindo..."
+        onConfirm={vi.fn()}
+        onCancel={onCancel}
+        isLoading
+        isDestructive
+      />
+    );
+
+    expect(screen.getByText('Excluindo...').closest('button')).toBeDisabled();
+    expect(screen.getByText('Cancelar').closest('button')).toBeDisabled();
+
+    await user.keyboard('{Escape}');
+    const overlay = container.querySelector('.modal-overlay');
+    expect(overlay).not.toBeNull();
+    fireEvent.mouseDown(overlay!);
+    fireEvent.click(overlay!);
+
+    expect(onCancel).not.toHaveBeenCalled();
   });
 });

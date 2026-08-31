@@ -15,13 +15,20 @@ import {
   Download,
   Link,
   Share2,
-  Eye
+  Eye,
+  ExternalLink,
+  CloudUpload
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { bibliotecaService, type BibliotecaArquivo, type BibliotecaPasta } from '../../../services/bibliotecaService';
+import {
+  bibliotecaService,
+  isGoogleEditableFileName,
+  type BibliotecaArquivo,
+  type BibliotecaPasta
+} from '../../../services/bibliotecaService';
 
-interface LibraryItemProps {
-  item: BibliotecaPasta | BibliotecaArquivo;
+interface LibraryItemProps<T extends BibliotecaPasta | BibliotecaArquivo> {
+  item: T;
   type: 'pasta' | 'arquivo';
   viewMode: 'grid' | 'list';
   isSelected: boolean;
@@ -30,11 +37,12 @@ interface LibraryItemProps {
   onToggleDropdown: (id: string | null) => void;
   onNavigate: (id: string) => void;
   onDownload: (arquivo: BibliotecaArquivo) => void;
-  onRename: (item: any) => void;
-  onMove: (item: any) => void;
-  onShare: (item: any) => void;
-  onDelete: (item: any) => void;
+  onRename: (item: T) => void;
+  onMove: (item: { id: string; name: string; type: 'pasta' | 'arquivo' }) => void;
+  onShare: (item: { id: string; name: string; type: 'pasta' | 'arquivo' }) => void;
+  onDelete: (item: T extends BibliotecaArquivo ? BibliotecaArquivo : string) => void;
   onPreview?: (arquivo: BibliotecaArquivo) => void;
+  onMoveToGoogle?: (arquivo: BibliotecaArquivo) => void;
   isReadOnly?: boolean;
 }
 
@@ -54,7 +62,7 @@ const getFileIcon = (mimeType: string) => {
   return <FileIcon size={24} color="#64748b" />;
 };
 
-export const LibraryItem: React.FC<LibraryItemProps> = ({
+export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
   item,
   type,
   viewMode,
@@ -69,11 +77,31 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
   onShare,
   onDelete,
   onPreview,
+  onMoveToGoogle,
   isReadOnly = false
-}) => {
+}: LibraryItemProps<T>) {
   const isPasta = type === 'pasta';
   const pasta = item as BibliotecaPasta;
   const arquivo = item as BibliotecaArquivo;
+  const isGoogleDrive = !isPasta && arquivo.origem === 'google_drive';
+  const canMoveToGoogle = !isPasta
+    && !isGoogleDrive
+    && isGoogleEditableFileName(arquivo.nome_exibicao);
+  const renameFolder = onRename as (item: BibliotecaPasta) => void;
+  const renameFile = onRename as (item: BibliotecaArquivo) => void;
+  const deleteFolder = onDelete as (id: string) => void;
+  const deleteFile = onDelete as (item: BibliotecaArquivo) => void;
+  const googleStatus = !isGoogleDrive
+    ? null
+    : isReadOnly
+      ? { label: 'Google Drive', color: 'var(--muted-text)' }
+      : arquivo.google_managed
+        ? arquivo.google_sync_status === 'synced'
+          ? { label: 'Google · sincronizado', color: '#10b981' }
+          : arquivo.google_sync_status === 'error'
+            ? { label: 'Google · erro de sincronização', color: '#ef4444' }
+            : { label: 'Google · sincronização pendente', color: '#f59e0b' }
+        : { label: 'Google · link manual', color: 'var(--muted-text)' };
   const [openUpwards, setOpenUpwards] = React.useState(false);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
 
@@ -96,11 +124,16 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
     onToggleDropdown(null);
     if (isPasta) return;
     try {
-      const url = await bibliotecaService.gerarSignedUrl(arquivo.storage_path);
+      const url = isGoogleDrive
+        ? arquivo.url_externa
+        : arquivo.storage_path
+          ? await bibliotecaService.gerarSignedUrl(arquivo.storage_path)
+          : null;
+      if (!url) throw new Error('Este item não possui um link válido.');
       await navigator.clipboard.writeText(url);
-      toast.success('Link de acesso copiado! (Válido por 1h)');
-    } catch (err: any) {
-      toast.error('Erro: ' + err.message);
+      toast.success(isGoogleDrive ? 'Link do Google copiado!' : 'Link de acesso copiado! (Válido por 1h)');
+    } catch (error: unknown) {
+      toast.error('Erro: ' + (error instanceof Error ? error.message : 'não foi possível copiar o link.'));
     }
   };
 
@@ -134,7 +167,7 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
             opacity: 0,
             transition: 'opacity 0.2s',
           }} className="quick-actions">
-            {['pdf', 'image'].some(type => arquivo.tipo_mime.includes(type)) && (
+            {!isGoogleDrive && ['pdf', 'image'].some(type => arquivo.tipo_mime.includes(type)) && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -176,9 +209,9 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                 transition: 'all 0.2s'
               }}
-              title="Baixar"
+              title={isGoogleDrive ? 'Abrir no Google' : 'Baixar'}
             >
-              <Download size={16} />
+              {isGoogleDrive ? <ExternalLink size={16} /> : <Download size={16} />}
             </button>
           </div>
         )}
@@ -236,8 +269,11 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
         </div>
 
         {!isPasta && (
-          <div style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>
-            {formatFileSize(arquivo.tamanho_bytes)}
+          <div
+            style={{ fontSize: '0.8rem', color: googleStatus?.color ?? 'var(--muted-text)' }}
+            title={arquivo.google_sync_error ?? undefined}
+          >
+            {googleStatus?.label ?? formatFileSize(arquivo.tamanho_bytes)}
           </div>
         )}
 
@@ -257,7 +293,7 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onNavigate(pasta.id); }}>
                   <FolderOpen size={14} /> Abrir
                 </button>
-                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onRename(pasta); }}>
+                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); renameFolder(pasta); }}>
                   <Edit2 size={14} /> Renomear
                 </button>
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: pasta.id, name: pasta.nome, type: 'pasta' }); }}>
@@ -267,14 +303,15 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
                   <Share2 size={14} /> Compartilhar
                 </button>
                 <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
-                <button className="dropdown-item text-danger" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onDelete(pasta.id); }}>
+                <button className="dropdown-item text-danger" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); deleteFolder(pasta.id); }}>
                   <Trash2 size={14} /> Excluir
                 </button>
               </>
             ) : (
               <>
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onDownload(arquivo); }}>
-                  <Download size={14} /> Baixar
+                  {isGoogleDrive ? <ExternalLink size={14} /> : <Download size={14} />}
+                  {isGoogleDrive ? 'Abrir no Google' : 'Baixar'}
                 </button>
                 <button className="dropdown-item" onClick={handleCopyLink}>
                   <Link size={14} /> Copiar Link
@@ -282,8 +319,8 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
                 {!isReadOnly && (
                   <>
                     <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
-                    <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onRename(arquivo); }}>
-                      <Edit2 size={14} /> Renomear
+                    <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); renameFile(arquivo); }}>
+                      <Edit2 size={14} /> {isGoogleDrive && !arquivo.google_managed ? 'Editar referência' : 'Renomear'}
                     </button>
                     <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
                       <CornerUpRight size={14} /> Mover para...
@@ -291,9 +328,14 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
                     <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onShare({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
                       <Share2 size={14} /> Compartilhar
                     </button>
+                    {canMoveToGoogle && onMoveToGoogle && (
+                      <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMoveToGoogle(arquivo); }}>
+                        <CloudUpload size={14} /> Mover para o Google
+                      </button>
+                    )}
                     <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
-                    <button className="dropdown-item text-danger" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onDelete(arquivo); }}>
-                      <Trash2 size={14} /> Excluir
+                    <button className="dropdown-item text-danger" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); deleteFile(arquivo); }}>
+                      <Trash2 size={14} /> {arquivo.google_managed ? 'Mover para lixeira' : isGoogleDrive ? 'Remover referência' : 'Excluir'}
                     </button>
                   </>
                 )}
@@ -335,7 +377,7 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
         </div>
       </td>
       <td style={{ padding: '1rem', color: 'var(--muted-text)' }}>
-        {isPasta ? '--' : formatFileSize(arquivo.tamanho_bytes)}
+        {isPasta ? '--' : googleStatus?.label ?? formatFileSize(arquivo.tamanho_bytes)}
       </td>
       <td style={{ padding: '1rem', color: 'var(--muted-text)' }}>
         {new Date(item.created_at).toLocaleDateString()}
@@ -344,7 +386,7 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
           {!isPasta && (
             <>
-              {['pdf', 'image'].some(type => arquivo.tipo_mime.includes(type)) && (
+              {!isGoogleDrive && ['pdf', 'image'].some(type => arquivo.tipo_mime.includes(type)) && (
                 <button 
                   onClick={(e) => {
                     e.stopPropagation();
@@ -360,9 +402,9 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
               <button 
                 onClick={(e) => { e.stopPropagation(); onDownload(arquivo); }} 
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.2rem', color: 'var(--text-color)', opacity: 0.6 }}
-                title="Baixar"
+                title={isGoogleDrive ? 'Abrir no Google' : 'Baixar'}
               >
-                <Download size={18} />
+                {isGoogleDrive ? <ExternalLink size={18} /> : <Download size={18} />}
               </button>
             </>
           )}
@@ -390,7 +432,7 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onNavigate(pasta.id); }}>
                   <FolderOpen size={14} /> Abrir
                 </button>
-                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onRename(pasta); }}>
+                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); renameFolder(pasta); }}>
                   <Edit2 size={14} /> Renomear
                 </button>
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: pasta.id, name: pasta.nome, type: 'pasta' }); }}>
@@ -400,14 +442,15 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
                   <Share2 size={14} /> Compartilhar
                 </button>
                 <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
-                <button className="dropdown-item text-danger" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onDelete(pasta.id); }}>
+                <button className="dropdown-item text-danger" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); deleteFolder(pasta.id); }}>
                   <Trash2 size={14} /> Excluir
                 </button>
               </>
             ) : (
               <>
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onDownload(arquivo); }}>
-                  <Download size={14} /> Baixar
+                  {isGoogleDrive ? <ExternalLink size={14} /> : <Download size={14} />}
+                  {isGoogleDrive ? 'Abrir no Google' : 'Baixar'}
                 </button>
                 <button className="dropdown-item" onClick={handleCopyLink}>
                   <Link size={14} /> Copiar Link
@@ -415,8 +458,8 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
                 {!isReadOnly && (
                   <>
                     <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
-                    <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onRename(arquivo); }}>
-                      <Edit2 size={14} /> Renomear
+                    <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); renameFile(arquivo); }}>
+                      <Edit2 size={14} /> {isGoogleDrive && !arquivo.google_managed ? 'Editar referência' : 'Renomear'}
                     </button>
                     <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
                       <CornerUpRight size={14} /> Mover para...
@@ -424,9 +467,14 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
                     <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onShare({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
                       <Share2 size={14} /> Compartilhar
                     </button>
+                    {canMoveToGoogle && onMoveToGoogle && (
+                      <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMoveToGoogle(arquivo); }}>
+                        <CloudUpload size={14} /> Mover para o Google
+                      </button>
+                    )}
                     <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
-                    <button className="dropdown-item text-danger" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onDelete(arquivo); }}>
-                      <Trash2 size={14} /> Excluir
+                    <button className="dropdown-item text-danger" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); deleteFile(arquivo); }}>
+                      <Trash2 size={14} /> {arquivo.google_managed ? 'Mover para lixeira' : isGoogleDrive ? 'Remover referência' : 'Excluir'}
                     </button>
                   </>
                 )}
@@ -437,4 +485,4 @@ export const LibraryItem: React.FC<LibraryItemProps> = ({
       </td>
     </tr>
   );
-};
+}

@@ -23,6 +23,7 @@ function createContext(
     hasExactPermission: (permission) => permissionSet.has(permission),
     isCoordinator: options.isCoordinator ?? false,
     teamName: options.teamName,
+    hasSharedLibraryItems: false,
   };
 }
 
@@ -104,6 +105,25 @@ describe('catálogo central de navegação', () => {
     expect(moduleIds('dashboard', admin)).not.toContain('diagnosticos');
     expect(moduleIds('sidebar', developer)).toContain('diagnosticos');
     expect(moduleIds('dashboard', developer)).toContain('diagnosticos');
+  });
+
+  it('mostra uma única Biblioteca por permissão de gestão ou por compartilhamento', () => {
+    const withoutItems = createContext(['modulo_visitacao_duplas']);
+    const withItems: NavigationAccessContext = {
+      ...withoutItems,
+      hasSharedLibraryItems: true,
+    };
+    const manager = createContext(['modulo_biblioteca']);
+
+    expect(moduleIds('sidebar', withoutItems)).not.toContain('biblioteca');
+    expect(moduleIds('dashboard', withoutItems)).not.toContain('biblioteca');
+    expect(moduleIds('sidebar', withItems)).toContain('biblioteca');
+    expect(moduleIds('dashboard', withItems)).toContain('biblioteca');
+    expect(moduleIds('sidebar', manager)).toContain('biblioteca');
+    expect(moduleIds('dashboard', manager)).toContain('biblioteca');
+
+    expect(NAVIGATION_MODULES.filter((module) => module.label === 'Biblioteca')).toHaveLength(1);
+    expect(NAVIGATION_MODULES.find((module) => module.id === 'biblioteca')?.path).toBe('/biblioteca');
   });
 
   it('organiza o menu por processo na ordem definida', () => {

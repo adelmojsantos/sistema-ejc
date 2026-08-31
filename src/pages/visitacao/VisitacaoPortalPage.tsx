@@ -5,7 +5,6 @@ import { useAuth } from '../../hooks/useAuth';
 import {
     Shield, MapPin, UserCheck
 } from 'lucide-react';
-import { SharedLibraryView } from '../../components/admin/biblioteca/SharedLibraryView';
 
 export function VisitacaoPortalPage() {
     const navigate = useNavigate();
@@ -73,13 +72,6 @@ export function VisitacaoPortalPage() {
                         onClick={() => navigate(module.path)}
                     />
                 ))}
-
-                {/* Card de Documentos Integrado na Grid */}
-                <SharedLibraryView
-                    title="Documentos e Arquivos"
-                    description="Acesse arquivos compartilhados com a equipe de visitação."
-                    moduleContext="Visitação"
-                />
             </div>
 
             {availableModules.length === 0 && (
