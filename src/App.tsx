@@ -42,6 +42,7 @@ const ExportConfigListPage = lazyNamed(() => import('./pages/admin/ExportConfigL
 const ExportConfigFormPage = lazyNamed(() => import('./pages/admin/ExportConfigFormPage'), 'ExportConfigFormPage');
 const DirigenciaPage = lazyNamed(() => import('./pages/admin/DirigenciaPage'), 'DirigenciaPage');
 const DiagnosticsPage = lazyNamed(() => import('./pages/admin/DiagnosticsPage'), 'DiagnosticsPage');
+const EmailInstitucionalPage = lazyNamed(() => import('./pages/admin/EmailInstitucionalPage'), 'EmailInstitucionalPage');
 const Cadastros = lazyNamed(() => import('./pages/cadastros/Cadastros'), 'Cadastros');
 const CirculosPage = lazyNamed(() => import('./pages/circulos/CirculosPage'), 'CirculosPage');
 const CirculosPortalPage = lazyNamed(() => import('./pages/circulos/CirculosPortalPage'), 'CirculosPortalPage');
@@ -259,6 +260,12 @@ function AnimatedRoutes() {
           <Route path="/admin/diagnosticos" element={
             <ProtectedRoute requiredExactPermissions={['modulo_diagnosticos']}>
               <DiagnosticsPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/admin/email-institucional" element={
+            <ProtectedRoute requiredPermissions={['modulo_email_institucional', 'modulo_admin']}>
+              <EmailInstitucionalPage />
             </ProtectedRoute>
           } />
 

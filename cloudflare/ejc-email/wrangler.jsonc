@@ -1,0 +1,29 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "ejc-email-institucional",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "email-api.ejccapelinha.com.br",
+      "custom_domain": true
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "https://www.ejccapelinha.com.br,https://ejccapelinha.com.br,http://localhost:5173,http://127.0.0.1:5173",
+    "INSTITUTIONAL_EMAIL": "contato@ejccapelinha.com.br",
+    "SENDER_NAME": "EJC Capelinha"
+  },
+  "r2_buckets": [
+    {
+      "binding": "EMAIL_BUCKET",
+      "bucket_name": "ejc-fotos-producao"
+    }
+  ]
+}

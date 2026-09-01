@@ -10523,6 +10523,8 @@ textarea.form-input {
     height: 64px;
     min-height: 64px;
     padding-inline: 0.7rem;
+    justify-content: flex-start;
+    gap: 0.5rem;
   }
 
   .layout-main {
@@ -10530,13 +10532,55 @@ textarea.form-input {
   }
 
   .topbar-encounter-selector {
+    width: auto;
+    min-width: 0;
     max-width: 11.5rem;
+    flex: 1 1 auto;
   }
 
   .topbar-encounter-trigger,
   .topbar-encounter-locked {
-    min-width: 9.5rem;
+    width: 100%;
+    min-width: 0;
     max-width: 11.5rem;
+  }
+
+  .topbar > .flex.items-center.gap-3 {
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    gap: 0.2rem;
+  }
+}
+
+/* Telefones estreitos: preserve todas as ações do cabeçalho sem permitir que
+   o seletor de encontro cubra a caixa de entrada. */
+@media (max-width: 380px) {
+  .topbar { padding-inline: 0.4rem; }
+  .topbar-encounter-selector {
+    width: auto;
+    max-width: none;
+    flex: 1 1 auto;
+  }
+  .topbar-encounter-trigger,
+  .topbar-encounter-locked {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    padding-inline: 0.4rem;
+  }
+  .topbar-encounter-content { min-width: 0; }
+  .topbar-encounter-content > span { min-width: 0; }
+  .topbar-encounter-content strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .topbar-encounter-status { display: none; }
+  .topbar > .flex.items-center.gap-3 > .header-divider { display: none; }
+  .topbar .btn-icon {
+    min-width: 38px;
+    width: 38px;
+    min-height: 42px;
   }
 }
 
