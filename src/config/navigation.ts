@@ -234,6 +234,16 @@ export const NAVIGATION_MODULES: readonly NavigationModule[] = [
     accessRule: 'library',
   },
   {
+    id: 'email-institucional',
+    label: 'E-mail institucional',
+    description: 'Leia e responda mensagens recebidas pelo endereço institucional.',
+    path: '/admin/email-institucional',
+    icon: Mail,
+    accent: 'primary',
+    surfaces: ['dashboard'],
+    permissions: ['modulo_email_institucional', 'modulo_admin'],
+  },
+  {
     id: 'compras',
     label: 'Compras',
     description: 'Gestão financeira, taxas, camisetas e almoxarifado.',

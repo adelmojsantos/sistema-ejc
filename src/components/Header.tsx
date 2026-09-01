@@ -86,6 +86,10 @@ export function Header() {
     navLinks.push({ to: '/admin/usuarios', label: 'Usuários' });
   }
 
+  if (hasPermission('modulo_email_institucional') || hasPermission('modulo_admin')) {
+    navLinks.push({ to: '/admin/email-institucional', label: 'E-mail' });
+  }
+
   if (hasPermission('modulo_coordenador') && userParticipacao?.coordenador) {
     if (!navLinks.some(link => link.to === '/coordenador/minha-equipe')) {
       navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });

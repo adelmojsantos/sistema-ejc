@@ -7,7 +7,8 @@ import {
   LogOut,
   ChevronDown,
   Settings,
-  LockKeyhole
+  LockKeyhole,
+  Mail,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -24,7 +25,7 @@ interface TopbarProps {
 
 export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) => {
   const { theme, toggleTheme } = useTheme();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, hasPermission } = useAuth();
   const { encontros, encontroSelecionadoId, selecionarEncontro, selecaoBloqueada, encontroSelecionado, isLoading: encontrosLoading } = useEncontros();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isEncounterMenuOpen, setIsEncounterMenuOpen] = useState(false);
@@ -70,6 +71,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
   };
 
   const pageTitle = getPageTitle();
+  const canAccessInstitutionalEmail = hasPermission('modulo_email_institucional') || hasPermission('modulo_admin');
   const rootTitle = (() => {
     const roots = [
       ['/cadastros', 'Cadastros'],
@@ -175,6 +177,18 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
             </div>
           )}
           <div className="header-divider topbar-group-divider" style={{ height: '32px' }} />
+          {canAccessInstitutionalEmail && (
+            <button
+              type="button"
+              className="btn-text btn-icon"
+              onClick={() => navigate('/admin/email-institucional')}
+              title="Abrir caixa de entrada"
+              aria-label="Abrir caixa de entrada do e-mail institucional"
+              style={{ padding: '0.5rem', borderRadius: '10px' }}
+            >
+              <Mail size={20} />
+            </button>
+          )}
           <button
             className="btn-text btn-icon"
             onClick={toggleTheme}
@@ -197,10 +211,6 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
               <div className="user-avatar-sm">
                 {(profile?.nome_completo?.charAt(0) || profile?.email?.charAt(0))?.toUpperCase()}
               </div>
-              <span className="user-name-label desktop-only">
-                {profile?.nome_completo || profile?.email?.split('@')[0]}
-              </span>
-              <ChevronDown size={14} className={`user-menu-chevron ${isUserMenuOpen ? 'open' : ''}`} style={{ marginLeft: '0.25rem' }} />
             </button>
 
             {isUserMenuOpen && (

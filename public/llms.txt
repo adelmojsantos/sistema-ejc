@@ -2,6 +2,6 @@
 
 Site público do Encontro de Jovens com Cristo da Paróquia Nossa Senhora Aparecida, em Franca, São Paulo.
 
-- [Conheça o EJC](https://ejc-capelinha.vercel.app/inicio)
-- [Inscrição online](https://ejc-capelinha.vercel.app/inscricao-online)
-- [Política de privacidade](https://ejc-capelinha.vercel.app/privacidade)
+- [Conheça o EJC](https://www.ejccapelinha.com.br/inicio)
+- [Inscrição online](https://www.ejccapelinha.com.br/inscricao-online)
+- [Política de privacidade](https://www.ejccapelinha.com.br/privacidade)

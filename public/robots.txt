@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://ejc-capelinha.vercel.app/sitemap.xml
+Sitemap: https://www.ejccapelinha.com.br/sitemap.xml

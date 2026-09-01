@@ -130,6 +130,7 @@ iniciada por `VITE_`.
 | `VITE_SUPABASE_KEY` | Sim | Chave pública `anon` ou `publishable` |
 | `VITE_ENABLE_REMOTE_ERROR_LOGS` | Não | Ativa o envio controlado de erros para Diagnósticos |
 | `VITE_PUBLIC_IMAGE_BASE_URL` | Não | Base pública das imagens servidas pelo Worker/R2 |
+| `VITE_EMAIL_WORKER_URL` | Após ativar a caixa | URL do Worker privado da caixa institucional |
 
 ### Edge Functions e operações administrativas
 
