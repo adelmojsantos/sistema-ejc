@@ -61,8 +61,24 @@ Além das variáveis padrão fornecidas pelo Supabase, configurar:
 - `GOOGLE_TOKEN_ENCRYPTION_KEY`: 32 bytes aleatórios codificados em Base64;
 - `GOOGLE_DRIVE_SYNC_SECRET`: segredo aleatório independente para o agendador;
 - `PUBLIC_APP_URL`: URL pública do sistema, sem caminho final.
+- `GOOGLE_PICKER_API_KEY`: chave de navegador restrita ao domínio do sistema e à Google Picker API;
+- `GOOGLE_PICKER_APP_ID`: número do projeto Google Cloud usado pelo Picker.
 
 Nunca utilizar nomes `VITE_*` para essas credenciais.
+
+## Importação excepcional de outra conta
+
+A ação **Importar de outro Drive** fica em `Biblioteca > Configurações do Google
+Drive > Ferramentas avançadas` e exige `modulo_admin`. Ela usa uma conexão OAuth
+temporária separada da conta central, com validade de 24 horas. O token é
+criptografado, não é exposto ao frontend (exceto pelo access token curto exigido
+pelo Google Picker) e é removido e revogado ao desconectar ou expirar.
+
+A conexão temporária usa `drive.readonly`, pois `drive.file` não concede acesso
+automático aos itens preexistentes dentro de uma pasta selecionada pelo Picker.
+O acesso é somente leitura, expira em 24 horas e a operação trabalha apenas com
+a pasta explicitamente escolhida. A conta institucional permanece no escopo
+reduzido `drive.file`.
 
 ## Publicação
 

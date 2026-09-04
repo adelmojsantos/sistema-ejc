@@ -114,6 +114,216 @@ describe('bibliotecaService Google Drive', () => {
     });
   });
 
+  it('adota um link existente usando os metadados do Google quando o nome não é informado', async () => {
+    invoke.mockResolvedValue({ data: { file: managedGoogleFile }, error: null });
+
+    await bibliotecaService.cadastrarReferenciaGoogle({
+      url: 'https://drive.google.com/file/d/arquivo-google-123/view',
+      pastaId: 'pasta-1',
+    });
+
+    expect(invoke).toHaveBeenCalledWith('google-drive', {
+      body: {
+        action: 'adopt-existing-file',
+        fileId: 'arquivo-google-123',
+        pastaId: 'pasta-1',
+        displayName: null,
+      },
+    });
+  });
+
+  it('busca inclusive itens ignorados quando solicitado', async () => {
+    invoke.mockResolvedValue({ data: { items: [] }, error: null });
+
+    await bibliotecaService.buscarDiferencasPastaGoogle('pasta-1', true);
+
+    expect(invoke).toHaveBeenCalledWith('google-drive', {
+      body: { action: 'scan-folder-differences', pastaId: 'pasta-1', showIgnored: true },
+    });
+  });
+
+  it('preserva o destino e o caminho de novidades encontradas em subpastas', async () => {
+    invoke.mockResolvedValue({
+      data: {
+        items: [{
+          id: 'arquivo-google-subpasta',
+          name: 'novo.pdf',
+          mimeType: 'application/pdf',
+          itemType: 'file',
+          sizeBytes: 1024,
+          ignored: false,
+          targetFolderId: 'subpasta-1',
+          path: 'Teste EJC/Subpasta EJC',
+        }],
+        missingItems: [],
+      },
+      error: null,
+    });
+
+    const result = await bibliotecaService.buscarDiferencasPastaGoogle('pasta-raiz');
+
+    expect(result.items[0]).toMatchObject({
+      id: 'arquivo-google-subpasta',
+      targetFolderId: 'subpasta-1',
+      path: 'Teste EJC/Subpasta EJC',
+    });
+  });
+
+  it('envia separadamente itens selecionados e ignorados na conciliação da pasta', async () => {
+    invoke.mockResolvedValue({
+      data: { addedFiles: 1, addedFolders: 0, skipped: 0 },
+      error: null,
+    });
+
+    await bibliotecaService.importarItensPastaGoogle('pasta-1', ['arquivo-google-123'], ['arquivo-google-456']);
+
+    expect(invoke).toHaveBeenCalledWith('google-drive', {
+      body: {
+        action: 'import-folder-items',
+        pastaId: 'pasta-1',
+        itemIds: ['arquivo-google-123'],
+        ignoredIds: ['arquivo-google-456'],
+      },
+    });
+  });
+
+  it('remove registros ausentes somente da Biblioteca pela Edge Function', async () => {
+    invoke.mockResolvedValue({
+      data: { deletedFiles: 1, deletedFolders: 0, errors: [] },
+      error: null,
+    });
+
+    await bibliotecaService.removerItensAusentesDaBiblioteca({
+      folderIds: [],
+      fileIds: ['arquivo-1'],
+      confirmation: 'REMOVER',
+    });
+
+    expect(invoke).toHaveBeenCalledWith('google-drive', {
+      body: {
+        action: 'remove-missing-library-items',
+        folderIds: [],
+        fileIds: ['arquivo-1'],
+        confirmation: 'REMOVER',
+      },
+    });
+  });
+
+  it('limita a sincronização forçada aos arquivos informados', async () => {
+    invoke.mockResolvedValueOnce({
+      data: { accountEmail: 'drive@example.com', results: [] },
+      error: null,
+    });
+    const arquivoIds = Array.from({ length: 30 }, (_, index) => `arquivo-${index + 1}`);
+
+    await bibliotecaService.sincronizarItemGoogle({ arquivoIds });
+
+    expect(invoke).toHaveBeenCalledWith('google-drive', {
+      body: {
+        action: 'sync-item',
+        pastaId: null,
+        arquivoId: null,
+        arquivoIds: arquivoIds.slice(0, 25),
+      },
+    });
+  });
+
+  it('envia a confirmação padronizada para exclusão recursiva', async () => {
+    invoke.mockResolvedValueOnce({
+      data: { deletedFiles: 2, deletedFolders: 1, errors: [] },
+      error: null,
+    });
+
+    await bibliotecaService.excluirItensRecursivamente({
+      folderIds: ['pasta-1'],
+      fileIds: ['arquivo-1'],
+      confirmation: 'EXCLUIR',
+    });
+
+    expect(invoke).toHaveBeenCalledWith('google-drive', {
+      body: {
+        action: 'delete-items-recursively',
+        folderIds: ['pasta-1'],
+        fileIds: ['arquivo-1'],
+        confirmation: 'EXCLUIR',
+      },
+    });
+  });
+
+  it('inicia uma conexão temporária com outro Drive', async () => {
+    invoke.mockResolvedValue({
+      data: { authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=teste' },
+      error: null,
+    });
+
+    const authorizationUrl = await bibliotecaService.iniciarImportacaoOutroDrive();
+
+    expect(authorizationUrl).toContain('accounts.google.com');
+    expect(invoke).toHaveBeenCalledWith('google-drive', {
+      body: { action: 'start-import-oauth' },
+    });
+  });
+
+  it('envia somente o identificador da pasta selecionada para inspeção', async () => {
+    invoke.mockResolvedValue({
+      data: {
+        folder: { id: 'pasta-origem', name: 'Acervo antigo' },
+        preview: { totalReturned: 0, folders: 0, files: 0, hasMore: false, items: [] },
+      },
+      error: null,
+    });
+
+    await bibliotecaService.inspecionarPastaOutroDrive('pasta-origem');
+
+    expect(invoke).toHaveBeenCalledWith('google-drive', {
+      body: { action: 'inspect-import-folder', folderId: 'pasta-origem' },
+    });
+  });
+
+  it('continua e confirma o inventário sem iniciar uma cópia', async () => {
+    invoke
+      .mockResolvedValueOnce({
+        data: {
+          done: true,
+          inventory: { folders: 1, files: 2, items: 3, sizeBytes: 1024, pendingFolders: 0, sample: [] },
+        },
+        error: null,
+      })
+      .mockResolvedValueOnce({ data: { confirmed: true }, error: null });
+
+    await bibliotecaService.processarInventarioOutroDrive();
+    await bibliotecaService.confirmarInventarioOutroDrive();
+
+    expect(invoke).toHaveBeenNthCalledWith(1, 'google-drive', {
+      body: { action: 'process-import-inventory' },
+    });
+    expect(invoke).toHaveBeenNthCalledWith(2, 'google-drive', {
+      body: { action: 'confirm-import-inventory' },
+    });
+  });
+
+  it('inicia e continua a cópia somente pelas ações administrativas dedicadas', async () => {
+    invoke
+      .mockResolvedValueOnce({
+        data: { started: true, progress: { pending: 2, processing: 0, copied: 0, errors: 0, skipped: 0 } },
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: { done: true, status: 'completed', progress: { pending: 0, processing: 0, copied: 2, errors: 0, skipped: 0 } },
+        error: null,
+      });
+
+    await bibliotecaService.iniciarCopiaOutroDrive();
+    await bibliotecaService.processarCopiaOutroDrive();
+
+    expect(invoke).toHaveBeenNthCalledWith(1, 'google-drive', {
+      body: { action: 'start-import-copy' },
+    });
+    expect(invoke).toHaveBeenNthCalledWith(2, 'google-drive', {
+      body: { action: 'process-import-copy' },
+    });
+  });
+
   it('move um arquivo editável existente para o Google Drive', async () => {
     invoke.mockResolvedValue({ data: { file: managedGoogleFile, syncErrors: [] }, error: null });
 

@@ -108,7 +108,7 @@ export function VisitacaoPresencasPage() {
 
   useEffect(() => {
     if (selectedGrupoId || canManageAll) sessionStorage.setItem('presenca_visitacao_grupo_id', selectedGrupoId);
-  }, [selectedGrupoId]);
+  }, [canManageAll, selectedGrupoId]);
 
   useEffect(() => {
     if (!canManageAll) return;

@@ -28,7 +28,7 @@ export function useCirculoAccess() {
 
       toast.success('Identificação realizada com sucesso!');
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
       // Mensagem genérica para não revelar qual campo está errado
       toast.error('Não foi possível validar seus dados. Verifique e tente novamente.');

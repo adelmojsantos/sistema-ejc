@@ -126,6 +126,10 @@ function SharedLibraryContent() {
 
                     <LibraryToolbar
                         selectedCount={selectedItems.size}
+                        selectedFileCount={arquivos.filter(item => selectedItems.has(item.id)).length}
+                        selectedFolderCount={pastas.filter(item => selectedItems.has(item.id)).length}
+                        selectedGoogleCount={arquivos.filter(item => selectedItems.has(item.id) && item.origem === 'google_drive').length}
+                        canBatchDownload={!arquivos.some(item => selectedItems.has(item.id) && item.origem === 'google_drive')}
                         totalItems={pastas.length + arquivos.length}
                         searchQuery={searchQuery}
                         filterType={filterType}
@@ -145,6 +149,12 @@ function SharedLibraryContent() {
                             filesToDownload.forEach(f => handleDownload(f));
                         }}
                         onBatchDelete={() => { }}
+                        onOpenGoogle={() => {
+                            arquivos
+                                .filter(item => selectedItems.has(item.id) && item.origem === 'google_drive' && item.url_externa)
+                                .forEach(item => window.open(item.url_externa!, '_blank', 'noopener,noreferrer'));
+                        }}
+                        onRefresh={actions.refresh}
                         isReadOnly={true}
                     />
 

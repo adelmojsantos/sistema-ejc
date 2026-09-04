@@ -43,6 +43,7 @@ const ExportConfigFormPage = lazyNamed(() => import('./pages/admin/ExportConfigF
 const DirigenciaPage = lazyNamed(() => import('./pages/admin/DirigenciaPage'), 'DirigenciaPage');
 const DiagnosticsPage = lazyNamed(() => import('./pages/admin/DiagnosticsPage'), 'DiagnosticsPage');
 const EmailInstitucionalPage = lazyNamed(() => import('./pages/admin/EmailInstitucionalPage'), 'EmailInstitucionalPage');
+const GoogleDriveImportPage = lazyNamed(() => import('./pages/admin/GoogleDriveImportPage'), 'GoogleDriveImportPage');
 const Cadastros = lazyNamed(() => import('./pages/cadastros/Cadastros'), 'Cadastros');
 const CirculosPage = lazyNamed(() => import('./pages/circulos/CirculosPage'), 'CirculosPage');
 const CirculosPortalPage = lazyNamed(() => import('./pages/circulos/CirculosPortalPage'), 'CirculosPortalPage');
@@ -382,6 +383,12 @@ function AnimatedRoutes() {
           <Route path="/biblioteca" element={
             <ProtectedRoute>
               <PageTransition><LibraryPage /></PageTransition>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/biblioteca/importar-drive" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <PageTransition><GoogleDriveImportPage /></PageTransition>
             </ProtectedRoute>
           } />
 

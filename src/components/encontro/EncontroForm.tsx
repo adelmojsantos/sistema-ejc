@@ -7,7 +7,7 @@ import { CurrencyFormField } from '../ui/CurrencyFormField';
 import { FormRow } from '../ui/FormRow';
 import { FormSection } from '../ui/FormSection';
 import toast from 'react-hot-toast';
-import { buildPublicFormUrl } from '../../utils/publicFormUrl';
+import { buildOnlineRegistrationUrl, buildPublicFormUrl } from '../../utils/publicFormUrl';
 
 interface EncontroFormProps {
     title: string;
@@ -78,6 +78,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
     const [errors, setErrors] = useState<FormErrors>({});
 
     const [copied, setCopied] = useState(false);
+    const [onlineRegistrationCopied, setOnlineRegistrationCopied] = useState(false);
 
     const handleCopy = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -89,6 +90,17 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
         toast.success('Link copiado!');
 
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleCopyOnlineRegistration = async () => {
+        try {
+            await navigator.clipboard.writeText(buildOnlineRegistrationUrl());
+            setOnlineRegistrationCopied(true);
+            toast.success('Link da inscrição online copiado!');
+            setTimeout(() => setOnlineRegistrationCopied(false), 2000);
+        } catch {
+            toast.error('Não foi possível copiar o link da inscrição online.');
+        }
     };
 
     const handleChange = (field: keyof EncontroFormData, value: string | number | boolean | null) => {
@@ -235,6 +247,26 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                     />
 
                 </FormRow>
+                <div className="encontro-online-registration-link">
+                    <span className="encontro-online-registration-link__icon">
+                        <LinkIcon size={18} aria-hidden="true" />
+                    </span>
+                    <span className="encontro-online-registration-link__copy">
+                        <strong>Inscrição online</strong>
+                        <small>
+                            Link público para inscrições do encontro ativo
+                        </small>
+                    </span>
+                    <button
+                        type="button"
+                        className={`btn-secondary encontro-online-registration-link__button ${onlineRegistrationCopied ? 'is-copied' : ''}`}
+                        onClick={handleCopyOnlineRegistration}
+                        title='Copiar link da inscrição online'
+                    >
+                        {onlineRegistrationCopied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}
+                        {onlineRegistrationCopied ? 'Copiado' : 'Copiar link'}
+                    </button>
+                </div>
             </FormSection>
 
             <FormSection title="Datas e Local" icon={<Calendar size={18} />} columns={0}>
@@ -425,7 +457,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                                                     if (error) throw error;
                                                     handleChange('pix_taxa_qrcode_url', filePath);
                                                     toast.success('QR Code de Taxas enviado!');
-                                                } catch (err: any) { toast.error('Erro ao enviar imagem'); } finally {
+                                                } catch (err: unknown) { toast.error('Erro ao enviar imagem'); } finally {
                                                     setIsSubmitting(false);
                                                     e.target.value = ''; // Limpa o input
                                                 }
@@ -539,7 +571,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                                                     if (error) throw error;
                                                     handleChange('pix_camisetas_qrcode_url', filePath);
                                                     toast.success('QR Code de Camisetas enviado!');
-                                                } catch (err: any) { toast.error('Erro ao enviar imagem'); } finally {
+                                                } catch (err: unknown) { toast.error('Erro ao enviar imagem'); } finally {
                                                     setIsSubmitting(false);
                                                     e.target.value = ''; // Limpa o input
                                                 }
@@ -635,6 +667,50 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                     font-weight: 500;
                 }
 
+                .encontro-online-registration-link {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    padding: 0.85rem 1rem;
+                    border: 1px solid rgba(59, 130, 246, 0.3);
+                    border-radius: 12px;
+                    background: rgba(59, 130, 246, 0.07);
+                }
+
+                .encontro-online-registration-link__icon {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 34px;
+                    height: 34px;
+                    flex: 0 0 auto;
+                    border-radius: 9px;
+                    color: var(--primary-color);
+                    background: rgba(59, 130, 246, 0.12);
+                }
+
+                .encontro-online-registration-link__copy {
+                    display: grid;
+                    min-width: 0;
+                    flex: 1;
+                }
+
+                .encontro-online-registration-link__copy strong { font-size: 0.86rem; }
+                .encontro-online-registration-link__copy small { color: var(--muted-text); font-size: 0.74rem; }
+                .encontro-online-registration-link__button {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 0.4rem;
+                    min-height: 36px;
+                    white-space: nowrap;
+                }
+                .encontro-online-registration-link__button.is-copied { color: #15803d; border-color: #22c55e; }
+                .encontro-online-registration-link__button:disabled {
+                    cursor: not-allowed;
+                    opacity: 0.5;
+                }
+
                 .payment-config-card { background: transparent; border: 1px solid rgba(148, 163, 184, 0.28); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12); border-radius: 16px; padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; transition: all 0.2s ease; }
                 .payment-config-card:hover { border-color: var(--primary-color); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
                 .payment-card-header { display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem; margin-bottom: 0.25rem; }
@@ -713,6 +789,19 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                         display: grid;
                         grid-template-columns: auto minmax(0, 1fr) auto;
                         align-items: center;
+                        width: 100%;
+                    }
+
+                    .encontro-online-registration-link {
+                        align-items: stretch;
+                        flex-wrap: wrap;
+                    }
+
+                    .encontro-online-registration-link__copy {
+                        align-self: center;
+                    }
+
+                    .encontro-online-registration-link__button {
                         width: 100%;
                     }
 

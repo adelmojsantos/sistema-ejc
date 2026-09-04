@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Variants } from 'framer-motion';
 import { motion } from 'framer-motion';
-import { AlertCircle, ArrowRight, CheckCircle2, ClipboardCheck, RefreshCw } from 'lucide-react';
+import { AlertCircle, ArrowRight, Check, CheckCircle2, ClipboardCheck, Copy, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { getDashboardMetrics } from '../config/dashboard';
 import { getNavigationModules } from '../config/navigation';
 import { useAuth } from '../hooks/useAuth';
@@ -10,6 +11,7 @@ import { useSharedLibraryAccess } from '../hooks/useSharedLibraryAccess';
 import { useEncontros } from '../contexts/EncontroContext';
 import { dashboardService } from '../services/dashboardService';
 import type { DashboardSummary } from '../types/dashboard';
+import { buildOnlineRegistrationUrl } from '../utils/publicFormUrl';
 
 const containerVariants: Variants = {
   hidden: { opacity: 0 },
@@ -42,6 +44,18 @@ export function Home() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [registrationLinkCopied, setRegistrationLinkCopied] = useState(false);
+
+  const copyOnlineRegistrationLink = async () => {
+    try {
+      await navigator.clipboard.writeText(buildOnlineRegistrationUrl());
+      setRegistrationLinkCopied(true);
+      toast.success('Link da inscrição online copiado!');
+      window.setTimeout(() => setRegistrationLinkCopied(false), 2000);
+    } catch {
+      toast.error('Não foi possível copiar o link da inscrição online.');
+    }
+  };
 
   const loadSummary = useCallback(async () => {
     if (!encontroSelecionado?.id || !encontroSelecionado.ativo) {
@@ -101,6 +115,14 @@ export function Home() {
               <p>Prioridades e números essenciais para sua função.</p>
             </div>
             <div className="dashboard-work__actions">
+              <button
+                type="button"
+                className={`dashboard-work__registration-link ${registrationLinkCopied ? 'is-copied' : ''}`}
+                onClick={copyOnlineRegistrationLink}
+              >
+                {registrationLinkCopied ? <Check size={17} aria-hidden="true" /> : <Copy size={17} aria-hidden="true" />}
+                <span>{registrationLinkCopied ? 'Link copiado' : 'Copiar link para inscrição online'}</span>
+              </button>
               {hasPermission('modulo_admin') && (
                 <button
                   type="button"

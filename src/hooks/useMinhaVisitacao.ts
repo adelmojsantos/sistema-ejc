@@ -3,9 +3,10 @@ import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { visitacaoService } from '../services/visitacaoService';
 import type { VisitaParticipacaoEnriched, VisitaGrupo } from '../types/visitacao';
+import type { InscricaoEnriched } from '../types/inscricao';
 
 interface UseMinhaVisitacaoProps {
-  userParticipacao: any;
+  userParticipacao: InscricaoEnriched | null;
   isCoordinator: boolean;
 }
 
@@ -57,7 +58,7 @@ export function useMinhaVisitacao({ userParticipacao, isCoordinator }: UseMinhaV
         if (myVinculo) {
           const grupoData = Array.isArray(myVinculo.visita_grupos) ? myVinculo.visita_grupos[0] : myVinculo.visita_grupos;
           targetGrupoId = myVinculo.grupo_id;
-          targetGrupoNome = (grupoData as any)?.nome || 'Minha Dupla';
+          targetGrupoNome = grupoData?.nome || 'Minha Dupla';
           
           if (isCoordinator && !selectedGrupoId) {
             setSelectedGrupoId(targetGrupoId);
@@ -90,8 +91,9 @@ export function useMinhaVisitacao({ userParticipacao, isCoordinator }: UseMinhaV
       } else {
         setParticipantes([]);
       }
-    } catch (err: any) {
-      toast.error('Erro ao carregar escala de visita: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro desconhecido.';
+      toast.error('Erro ao carregar escala de visita: ' + message);
     } finally {
       setLoading(false);
     }
@@ -115,7 +117,7 @@ export function useMinhaVisitacao({ userParticipacao, isCoordinator }: UseMinhaV
       await visitacaoService.atualizarVisita(pId, { taxa_paga: !currentStatus });
       setParticipantes(prev => prev.map(p => p.id === pId ? { ...p, taxa_paga: !currentStatus } : p));
       toast.success(currentStatus ? 'Pagamento removido' : 'Pagamento registrado!');
-    } catch (err: any) {
+    } catch {
       toast.error('Erro ao atualizar pagamento.');
     }
   };

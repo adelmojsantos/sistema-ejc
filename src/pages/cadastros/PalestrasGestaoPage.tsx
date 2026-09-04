@@ -12,7 +12,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { palestraService } from '../../services/palestraService';
 import { encontroService } from '../../services/encontroService';
 import { supabase } from '../../lib/supabase';
-import type { Palestra } from '../../types/palestra';
+import type { Palestra, PalestraFormData } from '../../types/palestra';
 import type { Encontro } from '../../types/encontro';
 
 export function PalestrasGestaoPage() {
@@ -105,7 +105,7 @@ export function PalestrasGestaoPage() {
 
         setPalestraLoading(true);
         try {
-            const payload = {
+            const payload: PalestraFormData = {
                 encontro_id: id,
                 titulo: pTitulo,
                 palestrante_nome: pNome,
@@ -119,7 +119,7 @@ export function PalestrasGestaoPage() {
                 await palestraService.atualizar(editingPalestra.id, payload);
                 toast.success('Palestra atualizada!');
             } else {
-                await palestraService.criar(payload as any);
+                await palestraService.criar(payload);
                 toast.success('Palestra adicionada!');
             }
             

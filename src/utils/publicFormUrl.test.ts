@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPublicFormUrl } from './publicFormUrl';
+import { buildOnlineRegistrationUrl, buildPublicFormUrl } from './publicFormUrl';
 
 describe('buildPublicFormUrl', () => {
   it('gera o mesmo endereço público para todos os pontos de compartilhamento', () => {
@@ -10,5 +10,12 @@ describe('buildPublicFormUrl', () => {
   it('codifica identificadores antes de adicioná-los à URL', () => {
     expect(buildPublicFormUrl('encontro com espaço', 'http://localhost:5173'))
       .toBe('http://localhost:5173/formulario?encontro=encontro+com+espa%C3%A7o');
+  });
+});
+
+describe('buildOnlineRegistrationUrl', () => {
+  it('gera o endereço público da inscrição online no domínio atual', () => {
+    expect(buildOnlineRegistrationUrl('https://www.ejccapelinha.com.br'))
+      .toBe('https://www.ejccapelinha.com.br/inscricao-online');
   });
 });

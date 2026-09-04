@@ -26,6 +26,10 @@ import {
   type BibliotecaArquivo,
   type BibliotecaPasta
 } from '../../../services/bibliotecaService';
+import googleDriveLogo from '../../../assets/google-drive.svg';
+import googleDocsLogo from '../../../assets/google-docs.svg';
+import googleSheetsLogo from '../../../assets/google-sheets.svg';
+import pdfLogo from '../../../assets/pdf.svg';
 
 interface LibraryItemProps<T extends BibliotecaPasta | BibliotecaArquivo> {
   item: T;
@@ -62,6 +66,39 @@ const getFileIcon = (mimeType: string) => {
   return <FileIcon size={24} color="#64748b" />;
 };
 
+const getGoogleDriveFileIcon = (mimeType: string, fileName: string, size: number) => {
+  const normalizedMimeType = mimeType.toLowerCase();
+  const normalizedFileName = fileName.toLowerCase();
+  const iconStyle = { width: size, height: size, flexShrink: 0 };
+
+  if (normalizedMimeType.includes('image') || /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/.test(normalizedFileName)) {
+    return <ImageIcon size={size} color="#8b5cf6" style={{ flexShrink: 0 }} />;
+  }
+
+  if (normalizedMimeType.includes('pdf') || normalizedFileName.endsWith('.pdf')) {
+    return <img src={pdfLogo} alt="" style={iconStyle} />;
+  }
+
+  if (
+    normalizedMimeType.includes('spreadsheet')
+    || normalizedMimeType.includes('excel')
+    || normalizedMimeType.includes('csv')
+    || /\.(csv|ods|xls|xlsx)$/.test(normalizedFileName)
+  ) {
+    return <img src={googleSheetsLogo} alt="" style={iconStyle} />;
+  }
+
+  if (
+    normalizedMimeType.includes('document')
+    || normalizedMimeType.includes('word')
+    || /\.(doc|docx|odt|rtf)$/.test(normalizedFileName)
+  ) {
+    return <img src={googleDocsLogo} alt="" style={iconStyle} />;
+  }
+
+  return <img src={googleDriveLogo} alt="" style={iconStyle} />;
+};
+
 export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
   item,
   type,
@@ -84,6 +121,7 @@ export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
   const pasta = item as BibliotecaPasta;
   const arquivo = item as BibliotecaArquivo;
   const isGoogleDrive = !isPasta && arquivo.origem === 'google_drive';
+  const isGoogleFolder = isPasta && pasta.google_managed;
   const canMoveToGoogle = !isPasta
     && !isGoogleDrive
     && isGoogleEditableFileName(arquivo.nome_exibicao);
@@ -223,7 +261,11 @@ export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
         `}</style>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            {isPasta ? (
+            {isGoogleFolder ? (
+              <img src={googleDriveLogo} alt="" width={32} height={32} style={{ flexShrink: 0 }} />
+            ) : isGoogleDrive ? (
+              getGoogleDriveFileIcon(arquivo.tipo_mime, arquivo.nome_exibicao, 32)
+            ) : isPasta ? (
               <Folder size={32} color="var(--primary-color)" style={{ flexShrink: 0 }} />
             ) : (
               <div style={{ padding: '0.4rem', backgroundColor: 'var(--surface-1)', borderRadius: '8px' }}>
@@ -268,12 +310,12 @@ export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
           </div>
         </div>
 
-        {!isPasta && (
+        {(!isPasta || isGoogleFolder) && (
           <div
-            style={{ fontSize: '0.8rem', color: googleStatus?.color ?? 'var(--muted-text)' }}
-            title={arquivo.google_sync_error ?? undefined}
+            style={{ fontSize: '0.8rem', color: isGoogleFolder ? '#10b981' : googleStatus?.color ?? 'var(--muted-text)' }}
+            title={isPasta ? undefined : arquivo.google_sync_error ?? undefined}
           >
-            {googleStatus?.label ?? formatFileSize(arquivo.tamanho_bytes)}
+            {isGoogleFolder ? 'Pasta do Google Drive' : googleStatus?.label ?? formatFileSize(arquivo.tamanho_bytes)}
           </div>
         )}
 
@@ -293,12 +335,17 @@ export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onNavigate(pasta.id); }}>
                   <FolderOpen size={14} /> Abrir
                 </button>
-                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); renameFolder(pasta); }}>
+                {isGoogleFolder && pasta.url_externa && (
+                  <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); window.open(pasta.url_externa!, '_blank', 'noopener,noreferrer'); }}>
+                    <ExternalLink size={14} /> Abrir no Drive
+                  </button>
+                )}
+                {!isGoogleFolder && <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); renameFolder(pasta); }}>
                   <Edit2 size={14} /> Renomear
-                </button>
-                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: pasta.id, name: pasta.nome, type: 'pasta' }); }}>
+                </button>}
+                {!isGoogleFolder && <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: pasta.id, name: pasta.nome, type: 'pasta' }); }}>
                   <CornerUpRight size={14} /> Mover para...
-                </button>
+                </button>}
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onShare({ id: pasta.id, name: pasta.nome, type: 'pasta' }); }}>
                   <Share2 size={14} /> Compartilhar
                 </button>
@@ -322,9 +369,9 @@ export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
                     <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); renameFile(arquivo); }}>
                       <Edit2 size={14} /> {isGoogleDrive && !arquivo.google_managed ? 'Editar referência' : 'Renomear'}
                     </button>
-                    <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
+                    {!arquivo.google_managed && <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
                       <CornerUpRight size={14} /> Mover para...
-                    </button>
+                    </button>}
                     <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onShare({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
                       <Share2 size={14} /> Compartilhar
                     </button>
@@ -368,7 +415,11 @@ export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
       </td>
       <td style={{ padding: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }} onDoubleClick={handleDoubleClick}>
-          {isPasta ? (
+          {isGoogleFolder ? (
+            <img src={googleDriveLogo} alt="" width={24} height={24} style={{ flexShrink: 0 }} />
+          ) : isGoogleDrive ? (
+            getGoogleDriveFileIcon(arquivo.tipo_mime, arquivo.nome_exibicao, 24)
+          ) : isPasta ? (
             <Folder size={20} color="var(--primary-color)" />
           ) : (
             getFileIcon(arquivo.tipo_mime)
@@ -377,7 +428,7 @@ export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
         </div>
       </td>
       <td style={{ padding: '1rem', color: 'var(--muted-text)' }}>
-        {isPasta ? '--' : googleStatus?.label ?? formatFileSize(arquivo.tamanho_bytes)}
+        {isPasta ? (isGoogleFolder ? 'Google Drive' : '--') : googleStatus?.label ?? formatFileSize(arquivo.tamanho_bytes)}
       </td>
       <td style={{ padding: '1rem', color: 'var(--muted-text)' }}>
         {new Date(item.created_at).toLocaleDateString()}
@@ -432,12 +483,17 @@ export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onNavigate(pasta.id); }}>
                   <FolderOpen size={14} /> Abrir
                 </button>
-                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); renameFolder(pasta); }}>
+                {isGoogleFolder && pasta.url_externa && (
+                  <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); window.open(pasta.url_externa!, '_blank', 'noopener,noreferrer'); }}>
+                    <ExternalLink size={14} /> Abrir no Drive
+                  </button>
+                )}
+                {!isGoogleFolder && <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); renameFolder(pasta); }}>
                   <Edit2 size={14} /> Renomear
-                </button>
-                <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: pasta.id, name: pasta.nome, type: 'pasta' }); }}>
+                </button>}
+                {!isGoogleFolder && <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: pasta.id, name: pasta.nome, type: 'pasta' }); }}>
                   <CornerUpRight size={14} /> Mover para...
-                </button>
+                </button>}
                 <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onShare({ id: pasta.id, name: pasta.nome, type: 'pasta' }); }}>
                   <Share2 size={14} /> Compartilhar
                 </button>
@@ -461,9 +517,9 @@ export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
                     <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); renameFile(arquivo); }}>
                       <Edit2 size={14} /> {isGoogleDrive && !arquivo.google_managed ? 'Editar referência' : 'Renomear'}
                     </button>
-                    <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
+                    {!arquivo.google_managed && <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onMove({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
                       <CornerUpRight size={14} /> Mover para...
-                    </button>
+                    </button>}
                     <button className="dropdown-item" onClick={(e) => { e.stopPropagation(); onToggleDropdown(null); onShare({ id: arquivo.id, name: arquivo.nome_exibicao, type: 'arquivo' }); }}>
                       <Share2 size={14} /> Compartilhar
                     </button>

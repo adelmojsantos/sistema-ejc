@@ -1,7 +1,7 @@
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(9);
+SELECT extensions.plan(11);
 
 INSERT INTO auth.users (
   id, email, aud, role, encrypted_password, email_confirmed_at,
@@ -74,12 +74,21 @@ SELECT extensions.throws_ok(
   $$SELECT public.marcar_email_institucional_como_lido('3e000000-0000-0000-0000-000000000001')$$,
   '42501', 'Acesso não autorizado.', 'usuário sem acesso não marca leitura'
 );
+SELECT extensions.throws_ok(
+  $$SELECT public.contar_email_institucional_novas()$$,
+  '42501', 'Acesso não autorizado.', 'usuário sem acesso não consulta o contador'
+);
 
 RESET ROLE;
 SELECT set_config('request.jwt.claim.sub', '1e000000-0000-0000-0000-000000000002', true);
 SET LOCAL ROLE authenticated;
 SELECT extensions.ok(public.pode_visualizar_email_institucional(), 'leitor autorizado visualiza a caixa');
 SELECT extensions.ok(NOT public.pode_responder_email_institucional(), 'leitor não recebe permissão de resposta implicitamente');
+SELECT extensions.is(
+  public.contar_email_institucional_novas(),
+  1::bigint,
+  'leitor autorizado recebe a quantidade de conversas novas'
+);
 SELECT extensions.lives_ok(
   $$SELECT public.marcar_email_institucional_como_lido('3e000000-0000-0000-0000-000000000001')$$,
   'leitor autorizado marca a conversa como lida'

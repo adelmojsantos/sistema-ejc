@@ -192,7 +192,7 @@ export function ConfirmationReportPage() {
       const maxWidths = Object.keys(data[0] || {}).map(key => {
         return Math.max(
           key.length,
-          ...data.map((row: any) => String(row[key]).length)
+          ...data.map(row => String(row[key as keyof typeof row]).length)
         );
       });
       worksheet['!cols'] = maxWidths.map(w => ({ wch: w + 2 }));
