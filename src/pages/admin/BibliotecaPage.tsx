@@ -40,6 +40,7 @@ export function BibliotecaPage() {
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
   const isSystemAdmin = hasPermission('modulo_admin');
+  const canImportFromGoogleDrive = isSystemAdmin || hasPermission('biblioteca_google_importar');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const googleUploadInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
@@ -759,7 +760,7 @@ export function BibliotecaPage() {
                 Conectar conta Google
               </button>
             )}
-            {isSystemAdmin && (
+            {canImportFromGoogleDrive && (
               <button
                 type="button"
                 className="btn-secondary-sm"
@@ -1046,31 +1047,35 @@ export function BibliotecaPage() {
               Operações excepcionais de manutenção e migração do acervo.
             </p>
           </div>
-          <button
-            type="button"
-            className="btn-secondary"
-            style={{ justifyContent: 'flex-start', padding: '0.9rem 1rem' }}
-            onClick={() => navigate('/biblioteca/importar-drive')}
-          >
-            <CloudUpload size={18} />
-            Importar de outro Drive
-          </button>
-          <small className="text-muted">
-            Conecta temporariamente outra conta sem substituir a conta institucional.
-          </small>
-          <button
-            type="button"
-            className="btn-secondary"
-            style={{ justifyContent: 'flex-start', padding: '0.9rem 1rem' }}
-            onClick={handleConnectGoogle}
-            disabled={isGoogleActionLoading}
-          >
-            {isGoogleActionLoading ? <Loader size={18} className="animate-spin" /> : <RefreshCw size={18} />}
-            Reautorizar conta oficial
-          </button>
-          <small className="text-muted">
-            Necessário uma vez para permitir a busca seletiva de arquivos adicionados diretamente no Drive.
-          </small>
+          {canImportFromGoogleDrive && <>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ justifyContent: 'flex-start', padding: '0.9rem 1rem' }}
+              onClick={() => navigate('/biblioteca/importar-drive')}
+            >
+              <CloudUpload size={18} />
+              Importar de outro Drive
+            </button>
+            <small className="text-muted">
+              Conecta temporariamente outra conta sem substituir a conta institucional.
+            </small>
+          </>}
+          {isSystemAdmin && <>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ justifyContent: 'flex-start', padding: '0.9rem 1rem' }}
+              onClick={handleConnectGoogle}
+              disabled={isGoogleActionLoading}
+            >
+              {isGoogleActionLoading ? <Loader size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+              Reautorizar conta oficial
+            </button>
+            <small className="text-muted">
+              Necessário uma vez para permitir a busca seletiva de arquivos adicionados diretamente no Drive.
+            </small>
+          </>}
         </div>
       </Modal>
 

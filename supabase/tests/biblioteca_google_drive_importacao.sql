@@ -1,7 +1,7 @@
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT extensions.plan(22);
+SELECT extensions.plan(26);
 
 SELECT extensions.has_table(
   'public',
@@ -14,6 +14,36 @@ SELECT extensions.has_column(
   'biblioteca_google_oauth_state',
   'purpose',
   'o estado OAuth diferencia conexão central e importação'
+);
+
+SELECT extensions.ok(
+  EXISTS (SELECT 1 FROM public.permissoes WHERE chave = 'biblioteca_google_importar'),
+  'a importação de outro Drive possui permissão específica'
+);
+
+SELECT extensions.has_function(
+  'public',
+  'pode_importar_biblioteca_google',
+  ARRAY['uuid'],
+  'a autorização específica da importação existe'
+);
+
+SELECT extensions.ok(
+  has_function_privilege(
+    'authenticated',
+    'public.pode_importar_biblioteca_google(uuid)',
+    'EXECUTE'
+  ),
+  'usuários autenticados podem consultar a própria autorização de importação'
+);
+
+SELECT extensions.ok(
+  NOT has_function_privilege(
+    'anon',
+    'public.pode_importar_biblioteca_google(uuid)',
+    'EXECUTE'
+  ),
+  'usuários anônimos não consultam a autorização de importação'
 );
 
 SELECT extensions.has_column(

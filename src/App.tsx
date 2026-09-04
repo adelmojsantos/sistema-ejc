@@ -387,7 +387,7 @@ function AnimatedRoutes() {
           } />
 
           <Route path="/biblioteca/importar-drive" element={
-            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+            <ProtectedRoute requiredPermissions={['biblioteca_google_importar', 'modulo_admin']}>
               <PageTransition><GoogleDriveImportPage /></PageTransition>
             </ProtectedRoute>
           } />
