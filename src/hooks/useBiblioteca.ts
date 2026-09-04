@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import { bibliotecaService, type BibliotecaArquivo, type BibliotecaPasta } from '../services/bibliotecaService';
+import { supabase } from '../lib/supabase';
 
 export type ViewMode = 'grid' | 'list';
 export type FilterType = 'all' | 'folders' | 'files';
@@ -42,8 +43,8 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Carregamento de Dados
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       if (mode === 'admin') {
         const [pastasData, arquivosData] = await Promise.all([
@@ -80,7 +81,7 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
     } catch (error: unknown) {
       toast.error('Erro ao carregar biblioteca: ' + (error instanceof Error ? error.message : 'falha desconhecida.'));
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [currentFolderId, mode, profile, userParticipacao]);
 
@@ -114,6 +115,26 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
     loadData();
     setSelectedItems(new Set());
   }, [loadData]);
+
+  useEffect(() => {
+    if (mode !== 'admin') return;
+    const channel = supabase
+      .channel(`biblioteca-arquivos-${currentFolderId ?? 'raiz'}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'biblioteca_arquivos' },
+        (payload) => {
+          const updatedFile = payload.new as BibliotecaArquivo;
+          setArquivos((currentFiles) => currentFiles.some((file) => file.id === updatedFile.id)
+            ? currentFiles.map((file) => file.id === updatedFile.id ? updatedFile : file)
+            : currentFiles);
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [currentFolderId, mode]);
 
   // Filtros e Ordenação (Memoizados)
   const filteredData = useMemo(() => {
@@ -246,7 +267,7 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
       handleFileUpload,
       handleBatchDelete,
       toggleSelection,
-      refresh: loadData
+      refresh: () => loadData(false)
     }
   };
 }

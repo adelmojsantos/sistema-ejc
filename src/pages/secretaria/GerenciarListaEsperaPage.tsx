@@ -210,7 +210,10 @@ export function GerenciarListaEsperaPage() {
             delete formData.criado_em;
             delete formData.status;
 
-            await listaEsperaService.efetivarListaEspera(entry.id, formData as any);
+            await listaEsperaService.efetivarListaEspera(
+                entry.id,
+                formData as unknown as Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>
+            );
             toast.success(`Inscrição de ${entry.nome_completo} efetivada com sucesso!`);
 
             setShowDuplicateModal(false);
@@ -240,7 +243,11 @@ export function GerenciarListaEsperaPage() {
             delete formData.criado_em;
             delete formData.status;
 
-            await listaEsperaService.vincularPessoaExistente(duplicateEntry.id, pessoa.id, formData as any);
+            await listaEsperaService.vincularPessoaExistente(
+                duplicateEntry.id,
+                pessoa.id,
+                formData as unknown as Omit<ListaEsperaEntry, 'id' | 'created_at' | 'status'>
+            );
             toast.success(`${duplicateEntry.nome_completo} vinculado e efetivado com sucesso!`);
 
             setShowDuplicateModal(false);

@@ -3,6 +3,20 @@ import type { RecepcaoContato, RecepcaoContatosDupla, RecepcaoDados, RecepcaoDad
 
 const TABLE = 'recepcao_dados';
 
+interface VisitanteContatoRow {
+  id: string;
+  participacoes?: {
+    pessoas?: { nome_completo?: string | null; telefone?: string | null } | { nome_completo?: string | null; telefone?: string | null }[] | null;
+  } | Array<{
+    pessoas?: { nome_completo?: string | null; telefone?: string | null } | { nome_completo?: string | null; telefone?: string | null }[] | null;
+  }> | null;
+}
+
+interface CoordenadorContatoRow {
+  id: string;
+  pessoas?: { nome_completo?: string | null; telefone?: string | null } | { nome_completo?: string | null; telefone?: string | null }[] | null;
+}
+
 export const recepcaoService = {
   async obterPorParticipacao(participacaoId: string): Promise<RecepcaoDados | null> {
     const { data, error } = await supabase
@@ -111,7 +125,7 @@ export const recepcaoService = {
 
     if (coordenadoresError) throw coordenadoresError;
 
-    const visitantes = ((visitantesData || []) as any[]).map((v): RecepcaoContato => {
+    const visitantes = ((visitantesData || []) as VisitanteContatoRow[]).map((v): RecepcaoContato => {
       const participacao = Array.isArray(v.participacoes) ? v.participacoes[0] : v.participacoes;
       const pessoa = Array.isArray(participacao?.pessoas) ? participacao.pessoas[0] : participacao?.pessoas;
       return {
@@ -122,7 +136,7 @@ export const recepcaoService = {
       };
     });
 
-    const coordenadores = ((coordenadoresData || []) as any[]).map((c): RecepcaoContato => {
+    const coordenadores = ((coordenadoresData || []) as CoordenadorContatoRow[]).map((c): RecepcaoContato => {
       const pessoa = Array.isArray(c.pessoas) ? c.pessoas[0] : c.pessoas;
       return {
         id: c.id,

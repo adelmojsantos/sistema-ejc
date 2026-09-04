@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   CloudUpload,
+  Settings,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
@@ -18,7 +19,9 @@ import {
   bibliotecaService,
   type BibliotecaArquivo,
   type BibliotecaPasta,
+  type GoogleDriveFolderDifference,
   type GoogleDriveIntegrationStatus,
+  type GoogleDriveMissingItem,
 } from '../../services/bibliotecaService';
 import { MoveItemModal } from './components/MoveItemModal';
 import { SkeletonLibrary } from './components/SkeletonLibrary';
@@ -29,8 +32,14 @@ import { LibraryToolbar } from '../../components/admin/biblioteca/LibraryToolbar
 import { LibraryItem } from '../../components/admin/biblioteca/LibraryItem';
 import { LibraryEmptyState } from '../../components/admin/biblioteca/LibraryEmptyState';
 import type { GoogleDriveFileType } from '../../utils/googleDriveLink';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import googleDriveLogo from '../../assets/google-drive.svg';
 
 export function BibliotecaPage() {
+  const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const isSystemAdmin = hasPermission('modulo_admin');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const googleUploadInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
@@ -74,6 +83,18 @@ export function BibliotecaPage() {
   const [googleStatusError, setGoogleStatusError] = useState<string | null>(null);
   const [isGoogleActionLoading, setIsGoogleActionLoading] = useState(false);
   const [isGoogleUploading, setIsGoogleUploading] = useState(false);
+  const [isFolderRefreshing, setIsFolderRefreshing] = useState(false);
+  const [googleSettingsOpen, setGoogleSettingsOpen] = useState(false);
+  const [googleDifferencesOpen, setGoogleDifferencesOpen] = useState(false);
+  const [googleDifferences, setGoogleDifferences] = useState<GoogleDriveFolderDifference[]>([]);
+  const [googleMissingItems, setGoogleMissingItems] = useState<GoogleDriveMissingItem[]>([]);
+  const [selectedGoogleDifferences, setSelectedGoogleDifferences] = useState<Set<string>>(new Set());
+  const [selectedGoogleMissingItems, setSelectedGoogleMissingItems] = useState<Set<string>>(new Set());
+  const [isScanningGoogleFolder, setIsScanningGoogleFolder] = useState(false);
+  const [isShowingIgnoredGoogleItems, setIsShowingIgnoredGoogleItems] = useState(false);
+  const [googleIgnoreConfirmOpen, setGoogleIgnoreConfirmOpen] = useState(false);
+  const [pendingIgnoredGoogleIds, setPendingIgnoredGoogleIds] = useState<string[]>([]);
+  const [googleMissingRemovalOpen, setGoogleMissingRemovalOpen] = useState(false);
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
@@ -93,8 +114,10 @@ export function BibliotecaPage() {
     id?: string;
     arquivo?: BibliotecaArquivo;
     count?: number;
+    recursive?: boolean;
     message: string;
   } | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [isDeleteSubmitting, setIsDeleteSubmitting] = useState(false);
   const deleteInFlightRef = useRef(false);
   const [googleImportTarget, setGoogleImportTarget] = useState<BibliotecaArquivo | null>(null);
@@ -171,6 +194,50 @@ export function BibliotecaPage() {
       setIsGoogleActionLoading(false);
     }
   };
+  const selectedFileCount = arquivos.filter((arquivo) => selectedItems.has(arquivo.id)).length;
+  const selectedFolderCount = pastas.filter((pasta) => selectedItems.has(pasta.id)).length;
+  const hasSelectedGoogleItem = arquivos.some((arquivo) => selectedItems.has(arquivo.id) && arquivo.origem === 'google_drive')
+    || pastas.some((pasta) => selectedItems.has(pasta.id) && pasta.google_managed);
+  const selectedGoogleUrls = [
+    ...pastas.filter((pasta) => selectedItems.has(pasta.id) && pasta.google_managed).map((pasta) => pasta.url_externa),
+    ...arquivos.filter((arquivo) => selectedItems.has(arquivo.id) && arquivo.origem === 'google_drive').map((arquivo) => arquivo.url_externa),
+  ].filter((url): url is string => Boolean(url));
+  const currentFolder = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1] : null;
+  const isCurrentFolderGoogle = Boolean(currentFolder?.google_managed);
+  const selectedMissingGoogleItems = googleMissingItems.filter((item) => selectedGoogleMissingItems.has(item.libraryId));
+  const selectedMissingGoogleDescendants = selectedMissingGoogleItems.reduce(
+    (total, item) => total + item.descendantFolders + item.descendantFiles,
+    0,
+  );
+
+  const handleRefreshCurrentFolder = async () => {
+    setIsFolderRefreshing(true);
+    try {
+      const pendingIds = arquivos
+        .filter((arquivo) => arquivo.google_managed
+          && (arquivo.google_sync_status === 'pending' || arquivo.google_sync_status === 'error'))
+        .slice(0, 25)
+        .map((arquivo) => arquivo.id);
+
+      if (pendingIds.length > 0) {
+        const result = await bibliotecaService.sincronizarItemGoogle({ arquivoIds: pendingIds });
+        const failures = result.results.reduce((total, item) => total + item.errors.length, 0);
+        if (failures > 0) {
+          toast.error(`${failures} permissão(ões) continuam pendentes.`);
+        }
+      }
+
+      await Promise.all([actions.refresh(), loadGoogleStatus()]);
+      toast.success(pendingIds.length > 0
+        ? `Pasta atualizada; ${pendingIds.length} arquivo(s) processado(s).`
+        : 'Pasta atualizada.');
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a pasta.');
+      await actions.refresh();
+    } finally {
+      setIsFolderRefreshing(false);
+    }
+  };
 
   const handleCreateGoogleFile = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -211,7 +278,11 @@ export function BibliotecaPage() {
         await bibliotecaService.renomearPasta(renamingFolder.id, folderName);
         toast.success('Pasta renomeada.');
       } else {
-        await bibliotecaService.criarPasta(folderName, currentFolderId);
+        if (isCurrentFolderGoogle && currentFolderId) {
+          await bibliotecaService.criarPastaGoogle(folderName, currentFolderId);
+        } else {
+          await bibliotecaService.criarPasta(folderName, currentFolderId);
+        }
         toast.success('Pasta criada.');
       }
       setFolderModalOpen(false);
@@ -258,7 +329,7 @@ export function BibliotecaPage() {
 
   const handleGoogleReferenceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!googleName.trim() || !googleUrl.trim() || isSubmitting) return;
+    if ((editingGoogleFile && !googleName.trim()) || !googleUrl.trim() || isSubmitting) return;
 
     setIsSubmitting(true);
     try {
@@ -272,12 +343,11 @@ export function BibliotecaPage() {
         toast.success('Referência do Google atualizada.');
       } else {
         await bibliotecaService.cadastrarReferenciaGoogle({
-          nome: googleName,
+          nome: googleName || undefined,
           url: googleUrl,
           pastaId: currentFolderId,
-          tipo: googleType,
         });
-        toast.success('Documento do Google adicionado.');
+        toast.success('Arquivo do Google adicionado e sincronizado.');
       }
 
       setGoogleModalOpen(false);
@@ -285,6 +355,98 @@ export function BibliotecaPage() {
       actions.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao salvar a referência do Google.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleScanGoogleFolder = async (showIgnored = false) => {
+    if (!currentFolderId || isScanningGoogleFolder) return;
+    setIsScanningGoogleFolder(true);
+    try {
+      const result = await bibliotecaService.buscarDiferencasPastaGoogle(currentFolderId, showIgnored);
+      setGoogleDifferences(result.items);
+      setGoogleMissingItems(result.missingItems);
+      setSelectedGoogleDifferences(new Set(result.items.filter((item) => !item.ignored).map((item) => item.id)));
+      setSelectedGoogleMissingItems(new Set());
+      setIsShowingIgnoredGoogleItems(showIgnored);
+      setGoogleDifferencesOpen(true);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível sincronizar com Google Drive.');
+    } finally {
+      setIsScanningGoogleFolder(false);
+    }
+  };
+
+  const submitGoogleDifferences = async (ignoredIds: string[]) => {
+    if (!currentFolderId || isSubmitting) return;
+    if (selectedGoogleDifferences.size === 0 && ignoredIds.length === 0) {
+      setGoogleDifferencesOpen(false);
+      setGoogleIgnoreConfirmOpen(false);
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const result = await bibliotecaService.importarItensPastaGoogle(
+        currentFolderId,
+        [...selectedGoogleDifferences],
+        ignoredIds,
+      );
+      setGoogleDifferencesOpen(false);
+      setGoogleIgnoreConfirmOpen(false);
+      setGoogleDifferences([]);
+      setSelectedGoogleDifferences(new Set());
+      setPendingIgnoredGoogleIds([]);
+      await Promise.all([actions.refresh(), loadGoogleStatus()]);
+      if (result.syncFailures > 0) {
+        toast.error(`${result.addedFiles} arquivo(s) adicionado(s), mas ${result.syncFailures} ainda possuem erro de sincronização.`);
+      } else if (result.pending > 0) {
+        toast.success(`${result.addedFolders} pasta(s) e ${result.addedFiles} arquivo(s) adicionados; ${result.pending} continuam na fila.`);
+      } else {
+        toast.success(`${result.addedFolders} pasta(s) e ${result.addedFiles} arquivo(s) adicionados e sincronizados.`);
+      }
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível adicionar os itens selecionados.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleImportGoogleDifferences = () => {
+    const ignoredIds = googleDifferences
+      .filter((item) => !item.ignored && !selectedGoogleDifferences.has(item.id))
+      .map((item) => item.id);
+    if (ignoredIds.length > 0) {
+      setPendingIgnoredGoogleIds(ignoredIds);
+      setGoogleDifferencesOpen(false);
+      setGoogleIgnoreConfirmOpen(true);
+      return;
+    }
+    void submitGoogleDifferences([]);
+  };
+
+  const handleRemoveGoogleMissingItems = async () => {
+    if (selectedGoogleMissingItems.size === 0 || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const selected = googleMissingItems.filter((item) => selectedGoogleMissingItems.has(item.libraryId));
+      const result = await bibliotecaService.removerItensAusentesDaBiblioteca({
+        folderIds: selected.filter((item) => item.itemType === 'folder').map((item) => item.libraryId),
+        fileIds: selected.filter((item) => item.itemType === 'file').map((item) => item.libraryId),
+        confirmation: 'REMOVER',
+      });
+      setGoogleMissingRemovalOpen(false);
+      setGoogleDifferencesOpen(false);
+      setGoogleMissingItems([]);
+      setSelectedGoogleMissingItems(new Set());
+      await Promise.all([actions.refresh(), loadGoogleStatus()]);
+      if (result.errors.length > 0) {
+        toast.error(`${result.errors.length} item(ns) não puderam ser removidos da Biblioteca.`);
+      } else {
+        toast.success(`${result.deletedFolders} pasta(s) e ${result.deletedFiles} arquivo(s) removidos somente da Biblioteca.`);
+      }
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível remover os itens da Biblioteca.');
     } finally {
       setIsSubmitting(false);
     }
@@ -325,10 +487,33 @@ export function BibliotecaPage() {
 
     try {
       if (deleteTarget.type === 'batch') {
-        await actions.handleBatchDelete();
+        if (deleteTarget.recursive) {
+          const result = await bibliotecaService.excluirItensRecursivamente({
+            folderIds: pastas.filter((pasta) => selectedItems.has(pasta.id)).map((pasta) => pasta.id),
+            fileIds: arquivos.filter((arquivo) => selectedItems.has(arquivo.id)).map((arquivo) => arquivo.id),
+            confirmation: 'EXCLUIR',
+          });
+          const removed = result.deletedFiles + result.deletedFolders;
+          if (removed > 0) toast.success(`${removed} item(s) removido(s).`);
+          if (result.errors.length > 0) {
+            toast.error(`${result.errors.length} item(s) não puderam ser excluídos.`);
+          }
+          actions.setSelectedItems(new Set());
+        } else {
+          await actions.handleBatchDelete();
+        }
       } else if (deleteTarget.type === 'pasta' && deleteTarget.id) {
-        await bibliotecaService.excluirPasta(deleteTarget.id);
-        toast.success('Pasta excluída.');
+        const result = await bibliotecaService.excluirItensRecursivamente({
+          folderIds: [deleteTarget.id],
+          fileIds: [],
+          confirmation: 'EXCLUIR',
+        });
+        const removed = result.deletedFiles + result.deletedFolders;
+        if (result.errors.length > 0) {
+          toast.error(`${result.errors.length} item(s) não puderam ser excluídos.`);
+        } else {
+          toast.success(`${removed} item(s) removido(s).`);
+        }
       } else if (deleteTarget.type === 'arquivo' && deleteTarget.arquivo) {
         if (deleteTarget.arquivo.google_managed) {
           await bibliotecaService.moverArquivoGoogleParaLixeira(deleteTarget.arquivo.id);
@@ -345,6 +530,7 @@ export function BibliotecaPage() {
       deleteInFlightRef.current = false;
       setIsDeleteSubmitting(false);
       setDeleteTarget(null);
+      setDeleteConfirmation('');
     }
   };
 
@@ -416,6 +602,10 @@ export function BibliotecaPage() {
     dragCounter.current = 0;
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      if (isCurrentFolderGoogle) {
+        toast.error('Pastas do Google Drive não aceitam arquivos do armazenamento do Sistema EJC. Use Enviar ao Google.');
+        return;
+      }
       actions.handleFileUpload(e.dataTransfer.files);
     }
   };
@@ -484,12 +674,13 @@ export function BibliotecaPage() {
         </div>
       )}
 
-      <main className="container page-fade-in" style={{ maxWidth: '100%', padding: '1.5rem' }}>
+      <main className="container page-fade-in library-page" style={{ maxWidth: '100%', padding: '1.5rem' }}>
         <h1 className="page-title" style={{ margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <FolderOpen size={32} /> Biblioteca de Arquivos
         </h1>
 
         <section
+          className="library-google-integration"
           aria-label="Integração com Google Drive"
           style={{
             marginBottom: '1.5rem', padding: '1rem 1.25rem', borderRadius: '12px',
@@ -504,7 +695,7 @@ export function BibliotecaPage() {
               color: googleStatus?.connected ? '#10b981' : 'var(--muted-text)',
               backgroundColor: googleStatus?.connected ? 'rgba(16,185,129,0.12)' : 'var(--surface-2)'
             }}>
-              <Cloud size={22} />
+              <img src={googleDriveLogo} alt="" width={26} height={26} />
             </div>
             <div style={{ minWidth: 0 }}>
               <strong style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
@@ -519,7 +710,7 @@ export function BibliotecaPage() {
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <div className="library-google-actions" style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
             {googleStatus?.connected ? (
               <>
                 <button
@@ -568,11 +759,23 @@ export function BibliotecaPage() {
                 Conectar conta Google
               </button>
             )}
+            {isSystemAdmin && (
+              <button
+                type="button"
+                className="btn-secondary btn-icon"
+                onClick={() => setGoogleSettingsOpen(true)}
+                aria-label="Abrir configurações avançadas do Google Drive"
+                title="Configurações avançadas"
+              >
+                <Settings size={17} />
+                <span className="library-google-settings-label">Configurações</span>
+              </button>
+            )}
           </div>
         </section>
 
         {/* Header Actions & Breadcrumbs */}
-        <div className="page-header" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '1rem', backgroundColor: 'var(--surface-1)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+        <div className="page-header library-folder-header" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '1rem', backgroundColor: 'var(--surface-1)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
           <LibraryBreadcrumbs
             breadcrumbs={breadcrumbs}
             currentFolderId={currentFolderId}
@@ -580,18 +783,24 @@ export function BibliotecaPage() {
             stats={folderStats}
           />
 
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <div className="library-folder-header__actions" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
             <button className="btn-secondary" onClick={() => { setRenamingFolder(null); setFolderName(''); setFolderModalOpen(true); }}>
               Nova Pasta
             </button>
-            <button className="btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploadProgress.active}>
+            {!isCurrentFolderGoogle && <button className="btn-primary" onClick={() => fileInputRef.current?.click()} disabled={uploadProgress.active}>
               {uploadProgress.active ? (
                 <><Loader size={16} className="animate-spin" /> {uploadProgress.percent.toFixed(0)}%</>
               ) : 'Enviar Arquivo'}
-            </button>
+            </button>}
             <button className="btn-secondary" onClick={() => openGoogleModal()} disabled={uploadProgress.active}>
               <ExternalLink size={16} /> Vincular link existente
             </button>
+            {isCurrentFolderGoogle && (
+              <button className="btn-secondary" onClick={() => void handleScanGoogleFolder()} disabled={isScanningGoogleFolder}>
+                {isScanningGoogleFolder ? <Loader size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                {isScanningGoogleFolder ? 'Buscando...' : 'Atualizar do Drive'}
+              </button>
+            )}
             <input type="file" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={e => actions.handleFileUpload(e.target.files)} />
           </div>
         </div>
@@ -599,6 +808,10 @@ export function BibliotecaPage() {
         {/* Toolbar */}
         <LibraryToolbar
           selectedCount={selectedItems.size}
+          selectedFileCount={selectedFileCount}
+          selectedFolderCount={selectedFolderCount}
+          canBatchDownload={!hasSelectedGoogleItem}
+          selectedGoogleCount={selectedGoogleUrls.length}
           totalItems={pastas.length + arquivos.length}
           searchQuery={searchQuery}
           filterType={filterType}
@@ -617,11 +830,26 @@ export function BibliotecaPage() {
             const filesToDownload = arquivos.filter(a => selectedItems.has(a.id));
             filesToDownload.forEach(f => handleDownload(f));
           }}
-          onBatchDelete={() => setDeleteTarget({ type: 'batch', count: selectedItems.size, message: `Excluir ${selectedItems.size} item(s) selecionado(s)?` })}
+          onBatchDelete={() => {
+            setDeleteConfirmation('');
+            setDeleteTarget({
+              type: 'batch',
+              count: selectedItems.size,
+              recursive: selectedFolderCount > 0,
+              message: selectedFolderCount > 0
+                ? `Excluir recursivamente ${selectedItems.size} item(s) selecionado(s)? Todos os arquivos e subpastas contidos nas pastas selecionadas também serão removidos.`
+                : `Excluir ${selectedItems.size} arquivo(s) selecionado(s)?`,
+            });
+          }}
+          onOpenGoogle={() => {
+            selectedGoogleUrls.forEach((url) => window.open(url, '_blank', 'noopener,noreferrer'));
+          }}
+          onRefresh={() => void handleRefreshCurrentFolder()}
+          isRefreshing={isFolderRefreshing}
         />
 
         {/* Main Content Area */}
-        <div style={{ 
+        <div className="library-items-panel" style={{
           minHeight: pastas.length === 0 && arquivos.length === 0 ? 'auto' : '50vh', 
           marginTop: '1.5rem', 
           backgroundColor: 'var(--surface-1)', 
@@ -650,7 +878,10 @@ export function BibliotecaPage() {
                       onRename={(item) => { setRenamingFolder(item); setFolderName(item.nome); setFolderModalOpen(true); }}
                       onMove={(item) => { setItemToMove(item); setMoveModalOpen(true); }}
                       onShare={(item) => { setItemToShare(item); setShareModalOpen(true); }}
-                      onDelete={(id) => setDeleteTarget({ type: 'pasta', id, message: 'Excluir esta pasta?' })}
+                      onDelete={(id) => {
+                        setDeleteConfirmation('');
+                        setDeleteTarget({ type: 'pasta', id, recursive: true, message: 'Excluir esta pasta e todo o seu conteúdo?' });
+                      }}
                     />
                   ))}
                   {arquivos.map(a => (
@@ -690,7 +921,10 @@ export function BibliotecaPage() {
                         onRename={(item) => { setRenamingFolder(item); setFolderName(item.nome); setFolderModalOpen(true); }}
                         onMove={(item) => { setItemToMove(item); setMoveModalOpen(true); }}
                         onShare={(item) => { setItemToShare(item); setShareModalOpen(true); }}
-                        onDelete={(id) => setDeleteTarget({ type: 'pasta', id, message: 'Excluir esta pasta?' })}
+                        onDelete={(id) => {
+                          setDeleteConfirmation('');
+                          setDeleteTarget({ type: 'pasta', id, recursive: true, message: 'Excluir esta pasta e todo o seu conteúdo?' });
+                        }}
                       />
                     ))}
                     {arquivos.map(a => (
@@ -801,13 +1035,55 @@ export function BibliotecaPage() {
       </Modal>
 
       <Modal
+        isOpen={googleSettingsOpen}
+        onClose={() => setGoogleSettingsOpen(false)}
+        title="Configurações do Google Drive"
+      >
+        <div style={{ display: 'grid', gap: '1rem' }}>
+          <div>
+            <strong>Ferramentas avançadas</strong>
+            <p className="text-muted" style={{ margin: '0.35rem 0 0', lineHeight: 1.5 }}>
+              Operações excepcionais de manutenção e migração do acervo.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ justifyContent: 'flex-start', padding: '0.9rem 1rem' }}
+            onClick={() => navigate('/biblioteca/importar-drive')}
+          >
+            <CloudUpload size={18} />
+            Importar de outro Drive
+          </button>
+          <small className="text-muted">
+            Conecta temporariamente outra conta sem substituir a conta institucional.
+          </small>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ justifyContent: 'flex-start', padding: '0.9rem 1rem' }}
+            onClick={handleConnectGoogle}
+            disabled={isGoogleActionLoading}
+          >
+            {isGoogleActionLoading ? <Loader size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+            Reautorizar conta oficial
+          </button>
+          <small className="text-muted">
+            Necessário uma vez para permitir a busca seletiva de arquivos adicionados diretamente no Drive.
+          </small>
+        </div>
+      </Modal>
+
+      <Modal
         isOpen={googleModalOpen}
         onClose={() => setGoogleModalOpen(false)}
         title={editingGoogleFile ? 'Editar referência do Google' : 'Adicionar do Google Drive'}
       >
         <form onSubmit={handleGoogleReferenceSubmit}>
           <div className="form-group">
-            <label className="form-label" htmlFor="google-reference-name">Nome exibido</label>
+            <label className="form-label" htmlFor="google-reference-name">
+              Nome exibido {editingGoogleFile ? '' : '(opcional)'}
+            </label>
             <input
               id="google-reference-name"
               type="text"
@@ -815,8 +1091,9 @@ export function BibliotecaPage() {
               value={googleName}
               onChange={e => setGoogleName(e.target.value)}
               autoFocus
-              required
+              required={Boolean(editingGoogleFile)}
             />
+            {!editingGoogleFile && <small className="text-muted">Se ficar vazio, será usado o nome informado pelo Google Drive.</small>}
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="google-reference-url">Link do Google</label>
@@ -831,7 +1108,7 @@ export function BibliotecaPage() {
             />
             <small className="text-muted">Aceita links oficiais do Google Docs, Sheets e Drive.</small>
           </div>
-          <div className="form-group">
+          {editingGoogleFile && <div className="form-group">
             <label className="form-label" htmlFor="google-reference-type">Tipo do conteúdo</label>
             <select
               id="google-reference-type"
@@ -844,17 +1121,228 @@ export function BibliotecaPage() {
               <option value="file">Arquivo do Drive</option>
             </select>
             <small className="text-muted">Links do Docs e Sheets são identificados automaticamente.</small>
-          </div>
+          </div>}
           <div style={{ padding: '0.9rem', borderRadius: '8px', backgroundColor: 'rgba(37, 99, 235, 0.08)', fontSize: '0.85rem', lineHeight: 1.5 }}>
-            Links vinculados manualmente ainda exigem compartilhamento manual no Drive. A seleção segura de arquivos existentes será adicionada pelo Google Picker.
+            O sistema consultará o arquivo no Drive, identificará seu tipo e sincronizará as permissões configuradas na Biblioteca.
           </div>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
             <button type="button" className="btn-secondary" onClick={() => setGoogleModalOpen(false)} disabled={isSubmitting}>Cancelar</button>
-            <button type="submit" className="btn-primary" disabled={isSubmitting || !googleName.trim() || !googleUrl.trim()}>
-              {isSubmitting ? <Loader size={16} className="animate-spin" /> : 'Salvar referência'}
+            <button type="submit" className="btn-primary" disabled={isSubmitting || !googleUrl.trim() || Boolean(editingGoogleFile && !googleName.trim())}>
+              {isSubmitting ? <Loader size={16} className="animate-spin" /> : editingGoogleFile ? 'Salvar referência' : 'Adicionar e sincronizar'}
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={googleDifferencesOpen}
+        onClose={() => !isSubmitting && setGoogleDifferencesOpen(false)}
+        title="Comparar com o Google Drive"
+      >
+        <div style={{ display: 'grid', gap: '1rem' }}>
+          {googleDifferences.length === 0 ? (
+            <p className="text-muted" style={{ margin: 0 }}>A pasta já está atualizada. Nenhum item novo foi encontrado.</p>
+          ) : (
+            <>
+              <p className="text-muted" style={{ margin: 0, lineHeight: 1.5 }}>
+                Todos os itens novos estão selecionados. Desmarque aqueles que devem permanecer somente no Google Drive.
+              </p>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={selectedGoogleDifferences.size === googleDifferences.length}
+                  onChange={(event) => setSelectedGoogleDifferences(event.target.checked
+                    ? new Set(googleDifferences.map((item) => item.id))
+                    : new Set())}
+                />
+                Selecionar todos ({googleDifferences.length})
+              </label>
+              <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '50vh', overflowY: 'auto' }}>
+                {googleDifferences.map((item) => (
+                  <label
+                    key={item.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.8rem',
+                      border: '1px solid var(--border-color)', borderRadius: '8px', cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedGoogleDifferences.has(item.id)}
+                      onChange={() => setSelectedGoogleDifferences((current) => {
+                        const next = new Set(current);
+                        if (next.has(item.id)) next.delete(item.id);
+                        else next.add(item.id);
+                        return next;
+                      })}
+                    />
+                    <span style={{ minWidth: 0 }}>
+                      <strong style={{ display: 'block', overflowWrap: 'anywhere' }}>{item.name}</strong>
+                      <small className="text-muted">
+                        {item.itemType === 'folder' ? 'Pasta' : 'Arquivo'}{item.ignored ? ' · ignorado anteriormente' : ''}
+                      </small>
+                      <small className="text-muted" style={{ display: 'block', overflowWrap: 'anywhere' }}>
+                        Em: {item.path}
+                      </small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
+          {googleMissingItems.length > 0 && (
+            <div style={{ display: 'grid', gap: '0.75rem', marginTop: '0.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+              <div>
+                <strong>Não encontrados nesta pasta ({googleMissingItems.length})</strong>
+                <p className="text-muted" style={{ margin: '0.3rem 0 0', lineHeight: 1.5 }}>
+                  Nada será removido automaticamente. Selecione somente os registros que deseja retirar da Biblioteca.
+                </p>
+              </div>
+              <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '35vh', overflowY: 'auto' }}>
+                {googleMissingItems.map((item) => {
+                  const statusLabel = item.status === 'trashed'
+                    ? 'Na lixeira do Drive'
+                    : item.status === 'moved'
+                      ? 'Movido para outra pasta no Drive'
+                      : 'Excluído definitivamente ou sem acesso';
+                  const descendants = item.descendantFolders + item.descendantFiles;
+                  return (
+                    <div
+                      key={item.libraryId}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.8rem',
+                        border: '1px solid var(--border-color)', borderRadius: '8px',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`Selecionar ${item.name} para remoção da Biblioteca`}
+                        checked={selectedGoogleMissingItems.has(item.libraryId)}
+                        onChange={() => setSelectedGoogleMissingItems((current) => {
+                          const next = new Set(current);
+                          if (next.has(item.libraryId)) next.delete(item.libraryId);
+                          else next.add(item.libraryId);
+                          return next;
+                        })}
+                      />
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <strong style={{ display: 'block', overflowWrap: 'anywhere' }}>{item.name}</strong>
+                        <small style={{ color: item.status === 'trashed' ? '#f59e0b' : 'var(--muted-text)' }}>
+                          {statusLabel}{descendants > 0 ? ` · contém ${descendants} item(ns) cadastrados` : ''}
+                        </small>
+                      </span>
+                      {item.url && (
+                        <a className="btn-secondary" href={item.url} target="_blank" rel="noreferrer" style={{ padding: '0.45rem 0.65rem' }}>
+                          <ExternalLink size={15} /> Abrir
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={selectedGoogleMissingItems.size === 0 || isSubmitting}
+                  onClick={() => {
+                    setGoogleDifferencesOpen(false);
+                    setGoogleMissingRemovalOpen(true);
+                  }}
+                >
+                  Remover selecionados da Biblioteca
+                </button>
+              </div>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            {!isShowingIgnoredGoogleItems && (
+              <button type="button" className="btn-secondary" onClick={() => void handleScanGoogleFolder(true)} disabled={isSubmitting || isScanningGoogleFolder}>
+                Mostrar ignorados
+              </button>
+            )}
+            <button type="button" className="btn-secondary" onClick={() => setGoogleDifferencesOpen(false)} disabled={isSubmitting}>Fechar</button>
+            {googleDifferences.length > 0 && (
+              <button type="button" className="btn-primary" onClick={handleImportGoogleDifferences} disabled={isSubmitting}>
+                {isSubmitting ? <Loader size={16} className="animate-spin" /> : 'Continuar'}
+              </button>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={googleIgnoreConfirmOpen}
+        onClose={() => {
+          if (isSubmitting) return;
+          setGoogleIgnoreConfirmOpen(false);
+          setGoogleDifferencesOpen(true);
+        }}
+        title="Ignorar itens definitivamente?"
+      >
+        <div style={{ display: 'grid', gap: '1.25rem' }}>
+          <p style={{ margin: 0, lineHeight: 1.6 }}>
+            Você desmarcou {pendingIgnoredGoogleIds.length} item(ns). Deseja ocultá-los das próximas buscas e mantê-los somente no Google Drive?
+          </p>
+          <p className="text-muted" style={{ margin: 0, lineHeight: 1.5 }}>
+            Eles poderão ser recuperados posteriormente pela opção “Mostrar ignorados”.
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={isSubmitting}
+              onClick={() => {
+                setGoogleIgnoreConfirmOpen(false);
+                setGoogleDifferencesOpen(true);
+              }}
+            >
+              Voltar
+            </button>
+            <button type="button" className="btn-secondary" disabled={isSubmitting} onClick={() => void submitGoogleDifferences([])}>
+              Só nesta busca
+            </button>
+            <button type="button" className="btn-primary" disabled={isSubmitting} onClick={() => void submitGoogleDifferences(pendingIgnoredGoogleIds)}>
+              {isSubmitting ? <Loader size={16} className="animate-spin" /> : 'Ignorar definitivamente'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={googleMissingRemovalOpen}
+        onClose={() => {
+          if (isSubmitting) return;
+          setGoogleMissingRemovalOpen(false);
+          setGoogleDifferencesOpen(true);
+        }}
+        title="Remover somente da Biblioteca?"
+      >
+        <div style={{ display: 'grid', gap: '1.25rem' }}>
+          <p style={{ margin: 0, lineHeight: 1.6 }}>
+            Serão removidos {selectedMissingGoogleItems.length} item(ns) selecionados
+            {selectedMissingGoogleDescendants > 0 ? ` e ${selectedMissingGoogleDescendants} item(ns) internos` : ''} do catálogo da Biblioteca.
+          </p>
+          <p style={{ margin: 0, lineHeight: 1.5, color: '#f59e0b', fontWeight: 600 }}>
+            Esta ação não excluirá, moverá nem alterará nenhum arquivo no Google Drive.
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={isSubmitting}
+              onClick={() => {
+                setGoogleMissingRemovalOpen(false);
+                setGoogleDifferencesOpen(true);
+              }}
+            >
+              Cancelar
+            </button>
+            <button type="button" className="btn-primary" disabled={isSubmitting} onClick={() => void handleRemoveGoogleMissingItems()}>
+              {isSubmitting ? <Loader size={16} className="animate-spin" /> : 'Remover da Biblioteca'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {moveModalOpen && itemToMove && (
@@ -891,15 +1379,40 @@ export function BibliotecaPage() {
       <ConfirmDialog
         isOpen={!!deleteTarget}
         title="Confirmar Exclusão"
-        message={deleteTarget?.message || ''}
+        message={deleteTarget?.recursive ? (
+          <div>
+            <p style={{ marginTop: 0 }}>{deleteTarget.message}</p>
+            <p style={{ color: '#ef4444', fontWeight: 700 }}>
+              Esta operação é definitiva no Sistema EJC.
+            </p>
+            <label className="form-label" htmlFor="biblioteca-delete-confirmation">
+              Para confirmar, digite <strong>EXCLUIR</strong>
+            </label>
+            <input
+              id="biblioteca-delete-confirmation"
+              className="form-input"
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              autoComplete="off"
+              autoFocus
+              style={{ marginTop: '0.45rem' }}
+            />
+          </div>
+        ) : deleteTarget?.message || ''}
         confirmText="Excluir"
         loadingText="Excluindo..."
         isDestructive={true}
         onConfirm={handleConfirmDelete}
         onCancel={() => {
-          if (!deleteInFlightRef.current) setDeleteTarget(null);
+          if (!deleteInFlightRef.current) {
+            setDeleteTarget(null);
+            setDeleteConfirmation('');
+          }
         }}
         isLoading={isDeleting || isDeleteSubmitting}
+        isConfirmDisabled={Boolean(
+          deleteTarget?.recursive && deleteConfirmation.trim().toUpperCase() !== 'EXCLUIR'
+        )}
       />
       <ConfirmDialog
         isOpen={!!googleImportTarget}

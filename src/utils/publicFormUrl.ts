@@ -3,3 +3,7 @@ export function buildPublicFormUrl(encontroId: string, origin = window.location.
   url.searchParams.set('encontro', encontroId);
   return url.toString();
 }
+
+export function buildOnlineRegistrationUrl(origin = window.location.origin): string {
+  return new URL('/inscricao-online', origin).toString();
+}

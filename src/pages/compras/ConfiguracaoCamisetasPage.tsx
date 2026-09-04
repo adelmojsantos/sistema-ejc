@@ -215,7 +215,7 @@ export function ConfiguracaoCamisetasPage() {
                             setEditingModelo(m);
                             setNomeModelo(m.nome);
                             setValorModelo(m.valor || 0);
-                            setAtivoNoEncontro((m as any).esta_ativo_no_encontro ?? true);
+                            setAtivoNoEncontro(m.esta_ativo_no_encontro ?? true);
                             setIsModalOpen(true);
                           }}><Edit2 size={16} /></button>
                           <button className="icon-btn text-danger" onClick={(e) => { e.stopPropagation(); setModeloToDelete(m); }}><Trash2 size={16} /></button>

@@ -20,7 +20,7 @@ export const LibraryBreadcrumbs: React.FC<LibraryBreadcrumbsProps> = ({
   stats
 }) => {
   return (
-    <div>
+    <div className="library-breadcrumbs">
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '1rem', color: 'var(--text-color)' }}>
         {currentFolderId && (
           <button

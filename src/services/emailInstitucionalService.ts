@@ -23,6 +23,12 @@ function workerUrl(path: string): string {
 }
 
 export const emailInstitucionalService = {
+  async contarNovas(): Promise<number> {
+    const { data, error } = await supabase.rpc('contar_email_institucional_novas');
+    if (error) throw error;
+    return Number(data || 0);
+  },
+
   async listar(params?: { busca?: string; status?: EmailInstitucionalStatus | null }) {
     const { data, error } = await supabase.rpc('listar_email_institucional_conversas', {
       p_busca: params?.busca?.trim() || null,
@@ -130,6 +136,13 @@ export const emailInstitucionalService = {
       .channel('email-institucional-ui')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'email_institucional_conversas' }, onChange)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'email_institucional_mensagens' }, onChange)
+      .subscribe();
+  },
+
+  subscribeConversations(onChange: () => void) {
+    return supabase
+      .channel('email-institucional-header')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'email_institucional_conversas' }, onChange)
       .subscribe();
   },
 };

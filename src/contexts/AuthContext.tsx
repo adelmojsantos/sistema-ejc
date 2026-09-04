@@ -181,9 +181,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         gps.forEach((gp: Record<string, unknown>) => {
                             if (gp?.permissoes) {
                                 const perms = Array.isArray(gp.permissoes) ? gp.permissoes : [gp.permissoes];
-                                perms.forEach((p: any) => {
-                                    if (p?.chave && typeof p.chave === 'string' && !permissions.includes(p.chave)) {
-                                        permissions.push(p.chave);
+                                perms.forEach((permission: unknown) => {
+                                    if (
+                                        permission &&
+                                        typeof permission === 'object' &&
+                                        'chave' in permission &&
+                                        typeof permission.chave === 'string' &&
+                                        !permissions.includes(permission.chave)
+                                    ) {
+                                        permissions.push(permission.chave);
                                     }
                                 });
                             }
@@ -354,7 +360,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         profile,
         refreshProfile,
         userParticipacao,
-        profile?.temporary_password,
         profileLoading,
         loading,
         hasPermission,

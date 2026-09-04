@@ -62,8 +62,9 @@ export function useVisitacaoCoordenacao({ encontroId, equipes }: UseVisitacaoCoo
 
       setGrupos(gData);
       setVinculos(vData || []);
-    } catch (err: any) {
-      toast.error('Erro ao carregar dados de coordenação: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro desconhecido.';
+      toast.error('Erro ao carregar dados de coordenação: ' + message);
     } finally {
       setIsFetching(false);
     }
@@ -119,8 +120,9 @@ export function useVisitacaoCoordenacao({ encontroId, equipes }: UseVisitacaoCoo
       toast.success('Dupla criada com sucesso!');
       loadData();
       return newGroup;
-    } catch (err: any) {
-      toast.error('Erro ao criar dupla: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro desconhecido.';
+      toast.error('Erro ao criar dupla: ' + message);
     } finally {
       setIsLoading(false);
     }
@@ -133,8 +135,9 @@ export function useVisitacaoCoordenacao({ encontroId, equipes }: UseVisitacaoCoo
       await visitacaoService.vincularOuReatribuirEncontrista(selectedGrupoId, participacaoId);
       toast.success('Encontrista vinculado!');
       loadData();
-    } catch (err: any) {
-      toast.error('Erro ao vincular: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Erro desconhecido.';
+      toast.error('Erro ao vincular: ' + message);
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +149,7 @@ export function useVisitacaoCoordenacao({ encontroId, equipes }: UseVisitacaoCoo
       await visitacaoService.desvincular(id);
       toast.success('Vínculo removido.');
       loadData();
-    } catch (err: any) {
+    } catch {
       toast.error('Erro ao desvincular.');
     } finally {
       setIsLoading(false);

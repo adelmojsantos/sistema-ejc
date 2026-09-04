@@ -52,11 +52,11 @@ export function toCentString(value: number): string {
 /**
  * Parses a string or any value into a float, ensuring it's a valid number.
  */
-export function parseCurrency(value: any): number {
+export function parseCurrency(value: unknown): number {
   if (typeof value === 'number') return value;
   if (!value) return 0;
   
-  const cleaned = value.toString()
+  const cleaned = String(value)
     .replace(/[R$\s]/g, '')
     .replace(/\./g, '')
     .replace(',', '.');

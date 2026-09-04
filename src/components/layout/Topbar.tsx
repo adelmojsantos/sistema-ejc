@@ -16,6 +16,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { getNavigationTitle } from '../../config/navigation';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { useEncontros } from '../../contexts/EncontroContext';
+import { emailInstitucionalService } from '../../services/emailInstitucionalService';
 import ejcLogo from '../../assets/brand-experiments/ejc-logo.png';
 
 interface TopbarProps {
@@ -31,6 +32,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
   const [isEncounterMenuOpen, setIsEncounterMenuOpen] = useState(false);
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [newInstitutionalEmails, setNewInstitutionalEmails] = useState(0);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const encounterMenuRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
@@ -72,6 +74,34 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
 
   const pageTitle = getPageTitle();
   const canAccessInstitutionalEmail = hasPermission('modulo_email_institucional') || hasPermission('modulo_admin');
+
+  useEffect(() => {
+    if (!canAccessInstitutionalEmail) {
+      setNewInstitutionalEmails(0);
+      return;
+    }
+
+    let active = true;
+    const refreshCount = async () => {
+      try {
+        const count = await emailInstitucionalService.contarNovas();
+        if (active) setNewInstitutionalEmails(count);
+      } catch {
+        if (active) setNewInstitutionalEmails(0);
+      }
+    };
+
+    void refreshCount();
+    const subscription = emailInstitucionalService.subscribeConversations(() => {
+      void refreshCount();
+    });
+
+    return () => {
+      active = false;
+      void subscription.unsubscribe();
+    };
+  }, [canAccessInstitutionalEmail]);
+
   const rootTitle = (() => {
     const roots = [
       ['/cadastros', 'Cadastros'],
@@ -180,13 +210,18 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
           {canAccessInstitutionalEmail && (
             <button
               type="button"
-              className="btn-text btn-icon"
+              className="btn-text btn-icon topbar-email-button"
               onClick={() => navigate('/admin/email-institucional')}
-              title="Abrir caixa de entrada"
-              aria-label="Abrir caixa de entrada do e-mail institucional"
+              title={newInstitutionalEmails > 0 ? `${newInstitutionalEmails} conversa${newInstitutionalEmails === 1 ? '' : 's'} nova${newInstitutionalEmails === 1 ? '' : 's'}` : 'Abrir caixa de entrada'}
+              aria-label={newInstitutionalEmails > 0 ? `Abrir caixa de entrada, ${newInstitutionalEmails} conversa${newInstitutionalEmails === 1 ? '' : 's'} nova${newInstitutionalEmails === 1 ? '' : 's'}` : 'Abrir caixa de entrada do e-mail institucional'}
               style={{ padding: '0.5rem', borderRadius: '10px' }}
             >
               <Mail size={20} />
+              {newInstitutionalEmails > 0 && (
+                <span className="topbar-email-badge" aria-hidden="true">
+                  {newInstitutionalEmails > 99 ? '99+' : newInstitutionalEmails}
+                </span>
+              )}
             </button>
           )}
           <button

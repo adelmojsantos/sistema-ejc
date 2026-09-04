@@ -1,5 +1,9 @@
 import { supabase } from '../lib/supabase';
-import type { CamisetaModelo, CamisetaPedido, CamisetaPedidoFormData, CamisetaTamanho } from '../types/camiseta';
+import type { CamisetaConfigEncontro, CamisetaModelo, CamisetaPedido, CamisetaPedidoFormData, CamisetaTamanho } from '../types/camiseta';
+
+type CamisetaModeloComConfiguracao = CamisetaModelo & {
+    configuracao_encontro?: CamisetaConfigEncontro[];
+};
 
 export const camisetaService = {
     async listarModelos(encontroId?: string): Promise<CamisetaModelo[]> {
@@ -18,8 +22,8 @@ export const camisetaService = {
 
         // Se houver encontroId, mapeia o valor da configuração para o valor do modelo
         if (encontroId && data) {
-            return data.map((m: any) => {
-                const config = m.configuracao_encontro?.find((c: any) => c.encontro_id === encontroId);
+            return (data as CamisetaModeloComConfiguracao[]).map((m) => {
+                const config = m.configuracao_encontro?.find((c) => c.encontro_id === encontroId);
                 return {
                     ...m,
                     valor: config ? config.valor : m.valor,

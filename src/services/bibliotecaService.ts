@@ -9,6 +9,10 @@ export interface BibliotecaPasta {
     id: string;
     nome: string;
     parent_id: string | null;
+    origem: 'supabase' | 'google_drive';
+    google_folder_id: string | null;
+    url_externa: string | null;
+    google_managed: boolean;
     created_at: string;
 }
 
@@ -57,6 +61,96 @@ interface GoogleDriveSyncResult {
 export interface GoogleDriveUserAccess {
     accessStatus: 'granted' | 'google_account_required' | 'pending' | 'sync_error' | 'not_managed';
     googleEmail: string | null;
+}
+
+export interface GoogleDriveFolderDifference {
+    id: string;
+    name: string;
+    mimeType: string;
+    itemType: 'folder' | 'file';
+    sizeBytes: number;
+    ignored: boolean;
+    targetFolderId: string;
+    path: string;
+}
+
+export interface GoogleDriveMissingItem {
+    libraryId: string;
+    name: string;
+    itemType: 'folder' | 'file';
+    status: 'trashed' | 'moved' | 'not_found';
+    url: string | null;
+    descendantFolders: number;
+    descendantFiles: number;
+    path: string;
+}
+
+export interface GoogleDriveFolderScanResult {
+    items: GoogleDriveFolderDifference[];
+    missingItems: GoogleDriveMissingItem[];
+}
+
+export interface GoogleDriveFolderImportResult {
+    addedFiles: number;
+    addedFolders: number;
+    skipped: number;
+    processedImmediately: number;
+    syncFailures: number;
+    pending: number;
+}
+
+export interface BibliotecaRecursiveDeleteResult {
+    deletedFiles: number;
+    deletedFolders: number;
+    errors: Array<{ id: string; name: string; message: string }>;
+}
+
+export interface GoogleDriveImportStatus {
+    connected: boolean;
+    accountEmail: string | null;
+    selectedFolderId: string | null;
+    selectedFolderName: string | null;
+    status: 'connecting' | 'connected' | 'folder_selected' | 'inventory_scanning' | 'inventory_ready' | 'inventory_confirmed' | 'copying' | 'completed' | 'completed_with_errors' | null;
+    expiresAt: string | null;
+}
+
+export interface GoogleDriveFolderPreview {
+    folder: { id: string; name: string };
+    done: boolean;
+    processedFolder?: string;
+    inventory: {
+        folders: number;
+        files: number;
+        items: number;
+        sizeBytes: number;
+        pendingFolders: number;
+        sample: Array<{
+            id: string;
+            name: string;
+            mimeType: string;
+            sizeBytes: number | null;
+            relativePath: string;
+        }>;
+    };
+}
+
+export type GoogleDriveInventoryProgress = Omit<GoogleDriveFolderPreview, 'folder'>;
+
+export interface GoogleDriveCopyProgress {
+    pending: number;
+    processing: number;
+    copied: number;
+    errors: number;
+    skipped: number;
+}
+
+export interface GoogleDriveCopyResult {
+    done?: boolean;
+    status?: 'completed' | 'completed_with_errors';
+    copiedItem?: string;
+    failedItem?: string;
+    error?: string;
+    progress: GoogleDriveCopyProgress;
 }
 
 const GOOGLE_EDITABLE_EXTENSIONS = new Set(['doc', 'docx', 'txt', 'csv', 'xlsx']);
@@ -276,39 +370,18 @@ export const bibliotecaService = {
     },
 
     async cadastrarReferenciaGoogle(params: {
-        nome: string;
+        nome?: string;
         url: string;
         pastaId?: string | null;
-        tipo?: GoogleDriveFileType;
     }): Promise<BibliotecaArquivo> {
-        const nome = params.nome.trim();
-        if (!nome) throw new Error('Informe o nome do documento.');
-
-        const link = parseGoogleDriveLink(params.url, params.tipo);
-        const { data, error } = await supabase
-            .from('biblioteca_arquivos')
-            .insert([{
-                nome_exibicao: nome,
-                pasta_id: params.pastaId ?? null,
-                storage_path: null,
-                tamanho_bytes: 0,
-                tipo_mime: googleDriveMimeType(link.fileType),
-                origem: 'google_drive',
-                google_file_id: link.fileId,
-                google_tipo: link.fileType,
-                url_externa: link.normalizedUrl
-            }])
-            .select()
-            .single();
-
-        if (error) {
-            if (error.code === '23505') {
-                throw new Error('Este documento do Google já está cadastrado na Biblioteca.');
-            }
-            throw error;
-        }
-
-        return data;
+        const link = parseGoogleDriveLink(params.url);
+        const result = await invokeGoogleDrive<{ file: BibliotecaArquivo }>({
+            action: 'adopt-existing-file',
+            fileId: link.fileId,
+            pastaId: params.pastaId ?? null,
+            displayName: params.nome?.trim() || null,
+        });
+        return result.file;
     },
 
     async atualizarReferenciaGoogle(params: {
@@ -505,6 +578,90 @@ export const bibliotecaService = {
         return result.authorizationUrl;
     },
 
+    async criarPastaGoogle(nome: string, parentId: string): Promise<BibliotecaPasta> {
+        const result = await invokeGoogleDrive<{ folder: BibliotecaPasta }>({
+            action: 'create-folder',
+            name: nome,
+            parentId,
+        });
+        return result.folder;
+    },
+
+    async buscarDiferencasPastaGoogle(pastaId: string, showIgnored = false): Promise<GoogleDriveFolderScanResult> {
+        return invokeGoogleDrive<GoogleDriveFolderScanResult>({
+            action: 'scan-folder-differences',
+            pastaId,
+            showIgnored,
+        });
+    },
+
+    async removerItensAusentesDaBiblioteca(params: {
+        folderIds: string[];
+        fileIds: string[];
+        confirmation: 'REMOVER';
+    }): Promise<BibliotecaRecursiveDeleteResult> {
+        return invokeGoogleDrive({
+            action: 'remove-missing-library-items',
+            folderIds: params.folderIds.slice(0, 100),
+            fileIds: params.fileIds.slice(0, 100),
+            confirmation: params.confirmation,
+        });
+    },
+
+    async importarItensPastaGoogle(
+        pastaId: string,
+        itemIds: string[],
+        ignoredIds: string[] = []
+    ): Promise<GoogleDriveFolderImportResult> {
+        return invokeGoogleDrive({
+            action: 'import-folder-items',
+            pastaId,
+            itemIds: itemIds.slice(0, 200),
+            ignoredIds: ignoredIds.slice(0, 200),
+        });
+    },
+
+    async iniciarImportacaoOutroDrive(): Promise<string> {
+        const result = await invokeGoogleDrive<{ authorizationUrl: string }>({ action: 'start-import-oauth' });
+        return result.authorizationUrl;
+    },
+
+    async obterStatusImportacaoOutroDrive(): Promise<GoogleDriveImportStatus> {
+        return invokeGoogleDrive({ action: 'import-status' });
+    },
+
+    async obterTokenGooglePicker(): Promise<{ accessToken: string; developerKey: string; appId: string }> {
+        return invokeGoogleDrive({ action: 'import-picker-token' });
+    },
+
+    async inspecionarPastaOutroDrive(folderId: string): Promise<GoogleDriveFolderPreview> {
+        return invokeGoogleDrive({ action: 'inspect-import-folder', folderId });
+    },
+
+    async processarInventarioOutroDrive(): Promise<GoogleDriveInventoryProgress> {
+        return invokeGoogleDrive({ action: 'process-import-inventory' });
+    },
+
+    async confirmarInventarioOutroDrive(): Promise<void> {
+        await invokeGoogleDrive({ action: 'confirm-import-inventory' });
+    },
+
+    async iniciarCopiaOutroDrive(): Promise<GoogleDriveCopyResult> {
+        return invokeGoogleDrive({ action: 'start-import-copy' });
+    },
+
+    async processarCopiaOutroDrive(): Promise<GoogleDriveCopyResult> {
+        return invokeGoogleDrive({ action: 'process-import-copy' });
+    },
+
+    async repetirErrosCopiaOutroDrive(): Promise<GoogleDriveCopyResult> {
+        return invokeGoogleDrive({ action: 'retry-import-errors' });
+    },
+
+    async revogarImportacaoOutroDrive(): Promise<void> {
+        await invokeGoogleDrive({ action: 'revoke-import-source' });
+    },
+
     async criarArquivoGoogle(params: {
         name: string;
         fileType: 'document' | 'spreadsheet';
@@ -541,11 +698,26 @@ export const bibliotecaService = {
     async sincronizarItemGoogle(params: {
         pastaId?: string;
         arquivoId?: string;
+        arquivoIds?: string[];
     }): Promise<GoogleDriveSyncResult> {
         return invokeGoogleDrive<GoogleDriveSyncResult>({
             action: 'sync-item',
             pastaId: params.pastaId ?? null,
             arquivoId: params.arquivoId ?? null,
+            ...(params.arquivoIds ? { arquivoIds: params.arquivoIds.slice(0, 25) } : {}),
+        });
+    },
+
+    async excluirItensRecursivamente(params: {
+        folderIds: string[];
+        fileIds: string[];
+        confirmation: 'EXCLUIR';
+    }): Promise<BibliotecaRecursiveDeleteResult> {
+        return invokeGoogleDrive({
+            action: 'delete-items-recursively',
+            folderIds: params.folderIds.slice(0, 100),
+            fileIds: params.fileIds.slice(0, 100),
+            confirmation: params.confirmation,
         });
     },
 
@@ -612,6 +784,10 @@ export const bibliotecaService = {
                     id: item.res_id,
                     nome: item.res_nome,
                     parent_id: item.res_pasta_id,
+                    origem: item.res_origem === 'google_drive' ? 'google_drive' : 'supabase',
+                    google_folder_id: item.res_origem === 'google_drive' ? item.res_google_file_id : null,
+                    url_externa: item.res_origem === 'google_drive' ? item.res_url_externa : null,
+                    google_managed: item.res_origem === 'google_drive' && Boolean(item.res_google_file_id),
                     created_at: item.res_criado_em
                 });
             } else {

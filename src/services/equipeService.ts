@@ -7,6 +7,19 @@ import { createPrivateStorageReference, removeStorageReference } from './private
 const TABLE = 'equipes';
 type ComprovanteTipo = 'taxas' | 'camisetas';
 
+interface EquipeConfirmacaoResumo {
+    equipe_id: string;
+    confirmado_em?: string | null;
+    profiles?: { email?: string | null } | { email?: string | null }[] | null;
+}
+
+interface ParticipacaoResumoEquipe {
+    equipe_id: string | null;
+    dados_confirmados: boolean | null;
+    coordenador: boolean | null;
+    pessoas?: { nome_completo?: string | null; email?: string | null } | { nome_completo?: string | null; email?: string | null }[] | null;
+}
+
 const normalizeComprovantes = (latestUrl?: string | null, urls?: unknown): string[] => {
     const list = Array.isArray(urls)
         ? urls.filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
@@ -181,7 +194,7 @@ export const equipeService = {
         if (confsError) throw confsError;
 
         // Busca nomes dos confirmadores via e-mail
-        const confs = confsRaw as any[];
+        const confs = (confsRaw || []) as EquipeConfirmacaoResumo[];
         const emails = [...new Set(confs.map(c => {
             const p = Array.isArray(c.profiles) ? c.profiles[0] : c.profiles;
             return p?.email;
@@ -193,7 +206,7 @@ export const equipeService = {
                 .from('pessoas')
                 .select('email, nome_completo')
                 .in('email', emails);
-            (nomesData || []).forEach((n: any) => {
+            (nomesData || []).forEach((n) => {
                 if (n.email) nomesMap.set(n.email.toLowerCase(), n.nome_completo);
             });
         }
@@ -208,7 +221,7 @@ export const equipeService = {
         if (equipesError) throw equipesError;
 
         return (equipes as { id: string; nome: string; acesso_plenario: string }[]).map(eq => {
-            const teamParts = (parts as any[]).filter(p => p.equipe_id === eq.id);
+            const teamParts = ((parts || []) as ParticipacaoResumoEquipe[]).filter(p => p.equipe_id === eq.id);
             const membrosConfirmados = teamParts.filter(p => p.dados_confirmados).length;
             const totalMembros = teamParts.length;
             const progresso = totalMembros > 0 ? (membrosConfirmados / totalMembros) * 100 : 0;
@@ -238,7 +251,7 @@ export const equipeService = {
                 confirmado: !!conf,
                 confirmado_por_nome: confNome,
                 confirmado_por_email: confEmail,
-                confirmado_em: conf?.confirmado_em,
+                confirmado_em: conf?.confirmado_em || undefined,
                 coordenadores,
                 acesso_plenario: eq.acesso_plenario || 'verde',
             };

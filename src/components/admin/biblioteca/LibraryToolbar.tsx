@@ -1,9 +1,13 @@
 import React from 'react';
-import { Search, CheckSquare, Square, Download, Trash2, LayoutGrid, List as ListIcon } from 'lucide-react';
+import { Search, CheckSquare, Square, Download, Trash2, LayoutGrid, List as ListIcon, RefreshCw, ExternalLink } from 'lucide-react';
 import type { FilterType, SortBy, ViewMode } from '../../../hooks/useBiblioteca';
 
 interface LibraryToolbarProps {
   selectedCount: number;
+  selectedFileCount: number;
+  selectedFolderCount: number;
+  canBatchDownload: boolean;
+  selectedGoogleCount: number;
   totalItems: number;
   searchQuery: string;
   filterType: FilterType;
@@ -17,11 +21,18 @@ interface LibraryToolbarProps {
   onClearSelection: () => void;
   onBatchDownload: () => void;
   onBatchDelete: () => void;
+  onOpenGoogle: () => void;
+  onRefresh: () => void;
+  isRefreshing?: boolean;
   isReadOnly?: boolean;
 }
 
 export const LibraryToolbar: React.FC<LibraryToolbarProps> = ({
   selectedCount,
+  selectedFileCount,
+  selectedFolderCount,
+  canBatchDownload,
+  selectedGoogleCount,
   totalItems,
   searchQuery,
   filterType,
@@ -35,6 +46,9 @@ export const LibraryToolbar: React.FC<LibraryToolbarProps> = ({
   onClearSelection,
   onBatchDownload,
   onBatchDelete,
+  onOpenGoogle,
+  onRefresh,
+  isRefreshing = false,
   isReadOnly = false
 }) => {
   return (
@@ -49,7 +63,7 @@ export const LibraryToolbar: React.FC<LibraryToolbarProps> = ({
       flexWrap: 'wrap', 
       gap: '1rem' 
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+      <div className="library-toolbar-main" style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
         <button
           className="btn-secondary"
           style={{ display: 'flex', alignItems: 'center', padding: '0.5rem 1rem', fontWeight: 600, color: selectedCount > 0 ? 'var(--primary-color)' : 'var(--text-color)' }}
@@ -66,9 +80,17 @@ export const LibraryToolbar: React.FC<LibraryToolbarProps> = ({
 
         {selectedCount > 0 ? (
           <div className="toolbar-batch-buttons" style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn-secondary" style={{ padding: '0.5rem 1rem' }} onClick={onBatchDownload}>
-              <Download size={16} style={{ marginRight: '0.3rem' }} /> Baixar
-            </button>
+            {selectedFileCount > 0 && canBatchDownload && (
+              <button className="btn-secondary" style={{ padding: '0.5rem 1rem' }} onClick={onBatchDownload}>
+                <Download size={16} style={{ marginRight: '0.3rem' }} />
+                {selectedFolderCount > 0 ? `Baixar arquivos (${selectedFileCount})` : 'Baixar'}
+              </button>
+            )}
+            {selectedGoogleCount > 0 && (
+              <button className="btn-secondary" style={{ padding: '0.5rem 1rem' }} onClick={onOpenGoogle}>
+                <ExternalLink size={16} style={{ marginRight: '0.3rem' }} /> Abrir no Drive ({selectedGoogleCount})
+              </button>
+            )}
             {!isReadOnly && (
               <button className="btn-cancel text-danger" style={{ padding: '0.5rem 1rem' }} onClick={onBatchDelete}>
                 <Trash2 size={16} style={{ marginRight: '0.3rem' }} /> Excluir
@@ -76,7 +98,7 @@ export const LibraryToolbar: React.FC<LibraryToolbarProps> = ({
             )}
           </div>
         ) : (
-          <div className="form-group" style={{ marginBottom: 0, position: 'relative', minWidth: '320px', flex: 1 }}>
+          <div className="form-group library-toolbar-search" style={{ marginBottom: 0, position: 'relative', minWidth: '320px', flex: 1 }}>
             <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }} />
             <input
               type="text"
@@ -113,7 +135,7 @@ export const LibraryToolbar: React.FC<LibraryToolbarProps> = ({
           <option value="size">Tamanho (Maior para menor)</option>
         </select>
 
-        <div style={{ display: 'flex', backgroundColor: 'var(--bg-color)', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden', height: '100%' }}>
+        <div className="library-toolbar-view-toggle" style={{ display: 'flex', backgroundColor: 'var(--bg-color)', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden', height: '100%' }}>
           <button
             onClick={() => onViewModeChange('grid')}
             style={{ 
@@ -135,6 +157,19 @@ export const LibraryToolbar: React.FC<LibraryToolbarProps> = ({
             <ListIcon size={20} />
           </button>
         </div>
+
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          title="Atualizar esta pasta"
+          aria-label="Atualizar esta pasta e sincronizar permissões pendentes"
+          style={{ minHeight: '42px', padding: '0 0.85rem' }}
+        >
+          <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : undefined} />
+          <span className="library-toolbar-refresh-label">Atualizar</span>
+        </button>
       </div>
     </div>
   );

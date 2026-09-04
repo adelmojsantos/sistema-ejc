@@ -20,6 +20,11 @@ interface StagedMembro {
     coordenador: boolean;
 }
 
+type PessoaSearchResult = Pessoa & {
+    infoEquipe?: { id: string | null; nome: string };
+    noStaging: boolean;
+};
+
 export function MontagemPage() {
     const navigate = useNavigate();
     const { encontros, encontroSelecionadoId: selectedEncontroId } = useEncontros();
@@ -27,7 +32,7 @@ export function MontagemPage() {
 
     // States
     const [inscricoes, setInscricoes] = useState<InscricaoEnriched[]>([]); // Membros persistidos
-    const [searchResults, setSearchResults] = useState<(Pessoa & { equipeAtual?: string, noStaging?: boolean })[]>([]); // Para busca
+    const [searchResults, setSearchResults] = useState<PessoaSearchResult[]>([]); // Para busca
 
     const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
 
@@ -109,7 +114,7 @@ export function MontagemPage() {
                     noStaging: jaNoStagingIds.has(p.id)
                 }));
 
-                setSearchResults(enrichedResults as any);
+                setSearchResults(enrichedResults);
             } catch (error) {
                 console.error("Erro na busca:", error);
             } finally {
@@ -419,10 +424,10 @@ export function MontagemPage() {
                                                         ) : (
                                                             <>
                                                                 {searchResults.map(p => {
-                                                                    const info = (p as any).infoEquipe;
+                                                                    const info = p.infoEquipe;
                                                                     const isInCurrentTeam = info?.id === eq.id;
                                                                     const isInOtherTeam = info && info.id !== eq.id;
-                                                                    const noStaging = (p as any).noStaging;
+                                                                    const noStaging = p.noStaging;
                                                                     const isDisabled = isInOtherTeam || noStaging;
 
                                                                     const handleClickSearchRow = () => {
