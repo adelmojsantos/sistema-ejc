@@ -994,30 +994,40 @@ async function processCopyItem(
   try {
     const { data: parent, error: parentError } = await adminClient
       .from('biblioteca_google_importacao_itens')
-      .select('biblioteca_pasta_id')
+      .select('biblioteca_pasta_id,google_file_id')
       .eq('importacao_id', session.id)
       .eq('google_file_id', item.parent_google_file_id)
       .single();
     if (parentError) throw parentError;
-    if (!parent?.biblioteca_pasta_id) throw new Error('A pasta de destino do item ainda não foi criada.');
-    const { data: parentFolder, error: parentFolderError } = await adminClient
-      .from('biblioteca_pastas')
-      .select('google_folder_id,google_managed')
-      .eq('id', parent.biblioteca_pasta_id)
-      .single();
-    if (parentFolderError) throw parentFolderError;
-    if (!parentFolder.google_managed || !parentFolder.google_folder_id) {
-      throw new Error('A pasta de destino não está vinculada ao Google Drive oficial.');
+    const virtualRoot = parent.google_file_id.startsWith('selection-');
+    let parentLibraryId: string | null = parent.biblioteca_pasta_id;
+    let parentGoogleId: string;
+    if (virtualRoot) {
+      const { integration } = await integrationAccessToken(adminClient);
+      parentLibraryId = null;
+      parentGoogleId = integration.drive_root_folder_id;
+    } else {
+      if (!parentLibraryId) throw new Error('A pasta de destino do item ainda não foi criada.');
+      const { data: parentFolder, error: parentFolderError } = await adminClient
+        .from('biblioteca_pastas')
+        .select('google_folder_id,google_managed')
+        .eq('id', parentLibraryId)
+        .single();
+      if (parentFolderError) throw parentFolderError;
+      if (!parentFolder.google_managed || !parentFolder.google_folder_id) {
+        throw new Error('A pasta de destino não está vinculada ao Google Drive oficial.');
+      }
+      parentGoogleId = parentFolder.google_folder_id;
     }
 
     if (item.mime_type === GOOGLE_FOLDER_MIME_TYPE) {
       const { accessToken: destinationToken } = await integrationAccessToken(adminClient);
-      const driveFolder = await createDriveFolder(destinationToken, parentFolder.google_folder_id, item.nome);
+      const driveFolder = await createDriveFolder(destinationToken, parentGoogleId, item.nome);
       const { data: folder, error: folderError } = await adminClient
         .from('biblioteca_pastas')
         .insert({
           nome: driveFolder.name,
-          parent_id: parent.biblioteca_pasta_id,
+          parent_id: parentLibraryId,
           origem: 'google_drive',
           google_folder_id: driveFolder.id,
           url_externa: driveFolder.webViewLink,
@@ -1053,7 +1063,7 @@ async function processCopyItem(
       const source = await downloadImportSource(sourceToken, item);
       const driveFile = await uploadDriveBlob(
         destinationToken,
-        parentFolder.google_folder_id,
+        parentGoogleId,
         source.uploadName,
         source.sourceMimeType,
         source.blob,
@@ -1063,7 +1073,7 @@ async function processCopyItem(
         .from('biblioteca_arquivos')
         .insert({
           nome_exibicao: driveFile.name,
-          pasta_id: parent.biblioteca_pasta_id,
+          pasta_id: parentLibraryId,
           storage_path: null,
           tamanho_bytes: source.blob.size,
           tipo_mime: driveFile.mimeType,
@@ -1984,6 +1994,7 @@ Deno.serve(async (request) => {
       'import-status',
       'import-picker-token',
       'inspect-import-folder',
+      'inspect-import-items',
       'process-import-inventory',
       'confirm-import-inventory',
       'start-import-copy',
@@ -2120,6 +2131,95 @@ Deno.serve(async (request) => {
       });
     }
 
+    if (action === 'inspect-import-items') {
+      if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
+      const itemIds = Array.isArray(body.itemIds)
+        ? [...new Set(body.itemIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))].slice(0, 100)
+        : [];
+      if (itemIds.length === 0) {
+        return jsonResponse(400, { error: 'Selecione ao menos uma pasta ou arquivo do Google Drive.' });
+      }
+      const session = await getActiveImportSession(adminClient, user.id);
+      if (!session?.refresh_token_ciphertext) {
+        return jsonResponse(409, { error: 'A conexão temporária não está disponível.' });
+      }
+      const accessToken = await refreshAccessToken(await decryptToken(session.refresh_token_ciphertext));
+      const selectedItems = await Promise.all(itemIds.map((itemId) => googleRequest<{
+        id: string;
+        name: string;
+        mimeType: string;
+        size?: string;
+        modifiedTime?: string;
+        trashed?: boolean;
+      }>(
+        accessToken,
+        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(itemId)}?fields=id,name,mimeType,size,modifiedTime,trashed&supportsAllDrives=true`,
+      )));
+      if (selectedItems.some((item) => item.trashed)) {
+        return jsonResponse(409, { error: 'A seleção contém um item que está na lixeira do Google Drive.' });
+      }
+
+      const singleFolder = selectedItems.length === 1 && selectedItems[0].mimeType === GOOGLE_FOLDER_MIME_TYPE;
+      const selectionId = singleFolder ? selectedItems[0].id : `selection-${crypto.randomUUID()}`;
+      const selectionName = singleFolder
+        ? selectedItems[0].name
+        : `Seleção com ${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'itens'}`;
+      const now = new Date().toISOString();
+      const { error: clearError } = await adminClient
+        .from('biblioteca_google_importacao_itens')
+        .delete()
+        .eq('importacao_id', session.id);
+      if (clearError) throw clearError;
+
+      const inventoryRows = singleFolder
+        ? [{
+          importacao_id: session.id,
+          google_file_id: selectedItems[0].id,
+          parent_google_file_id: null,
+          nome: selectedItems[0].name,
+          mime_type: GOOGLE_FOLDER_MIME_TYPE,
+          caminho_relativo: '',
+        }]
+        : [{
+          importacao_id: session.id,
+          google_file_id: selectionId,
+          parent_google_file_id: null,
+          nome: selectionName,
+          mime_type: GOOGLE_FOLDER_MIME_TYPE,
+          caminho_relativo: '',
+          scanned_at: now,
+        }, ...selectedItems.map((item) => ({
+          importacao_id: session.id,
+          google_file_id: item.id,
+          parent_google_file_id: selectionId,
+          nome: item.name,
+          mime_type: item.mimeType,
+          tamanho_bytes: item.size ?? null,
+          modified_time: item.modifiedTime ?? null,
+          caminho_relativo: item.name,
+        }))];
+      const { error: itemsError } = await adminClient
+        .from('biblioteca_google_importacao_itens')
+        .insert(inventoryRows);
+      if (itemsError) throw itemsError;
+      const { error: sessionError } = await adminClient.from('biblioteca_google_importacoes').update({
+        selected_folder_id: selectionId,
+        selected_folder_name: selectionName,
+        status: 'inventory_scanning',
+        inventory_started_at: now,
+        inventory_finished_at: null,
+        inventory_confirmed_at: null,
+        updated_at: now,
+        last_error: null,
+      }).eq('id', session.id);
+      if (sessionError) throw sessionError;
+      const result = await processInventoryPage(adminClient, session, accessToken);
+      return jsonResponse(200, {
+        folder: { id: selectionId, name: selectionName },
+        ...result,
+      });
+    }
+
     if (action === 'inspect-import-folder') {
       if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
       const folderId = String(body.folderId ?? '').trim();
@@ -2211,8 +2311,8 @@ Deno.serve(async (request) => {
     if (action === 'start-import-copy') {
       if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
       const session = await getActiveImportSession(adminClient, user.id);
-      if (!session || !['inventory_confirmed', 'copying'].includes(session.status)) {
-        return jsonResponse(409, { error: 'Confirme o inventário antes de iniciar a cópia.' });
+      if (!session || !['inventory_ready', 'inventory_confirmed', 'copying'].includes(session.status)) {
+        return jsonResponse(409, { error: 'Conclua o inventário antes de iniciar a cópia.' });
       }
       if (session.status === 'copying') {
         return jsonResponse(200, { started: true, progress: await copyProgress(adminClient, session.id) });
@@ -2220,19 +2320,24 @@ Deno.serve(async (request) => {
       if (!session.selected_folder_name || !session.refresh_token_ciphertext) {
         return jsonResponse(409, { error: 'A pasta ou a conexão de origem não está disponível.' });
       }
-      const { integration, accessToken } = await integrationAccessToken(adminClient);
-      const destination = await createUniqueLibraryRootFolder(
-        adminClient,
-        accessToken,
-        integration.drive_root_folder_id,
-        session.selected_folder_name,
-      );
+      const virtualSelection = session.selected_folder_id?.startsWith('selection-') === true;
+      const destination = virtualSelection
+        ? null
+        : await (async () => {
+          const { integration, accessToken } = await integrationAccessToken(adminClient);
+          return await createUniqueLibraryRootFolder(
+            adminClient,
+            accessToken,
+            integration.drive_root_folder_id,
+            session.selected_folder_name,
+          );
+        })();
       const now = new Date().toISOString();
       const { error: rootError } = await adminClient
         .from('biblioteca_google_importacao_itens')
         .update({
           copy_status: 'copied',
-          biblioteca_pasta_id: destination.id,
+          biblioteca_pasta_id: destination?.id ?? null,
           copied_at: now,
           updated_at: now,
         })
@@ -2241,9 +2346,10 @@ Deno.serve(async (request) => {
       if (rootError) throw rootError;
       const { error: sessionError } = await adminClient.from('biblioteca_google_importacoes').update({
         status: 'copying',
-        destination_root_folder_id: destination.id,
+        destination_root_folder_id: destination?.id ?? null,
         copy_started_at: now,
         copy_finished_at: null,
+        ...(session.status === 'inventory_ready' ? { inventory_confirmed_at: now } : {}),
         updated_at: now,
       }).eq('id', session.id);
       if (sessionError) throw sessionError;

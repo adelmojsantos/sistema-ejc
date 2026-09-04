@@ -264,7 +264,7 @@ describe('bibliotecaService Google Drive', () => {
     });
   });
 
-  it('envia somente o identificador da pasta selecionada para inspeção', async () => {
+  it('envia os identificadores das pastas e arquivos selecionados para inspeção', async () => {
     invoke.mockResolvedValue({
       data: {
         folder: { id: 'pasta-origem', name: 'Acervo antigo' },
@@ -273,10 +273,10 @@ describe('bibliotecaService Google Drive', () => {
       error: null,
     });
 
-    await bibliotecaService.inspecionarPastaOutroDrive('pasta-origem');
+    await bibliotecaService.inspecionarItensOutroDrive(['pasta-origem', 'arquivo-origem']);
 
     expect(invoke).toHaveBeenCalledWith('google-drive', {
-      body: { action: 'inspect-import-folder', folderId: 'pasta-origem' },
+      body: { action: 'inspect-import-items', itemIds: ['pasta-origem', 'arquivo-origem'] },
     });
   });
 
