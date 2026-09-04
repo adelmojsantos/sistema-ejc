@@ -285,7 +285,7 @@ interface DriveFolderItem {
   trashed?: boolean;
 }
 
-async function requireSystemAdmin(
+async function requireGoogleDriveImportPermission(
   request: Request,
   supabaseUrl: string,
   anonKey: string,
@@ -296,15 +296,12 @@ async function requireSystemAdmin(
   const authClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authorization } },
   });
-  const [roleAdminResult, permissionAdminResult] = await Promise.all([
+  const [roleAdminResult, importPermissionResult] = await Promise.all([
     authClient.rpc('is_admin', { check_user: userId }),
-    authClient.rpc('has_permission', {
-      check_user: userId,
-      permission_key: 'modulo_admin',
-    }),
+    authClient.rpc('pode_importar_biblioteca_google', { check_user: userId }),
   ]);
-  if (roleAdminResult.data !== true && permissionAdminResult.data !== true) {
-    throw new Response(JSON.stringify({ error: 'Apenas administradores podem importar de outro Drive.' }), { status: 403 });
+  if (roleAdminResult.data !== true && importPermissionResult.data !== true) {
+    throw new Response(JSON.stringify({ error: 'Sem permissão para importar de outro Drive.' }), { status: 403 });
   }
 }
 
@@ -1989,7 +1986,7 @@ Deno.serve(async (request) => {
       ? null
       : await requireLibraryManager(request, supabaseUrl, anonKey);
 
-    const adminOnlyActions = new Set([
+    const driveImportActions = new Set([
       'start-import-oauth',
       'import-status',
       'import-picker-token',
@@ -2002,9 +1999,9 @@ Deno.serve(async (request) => {
       'retry-import-errors',
       'revoke-import-source',
     ]);
-    if (adminOnlyActions.has(action)) {
+    if (driveImportActions.has(action)) {
       if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
-      await requireSystemAdmin(request, supabaseUrl, anonKey, user.id);
+      await requireGoogleDriveImportPermission(request, supabaseUrl, anonKey, user.id);
     }
 
     if (action === 'status') {
