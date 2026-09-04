@@ -634,8 +634,8 @@ export const bibliotecaService = {
         return invokeGoogleDrive({ action: 'import-picker-token' });
     },
 
-    async inspecionarPastaOutroDrive(folderId: string): Promise<GoogleDriveFolderPreview> {
-        return invokeGoogleDrive({ action: 'inspect-import-folder', folderId });
+    async inspecionarItensOutroDrive(itemIds: string[]): Promise<GoogleDriveFolderPreview> {
+        return invokeGoogleDrive({ action: 'inspect-import-items', itemIds: itemIds.slice(0, 100) });
     },
 
     async processarInventarioOutroDrive(): Promise<GoogleDriveInventoryProgress> {

@@ -715,7 +715,7 @@ export function BibliotecaPage() {
               <>
                 <button
                   type="button"
-                  className="btn-secondary"
+                  className="btn-secondary-sm"
                   onClick={handleSyncGoogle}
                   disabled={isGoogleActionLoading}
                 >
@@ -724,7 +724,7 @@ export function BibliotecaPage() {
                 </button>
                 <button
                   type="button"
-                  className="btn-secondary"
+                  className="btn-secondary-sm"
                   onClick={() => googleUploadInputRef.current?.click()}
                   disabled={isGoogleActionLoading || isGoogleUploading}
                 >
@@ -741,7 +741,7 @@ export function BibliotecaPage() {
                 />
                 <button
                   type="button"
-                  className="btn-primary"
+                  className="btn-primary-sm"
                   onClick={() => setGoogleCreateModalOpen(true)}
                   disabled={isGoogleActionLoading}
                 >
@@ -751,7 +751,7 @@ export function BibliotecaPage() {
             ) : (
               <button
                 type="button"
-                className="btn-primary"
+                className="btn-primary-sm"
                 onClick={handleConnectGoogle}
                 disabled={isGoogleActionLoading}
               >
@@ -762,7 +762,7 @@ export function BibliotecaPage() {
             {isSystemAdmin && (
               <button
                 type="button"
-                className="btn-secondary btn-icon"
+                className="btn-secondary-sm"
                 onClick={() => setGoogleSettingsOpen(true)}
                 aria-label="Abrir configurações avançadas do Google Drive"
                 title="Configurações avançadas"

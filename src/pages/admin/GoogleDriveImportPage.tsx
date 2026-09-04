@@ -32,6 +32,7 @@ interface PickerInstance {
 
 interface PickerBuilder {
   addView(view: PickerView): PickerBuilder;
+  enableFeature(feature: string): PickerBuilder;
   setOAuthToken(token: string): PickerBuilder;
   setDeveloperKey(key: string): PickerBuilder;
   setAppId(appId: string): PickerBuilder;
@@ -41,7 +42,8 @@ interface PickerBuilder {
 
 interface GooglePickerApi {
   Action: { PICKED: string };
-  ViewId: { FOLDERS: string };
+  Feature: { MULTISELECT_ENABLED: string };
+  ViewId: { DOCS: string };
   DocsView: new (viewId: string) => PickerView;
   PickerBuilder: new () => PickerBuilder;
 }
@@ -127,10 +129,10 @@ export function GoogleDriveImportPage() {
     }
   };
 
-  const inspectFolder = async (folderId: string) => {
+  const inspectItems = async (itemIds: string[]) => {
     setActionLoading(true);
     try {
-      let result = await bibliotecaService.inspecionarPastaOutroDrive(folderId);
+      let result = await bibliotecaService.inspecionarItensOutroDrive(itemIds);
       setPreview(result);
       while (!result.done) {
         const progress = await bibliotecaService.processarInventarioOutroDrive();
@@ -140,7 +142,7 @@ export function GoogleDriveImportPage() {
       await loadStatus();
       toast.success('Inventário completo. Revise o resumo antes de confirmar.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível acessar a pasta selecionada.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível acessar os itens selecionados.');
     } finally {
       setActionLoading(false);
     }
@@ -165,19 +167,6 @@ export function GoogleDriveImportPage() {
       toast.success('Inventário completo. Revise o resumo antes de confirmar.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível continuar o inventário.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const confirmInventory = async () => {
-    setActionLoading(true);
-    try {
-      await bibliotecaService.confirmarInventarioOutroDrive();
-      await loadStatus();
-      toast.success('Pasta confirmada. Nenhum arquivo foi copiado.');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível confirmar o inventário.');
     } finally {
       setActionLoading(false);
     }
@@ -227,18 +216,21 @@ export function GoogleDriveImportPage() {
       await loadGooglePicker();
       const pickerApi = window.google?.picker;
       if (!pickerApi) throw new Error('Google Picker indisponível.');
-      const folderView = new pickerApi.DocsView(pickerApi.ViewId.FOLDERS)
+      const itemsView = new pickerApi.DocsView(pickerApi.ViewId.DOCS)
         .setIncludeFolders(true)
         .setSelectFolderEnabled(true);
       const picker = new pickerApi.PickerBuilder()
-        .addView(folderView)
+        .addView(itemsView)
+        .enableFeature(pickerApi.Feature.MULTISELECT_ENABLED)
         .setOAuthToken(config.accessToken)
         .setDeveloperKey(config.developerKey)
         .setAppId(config.appId)
         .setCallback((data) => {
           if (data.action !== pickerApi.Action.PICKED) return;
-          const folder = data.docs?.[0];
-          if (folder?.id) void inspectFolder(folder.id);
+          const itemIds = (data.docs ?? [])
+            .map((item) => item.id)
+            .filter((id): id is string => Boolean(id));
+          if (itemIds.length > 0) void inspectItems(itemIds);
         })
         .build();
       picker.setVisible(true);
@@ -272,7 +264,7 @@ export function GoogleDriveImportPage() {
       <header className="drive-import-header">
         <span>Ferramenta administrativa avançada</span>
         <h1>Importar de outro Drive</h1>
-        <p>Conecte temporariamente uma conta de origem e valide uma pasta piloto. A conta institucional atual não será substituída.</p>
+        <p>Conecte temporariamente uma conta de origem e selecione as pastas e os arquivos que deseja importar. A conta institucional atual não será substituída.</p>
       </header>
 
       <section className="drive-import-warning">
@@ -299,10 +291,10 @@ export function GoogleDriveImportPage() {
       </section>
 
       <section className="drive-import-card">
-        <div className="drive-import-step"><span>2</span><div><strong>Pasta piloto</strong><small>Selecione a única pasta que será analisada nesta operação.</small></div></div>
+        <div className="drive-import-step"><span>2</span><div><strong>Itens de origem</strong><small>Selecione uma ou mais pastas e arquivos para analisar nesta operação.</small></div></div>
         <button type="button" className="btn-primary drive-import-primary-action" onClick={openPicker} disabled={!status?.connected || actionLoading}>
           {actionLoading ? <Loader size={17} className="animate-spin" /> : <FolderSearch size={17} />}
-          Selecionar pasta no Google Drive
+          Selecionar pastas e arquivos
         </button>
         {!preview && status?.selectedFolderId && ['inventory_scanning', 'inventory_ready', 'inventory_confirmed'].includes(status.status ?? '') && (
           <button type="button" className="btn-secondary drive-import-primary-action" onClick={resumeInventory} disabled={actionLoading}>
@@ -326,16 +318,10 @@ export function GoogleDriveImportPage() {
             {preview.inventory.sample.slice(0, 10).map((item) => <span key={item.id}>{item.relativePath}</span>)}
           </div>
           {preview.done && <p className="drive-import-success"><CheckCircle2 size={18} /> Inventário recursivo concluído. Nenhum arquivo foi copiado.</p>}
-          {preview.done && status?.status !== 'inventory_confirmed' && (
-            <button type="button" className="btn-primary drive-import-primary-action" onClick={confirmInventory} disabled={actionLoading}>
-              <CheckCircle2 size={17} /> Confirmar esta pasta
-            </button>
-          )}
-          {status?.status === 'inventory_confirmed' && <p className="drive-import-success"><CheckCircle2 size={18} /> Pasta confirmada para a futura etapa de cópia.</p>}
-          {status?.status === 'inventory_confirmed' && (
+          {preview.done && ['inventory_ready', 'inventory_confirmed'].includes(status?.status ?? '') && (
             <button type="button" className="btn-primary drive-import-primary-action" onClick={() => void runCopy(true)} disabled={actionLoading}>
               {actionLoading ? <Loader size={17} className="animate-spin" /> : <Cloud size={17} />}
-              Copiar para a Biblioteca
+              Copiar {preview.inventory.items} {preview.inventory.items === 1 ? 'item' : 'itens'} para a Biblioteca
             </button>
           )}
         </section>
@@ -343,7 +329,7 @@ export function GoogleDriveImportPage() {
 
       {(copyProgress || ['copying', 'completed', 'completed_with_errors'].includes(status?.status ?? '')) && (
         <section className="drive-import-card drive-import-result">
-          <div className="drive-import-step"><span>4</span><div><strong>Cópia para a Biblioteca</strong><small>A pasta de destino foi criada na página inicial.</small></div></div>
+          <div className="drive-import-step"><span>4</span><div><strong>Cópia para a Biblioteca</strong><small>Os itens foram adicionados à página inicial, preservando as pastas selecionadas.</small></div></div>
           {copyProgress && (
             <div className="drive-import-metrics">
               <div><strong>{copyProgress.copied}</strong><span>copiados</span></div>

@@ -7269,7 +7269,13 @@ tbody tr:hover {
 }
 
 .library-google-settings-label {
-  display: none;
+  display: inline;
+  margin-left: 0.4rem;
+}
+
+.library-google-actions {
+  justify-content: flex-end;
+  margin-left: auto;
 }
 
 @media (max-width: 640px) {
@@ -7327,23 +7333,20 @@ tbody tr:hover {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: 100%;
+    margin-left: 0;
   }
 
   .library-google-actions > button:not(.btn-icon) {
     grid-column: auto;
     justify-content: center;
     width: 100%;
+    min-height: 44px;
   }
 
   .library-google-actions > .btn-icon {
     grid-column: auto;
     justify-content: center;
     width: 100%;
-  }
-
-  .library-google-settings-label {
-    display: inline;
-    margin-left: 0.4rem;
   }
 
   .library-toolbar-refresh-label {
