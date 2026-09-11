@@ -19,6 +19,7 @@ interface GoogleImportSession {
   requested_by: string;
   source_account_email: string | null;
   refresh_token_ciphertext: string | null;
+  source_type: 'oauth' | 'service_account';
   selected_folder_id: string | null;
   selected_folder_name: string | null;
   destination_root_folder_id: string | null;
@@ -26,6 +27,14 @@ interface GoogleImportSession {
   expires_at: string;
   last_error: string | null;
 }
+
+interface GoogleServiceAccountCredentials {
+  client_email: string;
+  private_key: string;
+  token_uri?: string;
+}
+
+let serviceAccountTokenCache: { accessToken: string; expiresAt: number } | null = null;
 
 interface GooglePermission {
   id: string;
@@ -110,6 +119,90 @@ function bytesToBase64(bytes: Uint8Array) {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
+}
+
+function base64Url(value: string | Uint8Array) {
+  const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
+  return bytesToBase64(bytes).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+}
+
+function serviceAccountCredentials() {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(requiredEnv('GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON'));
+  } catch {
+    throw new Error('GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON não contém um JSON válido.');
+  }
+  if (
+    typeof parsed !== 'object'
+    || parsed === null
+    || !('client_email' in parsed)
+    || typeof parsed.client_email !== 'string'
+    || !('private_key' in parsed)
+    || typeof parsed.private_key !== 'string'
+  ) {
+    throw new Error('A credencial da conta de serviço do Google está incompleta.');
+  }
+  return parsed as GoogleServiceAccountCredentials;
+}
+
+async function serviceAccountAccessToken() {
+  if (serviceAccountTokenCache && serviceAccountTokenCache.expiresAt > Date.now() + 60_000) {
+    return serviceAccountTokenCache.accessToken;
+  }
+  const credentials = serviceAccountCredentials();
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claims = base64Url(JSON.stringify({
+    iss: credentials.client_email,
+    scope: 'https://www.googleapis.com/auth/drive.readonly',
+    aud: credentials.token_uri ?? 'https://oauth2.googleapis.com/token',
+    iat: now - 30,
+    exp: now + 3600,
+  }));
+  const unsignedToken = `${header}.${claims}`;
+  const privateKeyBytes = base64ToBytes(
+    credentials.private_key
+      .replaceAll('\\n', '\n')
+      .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, ''),
+  );
+  const privateKey = await crypto.subtle.importKey(
+    'pkcs8',
+    privateKeyBytes,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = new Uint8Array(await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    privateKey,
+    new TextEncoder().encode(unsignedToken),
+  ));
+  const response = await fetch(credentials.token_uri ?? 'https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: `${unsignedToken}.${base64Url(signature)}`,
+    }),
+  });
+  if (!response.ok) throw new Error(await readGoogleError(response));
+  const payload = await response.json() as { access_token?: string; expires_in?: number };
+  if (!payload.access_token) throw new Error('O Google não retornou acesso para a conta de serviço.');
+  serviceAccountTokenCache = {
+    accessToken: payload.access_token,
+    expiresAt: Date.now() + Math.max(60, payload.expires_in ?? 3600) * 1000,
+  };
+  return payload.access_token;
+}
+
+function driveFolderIdFromInput(input: string) {
+  const value = input.trim();
+  const folderMatch = value.match(/\/folders\/([A-Za-z0-9_-]{10,})/);
+  const queryMatch = value.match(/[?&]id=([A-Za-z0-9_-]{10,})/);
+  const id = folderMatch?.[1] ?? queryMatch?.[1] ?? (/^[A-Za-z0-9_-]{10,}$/.test(value) ? value : '');
+  if (!id) throw new Error('Cole um link válido de uma pasta do Google Drive.');
+  return id;
 }
 
 function base64ToBytes(value: string) {
@@ -327,7 +420,7 @@ async function getActiveImportSession(adminClient: SupabaseClient, requestedBy: 
 
   const { data, error } = await adminClient
     .from('biblioteca_google_importacoes')
-    .select('id,requested_by,source_account_email,refresh_token_ciphertext,selected_folder_id,selected_folder_name,destination_root_folder_id,status,expires_at,last_error')
+    .select('id,requested_by,source_account_email,refresh_token_ciphertext,source_type,selected_folder_id,selected_folder_name,destination_root_folder_id,status,expires_at,last_error')
     .eq('requested_by', requestedBy)
     .in('status', ['connecting', 'connected', 'folder_selected', 'inventory_scanning', 'inventory_ready', 'inventory_confirmed', 'copying', 'completed', 'completed_with_errors'])
     .gt('expires_at', new Date().toISOString())
@@ -336,6 +429,12 @@ async function getActiveImportSession(adminClient: SupabaseClient, requestedBy: 
     .maybeSingle();
   if (error) throw error;
   return data as GoogleImportSession | null;
+}
+
+async function importSourceAccessToken(session: GoogleImportSession) {
+  if (session.source_type === 'service_account') return await serviceAccountAccessToken();
+  if (!session.refresh_token_ciphertext) throw new Error('A conexão temporária expirou.');
+  return await refreshAccessToken(await decryptToken(session.refresh_token_ciphertext));
 }
 
 async function revokeGoogleRefreshToken(ciphertext: string) {
@@ -1052,10 +1151,9 @@ async function processCopyItem(
         .eq('id', item.id);
       if (completeError) throw completeError;
     } else {
-      if (!session.refresh_token_ciphertext) throw new Error('A conexão temporária expirou.');
       const [{ accessToken: destinationToken }, sourceToken] = await Promise.all([
         integrationAccessToken(adminClient),
-        refreshAccessToken(await decryptToken(session.refresh_token_ciphertext)),
+        importSourceAccessToken(session),
       ]);
       const source = await downloadImportSource(sourceToken, item);
       const driveFile = await uploadDriveBlob(
@@ -1841,18 +1939,6 @@ async function handleOAuthCallback(
   const oauthError = requestUrl.searchParams.get('error');
   const appUrl = new URL('/biblioteca', requiredEnv('PUBLIC_APP_URL'));
   if (oauthError) {
-    if (state) {
-      const { data: deniedState } = await adminClient
-        .from('biblioteca_google_oauth_state')
-        .select('purpose')
-        .eq('state_hash', await sha256(state))
-        .maybeSingle();
-      if (deniedState?.purpose === 'import') {
-        const importUrl = new URL('/biblioteca/importar-drive', requiredEnv('PUBLIC_APP_URL'));
-        importUrl.searchParams.set('google_import', 'denied');
-        return Response.redirect(importUrl.toString(), 302);
-      }
-    }
     appUrl.searchParams.set('google', 'denied');
     return Response.redirect(appUrl.toString(), 302);
   }
@@ -1861,7 +1947,7 @@ async function handleOAuthCallback(
   const stateHash = await sha256(state);
   const { data: storedState, error: stateError } = await adminClient
     .from('biblioteca_google_oauth_state')
-    .select('state_hash, requested_by, expires_at, used_at')
+    .select('state_hash, requested_by, expires_at, used_at, purpose')
     .eq('state_hash', stateHash)
     .maybeSingle();
   if (
@@ -1872,13 +1958,9 @@ async function handleOAuthCallback(
   ) {
     return jsonResponse(400, { error: 'Estado OAuth inválido ou expirado.' });
   }
-  // Mantém o OAuth institucional compatível durante a janela entre o deploy
-  // da função e a aplicação da migration que adiciona esses campos.
-  const { data: importState } = await adminClient
-    .from('biblioteca_google_oauth_state')
-    .select('purpose, importacao_id')
-    .eq('state_hash', stateHash)
-    .maybeSingle();
+  if (storedState.purpose !== 'central') {
+    return jsonResponse(410, { error: 'Esta autorização temporária não é mais utilizada. Inicie novamente pela Biblioteca.' });
+  }
 
   const redirectUri = `${supabaseUrl}/functions/v1/google-drive/callback`;
   const tokens = await exchangeAuthorizationCode(code, redirectUri);
@@ -1890,29 +1972,6 @@ async function handleOAuthCallback(
     'https://openidconnect.googleapis.com/v1/userinfo',
   );
   if (!userInfo.email) throw new Error('Não foi possível identificar a conta Google conectada.');
-
-  if (importState?.purpose === 'import' && importState.importacao_id) {
-    const now = new Date().toISOString();
-    const { error: importError } = await adminClient
-      .from('biblioteca_google_importacoes')
-      .update({
-        source_account_email: userInfo.email.toLowerCase(),
-        refresh_token_ciphertext: await encryptToken(tokens.refresh_token),
-        status: 'connected',
-        expires_at: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
-        updated_at: now,
-        last_error: null,
-      })
-      .eq('id', importState.importacao_id)
-      .eq('requested_by', storedState.requested_by);
-    if (importError) throw importError;
-    await adminClient.from('biblioteca_google_oauth_state')
-      .update({ used_at: now })
-      .eq('state_hash', stateHash);
-    const importUrl = new URL('/biblioteca/importar-drive', requiredEnv('PUBLIC_APP_URL'));
-    importUrl.searchParams.set('google_import', 'connected');
-    return Response.redirect(importUrl.toString(), 302);
-  }
 
   const existing = await getIntegration(adminClient);
   if (
@@ -1987,13 +2046,9 @@ Deno.serve(async (request) => {
       : await requireLibraryManager(request, supabaseUrl, anonKey);
 
     const driveImportActions = new Set([
-      'start-import-oauth',
       'import-status',
-      'import-picker-token',
-      'inspect-import-folder',
-      'inspect-import-items',
+      'inspect-shared-import-folder',
       'process-import-inventory',
-      'confirm-import-inventory',
       'start-import-copy',
       'process-import-copy',
       'retry-import-errors',
@@ -2044,17 +2099,19 @@ Deno.serve(async (request) => {
       authorizationUrl.searchParams.set('scope', [
         'openid',
         'email',
-        'https://www.googleapis.com/auth/drive',
+        'https://www.googleapis.com/auth/drive.file',
       ].join(' '));
       authorizationUrl.searchParams.set('access_type', 'offline');
-      authorizationUrl.searchParams.set('include_granted_scopes', 'true');
+      authorizationUrl.searchParams.set('include_granted_scopes', 'false');
       authorizationUrl.searchParams.set('prompt', 'consent');
       authorizationUrl.searchParams.set('state', state);
       return jsonResponse(200, { authorizationUrl: authorizationUrl.toString() });
     }
 
-    if (action === 'start-import-oauth') {
+    if (action === 'inspect-shared-import-folder') {
       if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
+      const folderId = driveFolderIdFromInput(String(body.folderUrl ?? ''));
+      const credentials = serviceAccountCredentials();
       const activeSession = await getActiveImportSession(adminClient, user.id);
       if (activeSession) {
         if (activeSession.refresh_token_ciphertext) {
@@ -2068,44 +2125,85 @@ Deno.serve(async (request) => {
       }
       const { data: importSession, error: importError } = await adminClient
         .from('biblioteca_google_importacoes')
-        .insert({ requested_by: user.id, status: 'connecting' })
-        .select('id')
+        .insert({
+          requested_by: user.id,
+          source_account_email: credentials.client_email.toLowerCase(),
+          source_type: 'service_account',
+          status: 'connected',
+        })
+        .select('id,requested_by,source_account_email,refresh_token_ciphertext,source_type,selected_folder_id,selected_folder_name,destination_root_folder_id,status,expires_at,last_error')
         .single();
       if (importError) throw importError;
-
-      const state = bytesToBase64(crypto.getRandomValues(new Uint8Array(32)))
-        .replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
-      const { error: stateError } = await adminClient.from('biblioteca_google_oauth_state').insert({
-        state_hash: await sha256(state),
-        requested_by: user.id,
-        expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
-        purpose: 'import',
-        importacao_id: importSession.id,
-      });
-      if (stateError) throw stateError;
-
-      const redirectUri = `${supabaseUrl}/functions/v1/google-drive/callback`;
-      const authorizationUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-      authorizationUrl.searchParams.set('client_id', requiredEnv('GOOGLE_DRIVE_CLIENT_ID'));
-      authorizationUrl.searchParams.set('redirect_uri', redirectUri);
-      authorizationUrl.searchParams.set('response_type', 'code');
-      authorizationUrl.searchParams.set('scope', [
-        'openid',
-        'email',
-        'https://www.googleapis.com/auth/drive.readonly',
-      ].join(' '));
-      authorizationUrl.searchParams.set('access_type', 'offline');
-      authorizationUrl.searchParams.set('include_granted_scopes', 'true');
-      authorizationUrl.searchParams.set('prompt', 'consent select_account');
-      authorizationUrl.searchParams.set('state', state);
-      return jsonResponse(200, { authorizationUrl: authorizationUrl.toString() });
+      const session = importSession as GoogleImportSession;
+      try {
+        const accessToken = await serviceAccountAccessToken();
+        const folder = await googleRequest<{ id: string; name: string; mimeType: string; trashed?: boolean }>(
+          accessToken,
+          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType,trashed&supportsAllDrives=true`,
+        );
+        if (folder.trashed) throw new Error('A pasta compartilhada está na lixeira do Google Drive.');
+        if (folder.mimeType !== GOOGLE_FOLDER_MIME_TYPE) {
+          throw new Error('O link informado não corresponde a uma pasta do Google Drive.');
+        }
+        const now = new Date().toISOString();
+        const { error: rootError } = await adminClient
+          .from('biblioteca_google_importacao_itens')
+          .insert({
+            importacao_id: session.id,
+            google_file_id: folder.id,
+            parent_google_file_id: null,
+            nome: folder.name,
+            mime_type: GOOGLE_FOLDER_MIME_TYPE,
+            caminho_relativo: '',
+          });
+        if (rootError) throw rootError;
+        const { error: sessionError } = await adminClient.from('biblioteca_google_importacoes').update({
+          selected_folder_id: folder.id,
+          selected_folder_name: folder.name,
+          status: 'inventory_scanning',
+          inventory_started_at: now,
+          inventory_finished_at: null,
+          inventory_confirmed_at: null,
+          updated_at: now,
+          last_error: null,
+        }).eq('id', session.id);
+        if (sessionError) throw sessionError;
+        const result = await processInventoryPage(adminClient, {
+          ...session,
+          selected_folder_id: folder.id,
+          selected_folder_name: folder.name,
+          status: 'inventory_scanning',
+        }, accessToken);
+        return jsonResponse(200, {
+          serviceAccountEmail: credentials.client_email.toLowerCase(),
+          folder: { id: folder.id, name: folder.name },
+          ...result,
+        });
+      } catch (error) {
+        const message = errorMessage(error);
+        await adminClient.from('biblioteca_google_importacoes').update({
+          status: 'error',
+          last_error: message.slice(0, 1000),
+          updated_at: new Date().toISOString(),
+        }).eq('id', session.id);
+        if (error instanceof GoogleApiError && [403, 404].includes(error.status)) {
+          return jsonResponse(403, {
+            error: `A conta ${credentials.client_email} ainda não consegue abrir essa pasta. Compartilhe-a como Leitor e tente novamente.`,
+          });
+        }
+        throw error;
+      }
     }
 
     if (action === 'import-status') {
       if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
       const session = await getActiveImportSession(adminClient, user.id);
       return jsonResponse(200, {
-        connected: Boolean(session?.refresh_token_ciphertext),
+        connected: Boolean(session && (
+          session.source_type === 'service_account'
+          || session.refresh_token_ciphertext
+        )),
+        serviceAccountEmail: serviceAccountCredentials().client_email.toLowerCase(),
         accountEmail: session?.source_account_email ?? null,
         selectedFolderId: session?.selected_folder_id ?? null,
         selectedFolderName: session?.selected_folder_name ?? null,
@@ -2114,164 +2212,10 @@ Deno.serve(async (request) => {
       });
     }
 
-    if (action === 'import-picker-token') {
-      if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
-      const session = await getActiveImportSession(adminClient, user.id);
-      if (!session?.refresh_token_ciphertext) {
-        return jsonResponse(409, { error: 'Conecte a conta de origem antes de selecionar uma pasta.' });
-      }
-      const accessToken = await refreshAccessToken(await decryptToken(session.refresh_token_ciphertext));
-      return jsonResponse(200, {
-        accessToken,
-        developerKey: requiredEnv('GOOGLE_PICKER_API_KEY'),
-        appId: requiredEnv('GOOGLE_PICKER_APP_ID'),
-      });
-    }
-
-    if (action === 'inspect-import-items') {
-      if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
-      const itemIds = Array.isArray(body.itemIds)
-        ? [...new Set(body.itemIds.filter((id): id is string => typeof id === 'string' && id.trim().length > 0))].slice(0, 100)
-        : [];
-      if (itemIds.length === 0) {
-        return jsonResponse(400, { error: 'Selecione ao menos uma pasta ou arquivo do Google Drive.' });
-      }
-      const session = await getActiveImportSession(adminClient, user.id);
-      if (!session?.refresh_token_ciphertext) {
-        return jsonResponse(409, { error: 'A conexão temporária não está disponível.' });
-      }
-      const accessToken = await refreshAccessToken(await decryptToken(session.refresh_token_ciphertext));
-      const selectedItems = await Promise.all(itemIds.map((itemId) => googleRequest<{
-        id: string;
-        name: string;
-        mimeType: string;
-        size?: string;
-        modifiedTime?: string;
-        trashed?: boolean;
-      }>(
-        accessToken,
-        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(itemId)}?fields=id,name,mimeType,size,modifiedTime,trashed&supportsAllDrives=true`,
-      )));
-      if (selectedItems.some((item) => item.trashed)) {
-        return jsonResponse(409, { error: 'A seleção contém um item que está na lixeira do Google Drive.' });
-      }
-
-      const singleFolder = selectedItems.length === 1 && selectedItems[0].mimeType === GOOGLE_FOLDER_MIME_TYPE;
-      const selectionId = singleFolder ? selectedItems[0].id : `selection-${crypto.randomUUID()}`;
-      const selectionName = singleFolder
-        ? selectedItems[0].name
-        : `Seleção com ${selectedItems.length} ${selectedItems.length === 1 ? 'item' : 'itens'}`;
-      const now = new Date().toISOString();
-      const { error: clearError } = await adminClient
-        .from('biblioteca_google_importacao_itens')
-        .delete()
-        .eq('importacao_id', session.id);
-      if (clearError) throw clearError;
-
-      const inventoryRows = singleFolder
-        ? [{
-          importacao_id: session.id,
-          google_file_id: selectedItems[0].id,
-          parent_google_file_id: null,
-          nome: selectedItems[0].name,
-          mime_type: GOOGLE_FOLDER_MIME_TYPE,
-          caminho_relativo: '',
-        }]
-        : [{
-          importacao_id: session.id,
-          google_file_id: selectionId,
-          parent_google_file_id: null,
-          nome: selectionName,
-          mime_type: GOOGLE_FOLDER_MIME_TYPE,
-          caminho_relativo: '',
-          scanned_at: now,
-        }, ...selectedItems.map((item) => ({
-          importacao_id: session.id,
-          google_file_id: item.id,
-          parent_google_file_id: selectionId,
-          nome: item.name,
-          mime_type: item.mimeType,
-          tamanho_bytes: item.size ?? null,
-          modified_time: item.modifiedTime ?? null,
-          caminho_relativo: item.name,
-        }))];
-      const { error: itemsError } = await adminClient
-        .from('biblioteca_google_importacao_itens')
-        .insert(inventoryRows);
-      if (itemsError) throw itemsError;
-      const { error: sessionError } = await adminClient.from('biblioteca_google_importacoes').update({
-        selected_folder_id: selectionId,
-        selected_folder_name: selectionName,
-        status: 'inventory_scanning',
-        inventory_started_at: now,
-        inventory_finished_at: null,
-        inventory_confirmed_at: null,
-        updated_at: now,
-        last_error: null,
-      }).eq('id', session.id);
-      if (sessionError) throw sessionError;
-      const result = await processInventoryPage(adminClient, session, accessToken);
-      return jsonResponse(200, {
-        folder: { id: selectionId, name: selectionName },
-        ...result,
-      });
-    }
-
-    if (action === 'inspect-import-folder') {
-      if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
-      const folderId = String(body.folderId ?? '').trim();
-      if (!folderId) return jsonResponse(400, { error: 'Selecione uma pasta do Google Drive.' });
-      const session = await getActiveImportSession(adminClient, user.id);
-      if (!session?.refresh_token_ciphertext) {
-        return jsonResponse(409, { error: 'A conexão temporária não está disponível.' });
-      }
-      const accessToken = await refreshAccessToken(await decryptToken(session.refresh_token_ciphertext));
-      const folder = await googleRequest<{ id: string; name: string; mimeType: string }>(
-        accessToken,
-        `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType&supportsAllDrives=true`,
-      );
-      if (folder.mimeType !== 'application/vnd.google-apps.folder') {
-        return jsonResponse(400, { error: 'O item selecionado não é uma pasta.' });
-      }
-      const now = new Date().toISOString();
-      const { error: clearError } = await adminClient
-        .from('biblioteca_google_importacao_itens')
-        .delete()
-        .eq('importacao_id', session.id);
-      if (clearError) throw clearError;
-      const { error: rootError } = await adminClient
-        .from('biblioteca_google_importacao_itens')
-        .insert({
-          importacao_id: session.id,
-          google_file_id: folder.id,
-          parent_google_file_id: null,
-          nome: folder.name,
-          mime_type: GOOGLE_FOLDER_MIME_TYPE,
-          caminho_relativo: '',
-        });
-      if (rootError) throw rootError;
-      const { error: sessionError } = await adminClient.from('biblioteca_google_importacoes').update({
-        selected_folder_id: folder.id,
-        selected_folder_name: folder.name,
-        status: 'inventory_scanning',
-        inventory_started_at: now,
-        inventory_finished_at: null,
-        inventory_confirmed_at: null,
-        updated_at: now,
-        last_error: null,
-      }).eq('id', session.id);
-      if (sessionError) throw sessionError;
-      const result = await processInventoryPage(adminClient, session, accessToken);
-      return jsonResponse(200, {
-        folder: { id: folder.id, name: folder.name },
-        ...result,
-      });
-    }
-
     if (action === 'process-import-inventory') {
       if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
       const session = await getActiveImportSession(adminClient, user.id);
-      if (!session?.refresh_token_ciphertext || !session.selected_folder_id) {
+      if (!session?.selected_folder_id) {
         return jsonResponse(409, { error: 'Selecione uma pasta antes de iniciar o inventário.' });
       }
       if (session.status === 'inventory_ready' || session.status === 'inventory_confirmed') {
@@ -2280,29 +2224,8 @@ Deno.serve(async (request) => {
           inventory: await inventoryResponse(adminClient, session.id),
         });
       }
-      const accessToken = await refreshAccessToken(await decryptToken(session.refresh_token_ciphertext));
+      const accessToken = await importSourceAccessToken(session);
       return jsonResponse(200, await processInventoryPage(adminClient, session, accessToken));
-    }
-
-    if (action === 'confirm-import-inventory') {
-      if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
-      const session = await getActiveImportSession(adminClient, user.id);
-      if (!session || !['inventory_ready', 'inventory_confirmed'].includes(session.status)) {
-        return jsonResponse(409, { error: 'Conclua o inventário antes de confirmar a pasta.' });
-      }
-      if (session.status !== 'inventory_confirmed') {
-        const now = new Date().toISOString();
-        const { error } = await adminClient.from('biblioteca_google_importacoes').update({
-          status: 'inventory_confirmed',
-          inventory_confirmed_at: now,
-          updated_at: now,
-        }).eq('id', session.id);
-        if (error) throw error;
-      }
-      return jsonResponse(200, {
-        confirmed: true,
-        inventory: await inventoryResponse(adminClient, session.id),
-      });
     }
 
     if (action === 'start-import-copy') {
@@ -2314,7 +2237,7 @@ Deno.serve(async (request) => {
       if (session.status === 'copying') {
         return jsonResponse(200, { started: true, progress: await copyProgress(adminClient, session.id) });
       }
-      if (!session.selected_folder_name || !session.refresh_token_ciphertext) {
+      if (!session.selected_folder_name) {
         return jsonResponse(409, { error: 'A pasta ou a conexão de origem não está disponível.' });
       }
       const virtualSelection = session.selected_folder_id?.startsWith('selection-') === true;
@@ -2376,7 +2299,7 @@ Deno.serve(async (request) => {
     if (action === 'retry-import-errors') {
       if (!user) return jsonResponse(401, { error: 'Autenticação necessária.' });
       const session = await getActiveImportSession(adminClient, user.id);
-      if (!session || session.status !== 'completed_with_errors' || !session.refresh_token_ciphertext) {
+      if (!session || session.status !== 'completed_with_errors') {
         return jsonResponse(409, { error: 'Não há erros disponíveis para nova tentativa.' });
       }
       const now = new Date().toISOString();
