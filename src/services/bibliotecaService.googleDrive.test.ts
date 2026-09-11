@@ -250,55 +250,40 @@ describe('bibliotecaService Google Drive', () => {
     });
   });
 
-  it('inicia uma conexão temporária com outro Drive', async () => {
-    invoke.mockResolvedValue({
-      data: { authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?state=teste' },
-      error: null,
-    });
-
-    const authorizationUrl = await bibliotecaService.iniciarImportacaoOutroDrive();
-
-    expect(authorizationUrl).toContain('accounts.google.com');
-    expect(invoke).toHaveBeenCalledWith('google-drive', {
-      body: { action: 'start-import-oauth' },
-    });
-  });
-
-  it('envia os identificadores das pastas e arquivos selecionados para inspeção', async () => {
+  it('envia o link da pasta compartilhada para inspeção', async () => {
     invoke.mockResolvedValue({
       data: {
         folder: { id: 'pasta-origem', name: 'Acervo antigo' },
-        preview: { totalReturned: 0, folders: 0, files: 0, hasMore: false, items: [] },
+        done: false,
+        inventory: { folders: 0, files: 0, items: 0, sizeBytes: 0, pendingFolders: 1, sample: [] },
       },
       error: null,
     });
 
-    await bibliotecaService.inspecionarItensOutroDrive(['pasta-origem', 'arquivo-origem']);
+    await bibliotecaService.inspecionarPastaCompartilhadaOutroDrive(
+      'https://drive.google.com/drive/folders/pasta-origem',
+    );
 
     expect(invoke).toHaveBeenCalledWith('google-drive', {
-      body: { action: 'inspect-import-items', itemIds: ['pasta-origem', 'arquivo-origem'] },
+      body: {
+        action: 'inspect-shared-import-folder',
+        folderUrl: 'https://drive.google.com/drive/folders/pasta-origem',
+      },
     });
   });
 
-  it('continua e confirma o inventário sem iniciar uma cópia', async () => {
-    invoke
-      .mockResolvedValueOnce({
-        data: {
-          done: true,
-          inventory: { folders: 1, files: 2, items: 3, sizeBytes: 1024, pendingFolders: 0, sample: [] },
-        },
-        error: null,
-      })
-      .mockResolvedValueOnce({ data: { confirmed: true }, error: null });
-
-    await bibliotecaService.processarInventarioOutroDrive();
-    await bibliotecaService.confirmarInventarioOutroDrive();
-
-    expect(invoke).toHaveBeenNthCalledWith(1, 'google-drive', {
-      body: { action: 'process-import-inventory' },
+  it('continua o inventário sem iniciar uma cópia', async () => {
+    invoke.mockResolvedValue({
+      data: {
+        done: true,
+        inventory: { folders: 1, files: 2, items: 3, sizeBytes: 1024, pendingFolders: 0, sample: [] },
+      },
+      error: null,
     });
-    expect(invoke).toHaveBeenNthCalledWith(2, 'google-drive', {
-      body: { action: 'confirm-import-inventory' },
+    await bibliotecaService.processarInventarioOutroDrive();
+
+    expect(invoke).toHaveBeenCalledWith('google-drive', {
+      body: { action: 'process-import-inventory' },
     });
   });
 

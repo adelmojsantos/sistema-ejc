@@ -107,6 +107,7 @@ export interface BibliotecaRecursiveDeleteResult {
 
 export interface GoogleDriveImportStatus {
     connected: boolean;
+    serviceAccountEmail: string;
     accountEmail: string | null;
     selectedFolderId: string | null;
     selectedFolderName: string | null;
@@ -621,29 +622,16 @@ export const bibliotecaService = {
         });
     },
 
-    async iniciarImportacaoOutroDrive(): Promise<string> {
-        const result = await invokeGoogleDrive<{ authorizationUrl: string }>({ action: 'start-import-oauth' });
-        return result.authorizationUrl;
-    },
-
     async obterStatusImportacaoOutroDrive(): Promise<GoogleDriveImportStatus> {
         return invokeGoogleDrive({ action: 'import-status' });
     },
 
-    async obterTokenGooglePicker(): Promise<{ accessToken: string; developerKey: string; appId: string }> {
-        return invokeGoogleDrive({ action: 'import-picker-token' });
-    },
-
-    async inspecionarItensOutroDrive(itemIds: string[]): Promise<GoogleDriveFolderPreview> {
-        return invokeGoogleDrive({ action: 'inspect-import-items', itemIds: itemIds.slice(0, 100) });
+    async inspecionarPastaCompartilhadaOutroDrive(folderUrl: string): Promise<GoogleDriveFolderPreview> {
+        return invokeGoogleDrive({ action: 'inspect-shared-import-folder', folderUrl });
     },
 
     async processarInventarioOutroDrive(): Promise<GoogleDriveInventoryProgress> {
         return invokeGoogleDrive({ action: 'process-import-inventory' });
-    },
-
-    async confirmarInventarioOutroDrive(): Promise<void> {
-        await invokeGoogleDrive({ action: 'confirm-import-inventory' });
     },
 
     async iniciarCopiaOutroDrive(): Promise<GoogleDriveCopyResult> {

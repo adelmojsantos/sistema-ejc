@@ -30,6 +30,8 @@ conversão do Google.
 ## Segurança adotada
 
 - OAuth 2.0 com o escopo limitado `drive.file`;
+- a importação externa usa uma conta de serviço sem delegação de domínio e enxerga
+  somente pastas compartilhadas explicitamente com ela;
 - refresh token criptografado com AES-GCM antes de ser salvo;
 - credenciais e tokens acessíveis somente à Edge Function com `service_role`;
 - ações interativas exigem usuário com permissão para gerenciar a Biblioteca;
@@ -48,9 +50,18 @@ conversão do Google.
 4. Criar um cliente OAuth do tipo aplicação Web.
 5. Cadastrar como URI de redirecionamento:
    `https://<project-ref>.supabase.co/functions/v1/google-drive/callback`.
-6. Enquanto o aplicativo OAuth estiver em modo de teste, cadastrar o e-mail
+6. Em **Acesso a dados**, manter somente `openid`, `email` e
+   `https://www.googleapis.com/auth/drive.file`; remover `drive` e
+   `drive.readonly` da tela de consentimento.
+7. Criar uma conta de serviço exclusiva para importação, sem delegação de domínio
+   e sem atribuir papéis IAM do projeto. Gerar uma chave JSON para ela.
+8. Enquanto o aplicativo OAuth estiver em modo de teste, cadastrar o e-mail
    central como usuário de teste. Para uso contínuo, publicar o aplicativo;
    autorizações de aplicativos externos em teste podem expirar.
+
+A conta de serviço não precisa de acesso geral ao Drive nem de papel no projeto.
+Cada responsável concede acesso somente ao compartilhar uma pasta específica com
+o e-mail `client_email` da chave JSON, usando o papel **Leitor**.
 
 ## Variáveis da Edge Function
 
@@ -61,24 +72,27 @@ Além das variáveis padrão fornecidas pelo Supabase, configurar:
 - `GOOGLE_TOKEN_ENCRYPTION_KEY`: 32 bytes aleatórios codificados em Base64;
 - `GOOGLE_DRIVE_SYNC_SECRET`: segredo aleatório independente para o agendador;
 - `PUBLIC_APP_URL`: URL pública do sistema, sem caminho final.
-- `GOOGLE_PICKER_API_KEY`: chave de navegador restrita ao domínio do sistema e à Google Picker API;
-- `GOOGLE_PICKER_APP_ID`: número do projeto Google Cloud usado pelo Picker.
+- `GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON`: JSON completo da credencial da conta de
+  serviço usada somente para ler pastas externas compartilhadas.
 
 Nunca utilizar nomes `VITE_*` para essas credenciais.
 
 ## Importação excepcional de outra conta
 
-A ação **Importar de outro Drive** fica em `Biblioteca > Configurações do Google
-Drive > Ferramentas avançadas` e exige `modulo_admin`. Ela usa uma conexão OAuth
-temporária separada da conta central, com validade de 24 horas. O token é
-criptografado, não é exposto ao frontend (exceto pelo access token curto exigido
-pelo Google Picker) e é removido e revogado ao desconectar ou expirar.
+A ação **Importar pasta compartilhada** fica em `Biblioteca > Configurações do
+Google Drive > Ferramentas avançadas` e exige a permissão
+`biblioteca_google_importar` ou perfil administrativo.
 
-A conexão temporária usa `drive.readonly`, pois `drive.file` não concede acesso
-automático aos itens preexistentes dentro de uma pasta selecionada pelo Picker.
-O acesso é somente leitura, expira em 24 horas e a operação trabalha apenas com
-a pasta explicitamente escolhida. A conta institucional permanece no escopo
-reduzido `drive.file`.
+O responsável compartilha a pasta de origem como **Leitor** com o e-mail da conta
+de serviço exibido na tela e cola o link da pasta. A Edge Function usa a conta de
+serviço para inventariar e baixar somente essa estrutura. Não há conexão OAuth
+com a conta de origem, e a pasta original não pode ser alterada.
+
+Depois da importação, o responsável deve remover o compartilhamento no próprio
+Google Drive. A conta institucional permanece no escopo `drive.file` e administra
+somente os arquivos criados pelo Sistema EJC. Arquivos criados diretamente no
+Drive não são descobertos automaticamente; por isso, novos arquivos oficiais
+devem ser enviados ou criados pela Biblioteca.
 
 ## Publicação
 
@@ -87,13 +101,18 @@ separadas e só devem ser executadas após autorização explícita.
 
 Após publicar:
 
-1. configurar os secrets da função;
-2. publicar `google-drive` com a verificação JWT da plataforma desativada, pois o
+1. configurar os secrets da função, incluindo o JSON completo da conta de serviço;
+2. aplicar a migration desta versão;
+3. publicar `google-drive` com a verificação JWT da plataforma desativada, pois o
    callback OAuth é público; a própria função valida as ações protegidas;
-3. acessar a Biblioteca como administrador e conectar a conta central;
-4. criar um Documento de teste e compartilhar com um grupo/equipe de teste;
-5. confirmar no Drive o acesso individual e o papel leitor/editor;
-6. configurar uma chamada agendada para `sync-pending`, enviando JSON
+4. publicar o frontend;
+5. remover a autorização antiga do Sistema EJC na segurança da conta Google
+   central e usar **Reautorizar conta oficial** na Biblioteca. Isso substitui a
+   concessão ampla antiga pelo escopo `drive.file`;
+6. criar um Documento de teste e compartilhar com um grupo/equipe de teste;
+7. confirmar no Drive o acesso individual e o papel leitor/editor;
+8. testar a importação compartilhando uma pasta como Leitor com a conta de serviço;
+9. configurar uma chamada agendada para `sync-pending`, enviando JSON
    `{"action":"sync-pending","limit":25}` e o segredo no cabeçalho
    `X-Google-Drive-Sync-Secret`.
 

@@ -1,4 +1,4 @@
-import { ArrowLeft, CheckCircle2, Cloud, FolderSearch, Loader, LogOut, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clipboard, Cloud, FolderSearch, Loader, ShieldAlert } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
@@ -10,84 +10,6 @@ import {
 } from '../../services/bibliotecaService';
 import './GoogleDriveImportPage.css';
 
-interface PickerDocument {
-  id?: string;
-  name?: string;
-  mimeType?: string;
-}
-
-interface PickerCallbackData {
-  action?: string;
-  docs?: PickerDocument[];
-}
-
-interface PickerView {
-  setIncludeFolders(value: boolean): PickerView;
-  setSelectFolderEnabled(value: boolean): PickerView;
-}
-
-interface PickerInstance {
-  setVisible(value: boolean): void;
-}
-
-interface PickerBuilder {
-  addView(view: PickerView): PickerBuilder;
-  enableFeature(feature: string): PickerBuilder;
-  setOAuthToken(token: string): PickerBuilder;
-  setDeveloperKey(key: string): PickerBuilder;
-  setAppId(appId: string): PickerBuilder;
-  setCallback(callback: (data: PickerCallbackData) => void): PickerBuilder;
-  build(): PickerInstance;
-}
-
-interface GooglePickerApi {
-  Action: { PICKED: string };
-  Feature: { MULTISELECT_ENABLED: string };
-  ViewId: { DOCS: string };
-  DocsView: new (viewId: string) => PickerView;
-  PickerBuilder: new () => PickerBuilder;
-}
-
-declare global {
-  interface Window {
-    gapi?: { load: (name: string, callback: () => void) => void };
-    google?: { picker: GooglePickerApi };
-  }
-}
-
-let pickerScriptPromise: Promise<void> | null = null;
-
-function loadGooglePicker(): Promise<void> {
-  if (window.google?.picker) return Promise.resolve();
-  if (pickerScriptPromise) return pickerScriptPromise;
-  pickerScriptPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>('script[data-google-picker]');
-    const loadPickerModule = () => {
-      if (!window.gapi) {
-        reject(new Error('A biblioteca do Google não foi carregada.'));
-        return;
-      }
-      window.gapi.load('picker', () => {
-        if (window.google?.picker) resolve();
-        else reject(new Error('O seletor do Google Drive não ficou disponível.'));
-      });
-    };
-    if (existing) {
-      existing.addEventListener('load', loadPickerModule, { once: true });
-      existing.addEventListener('error', () => reject(new Error('Falha ao carregar o Google Picker.')), { once: true });
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://apis.google.com/js/api.js';
-    script.async = true;
-    script.dataset.googlePicker = 'true';
-    script.onload = loadPickerModule;
-    script.onerror = () => reject(new Error('Falha ao carregar o Google Picker.'));
-    document.head.appendChild(script);
-  });
-  return pickerScriptPromise;
-}
-
 export function GoogleDriveImportPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<GoogleDriveImportStatus | null>(null);
@@ -95,6 +17,7 @@ export function GoogleDriveImportPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [copyProgress, setCopyProgress] = useState<GoogleDriveCopyProgress | null>(null);
+  const [folderUrl, setFolderUrl] = useState('');
 
   const loadStatus = useCallback(async () => {
     try {
@@ -107,32 +30,17 @@ export function GoogleDriveImportPage() {
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('google_import') === 'connected') {
-      toast.success('Conta de origem conectada temporariamente.');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-    if (params.get('google_import') === 'denied') {
-      toast.error('A conexão temporária com o Google foi cancelada.');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
     void loadStatus();
   }, [loadStatus]);
 
-  const connectSource = async () => {
-    setActionLoading(true);
-    try {
-      window.location.assign(await bibliotecaService.iniciarImportacaoOutroDrive());
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível conectar outra conta.');
-      setActionLoading(false);
+  const inspectSharedFolder = async () => {
+    if (!folderUrl.trim()) {
+      toast.error('Cole o link da pasta compartilhada.');
+      return;
     }
-  };
-
-  const inspectItems = async (itemIds: string[]) => {
     setActionLoading(true);
     try {
-      let result = await bibliotecaService.inspecionarItensOutroDrive(itemIds);
+      let result = await bibliotecaService.inspecionarPastaCompartilhadaOutroDrive(folderUrl);
       setPreview(result);
       while (!result.done) {
         const progress = await bibliotecaService.processarInventarioOutroDrive();
@@ -142,7 +50,7 @@ export function GoogleDriveImportPage() {
       await loadStatus();
       toast.success('Inventário completo. Revise o resumo antes de confirmar.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível acessar os itens selecionados.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível acessar a pasta compartilhada.');
     } finally {
       setActionLoading(false);
     }
@@ -209,35 +117,13 @@ export function GoogleDriveImportPage() {
     }
   };
 
-  const openPicker = async () => {
-    setActionLoading(true);
+  const copyServiceAccountEmail = async () => {
+    if (!status?.serviceAccountEmail) return;
     try {
-      const config = await bibliotecaService.obterTokenGooglePicker();
-      await loadGooglePicker();
-      const pickerApi = window.google?.picker;
-      if (!pickerApi) throw new Error('Google Picker indisponível.');
-      const itemsView = new pickerApi.DocsView(pickerApi.ViewId.DOCS)
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(true);
-      const picker = new pickerApi.PickerBuilder()
-        .addView(itemsView)
-        .enableFeature(pickerApi.Feature.MULTISELECT_ENABLED)
-        .setOAuthToken(config.accessToken)
-        .setDeveloperKey(config.developerKey)
-        .setAppId(config.appId)
-        .setCallback((data) => {
-          if (data.action !== pickerApi.Action.PICKED) return;
-          const itemIds = (data.docs ?? [])
-            .map((item) => item.id)
-            .filter((id): id is string => Boolean(id));
-          if (itemIds.length > 0) void inspectItems(itemIds);
-        })
-        .build();
-      picker.setVisible(true);
+      await navigator.clipboard.writeText(status.serviceAccountEmail);
+      toast.success('E-mail copiado.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível abrir o seletor do Google.');
-    } finally {
-      setActionLoading(false);
+      toast.error(error instanceof Error ? error.message : 'Não foi possível copiar o e-mail.');
     }
   };
 
@@ -247,7 +133,7 @@ export function GoogleDriveImportPage() {
       await bibliotecaService.revogarImportacaoOutroDrive();
       setPreview(null);
       await loadStatus();
-      toast.success('Conexão temporária removida.');
+      toast.success('Importação cancelada. Se desejar, remova também o compartilhamento no Google Drive.');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível remover a conexão.');
     } finally {
@@ -263,39 +149,45 @@ export function GoogleDriveImportPage() {
 
       <header className="drive-import-header">
         <span>Ferramenta administrativa avançada</span>
-        <h1>Importar de outro Drive</h1>
-        <p>Conecte temporariamente uma conta de origem e selecione as pastas e os arquivos que deseja importar. A conta institucional atual não será substituída.</p>
+        <h1>Importar pasta compartilhada</h1>
+        <p>Compartilhe uma pasta como leitor, cole o link abaixo e revise o conteúdo antes de copiar. Nenhuma conta Google precisa ser conectada.</p>
       </header>
 
       <section className="drive-import-warning">
         <ShieldAlert size={22} aria-hidden="true" />
-        <div><strong>Operação excepcional</strong><p>A conexão concede leitura temporária do Drive para preservar a estrutura de pastas. Nenhum arquivo pode ser alterado e o acesso expira em 24 horas.</p></div>
+        <div><strong>A pasta de origem não será alterada</strong><p>O sistema terá somente leitura da pasta compartilhada. Ao terminar, você pode remover o compartilhamento diretamente no Google Drive.</p></div>
       </section>
 
       <section className="drive-import-card">
-        <div className="drive-import-step"><span>1</span><div><strong>Conta de origem</strong><small>Conta antiga que possui ou recebeu os arquivos.</small></div></div>
+        <div className="drive-import-step"><span>1</span><div><strong>Compartilhe a pasta</strong><small>No Google Drive, abra “Compartilhar” e adicione este e-mail como Leitor.</small></div></div>
         {loading ? (
-          <div className="drive-import-loading"><Loader size={18} className="animate-spin" /> Consultando conexão…</div>
-        ) : status?.connected ? (
-          <div className="drive-import-connected">
-            <CheckCircle2 size={20} />
-            <div><strong>{status.accountEmail}</strong><small>Conexão temporária ativa</small></div>
-            <button type="button" className="btn-secondary" onClick={revokeSource} disabled={actionLoading}><LogOut size={16} /> Desconectar</button>
-          </div>
+          <div className="drive-import-loading"><Loader size={18} className="animate-spin" /> Carregando instruções…</div>
         ) : (
-          <button type="button" className="btn-primary drive-import-primary-action" onClick={connectSource} disabled={actionLoading}>
-            {actionLoading ? <Loader size={17} className="animate-spin" /> : <Cloud size={17} />}
-            Conectar outra conta
-          </button>
+          <div className="drive-import-share-email">
+            <code>{status?.serviceAccountEmail || 'E-mail de importação indisponível'}</code>
+            <button type="button" className="btn-secondary" onClick={() => void copyServiceAccountEmail()} disabled={!status?.serviceAccountEmail}>
+              <Clipboard size={16} /> Copiar e-mail
+            </button>
+          </div>
         )}
       </section>
 
       <section className="drive-import-card">
-        <div className="drive-import-step"><span>2</span><div><strong>Itens de origem</strong><small>Selecione uma ou mais pastas e arquivos para analisar nesta operação.</small></div></div>
-        <button type="button" className="btn-primary drive-import-primary-action" onClick={openPicker} disabled={!status?.connected || actionLoading}>
-          {actionLoading ? <Loader size={17} className="animate-spin" /> : <FolderSearch size={17} />}
-          Selecionar pastas e arquivos
-        </button>
+        <div className="drive-import-step"><span>2</span><div><strong>Cole o link da pasta</strong><small>Use o link exibido pelo Google Drive ao abrir ou compartilhar a pasta.</small></div></div>
+        <div className="drive-import-link-row">
+          <input
+            type="url"
+            value={folderUrl}
+            onChange={(event) => setFolderUrl(event.target.value)}
+            placeholder="https://drive.google.com/drive/folders/..."
+            aria-label="Link da pasta compartilhada"
+            disabled={actionLoading}
+          />
+          <button type="button" className="btn-primary" onClick={() => void inspectSharedFolder()} disabled={actionLoading || !folderUrl.trim()}>
+            {actionLoading ? <Loader size={17} className="animate-spin" /> : <FolderSearch size={17} />}
+            Verificar pasta
+          </button>
+        </div>
         {!preview && status?.selectedFolderId && ['inventory_scanning', 'inventory_ready', 'inventory_confirmed'].includes(status.status ?? '') && (
           <button type="button" className="btn-secondary drive-import-primary-action" onClick={resumeInventory} disabled={actionLoading}>
             {actionLoading ? <Loader size={17} className="animate-spin" /> : <FolderSearch size={17} />}
@@ -329,7 +221,7 @@ export function GoogleDriveImportPage() {
 
       {(copyProgress || ['copying', 'completed', 'completed_with_errors'].includes(status?.status ?? '')) && (
         <section className="drive-import-card drive-import-result">
-          <div className="drive-import-step"><span>4</span><div><strong>Cópia para a Biblioteca</strong><small>Os itens foram adicionados à página inicial, preservando as pastas selecionadas.</small></div></div>
+          <div className="drive-import-step"><span>4</span><div><strong>Cópia para a Biblioteca</strong><small>Os itens são adicionados à página inicial, preservando a estrutura da pasta compartilhada.</small></div></div>
           {copyProgress && (
             <div className="drive-import-metrics">
               <div><strong>{copyProgress.copied}</strong><span>copiados</span></div>
@@ -342,7 +234,7 @@ export function GoogleDriveImportPage() {
               <Cloud size={17} /> Retomar cópia
             </button>
           )}
-          {status?.status === 'completed' && <p className="drive-import-success"><CheckCircle2 size={18} /> Importação concluída e conexão temporária encerrada.</p>}
+          {status?.status === 'completed' && <p className="drive-import-success"><CheckCircle2 size={18} /> Importação concluída. Agora você pode remover o compartilhamento no Google Drive.</p>}
           {status?.status === 'completed_with_errors' && (
             <>
               <p className="drive-import-note">A importação terminou com itens incompatíveis ou que falharam.</p>
@@ -351,6 +243,11 @@ export function GoogleDriveImportPage() {
                 Tentar novamente
               </button>
             </>
+          )}
+          {status?.connected && (
+            <button type="button" className="btn-secondary drive-import-primary-action" onClick={revokeSource} disabled={actionLoading}>
+              Encerrar esta importação
+            </button>
           )}
         </section>
       )}

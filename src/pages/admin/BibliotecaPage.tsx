@@ -793,15 +793,6 @@ export function BibliotecaPage() {
                 <><Loader size={16} className="animate-spin" /> {uploadProgress.percent.toFixed(0)}%</>
               ) : 'Enviar Arquivo'}
             </button>}
-            <button className="btn-secondary" onClick={() => openGoogleModal()} disabled={uploadProgress.active}>
-              <ExternalLink size={16} /> Vincular link existente
-            </button>
-            {isCurrentFolderGoogle && (
-              <button className="btn-secondary" onClick={() => void handleScanGoogleFolder()} disabled={isScanningGoogleFolder}>
-                {isScanningGoogleFolder ? <Loader size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-                {isScanningGoogleFolder ? 'Buscando...' : 'Atualizar do Drive'}
-              </button>
-            )}
             <input type="file" multiple ref={fileInputRef} style={{ display: 'none' }} onChange={e => actions.handleFileUpload(e.target.files)} />
           </div>
         </div>
@@ -1044,7 +1035,7 @@ export function BibliotecaPage() {
           <div>
             <strong>Ferramentas avançadas</strong>
             <p className="text-muted" style={{ margin: '0.35rem 0 0', lineHeight: 1.5 }}>
-              Operações excepcionais de manutenção e migração do acervo.
+              Para manter a integração simples, envie ou crie novos arquivos pela Biblioteca. Arquivos adicionados diretamente no Drive não são descobertos automaticamente.
             </p>
           </div>
           {canImportFromGoogleDrive && <>
@@ -1055,10 +1046,10 @@ export function BibliotecaPage() {
               onClick={() => navigate('/biblioteca/importar-drive')}
             >
               <CloudUpload size={18} />
-              Importar de outro Drive
+              Importar pasta compartilhada
             </button>
             <small className="text-muted">
-              Conecta temporariamente outra conta sem substituir a conta institucional.
+              Importa uma pasta compartilhada sem conectar outra conta Google.
             </small>
           </>}
           {isSystemAdmin && <>
@@ -1073,7 +1064,7 @@ export function BibliotecaPage() {
               Reautorizar conta oficial
             </button>
             <small className="text-muted">
-              Necessário uma vez para permitir a busca seletiva de arquivos adicionados diretamente no Drive.
+              Necessário uma vez para permitir que o sistema administre somente os arquivos criados por ele.
             </small>
           </>}
         </div>
