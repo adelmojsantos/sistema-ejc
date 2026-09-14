@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 export interface Permissao {
     id: string;
     chave: string;
-    descricao: string;
+    nome: string | null;
+    descricao: string | null;
 }
 
 export interface Grupo {
@@ -19,7 +20,9 @@ export interface GrupoPermissao {
 
 export const adminAccessService = {
     async listPermissoes(): Promise<Permissao[]> {
-        const { data, error } = await supabase.from('permissoes').select('*').order('descricao');
+        const { data, error } = await supabase
+            .from('permissoes')
+            .select('id, chave, nome, descricao');
         if (error) throw error;
         return data || [];
     },

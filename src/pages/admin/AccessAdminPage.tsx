@@ -3,8 +3,137 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { Shield, Plus, Save, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { adminAccessService } from '../../services/adminAccessService';
+import { bibliotecaService } from '../../services/bibliotecaService';
 import type { Grupo, Permissao, GrupoPermissao } from '../../services/adminAccessService';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { Modal } from '../../components/ui/Modal';
+import './AccessAdminPage.css';
+
+const PERMISSION_TERM_LABELS: Record<string, string> = {
+    admin: 'Administração',
+    almoxarifado: 'Almoxarifado',
+    arquivos: 'Arquivos',
+    biblioteca: 'Biblioteca',
+    cadastros: 'Cadastros',
+    circulos: 'Círculos',
+    compras: 'Compras',
+    consultar: 'Consultar',
+    coordenador: 'Coordenadores',
+    coordenar: 'Coordenação',
+    criar: 'Criar',
+    cuidados: 'Cuidados',
+    dashboard: 'Página inicial',
+    diagnosticos: 'Diagnósticos técnicos',
+    drive: 'Drive',
+    duplas: 'Duplas',
+    email: 'E-mail',
+    financeiro: 'Financeiro',
+    gerenciar: 'Gerenciar',
+    google: 'Google',
+    importar: 'Importar',
+    inscricao: 'Inscrições',
+    institucional: 'institucional',
+    ligacao: 'Ligação',
+    mediador: 'Mediadores',
+    movimentar: 'Movimentar estoque',
+    pedidos: 'Pedidos',
+    recepcao: 'Recepção',
+    recreacao: 'Recreação',
+    responder: 'Responder',
+    secretaria: 'Secretaria',
+    visitacao: 'Visitação',
+};
+
+function humanizePermissionKey(key: string) {
+    return key
+        .replace(/^modulo_/, '')
+        .split('_')
+        .map(term => PERMISSION_TERM_LABELS[term] || `${term.charAt(0).toUpperCase()}${term.slice(1)}`)
+        .join(' · ');
+}
+
+function getPermissionName(permission: Permissao) {
+    const registeredName = permission.nome?.trim();
+    if (!registeredName) return humanizePermissionKey(permission.chave);
+
+    return registeredName.replace(/^Acesso\s+(?:à|às|ao|aos)\s+/i, '');
+}
+
+function sortPermissions(permissions: Permissao[]) {
+    return [...permissions].sort((first, second) =>
+        getPermissionName(first).localeCompare(getPermissionName(second), 'pt-BR')
+    );
+}
+
+function haveSameIds(first: string[], second: string[]) {
+    if (first.length !== second.length) return false;
+    const secondIds = new Set(second);
+    return first.every(id => secondIds.has(id));
+}
+
+interface PermissionSectionProps {
+    title: string;
+    permissions: Permissao[];
+    activePermissionIds: string[];
+    onToggle: (permissionId: string) => void;
+    onShowDetails: (permission: Permissao) => void;
+}
+
+function PermissionSection({
+    title,
+    permissions,
+    activePermissionIds,
+    onToggle,
+    onShowDetails,
+}: PermissionSectionProps) {
+    if (permissions.length === 0) return null;
+
+    return (
+        <section className="access-permission-section" aria-label={title}>
+            <div className="access-permission-section__header">
+                <h5 className="access-permission-section__title">
+                    {title}
+                </h5>
+            </div>
+            <div className="access-permission-list">
+                {permissions.map(permission => {
+                    const name = getPermissionName(permission);
+                    const isEnabled = activePermissionIds.includes(permission.id);
+
+                    return (
+                        <div
+                            key={permission.id}
+                            className={`access-permission-row ${isEnabled ? 'access-permission-row--enabled' : ''}`}
+                        >
+                            <span className="access-permission-row__name">{name}</span>
+                            <div className="access-permission-row__actions">
+                                <button
+                                    type="button"
+                                    className="access-permission-row__info"
+                                    aria-label={`Ver detalhes de ${name}`}
+                                    title={`Ver detalhes de ${name}`}
+                                    onClick={() => onShowDetails(permission)}
+                                >
+                                    O que libera?
+                                </button>
+                                <label className="access-permission-switch">
+                                    <input
+                                        type="checkbox"
+                                        role="switch"
+                                        checked={isEnabled}
+                                        aria-label={`${name}: ${isEnabled ? 'liberado' : 'bloqueado'}`}
+                                        onChange={() => onToggle(permission.id)}
+                                    />
+                                    <span className="access-permission-switch__track" aria-hidden="true" />
+                                </label>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
 
 export function AccessAdminPage() {
     const [grupos, setGrupos] = useState<Grupo[]>([]);
@@ -18,6 +147,7 @@ export function AccessAdminPage() {
     const [isSavingRelation, setIsSavingRelation] = useState(false);
     const [loading, setLoading] = useState(true);
     const [grupoToDelete, setGrupoToDelete] = useState<string | null>(null);
+    const [selectedPermission, setSelectedPermission] = useState<Permissao | null>(null);
 
     // Estado temporário para edições de permissões por grupo
     const [tempPermissoes, setTempPermissoes] = useState<Record<string, string[]>>({});
@@ -66,18 +196,19 @@ export function AccessAdminPage() {
         });
     };
 
-    const setPermissaoState = (grupoId: string, permissaoId: string, value: boolean) => {
-        setTempPermissoes(prev => {
-            const current = prev[grupoId] || [];
-            const next = value 
-                ? (current.includes(permissaoId) ? current : [...current, permissaoId])
-                : current.filter(id => id !== permissaoId);
-            return { ...prev, [grupoId]: next };
-        });
-    };
-
     const handleSavePermissoes = async (grupoId: string) => {
         const ids = tempPermissoes[grupoId] || [];
+        const savedIds = relacoes
+            .filter(relation => relation.grupo_id === grupoId)
+            .map(relation => relation.permissao_id);
+        const libraryPermissionId = permissoes.find(
+            permission => permission.chave === 'modulo_biblioteca'
+        )?.id;
+        const libraryAccessChanged = Boolean(
+            libraryPermissionId
+            && ids.includes(libraryPermissionId) !== savedIds.includes(libraryPermissionId)
+        );
+
         setIsSavingRelation(true);
         try {
             await adminAccessService.updateGrupoPermissoes(grupoId, ids);
@@ -86,7 +217,30 @@ export function AccessAdminPage() {
                 ...prev.filter(r => r.grupo_id !== grupoId),
                 ...ids.map(pid => ({ grupo_id: grupoId, permissao_id: pid }))
             ]);
-            toast.success('Permissões salvas com sucesso.');
+
+            if (!libraryAccessChanged) {
+                toast.success('Permissões salvas com sucesso.');
+                return;
+            }
+
+            try {
+                const syncResult = await bibliotecaService.sincronizarGoogleDrive(25);
+                const failures = syncResult.results.reduce(
+                    (total, item) => total + item.errors.length,
+                    0
+                );
+                const status = await bibliotecaService.obterStatusGoogleDrive();
+
+                if (failures > 0 || status.pendingCount > 0) {
+                    toast.success('Permissão da Biblioteca salva.');
+                    toast('Alguns acessos do Google ainda estão sendo processados.');
+                } else {
+                    toast.success('Permissão da Biblioteca e acessos do Google atualizados.');
+                }
+            } catch {
+                toast.success('Permissão da Biblioteca salva.');
+                toast.error('Não foi possível sincronizar agora os acessos do Google. A Biblioteca tentará novamente ao ser aberta.');
+            }
         } catch {
             toast.error('Erro ao salvar permissões.');
         } finally {
@@ -130,11 +284,11 @@ export function AccessAdminPage() {
     };
 
     return (
-        <div className="container" style={{ paddingBottom: '2rem' }}>
+        <div className="container access-admin-page">
             <div className="page-header">
                 <div>
                     <h1 className="page-title" style={{ fontSize: '1.5rem' }}>
-                        <Shield size={22} style={{ marginRight: '0.45rem', verticalAlign: 'middle' }} />
+                        <Shield size={22} className="access-admin-page__title-icon" />
                         Grupos e Acessos
                     </h1>
                     <p className="text-muted" style={{ margin: '0.35rem 0 0' }}>
@@ -163,7 +317,7 @@ export function AccessAdminPage() {
                     
                     {/* Botão de Criação / Formulário de Criação */}
                     {!isCreating ? (
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+                        <div className="access-admin-page__create-action">
                             <button className="btn-primary" onClick={() => setIsCreating(true)} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <Plus size={18} /> Novo Grupo
                             </button>
@@ -197,7 +351,7 @@ export function AccessAdminPage() {
                                         />
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                                <div className="access-admin-page__form-actions" style={{ marginTop: '1.5rem' }}>
                                     <button type="button" className="btn-secondary" onClick={() => setIsCreating(false)}>Cancelar</button>
                                     <button type="submit" className="btn-primary" disabled={isSavingRelation || !newNome}>
                                         <Save size={16} style={{ marginRight: '0.4rem' }} />
@@ -218,6 +372,16 @@ export function AccessAdminPage() {
                         grupos.map(g => {
                             const isExpanded = expandedGroupId === g.id;
                             const activePerms = tempPermissoes[g.id] || [];
+                            const savedPerms = relacoes
+                                .filter(relation => relation.grupo_id === g.id)
+                                .map(relation => relation.permissao_id);
+                            const hasPendingChanges = !haveSameIds(activePerms, savedPerms);
+                            const modulePermissions = sortPermissions(
+                                permissoes.filter(permission => permission.chave.startsWith('modulo_'))
+                            );
+                            const specificPermissions = sortPermissions(
+                                permissoes.filter(permission => !permission.chave.startsWith('modulo_'))
+                            );
 
                             return (
                                 <motion.article 
@@ -227,74 +391,41 @@ export function AccessAdminPage() {
                                         hidden: { opacity: 0, y: 10 },
                                         visible: { opacity: 1, y: 0 }
                                     }}
-                                    whileHover={isExpanded ? {} : { scale: 1.01, boxShadow: 'var(--shadow-lg)', borderColor: 'var(--primary-color)' }}
-                                    className="card" 
+                                    whileHover={isExpanded ? {} : { scale: 1.01, boxShadow: 'var(--shadow-lg)' }}
+                                    className={`card access-admin-page__group ${isExpanded ? 'access-admin-page__group--expanded' : ''}`}
                                     style={{ 
-                                        padding: '0', 
-                                        overflow: 'hidden',
                                         borderLeft: `4px solid ${isExpanded ? 'var(--primary-color)' : 'var(--border-color)'}`,
-                                        transition: 'all 0.2s ease',
-                                        boxShadow: isExpanded ? 'var(--shadow-md)' : 'none',
-                                        position: 'relative',
-                                        zIndex: isExpanded ? 10 : 1
                                     }}
                                 >
                                     {/* Header do Card */}
                                     <div 
                                         onClick={() => toggleGroupExpand(g.id)}
-                                        style={{ 
-                                            padding: '1.25rem 1.5rem', 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            justifyContent: 'space-between',
-                                            cursor: 'pointer',
-                                            background: isExpanded ? 'var(--surface-1)' : 'transparent',
-                                            transition: 'background 0.2s'
-                                        }}
+                                        className="access-admin-page__group-header"
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flex: 1 }}>
-                                            <div style={{ minWidth: '180px' }}>
-                                                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: isExpanded ? 'var(--primary-color)' : 'var(--text-color)' }}>
+                                        <div className="access-admin-page__group-summary">
+                                            <div className="access-admin-page__group-name">
+                                                <h3 style={{ color: isExpanded ? 'var(--primary-color)' : 'var(--text-color)' }}>
                                                     {g.nome}
                                                 </h3>
                                                 <span className="badge badge-secondary" style={{ fontSize: '0.7rem', marginTop: '0.25rem' }}>
                                                     {activePerms.length} permissões ativas
                                                 </span>
                                             </div>
-                                            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--muted-text)', flex: 1 }} className="hide-mobile">
+                                            <p className="access-admin-page__group-description">
                                                 {g.descricao || 'Sem descrição.'}
                                             </p>
                                         </div>
 
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }} onClick={e => e.stopPropagation()}>
+                                        <div className="access-admin-page__group-actions" onClick={e => e.stopPropagation()}>
                                             <button 
-                                                className="btn-secondary" 
-                                                style={{ 
-                                                    padding: '0.5rem 0.8rem',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.4rem',
-                                                    fontSize: '0.8rem',
-                                                    backgroundColor: '#ef4444',
-                                                    color: '#ffffff',
-                                                    border: 'none'
-                                                }} 
+                                                className="btn-secondary access-admin-page__delete-button"
                                                 title="Excluir Grupo" 
                                                 onClick={() => setGrupoToDelete(g.id)}
-                                                onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
-                                                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
                                             >
                                                 <Trash2 size={14} />
                                                 <span>Excluir</span>
                                             </button>
-                                            <div
-                                                style={{ 
-                                                    padding: '0.4rem', 
-                                                    color: 'var(--muted-text)',
-                                                    display: 'flex',
-                                                    alignItems: 'center'
-                                                }}
-                                            >
+                                            <div style={{ color: 'var(--muted-text)', display: 'flex' }}>
                                                 {isExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
                                             </div>
                                         </div>
@@ -310,101 +441,40 @@ export function AccessAdminPage() {
                                                 transition={{ duration: 0.3, ease: 'easeInOut' }}
                                                 style={{ overflow: 'hidden' }}
                                             >
-                                                <div style={{ padding: '1.5rem', borderTop: '1px solid var(--border-color)', background: 'var(--bg-color)' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                                                        <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>Permissões Disponíveis</h4>
-                                                        <button className="btn-primary" onClick={() => handleSavePermissoes(g.id)} disabled={isSavingRelation}>
-                                                            <Save size={16} style={{ marginRight: '0.4rem' }} />
-                                                            Salvar Permissões
+                                                <div className="access-admin-page__permissions-panel">
+                                                    <div className="access-admin-page__permissions-header">
+                                                        <div>
+                                                            <h4 className="access-admin-page__permissions-title">Permissões disponíveis</h4>
+                                                            {hasPendingChanges && (
+                                                                <span className="text-muted" style={{ fontSize: '0.78rem' }}>
+                                                                    Alterações ainda não salvas
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <button
+                                                            className="btn-primary access-admin-page__save-button"
+                                                            onClick={() => handleSavePermissoes(g.id)}
+                                                            disabled={isSavingRelation || !hasPendingChanges}
+                                                        >
+                                                            <Save size={16} aria-hidden="true" />
+                                                            Salvar
                                                         </button>
                                                     </div>
 
-                                                    <div style={{ 
-                                                        display: 'grid', 
-                                                        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
-                                                        gap: '1rem' 
-                                                    }}>
-                                                        {permissoes.map(p => {
-                                                            const isEnabled = activePerms.includes(p.id);
-                                                            return (
-                                                                <motion.div 
-                                                                    key={p.id} 
-                                                                    whileHover={{ scale: 1.01 }}
-                                                                    whileTap={{ scale: 0.99 }}
-                                                                    onClick={() => handleTogglePermissao(g.id, p.id)}
-                                                                    style={{ 
-                                                                        display: 'flex', 
-                                                                        flexDirection: 'column',
-                                                                        gap: '1rem',
-                                                                        padding: '1.25rem',
-                                                                        background: isEnabled ? 'rgba(34, 197, 94, 0.05)' : 'var(--surface-1)',
-                                                                        border: `1px solid ${isEnabled ? 'var(--success-border)' : 'var(--border-color)'}`,
-                                                                        borderRadius: '12px',
-                                                                        cursor: 'pointer',
-                                                                        transition: 'all 0.2s'
-                                                                    }}
-                                                                >
-                                                                    <div style={{ flex: 1 }}>
-                                                                        <div style={{ fontWeight: 600, color: 'var(--text-color)', fontSize: '0.95rem' }}>{p.descricao}</div>
-                                                                        <code style={{ fontSize: '0.7rem', color: 'var(--muted-text)', marginTop: '0.2rem', display: 'inline-block' }}>{p.chave}</code>
-                                                                    </div>
-                                                                    
-                                                                    {/* Segmented Control Sim/Não embaixo 100% width */}
-                                                                    <div style={{ 
-                                                                        display: 'flex', 
-                                                                        background: 'var(--bg-color)', 
-                                                                        padding: '2px', 
-                                                                        borderRadius: '8px', 
-                                                                        border: '1px solid var(--border-color)',
-                                                                        width: '100%'
-                                                                    }} onClick={e => e.stopPropagation()}>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                setPermissaoState(g.id, p.id, true);
-                                                                            }}
-                                                                            style={{
-                                                                                flex: 1,
-                                                                                padding: '8px 20px',
-                                                                                fontSize: '0.8rem',
-                                                                                fontWeight: 700,
-                                                                                borderRadius: '6px',
-                                                                                border: 'none',
-                                                                                cursor: 'pointer',
-                                                                                backgroundColor: isEnabled ? 'var(--success-border)' : 'transparent',
-                                                                                color: isEnabled ? '#fff' : 'var(--muted-text)',
-                                                                                transition: '0.2s'
-                                                                            }}
-                                                                        >
-                                                                            Sim
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                setPermissaoState(g.id, p.id, false);
-                                                                            }}
-                                                                            style={{
-                                                                                flex: 1,
-                                                                                padding: '8px 20px',
-                                                                                fontSize: '0.8rem',
-                                                                                fontWeight: 700,
-                                                                                borderRadius: '6px',
-                                                                                border: 'none',
-                                                                                cursor: 'pointer',
-                                                                                backgroundColor: !isEnabled ? 'var(--danger-border)' : 'transparent',
-                                                                                color: !isEnabled ? '#fff' : 'var(--muted-text)',
-                                                                                transition: '0.2s'
-                                                                            }}
-                                                                        >
-                                                                            Não
-                                                                        </button>
-                                                                    </div>
-                                                                </motion.div>
-                                                            );
-                                                        })}
-                                                    </div>
+                                                    <PermissionSection
+                                                        title="Módulos"
+                                                        permissions={modulePermissions}
+                                                        activePermissionIds={activePerms}
+                                                        onToggle={permissionId => handleTogglePermissao(g.id, permissionId)}
+                                                        onShowDetails={setSelectedPermission}
+                                                    />
+                                                    <PermissionSection
+                                                        title="Permissões específicas"
+                                                        permissions={specificPermissions}
+                                                        activePermissionIds={activePerms}
+                                                        onToggle={permissionId => handleTogglePermissao(g.id, permissionId)}
+                                                        onShowDetails={setSelectedPermission}
+                                                    />
                                                 </div>
                                             </motion.div>
                                         )}
@@ -427,6 +497,27 @@ export function AccessAdminPage() {
                 onCancel={() => setGrupoToDelete(null)}
                 isLoading={isSavingRelation}
             />
+
+            <Modal
+                isOpen={selectedPermission !== null}
+                onClose={() => setSelectedPermission(null)}
+                title={selectedPermission ? getPermissionName(selectedPermission) : 'Detalhes da permissão'}
+            >
+                {selectedPermission && (
+                    <div className="access-permission-modal">
+                        <p className="access-permission-modal__description">
+                            {selectedPermission.descricao || 'Esta permissão não possui uma descrição cadastrada.'}
+                        </p>
+                        {selectedPermission.chave === 'modulo_biblioteca' && (
+                            <div className="access-permission-modal__notice">
+                                Libera o gerenciamento de todo o acervo: visualizar, criar, enviar, editar,
+                                excluir e compartilhar pastas e arquivos. Para liberar somente itens específicos,
+                                use o compartilhamento da própria Biblioteca.
+                            </div>
+                        )}
+                    </div>
+                )}
+            </Modal>
         </div>
     );
 }

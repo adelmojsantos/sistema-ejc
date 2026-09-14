@@ -1,0 +1,312 @@
+.access-admin-page {
+  padding-bottom: 2rem;
+}
+
+.access-admin-page__title-icon {
+  margin-right: 0.45rem;
+  vertical-align: middle;
+}
+
+.access-admin-page__create-action,
+.access-admin-page__form-actions,
+.access-admin-page__permissions-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.access-admin-page__create-action {
+  margin-bottom: 0.5rem;
+}
+
+.access-admin-page__group {
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.access-admin-page__group--expanded {
+  box-shadow: var(--shadow-md);
+  z-index: 10;
+}
+
+.access-admin-page__group-header {
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
+}
+
+.access-admin-page__group--expanded .access-admin-page__group-header {
+  background: var(--surface-1);
+}
+
+.access-admin-page__group-summary {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex: 1;
+}
+
+.access-admin-page__group-name {
+  min-width: 180px;
+}
+
+.access-admin-page__group-name h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.access-admin-page__group-description {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.access-admin-page__group-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.access-admin-page__delete-button {
+  padding: 0.5rem 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  background-color: #ef4444;
+  color: #fff;
+  border: 0;
+}
+
+.access-admin-page__permissions-panel {
+  padding: 1.5rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-color);
+}
+
+.access-admin-page__permissions-header {
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+}
+
+.access-admin-page__permissions-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.access-admin-page__save-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.access-permission-section + .access-permission-section {
+  margin-top: 1.5rem;
+}
+
+.access-permission-section__header {
+  margin-bottom: 0.65rem;
+}
+
+.access-permission-section__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted-text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.access-permission-list {
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface-1);
+}
+
+.access-permission-row {
+  min-height: 58px;
+  padding: 0.7rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  transition: background-color 0.2s ease;
+}
+
+.access-permission-row + .access-permission-row {
+  border-top: 1px solid var(--border-color);
+}
+
+.access-permission-row--enabled {
+  background: rgba(34, 197, 94, 0.06);
+}
+
+.access-permission-row__name {
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--text-color);
+}
+
+.access-permission-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-shrink: 0;
+}
+
+.access-permission-row__info {
+  min-height: 34px;
+  padding: 0.35rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  color: var(--muted-text);
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.access-permission-row__info:hover,
+.access-permission-row__info:focus-visible {
+  color: var(--primary-color);
+  background: var(--surface-2);
+  outline: none;
+}
+
+.access-permission-switch {
+  position: relative;
+  display: inline-flex;
+  width: 48px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.access-permission-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.access-permission-switch__track {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.access-permission-switch__track::before {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  top: 3px;
+  left: 3px;
+  border-radius: 50%;
+  background: var(--muted-text);
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.access-permission-switch input:checked + .access-permission-switch__track {
+  border-color: var(--success-border);
+  background: var(--success-border);
+}
+
+.access-permission-switch input:checked + .access-permission-switch__track::before {
+  transform: translateX(20px);
+  background: #fff;
+}
+
+.access-permission-switch input:focus-visible + .access-permission-switch__track {
+  outline: 3px solid color-mix(in srgb, var(--primary-color) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.access-permission-modal__description {
+  margin: 0;
+  color: var(--text-color);
+  line-height: 1.6;
+}
+
+.access-permission-modal__notice {
+  margin-top: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--primary-color);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary-color) 8%, transparent);
+  color: var(--text-color);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 639px) {
+  .access-admin-page {
+    padding-bottom: 1rem;
+  }
+
+  .access-admin-page__group-header,
+  .access-admin-page__permissions-panel {
+    padding: 1rem 0.75rem;
+  }
+
+  .access-admin-page__group-summary {
+    gap: 0.75rem;
+  }
+
+  .access-admin-page__group-name {
+    min-width: 0;
+  }
+
+  .access-admin-page__group-description,
+  .access-admin-page__delete-button span {
+    display: none;
+  }
+
+  .access-admin-page__permissions-header {
+    align-items: flex-start;
+  }
+
+  .access-admin-page__save-button {
+    min-height: 38px;
+    padding: 0.45rem 0.7rem;
+    font-size: 0.78rem;
+  }
+
+  .access-permission-row {
+    min-height: 54px;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .access-permission-row__actions {
+    gap: 0.5rem;
+  }
+
+  .access-permission-row__info {
+    padding-inline: 0.4rem;
+    font-size: 0.7rem;
+  }
+}
