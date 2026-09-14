@@ -144,14 +144,43 @@ export function BibliotecaPage() {
       const status = await bibliotecaService.obterStatusGoogleDrive();
       setGoogleStatus(status);
       setGoogleStatusError(null);
+      return status;
     } catch (error: unknown) {
       setGoogleStatus(null);
       setGoogleStatusError(error instanceof Error ? error.message : 'Não foi possível consultar a integração.');
+      return null;
     }
   }, []);
 
   useEffect(() => {
-    void loadGoogleStatus();
+    let active = true;
+
+    const initializeGoogleIntegration = async () => {
+      const status = await loadGoogleStatus();
+      if (!active || !status?.connected || status.pendingCount === 0) return;
+
+      setIsGoogleActionLoading(true);
+      try {
+        const result = await bibliotecaService.sincronizarGoogleDrive(25);
+        const failures = result.results.reduce((total, item) => total + item.errors.length, 0);
+        const refreshedStatus = await loadGoogleStatus();
+        if (!active) return;
+
+        if (failures > 0 || (refreshedStatus?.pendingCount ?? 0) > 0) {
+          toast('Alguns acessos do Google ainda estão sendo processados.');
+        } else {
+          toast.success('Acessos do Google atualizados.');
+        }
+      } catch (error: unknown) {
+        if (active) {
+          toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar os acessos do Google.');
+        }
+      } finally {
+        if (active) setIsGoogleActionLoading(false);
+      }
+    };
+
+    void initializeGoogleIntegration();
 
     const url = new URL(window.location.href);
     const googleResult = url.searchParams.get('google');
@@ -164,6 +193,10 @@ export function BibliotecaPage() {
       url.searchParams.delete('google');
       window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
     }
+
+    return () => {
+      active = false;
+    };
   }, [loadGoogleStatus]);
 
   const handleConnectGoogle = async () => {
@@ -205,6 +238,7 @@ export function BibliotecaPage() {
   ].filter((url): url is string => Boolean(url));
   const currentFolder = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1] : null;
   const isCurrentFolderGoogle = Boolean(currentFolder?.google_managed);
+  const canCreateGoogleContentHere = !currentFolderId || isCurrentFolderGoogle;
   const selectedMissingGoogleItems = googleMissingItems.filter((item) => selectedGoogleMissingItems.has(item.libraryId));
   const selectedMissingGoogleDescendants = selectedMissingGoogleItems.reduce(
     (total, item) => total + item.descendantFolders + item.descendantFiles,
@@ -723,31 +757,35 @@ export function BibliotecaPage() {
                   {isGoogleActionLoading ? <Loader size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                   Sincronizar
                 </button>
-                <button
-                  type="button"
-                  className="btn-secondary-sm"
-                  onClick={() => googleUploadInputRef.current?.click()}
-                  disabled={isGoogleActionLoading || isGoogleUploading}
-                >
-                  {isGoogleUploading ? <Loader size={16} className="animate-spin" /> : <CloudUpload size={16} />}
-                  {isGoogleUploading ? 'Enviando...' : 'Enviar ao Google'}
-                </button>
-                <input
-                  ref={googleUploadInputRef}
-                  type="file"
-                  accept=".doc,.docx,.txt,.csv,.xlsx"
-                  multiple
-                  hidden
-                  onChange={handleUploadToGoogle}
-                />
-                <button
-                  type="button"
-                  className="btn-primary-sm"
-                  onClick={() => setGoogleCreateModalOpen(true)}
-                  disabled={isGoogleActionLoading}
-                >
-                  <FilePlus2 size={16} /> Criar no Google
-                </button>
+                {canCreateGoogleContentHere && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-secondary-sm"
+                      onClick={() => googleUploadInputRef.current?.click()}
+                      disabled={isGoogleActionLoading || isGoogleUploading}
+                    >
+                      {isGoogleUploading ? <Loader size={16} className="animate-spin" /> : <CloudUpload size={16} />}
+                      {isGoogleUploading ? 'Enviando...' : 'Enviar ao Google'}
+                    </button>
+                    <input
+                      ref={googleUploadInputRef}
+                      type="file"
+                      accept=".doc,.docx,.txt,.csv,.xlsx"
+                      multiple
+                      hidden
+                      onChange={handleUploadToGoogle}
+                    />
+                    <button
+                      type="button"
+                      className="btn-primary-sm"
+                      onClick={() => setGoogleCreateModalOpen(true)}
+                      disabled={isGoogleActionLoading}
+                    >
+                      <FilePlus2 size={16} /> Criar no Google
+                    </button>
+                  </>
+                )}
               </>
             ) : (
               <button

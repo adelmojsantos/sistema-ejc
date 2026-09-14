@@ -16,8 +16,25 @@ import { useEffect, useState } from 'react';
 import { BibliotecaPage } from '../admin/BibliotecaPage';
 
 export default function LibraryPage() {
-    const { hasPermission } = useAuth();
+    const { hasPermission, refreshProfile } = useAuth();
+    const [isRefreshingAccess, setIsRefreshingAccess] = useState(true);
     const canManage = hasPermission('modulo_biblioteca') || hasPermission('modulo_admin');
+
+    useEffect(() => {
+        let active = true;
+
+        void refreshProfile({ force: true }).finally(() => {
+            if (active) setIsRefreshingAccess(false);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [refreshProfile]);
+
+    if (isRefreshingAccess) {
+        return <div style={{ padding: '3rem', textAlign: 'center' }}>Atualizando seu acesso à Biblioteca...</div>;
+    }
 
     if (canManage) {
         return <BibliotecaPage />;

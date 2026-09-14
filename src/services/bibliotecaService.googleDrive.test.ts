@@ -389,4 +389,17 @@ describe('bibliotecaService Google Drive', () => {
       'noopener,noreferrer',
     );
   });
+
+  it('não abre o arquivo enquanto o acesso no Google ainda está sendo liberado', async () => {
+    rpc.mockResolvedValue({
+      data: [{ access_status: 'pending', google_email: 'usuario@gmail.com' }],
+      error: null,
+    });
+
+    await expect(bibliotecaService.abrirArquivo(managedGoogleFile)).rejects.toThrow(
+      'está sendo liberado',
+    );
+
+    expect(window.open).not.toHaveBeenCalled();
+  });
 });

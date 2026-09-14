@@ -476,6 +476,16 @@ export const bibliotecaService = {
                         `Você não possui acesso a este arquivo porque seu e-mail${email} não está associado a uma Conta Google. Solicite ao administrador o cadastro de um e-mail Google no sistema.`
                     );
                 }
+                if (access.accessStatus === 'pending') {
+                    throw new Error(
+                        'Seu acesso ao Google está sendo liberado. Aguarde alguns instantes e tente novamente.'
+                    );
+                }
+                if (access.accessStatus === 'sync_error') {
+                    throw new Error(
+                        'Não foi possível liberar seu acesso no Google. Procure um administrador da Biblioteca.'
+                    );
+                }
                 if (access.accessStatus !== 'granted') {
                     throw new Error(
                         'Seu acesso a este arquivo no Google Drive ainda não foi concedido. Aguarde a sincronização ou procure o administrador.'
