@@ -7,6 +7,18 @@ vi.mock('../../hooks/useAuth', () => ({
     useAuth: vi.fn(),
 }));
 
+vi.mock('../../hooks/useBiblioteca', () => ({
+    useBiblioteca: vi.fn(),
+}));
+
+vi.mock('../../hooks/useSharedLibraryAccess', () => ({
+    useSharedLibraryAccess: vi.fn(),
+}));
+
+vi.mock('../../services/bibliotecaService', () => ({
+    bibliotecaService: {},
+}));
+
 vi.mock('../admin/BibliotecaPage', () => ({
     BibliotecaPage: () => <div>Biblioteca administrativa</div>,
 }));
