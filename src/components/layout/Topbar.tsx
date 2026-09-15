@@ -17,7 +17,7 @@ import { getNavigationTitle } from '../../config/navigation';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { emailInstitucionalService } from '../../services/emailInstitucionalService';
-import ejcLogo from '../../assets/brand-experiments/ejc-logo.png';
+import ejcLogo from '../../assets/ejc-logo.png';
 
 interface TopbarProps {
   onMenuClick: () => void;

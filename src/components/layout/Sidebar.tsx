@@ -8,7 +8,7 @@ import { GlobalSearchDialog } from './GlobalSearchDialog';
 import { PessoaContextDrawer } from '../secretaria/PessoaContextDrawer';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useSharedLibraryAccess } from '../../hooks/useSharedLibraryAccess';
-import ejcLogo from '../../assets/brand-experiments/ejc-logo.png';
+import ejcLogo from '../../assets/ejc-logo.png';
 
 interface SidebarProps {
   collapsed: boolean;
