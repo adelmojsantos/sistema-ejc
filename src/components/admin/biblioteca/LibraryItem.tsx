@@ -20,6 +20,7 @@ import {
   CloudUpload
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../../utils/userFacingError';
 import {
   bibliotecaService,
   isGoogleEditableFileName,
@@ -171,7 +172,7 @@ export function LibraryItem<T extends BibliotecaPasta | BibliotecaArquivo>({
       await navigator.clipboard.writeText(url);
       toast.success(isGoogleDrive ? 'Link do Google copiado!' : 'Link de acesso copiado! (Válido por 1h)');
     } catch (error: unknown) {
-      toast.error('Erro: ' + (error instanceof Error ? error.message : 'não foi possível copiar o link.'));
+      toast.error(userFacingError(error, 'Não foi possível copiar o link. Tente novamente.'));
     }
   };
 

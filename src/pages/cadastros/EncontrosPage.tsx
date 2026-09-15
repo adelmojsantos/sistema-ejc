@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { encontroService } from '../../services/encontroService';
 import { normalizeString } from '../../utils/stringUtils';
 import type { Encontro, EncontroFormData } from '../../types/encontro';
+import { userFacingError } from '../../utils/userFacingError';
 
 type Mode = 'list' | 'create' | 'edit';
 
@@ -49,8 +50,7 @@ export function EncontrosPage() {
                 setMode('edit');
             }
         } catch (err: unknown) {
-            const errorObj = err as { message?: string };
-            const msg = errorObj.message || 'Erro ao carregar encontros.';
+            const msg = userFacingError(err, 'Não foi possível carregar os encontros. Tente novamente.');
             setFetchError(msg);
             toast.error(msg);
         } finally {

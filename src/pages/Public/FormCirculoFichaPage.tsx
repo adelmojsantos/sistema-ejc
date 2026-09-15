@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import { useNavigate } from 'react-router-dom';
 import logoEjc from '../../assets/logo-ejc.svg';
 import { PesquisaSatisfacaoForm, pesquisaSatisfacaoCompleta } from '../../components/pesquisa-satisfacao/PesquisaSatisfacaoForm';
@@ -124,7 +125,7 @@ export default function FormCirculoFichaPage() {
         : 'Rascunho salvo.');
     } catch (error) {
       console.error('Erro ao salvar pesquisa do encontrista:', error);
-      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a pesquisa.');
+      toast.error(userFacingError(error, 'Não foi possível salvar a pesquisa. Tente novamente.'));
     } finally {
       setIsSavingPesquisa(false);
     }

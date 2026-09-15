@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, UserPlus, X, Users, User } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -182,7 +183,7 @@ export function PessoasPage() {
         try {
             setDeleteImpact(await pessoaService.obterImpactoExclusao(pessoa.id));
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Erro ao verificar os vínculos da pessoa.');
+            toast.error(userFacingError(error, 'Não foi possível verificar os vínculos da pessoa. Tente novamente.'));
             setDeleteTarget(null);
         } finally {
             setIsLoadingDeleteImpact(false);
@@ -204,7 +205,7 @@ export function PessoasPage() {
             toast.success('Pessoa e históricos excluídos definitivamente.');
             await load(debouncedSearch, searchField, page, selectedEncontroId);
         } catch (err: unknown) {
-            toast.error(err instanceof Error ? err.message : 'Erro ao excluir a pessoa.');
+            toast.error(userFacingError(err, 'Não foi possível excluir a pessoa. Tente novamente.'));
         } finally {
             setIsDeleting(false);
             setDeleteTarget(null);

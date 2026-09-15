@@ -24,6 +24,7 @@ import autoTable from 'jspdf-autotable';
 import { exportConfigService, type ExportConfig } from '../../services/exportConfigService';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
+import { userFacingError } from '../../utils/userFacingError';
 
 export interface UserExtended {
     id: string;
@@ -136,7 +137,7 @@ export function UsersAdminPage() {
 
         } catch (err: unknown) {
             console.error('Falha em loadUsers', err);
-            setError(`Erro ao carregar (Veja console): ${err instanceof Error ? err.message : String(err)}`);
+            setError(userFacingError(err, 'Não foi possível carregar os usuários. Tente novamente.'));
         } finally {
             setLoading(false);
         }
@@ -204,8 +205,7 @@ export function UsersAdminPage() {
             const response = await adminUserService.listCoordenadoresPasta(targetEncontroId, coordenadorGrupoId);
             setCoordenadoresPasta(response.coordenadores);
         } catch (loadError: unknown) {
-            const message = loadError instanceof Error ? loadError.message : 'Erro ao carregar coordenadores.';
-            toast.error(message);
+            toast.error(userFacingError(loadError, 'Não foi possível carregar os coordenadores. Tente novamente.'));
         } finally {
             setLoadingCoordenadores(false);
         }
@@ -266,8 +266,7 @@ export function UsersAdminPage() {
             handleClearSelection();
             loadUsers();
         } catch (createError: unknown) {
-            const message = createError instanceof Error ? createError.message : 'Erro ao criar usuário.';
-            toast.error(message);
+            toast.error(userFacingError(createError, 'Não foi possível criar o usuário. Tente novamente.'));
         } finally {
             setCreating(false);
         }
@@ -298,8 +297,7 @@ export function UsersAdminPage() {
             setUsers((prev) => prev.filter(u => u.id !== userToDelete));
             setUserToDelete(null);
         } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : 'Erro ao remover usuário.';
-            toast.error(message);
+            toast.error(userFacingError(err, 'Não foi possível remover o usuário. Tente novamente.'));
         } finally {
             setIsDeleting(false);
         }
@@ -403,7 +401,7 @@ export function UsersAdminPage() {
                 setUsers(prev => [...prev, result.user]);
                 results.push({ id: pessoaId, success: true });
             } catch (err: unknown) {
-                const message = err instanceof Error ? err.message : 'Erro ao criar';
+                const message = userFacingError(err, 'Não foi possível criar este usuário.');
                 results.push({ id: pessoaId, success: false, message });
             }
         }
@@ -444,8 +442,7 @@ export function UsersAdminPage() {
                 toast.error(`${errors} coordenador(es) precisam de ajuste manual.`);
             }
         } catch (prepareError: unknown) {
-            const message = prepareError instanceof Error ? prepareError.message : 'Erro ao preparar coordenadores.';
-            toast.error(message);
+            toast.error(userFacingError(prepareError, 'Não foi possível preparar os coordenadores. Tente novamente.'));
         } finally {
             setPreparingCoordenadores(false);
         }
@@ -474,8 +471,7 @@ export function UsersAdminPage() {
             setCoordenadorEmail('');
             await loadCoordenadoresPasta();
         } catch (saveError: unknown) {
-            const message = saveError instanceof Error ? saveError.message : 'Não foi possível salvar o e-mail.';
-            toast.error(message);
+            toast.error(userFacingError(saveError, 'Não foi possível salvar o e-mail. Tente novamente.'));
         } finally {
             setSavingCoordenadorEmail(false);
         }
@@ -503,8 +499,7 @@ export function UsersAdminPage() {
             toast.success(action === 'add' ? 'Acesso concedido.' : 'Acesso revogado.');
         } catch (updateError: unknown) {
             console.error('Error updating group:', updateError);
-            const message = (updateError instanceof Error) ? updateError.message : 'Erro ao atualizar grupo.';
-            toast.error(message);
+            toast.error(userFacingError(updateError, 'Não foi possível atualizar o perfil de acesso. Tente novamente.'));
         } finally {
             setUpdatingRoleById((prev) => ({ ...prev, [userId]: false }));
         }
@@ -518,8 +513,7 @@ export function UsersAdminPage() {
             setSelectedUserDetails((prev) => (prev?.id === userId ? { ...prev, ...result.user } : prev));
             toast.success('Link de redefinição enviado por e-mail.');
         } catch (resetError: unknown) {
-            const message = resetError instanceof Error ? resetError.message : 'Erro ao enviar recuperação.';
-            toast.error(message);
+            toast.error(userFacingError(resetError, 'Não foi possível enviar a recuperação de senha. Tente novamente.'));
         } finally {
             setResettingPasswordById((prev) => ({ ...prev, [userId]: false }));
         }
@@ -540,8 +534,7 @@ export function UsersAdminPage() {
             setLinkPessoa(null);
             await loadUsers();
         } catch (linkError: unknown) {
-            const message = linkError instanceof Error ? linkError.message : 'Não foi possível vincular a pessoa.';
-            toast.error(message);
+            toast.error(userFacingError(linkError, 'Não foi possível vincular a pessoa. Tente novamente.'));
         } finally {
             setLinkingPessoa(false);
         }

@@ -1,6 +1,7 @@
 import { BarChart3, ChevronDown, ChevronLeft, ClipboardList, FileQuestion, Loader, Pencil, Plus, QrCode, Save, Search, Share2, Sparkles, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import ReactMarkdown from 'react-markdown';
 import { useNavigate } from 'react-router-dom';
 
@@ -404,7 +405,7 @@ export function AvaliacaoEncontroPage() {
     } catch (error) {
       if (selectedEncontroIdRef.current !== encontroId) return;
       console.error('Erro ao gerar relatório IA:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao gerar relatório.');
+      toast.error(userFacingError(error, 'Não foi possível gerar o relatório. Tente novamente.'));
       const next = await pesquisaSatisfacaoService.listarResumosIA(encontroId);
       setResumosIA(next);
     } finally {

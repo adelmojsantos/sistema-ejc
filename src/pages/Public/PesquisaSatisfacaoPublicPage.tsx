@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle, Loader, ShieldCheck } from 'lucide-react';
 import logoEjc from '../../assets/logo-ejc.svg';
@@ -133,7 +134,7 @@ export default function PesquisaSatisfacaoPublicPage() {
       toast.success(status === 'enviado' ? 'Pesquisa enviada com sucesso!' : 'Rascunho salvo.');
     } catch (error) {
       console.error('Erro ao salvar pesquisa pública:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao salvar pesquisa.');
+      toast.error(userFacingError(error, 'Não foi possível salvar a pesquisa. Tente novamente.'));
     } finally {
       setSaving(false);
     }

@@ -1,6 +1,7 @@
 import { ChevronLeft, ClipboardList, Loader, Package, Plus, RefreshCw, Search, SlidersHorizontal, Warehouse } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import { useNavigate } from 'react-router-dom';
 import { AlmoxarifadoCategoriaModal, type CategoriaFormState } from '../../components/almoxarifado/AlmoxarifadoCategoriaModal';
 import { AlmoxarifadoItemModal } from '../../components/almoxarifado/AlmoxarifadoItemModal';
@@ -358,7 +359,7 @@ export function AlmoxarifadoPage() {
       await loadSaldos();
     } catch (error) {
       console.error('Erro ao registrar movimentação:', error);
-      toast.error(error instanceof Error ? error.message : 'Não foi possível registrar a movimentação.');
+      toast.error(userFacingError(error, 'Não foi possível registrar a movimentação. Tente novamente.'));
     } finally {
       setSaving(false);
     }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import {
   ArrowRight,
   Check,
@@ -34,7 +35,7 @@ import './DirigenciaPage.css';
 type PersonSelectPurpose = 'membro' | 'indicacao';
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Não foi possível concluir a ação.';
+  return userFacingError(error, 'Não foi possível concluir a ação. Tente novamente.');
 }
 
 function formatDate(value: string | null): string {

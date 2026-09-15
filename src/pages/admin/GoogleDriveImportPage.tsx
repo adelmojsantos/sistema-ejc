@@ -2,6 +2,7 @@ import { ArrowLeft, CheckCircle2, Clipboard, Cloud, FolderSearch, Loader, Shield
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import {
   bibliotecaService,
   type GoogleDriveCopyProgress,
@@ -23,7 +24,7 @@ export function GoogleDriveImportPage() {
     try {
       setStatus(await bibliotecaService.obterStatusImportacaoOutroDrive());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível consultar a importação.');
+      toast.error(userFacingError(error, 'Não foi possível consultar a importação. Tente novamente.'));
     } finally {
       setLoading(false);
     }
@@ -50,7 +51,7 @@ export function GoogleDriveImportPage() {
       await loadStatus();
       toast.success('Inventário completo. Revise o resumo antes de confirmar.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível acessar a pasta compartilhada.');
+      toast.error(userFacingError(error, 'Não foi possível acessar a pasta compartilhada. Confira o link e o compartilhamento.'));
     } finally {
       setActionLoading(false);
     }
@@ -74,7 +75,7 @@ export function GoogleDriveImportPage() {
       await loadStatus();
       toast.success('Inventário completo. Revise o resumo antes de confirmar.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível continuar o inventário.');
+      toast.error(userFacingError(error, 'Não foi possível continuar a análise dos arquivos. Tente novamente.'));
     } finally {
       setActionLoading(false);
     }
@@ -98,7 +99,7 @@ export function GoogleDriveImportPage() {
         toast.success('Acervo copiado para a raiz da Biblioteca.');
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível continuar a cópia.');
+      toast.error(userFacingError(error, 'Não foi possível continuar a cópia. Tente novamente.'));
     } finally {
       setActionLoading(false);
     }
@@ -112,7 +113,7 @@ export function GoogleDriveImportPage() {
       setActionLoading(false);
       await runCopy(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível repetir os itens com erro.');
+      toast.error(userFacingError(error, 'Não foi possível repetir os itens com erro. Tente novamente.'));
       setActionLoading(false);
     }
   };
@@ -123,7 +124,7 @@ export function GoogleDriveImportPage() {
       await navigator.clipboard.writeText(status.serviceAccountEmail);
       toast.success('E-mail copiado.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível copiar o e-mail.');
+      toast.error(userFacingError(error, 'Não foi possível copiar o e-mail. Copie-o manualmente.'));
     }
   };
 
@@ -135,7 +136,7 @@ export function GoogleDriveImportPage() {
       await loadStatus();
       toast.success('Importação cancelada. Se desejar, remova também o compartilhamento no Google Drive.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível remover a conexão.');
+      toast.error(userFacingError(error, 'Não foi possível remover a conexão. Tente novamente.'));
     } finally {
       setActionLoading(false);
     }

@@ -25,6 +25,7 @@ import { visitacaoService } from '../../services/visitacaoService';
 import { inscricaoService } from '../../services/inscricaoService';
 import type { VisitaParticipacaoEnriched, VisitaStatus, VisitaGrupo } from '../../types/visitacao';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -286,7 +287,7 @@ export function VisitacaoMeusParticipantesPage() {
             setReloadKey((current) => current + 1);
         } catch (error) {
             console.error('Erro ao restaurar participação:', error);
-            toast.error(error instanceof Error ? error.message : 'Não foi possível restaurar a participação.');
+            toast.error(userFacingError(error, 'Não foi possível restaurar a participação. Tente novamente.'));
         } finally {
             setIsRestaurando(false);
         }

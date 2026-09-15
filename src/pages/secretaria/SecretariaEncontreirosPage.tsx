@@ -2,6 +2,7 @@ import { ChevronLeft, Download, Eye, FileSpreadsheet, FileText, Filter, Loader, 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useDebounce } from '../../hooks/useDebounce';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import { useNavigate } from 'react-router-dom';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { inscricaoService } from '../../services/inscricaoService';
@@ -85,7 +86,7 @@ export function SecretariaEncontreirosPage() {
       setMotivoCancelamento('');
       await loadParticipantes();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao cancelar participação.');
+      toast.error(userFacingError(error, 'Não foi possível cancelar a participação. Tente novamente.'));
     } finally {
       setIsUnlinking(false);
     }
