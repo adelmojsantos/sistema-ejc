@@ -44,6 +44,19 @@ const PERMISSION_TERM_LABELS: Record<string, string> = {
     visitacao: 'Visitação',
 };
 
+const SPECIFIC_PERMISSION_PARENT_KEYS: Record<string, string> = {
+    almoxarifado_compras_operar: 'modulo_almoxarifado',
+    almoxarifado_consultar: 'modulo_almoxarifado',
+    almoxarifado_gerenciar: 'modulo_almoxarifado',
+    almoxarifado_movimentar: 'modulo_almoxarifado',
+    almoxarifado_pedidos_criar: 'modulo_almoxarifado',
+    almoxarifado_pedidos_gerenciar: 'modulo_almoxarifado',
+    biblioteca_google_importar: 'modulo_biblioteca',
+    email_institucional_gerenciar: 'modulo_email_institucional',
+    email_institucional_responder: 'modulo_email_institucional',
+    financeiro_gerenciar: 'modulo_financeiro',
+};
+
 function humanizePermissionKey(key: string) {
     return key
         .replace(/^modulo_/, '')
@@ -71,67 +84,143 @@ function haveSameIds(first: string[], second: string[]) {
     return first.every(id => secondIds.has(id));
 }
 
-interface PermissionSectionProps {
-    title: string;
-    permissions: Permissao[];
-    activePermissionIds: string[];
-    onToggle: (permissionId: string) => void;
+function getNestedPermissionName(permission: Permissao, parentPermission: Permissao) {
+    const name = getPermissionName(permission);
+    const parentName = getPermissionName(parentPermission);
+    return name.replace(new RegExp(`^${parentName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[—–-]\\s*`, 'i'), '');
+}
+
+interface PermissionSwitchProps {
+    permission: Permissao;
+    name: string;
+    isEnabled: boolean;
+    onToggle: () => void;
     onShowDetails: (permission: Permissao) => void;
 }
 
-function PermissionSection({
-    title,
-    permissions,
-    activePermissionIds,
+function PermissionSwitch({
+    permission,
+    name,
+    isEnabled,
     onToggle,
     onShowDetails,
-}: PermissionSectionProps) {
-    if (permissions.length === 0) return null;
+}: PermissionSwitchProps) {
+    return (
+        <div className="access-permission-row__actions">
+            <button
+                type="button"
+                className="access-permission-row__info"
+                aria-label={`Ver detalhes de ${name}`}
+                title={`Ver detalhes de ${name}`}
+                onClick={() => onShowDetails(permission)}
+            >
+                O que libera?
+            </button>
+            <label className="access-permission-switch">
+                <input
+                    type="checkbox"
+                    role="switch"
+                    checked={isEnabled}
+                    aria-label={`${name}: ${isEnabled ? 'liberado' : 'bloqueado'}`}
+                    onChange={onToggle}
+                />
+                <span className="access-permission-switch__track" aria-hidden="true" />
+            </label>
+        </div>
+    );
+}
+
+interface ModulePermissionAccordionProps {
+    modulePermission: Permissao;
+    specificPermissions: Permissao[];
+    activePermissionIds: string[];
+    onToggleModule: (permission: Permissao) => void;
+    onToggleSpecific: (permission: Permissao, parentPermission: Permissao) => void;
+    onShowDetails: (permission: Permissao) => void;
+}
+
+function ModulePermissionAccordion({
+    modulePermission,
+    specificPermissions,
+    activePermissionIds,
+    onToggleModule,
+    onToggleSpecific,
+    onShowDetails,
+}: ModulePermissionAccordionProps) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const moduleName = getPermissionName(modulePermission);
+    const isEnabled = activePermissionIds.includes(modulePermission.id);
+    const hasSpecificPermissions = specificPermissions.length > 0;
+    const detailsId = `module-permission-${modulePermission.id}`;
 
     return (
-        <section className="access-permission-section" aria-label={title}>
-            <div className="access-permission-section__header">
-                <h5 className="access-permission-section__title">
-                    {title}
-                </h5>
+        <div className={`access-module-permission ${isEnabled ? 'access-module-permission--enabled' : ''}`}>
+            <div className="access-module-permission__header">
+                {hasSpecificPermissions ? (
+                    <button
+                        type="button"
+                        className="access-module-permission__expand"
+                        aria-expanded={isExpanded}
+                        aria-controls={detailsId}
+                        onClick={() => setIsExpanded(current => !current)}
+                    >
+                        {isExpanded ? <ChevronUp size={19} aria-hidden="true" /> : <ChevronDown size={19} aria-hidden="true" />}
+                        <span>{moduleName}</span>
+                        <span className="access-module-permission__count">
+                            {specificPermissions.length} {specificPermissions.length === 1 ? 'ação adicional' : 'ações adicionais'}
+                        </span>
+                    </button>
+                ) : (
+                    <span className="access-module-permission__name">{moduleName}</span>
+                )}
+                <PermissionSwitch
+                    permission={modulePermission}
+                    name={moduleName}
+                    isEnabled={isEnabled}
+                    onToggle={() => onToggleModule(modulePermission)}
+                    onShowDetails={onShowDetails}
+                />
             </div>
-            <div className="access-permission-list">
-                {permissions.map(permission => {
-                    const name = getPermissionName(permission);
-                    const isEnabled = activePermissionIds.includes(permission.id);
 
-                    return (
-                        <div
-                            key={permission.id}
-                            className={`access-permission-row ${isEnabled ? 'access-permission-row--enabled' : ''}`}
-                        >
-                            <span className="access-permission-row__name">{name}</span>
-                            <div className="access-permission-row__actions">
-                                <button
-                                    type="button"
-                                    className="access-permission-row__info"
-                                    aria-label={`Ver detalhes de ${name}`}
-                                    title={`Ver detalhes de ${name}`}
-                                    onClick={() => onShowDetails(permission)}
-                                >
-                                    O que libera?
-                                </button>
-                                <label className="access-permission-switch">
-                                    <input
-                                        type="checkbox"
-                                        role="switch"
-                                        checked={isEnabled}
-                                        aria-label={`${name}: ${isEnabled ? 'liberado' : 'bloqueado'}`}
-                                        onChange={() => onToggle(permission.id)}
-                                    />
-                                    <span className="access-permission-switch__track" aria-hidden="true" />
-                                </label>
-                            </div>
+            <AnimatePresence initial={false}>
+                {hasSpecificPermissions && isExpanded && (
+                    <motion.div
+                        id={detailsId}
+                        className="access-module-permission__details"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    >
+                        <p className="access-module-permission__hint">
+                            Ações adicionais deste módulo. Ao ativar uma delas, o acesso ao módulo também será liberado.
+                        </p>
+                        <div className="access-specific-permission-list">
+                            {specificPermissions.map(permission => {
+                                const name = getNestedPermissionName(permission, modulePermission);
+                                const childIsEnabled = activePermissionIds.includes(permission.id);
+
+                                return (
+                                    <div
+                                        key={permission.id}
+                                        className={`access-specific-permission-row ${childIsEnabled ? 'access-specific-permission-row--enabled' : ''}`}
+                                    >
+                                        <span className="access-permission-row__name">{name}</span>
+                                        <PermissionSwitch
+                                            permission={permission}
+                                            name={`${moduleName} — ${name}`}
+                                            isEnabled={childIsEnabled}
+                                            onToggle={() => onToggleSpecific(permission, modulePermission)}
+                                            onShowDetails={onShowDetails}
+                                        />
+                                    </div>
+                                );
+                            })}
                         </div>
-                    );
-                })}
-            </div>
-        </section>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 }
 
@@ -186,12 +275,43 @@ export function AccessAdminPage() {
         setExpandedGroupId(prev => prev === grupoId ? null : grupoId);
     };
 
-    const handleTogglePermissao = (grupoId: string, permissaoId: string) => {
+    const handleToggleModule = (grupoId: string, modulePermission: Permissao) => {
         setTempPermissoes(prev => {
             const current = prev[grupoId] || [];
-            const next = current.includes(permissaoId)
-                ? current.filter(id => id !== permissaoId)
-                : [...current, permissaoId];
+            const isEnabled = current.includes(modulePermission.id);
+            const childPermissionIds = new Set(
+                permissoes
+                    .filter(permission => SPECIFIC_PERMISSION_PARENT_KEYS[permission.chave] === modulePermission.chave)
+                    .map(permission => permission.id)
+            );
+            const next = isEnabled
+                ? current.filter(id => id !== modulePermission.id && !childPermissionIds.has(id))
+                : [...current, modulePermission.id];
+            return { ...prev, [grupoId]: next };
+        });
+    };
+
+    const handleToggleSpecificPermission = (
+        grupoId: string,
+        permission: Permissao,
+        parentPermission: Permissao
+    ) => {
+        setTempPermissoes(prev => {
+            const current = prev[grupoId] || [];
+            const isEnabled = current.includes(permission.id);
+
+            if (isEnabled) {
+                return {
+                    ...prev,
+                    [grupoId]: current.filter(id => id !== permission.id),
+                };
+            }
+
+            const next = Array.from(new Set([
+                ...current,
+                parentPermission.id,
+                permission.id,
+            ]));
             return { ...prev, [grupoId]: next };
         });
     };
@@ -382,6 +502,9 @@ export function AccessAdminPage() {
                             const specificPermissions = sortPermissions(
                                 permissoes.filter(permission => !permission.chave.startsWith('modulo_'))
                             );
+                            const ungroupedSpecificPermissions = specificPermissions.filter(
+                                permission => !SPECIFIC_PERMISSION_PARENT_KEYS[permission.chave]
+                            );
 
                             return (
                                 <motion.article 
@@ -461,20 +584,60 @@ export function AccessAdminPage() {
                                                         </button>
                                                     </div>
 
-                                                    <PermissionSection
-                                                        title="Módulos"
-                                                        permissions={modulePermissions}
-                                                        activePermissionIds={activePerms}
-                                                        onToggle={permissionId => handleTogglePermissao(g.id, permissionId)}
-                                                        onShowDetails={setSelectedPermission}
-                                                    />
-                                                    <PermissionSection
-                                                        title="Permissões específicas"
-                                                        permissions={specificPermissions}
-                                                        activePermissionIds={activePerms}
-                                                        onToggle={permissionId => handleTogglePermissao(g.id, permissionId)}
-                                                        onShowDetails={setSelectedPermission}
-                                                    />
+                                                    <section className="access-permission-section" aria-label="Módulos">
+                                                        <div className="access-permission-section__header">
+                                                            <h5 className="access-permission-section__title">Módulos</h5>
+                                                        </div>
+                                                        <div className="access-module-permission-list">
+                                                            {modulePermissions.map(modulePermission => (
+                                                                <ModulePermissionAccordion
+                                                                    key={modulePermission.id}
+                                                                    modulePermission={modulePermission}
+                                                                    specificPermissions={specificPermissions.filter(
+                                                                        permission => SPECIFIC_PERMISSION_PARENT_KEYS[permission.chave] === modulePermission.chave
+                                                                    )}
+                                                                    activePermissionIds={activePerms}
+                                                                    onToggleModule={permission => handleToggleModule(g.id, permission)}
+                                                                    onToggleSpecific={(permission, parentPermission) =>
+                                                                        handleToggleSpecificPermission(g.id, permission, parentPermission)
+                                                                    }
+                                                                    onShowDetails={setSelectedPermission}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </section>
+
+                                                    {ungroupedSpecificPermissions.length > 0 && (
+                                                        <section className="access-permission-section" aria-label="Outras permissões">
+                                                            <div className="access-permission-section__header">
+                                                                <h5 className="access-permission-section__title">Outras permissões</h5>
+                                                            </div>
+                                                            <div className="access-module-permission-list">
+                                                                {ungroupedSpecificPermissions.map(permission => {
+                                                                    const name = getPermissionName(permission);
+                                                                    const isEnabled = activePerms.includes(permission.id);
+
+                                                                    return (
+                                                                        <div
+                                                                            key={permission.id}
+                                                                            className={`access-module-permission ${isEnabled ? 'access-module-permission--enabled' : ''}`}
+                                                                        >
+                                                                            <div className="access-module-permission__header">
+                                                                                <span className="access-module-permission__name">{name}</span>
+                                                                                <PermissionSwitch
+                                                                                    permission={permission}
+                                                                                    name={name}
+                                                                                    isEnabled={isEnabled}
+                                                                                    onToggle={() => handleToggleSpecificPermission(g.id, permission, permission)}
+                                                                                    onShowDetails={setSelectedPermission}
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </section>
+                                                    )}
                                                 </div>
                                             </motion.div>
                                         )}

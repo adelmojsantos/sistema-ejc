@@ -70,15 +70,20 @@ describe('AccessAdminPage', () => {
         });
     });
 
-    it('mostra nomes curtos, separa módulos e não exibe chaves técnicas', async () => {
+    it('mostra ações específicas dentro do acordeão do módulo correspondente', async () => {
         const user = userEvent.setup();
         render(<AccessAdminPage />);
 
         await user.click(await screen.findByRole('heading', { name: 'Secretaria' }));
 
         expect(screen.getByRole('region', { name: 'Módulos' })).toBeInTheDocument();
-        expect(screen.getByRole('region', { name: 'Permissões específicas' })).toBeInTheDocument();
         expect(screen.getByText('Biblioteca')).toBeInTheDocument();
+        expect(screen.queryByRole('region', { name: 'Permissões específicas' })).not.toBeInTheDocument();
+        expect(screen.queryByText('Importar de outro Drive')).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /Biblioteca.*1 ação adicional/ }));
+
+        expect(screen.getByText('Importar de outro Drive')).toBeInTheDocument();
         expect(screen.getAllByText('O que libera?').length).toBeGreaterThan(0);
         expect(screen.queryByText('modulo_biblioteca')).not.toBeInTheDocument();
     });
@@ -118,5 +123,28 @@ describe('AccessAdminPage', () => {
             );
             expect(mockedBibliotecaService.sincronizarGoogleDrive).toHaveBeenCalledWith(25);
         });
+    });
+
+    it('ativa o módulo ao liberar uma ação e desliga suas ações junto com o módulo', async () => {
+        const user = userEvent.setup();
+        render(<AccessAdminPage />);
+
+        await user.click(await screen.findByRole('heading', { name: 'Secretaria' }));
+        await user.click(screen.getByRole('button', { name: /Biblioteca.*1 ação adicional/ }));
+        await user.click(screen.getByRole('switch', {
+            name: 'Biblioteca — Importar de outro Drive: bloqueado',
+        }));
+
+        expect(screen.getByRole('switch', { name: 'Biblioteca: liberado' })).toBeChecked();
+        expect(screen.getByRole('switch', {
+            name: 'Biblioteca — Importar de outro Drive: liberado',
+        })).toBeChecked();
+
+        await user.click(screen.getByRole('switch', { name: 'Biblioteca: liberado' }));
+
+        expect(screen.getByRole('switch', { name: 'Biblioteca: bloqueado' })).not.toBeChecked();
+        expect(screen.getByRole('switch', {
+            name: 'Biblioteca — Importar de outro Drive: bloqueado',
+        })).not.toBeChecked();
     });
 });
