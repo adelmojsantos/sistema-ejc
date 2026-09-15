@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../utils/userFacingError';
 import { bibliotecaService, type BibliotecaArquivo, type BibliotecaPasta } from '../services/bibliotecaService';
 import { supabase } from '../lib/supabase';
 
@@ -79,7 +80,7 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
         // A filtragem do que exibir (pasta atual) é feita pelo useEffect baseado no currentFolderId
       }
     } catch (error: unknown) {
-      toast.error('Erro ao carregar biblioteca: ' + (error instanceof Error ? error.message : 'falha desconhecida.'));
+      toast.error(userFacingError(error, 'Não foi possível carregar a Biblioteca. Tente novamente.'));
     } finally {
       if (showLoading) setLoading(false);
     }
@@ -185,7 +186,7 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
         await bibliotecaService.uploadArquivo(file, currentFolderId);
       } catch (error: unknown) {
         failedCount++;
-        toast.error(`Erro ao subir ${file.name}: ${error instanceof Error ? error.message : 'falha desconhecida.'}`);
+        toast.error(userFacingError(error, `Não foi possível enviar "${file.name}". Tente novamente.`));
       }
     };
 
@@ -219,7 +220,7 @@ export function useBiblioteca({ initialFolderId = null, mode = 'admin', profile,
           else if (file) await bibliotecaService.excluirArquivo(file);
           deletedCount++;
         } catch (error: unknown) {
-          toast.error(`Erro ao excluir item: ${error instanceof Error ? error.message : 'falha desconhecida.'}`);
+          toast.error(userFacingError(error, 'Não foi possível excluir o item. Tente novamente.'));
         }
       }
       if (deletedCount > 0) {

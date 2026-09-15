@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, Loader, Lock, QrCode, Share2, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -98,7 +99,7 @@ export function CoordenadorAvaliacaoPage() {
       await loadPesquisa();
     } catch (error) {
       console.error('Erro ao salvar pesquisa:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao salvar pesquisa.');
+      toast.error(userFacingError(error, 'Não foi possível salvar a pesquisa. Tente novamente.'));
     } finally {
       setSaving(false);
     }

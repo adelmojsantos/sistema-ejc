@@ -26,6 +26,7 @@ import type {
   EmailInstitucionalStatus,
 } from '../../types/emailInstitucional';
 import './EmailInstitucionalPage.css';
+import { userFacingError } from '../../utils/userFacingError';
 
 const statusLabels: Record<EmailInstitucionalStatus, string> = {
   novo: 'Novo',
@@ -114,7 +115,7 @@ export function EmailInstitucionalPage() {
       setConversations(data);
       if (selectedId && !data.some((conversation) => conversation.id === selectedId)) setSelectedId(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a caixa de entrada.');
+      toast.error(userFacingError(error, 'Não foi possível atualizar a caixa de entrada. Tente novamente.'));
     } finally {
       setLoadingList(false);
     }
@@ -137,7 +138,7 @@ export function EmailInstitucionalPage() {
         }
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível abrir a conversa.');
+      toast.error(userFacingError(error, 'Não foi possível abrir a conversa. Tente novamente.'));
     } finally {
       setLoadingMessages(false);
     }
@@ -178,7 +179,7 @@ export function EmailInstitucionalPage() {
       await loadConversations();
       toast.success('Atendimento atualizado.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar o atendimento.');
+      toast.error(userFacingError(error, 'Não foi possível atualizar o atendimento. Tente novamente.'));
     } finally {
       setUpdating(false);
     }
@@ -194,7 +195,7 @@ export function EmailInstitucionalPage() {
       await Promise.all([loadMessages(selected.id), loadConversations()]);
       toast.success('Resposta enviada.');
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível enviar a resposta.');
+      toast.error(userFacingError(error, 'Não foi possível enviar a resposta. Tente novamente.'));
     } finally {
       setSending(false);
     }
@@ -314,7 +315,7 @@ export function EmailInstitucionalPage() {
                     {message.anexos.length > 0 && (
                       <div className="institutional-email-attachments">
                         {message.anexos.map((attachment) => (
-                          <button type="button" key={attachment.id} onClick={() => void emailInstitucionalService.baixarAnexo(attachment).catch((error) => toast.error(error.message))}>
+                          <button type="button" key={attachment.id} onClick={() => void emailInstitucionalService.baixarAnexo(attachment).catch((error) => toast.error(userFacingError(error, 'Não foi possível baixar o anexo. Tente novamente.')))}>
                             <Paperclip size={16} /><span>{attachment.nome}<small>{formatBytes(attachment.tamanho_bytes)}</small></span><Download size={16} />
                           </button>
                         ))}

@@ -11,6 +11,7 @@ import type { ListaEsperaEntry, ListaEsperaFormData } from '../../types/listaEsp
 import type { Pessoa } from '../../types/pessoa';
 import { formatTelefone, maskCpf } from '../../utils/cpfUtils';
 import { calculateAge } from '../../utils/dateUtils';
+import { userFacingError } from '../../utils/userFacingError';
 
 type ListaEsperaViewMode = 'todos' | 'pendente' | 'convertido' | 'reprovado';
 
@@ -147,8 +148,7 @@ export function GerenciarListaEsperaPage() {
                 return next;
             });
         } catch (err: unknown) {
-            const error = err as Error;
-            toast.error('Erro ao reprovar: ' + error.message);
+            toast.error(userFacingError(err, 'Não foi possível reprovar a inscrição. Tente novamente.'));
         } finally {
             setIsProcessing(false);
         }
@@ -162,8 +162,7 @@ export function GerenciarListaEsperaPage() {
             toast.success('Inscrição restaurada para pendente.');
             await loadData();
         } catch (err: unknown) {
-            const error = err as Error;
-            toast.error('Erro ao restaurar: ' + error.message);
+            toast.error(userFacingError(err, 'Não foi possível restaurar a inscrição. Tente novamente.'));
         } finally {
             setIsProcessing(false);
         }
@@ -181,8 +180,7 @@ export function GerenciarListaEsperaPage() {
             const updated = { ...selectedEntry, ...editForm };
             setSelectedEntry(updated as ListaEsperaEntry);
         } catch (err: unknown) {
-            const error = err as Error;
-            toast.error('Erro ao atualizar: ' + error.message);
+            toast.error(userFacingError(err, 'Não foi possível atualizar a inscrição. Tente novamente.'));
         } finally {
             setIsProcessing(false);
         }
@@ -226,8 +224,7 @@ export function GerenciarListaEsperaPage() {
             newSet.delete(entry.id);
             setSelectedIds(newSet);
         } catch (err: unknown) {
-            const error = err as Error;
-            toast.error(`Erro: ${error.message}`);
+            toast.error(userFacingError(err, 'Não foi possível efetivar a inscrição. Tente novamente.'));
         } finally {
             setIsProcessing(false);
         }
@@ -256,8 +253,7 @@ export function GerenciarListaEsperaPage() {
 
             await loadData();
         } catch (err: unknown) {
-            const error = err as Error;
-            toast.error(`Erro: ${error.message}`);
+            toast.error(userFacingError(err, 'Não foi possível concluir a inscrição. Tente novamente.'));
             // Force close modal on error as requested
             setShowDuplicateModal(false);
             setDuplicateEntry(null);
@@ -280,8 +276,7 @@ export function GerenciarListaEsperaPage() {
 
             await loadData();
         } catch (err: unknown) {
-            const error = err as Error;
-            toast.error(`Erro ao remover: ${error.message}`);
+            toast.error(userFacingError(err, 'Não foi possível remover o vínculo. Tente novamente.'));
             // Force close modal on error as requested
             setShowDuplicateModal(false);
             setDuplicateEntry(null);

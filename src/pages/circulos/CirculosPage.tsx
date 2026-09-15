@@ -9,6 +9,7 @@ import { Modal } from '../../components/ui/Modal';
 import { circuloService } from '../../services/circuloService';
 import { normalizeString } from '../../utils/stringUtils';
 import type { Circulo, CirculoFormData } from '../../types/circulo';
+import { userFacingError } from '../../utils/userFacingError';
 
 export function CirculosPage() {
     const navigate = useNavigate();
@@ -34,8 +35,7 @@ export function CirculosPage() {
             setCirculos(data);
             setFiltered(data);
         } catch (err: unknown) {
-            const errorObj = err as { message?: string };
-            setFetchError(errorObj.message || 'Erro ao carregar círculos. Tente novamente.');
+            setFetchError(userFacingError(err, 'Não foi possível carregar os círculos. Tente novamente.'));
         } finally {
             setIsFetching(false);
         }

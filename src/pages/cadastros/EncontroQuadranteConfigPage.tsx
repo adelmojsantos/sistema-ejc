@@ -18,6 +18,7 @@ import {
 import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
@@ -196,7 +197,7 @@ export function EncontroQuadranteConfigPage() {
             toast.success('Logo enviada com sucesso.');
         } catch (error) {
             console.error('Erro ao enviar logo:', error);
-            toast.error(error instanceof Error ? error.message : 'Erro ao enviar a logo.');
+            toast.error(userFacingError(error, 'Não foi possível enviar a logo. Tente novamente.'));
         } finally {
             setUploadingLogo(false);
             if (logoInputRef.current) logoInputRef.current.value = '';

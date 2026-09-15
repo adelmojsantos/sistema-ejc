@@ -1,6 +1,7 @@
 import { Calendar, Check, CheckCircle2, Heart, Loader, MapPin, Send, ShieldCheck, User, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../utils/userFacingError';
 import { Link } from 'react-router-dom';
 import { formatTelefone } from '../utils/cpfUtils';
 import { calculateAge } from '../utils/dateUtils';
@@ -177,7 +178,7 @@ export default function InscricaoPublicaPage() {
             toast.success('Inscrição realizada com sucesso!');
         } catch (error) {
             const err = error as Error;
-            toast.error(err.message || 'Erro ao realizar inscrição. As vagas podem ter esgotado.');
+            toast.error(userFacingError(err, 'Não foi possível realizar a inscrição. As vagas podem ter se esgotado.'));
             // Revalidate count on error quietly
             if (encontro) {
                 const count = await listaEsperaService.getOnlineRegistrationsCount(encontro.id);

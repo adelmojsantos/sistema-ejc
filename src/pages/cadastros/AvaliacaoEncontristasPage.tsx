@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import { useNavigate } from 'react-router-dom';
 import { Modal } from '../../components/ui/Modal';
 import { PesquisaPublicacaoAudit } from '../../components/pesquisa/PesquisaPublicacaoAudit';
@@ -246,7 +247,7 @@ export function AvaliacaoEncontristasPage() {
       setResumosIA(await pesquisaEncontristaService.listarResumosIA(encontroId));
     } catch (error) {
       console.error('Erro ao gerar relatório IA dos encontristas:', error);
-      toast.error(error instanceof Error ? error.message : 'Erro ao gerar relatório.');
+      toast.error(userFacingError(error, 'Não foi possível gerar o relatório. Tente novamente.'));
       setResumosIA(await pesquisaEncontristaService.listarResumosIA(encontroId));
     } finally {
       setGeneratingResumoIA(false);

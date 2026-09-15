@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { visitacaoService } from '../services/visitacaoService';
 import type { VisitaParticipacaoEnriched, VisitaGrupo } from '../types/visitacao';
 import type { InscricaoEnriched } from '../types/inscricao';
+import { userFacingError } from '../utils/userFacingError';
 
 interface UseMinhaVisitacaoProps {
   userParticipacao: InscricaoEnriched | null;
@@ -92,8 +93,7 @@ export function useMinhaVisitacao({ userParticipacao, isCoordinator }: UseMinhaV
         setParticipantes([]);
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro desconhecido.';
-      toast.error('Erro ao carregar escala de visita: ' + message);
+      toast.error(userFacingError(err, 'Não foi possível carregar a escala de visita. Tente novamente.'));
     } finally {
       setLoading(false);
     }

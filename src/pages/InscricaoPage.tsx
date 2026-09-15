@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../utils/userFacingError';
 import { AlertTriangle, CheckCircle2, ChevronDown, Users, Search, History } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { PessoaForm } from '../components/pessoa/PessoaForm';
@@ -107,7 +108,7 @@ export function InscricaoPage() {
       setSelectedMatch(null);
       setPessoaFormKey(prev => prev + 1); // Force form reset
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao realizar inscrição.');
+      toast.error(userFacingError(error, 'Não foi possível realizar a inscrição. Tente novamente.'));
     } finally {
       setIsSaving(false);
     }

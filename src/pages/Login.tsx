@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { PasswordInput } from '../components/ui/PasswordInput';
 import { motion } from 'framer-motion';
 import logoEjc from '../assets/logo-ejc.svg';
+import { userFacingError } from '../utils/userFacingError';
 
 export function Login() {
   const [email, setEmail] = useState('');
@@ -33,7 +34,10 @@ export function Login() {
       });
 
       if (signInError) {
-        setError(signInError.message);
+        setError(userFacingError(
+          signInError,
+          'Não foi possível entrar agora. Tente novamente em instantes.'
+        ));
         setLoading(false);
         return;
       }
@@ -41,9 +45,10 @@ export function Login() {
       navigate('/dashboard', { replace: true });
     } catch (caughtError) {
       console.error('Erro de rede ao autenticar:', caughtError);
-      setError(caughtError instanceof Error
-        ? `Não foi possível conectar ao serviço de autenticação: ${caughtError.message}`
-        : 'Não foi possível conectar ao serviço de autenticação.');
+      setError(userFacingError(
+        caughtError,
+        'Não foi possível entrar agora. Tente novamente em instantes.'
+      ));
       setLoading(false);
     }
   };

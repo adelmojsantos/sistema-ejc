@@ -35,6 +35,7 @@ import type { GoogleDriveFileType } from '../../utils/googleDriveLink';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import googleDriveLogo from '../../assets/google-drive.svg';
+import { userFacingError } from '../../utils/userFacingError';
 
 export function BibliotecaPage() {
   const navigate = useNavigate();
@@ -147,7 +148,7 @@ export function BibliotecaPage() {
       return status;
     } catch (error: unknown) {
       setGoogleStatus(null);
-      setGoogleStatusError(error instanceof Error ? error.message : 'Não foi possível consultar a integração.');
+      setGoogleStatusError(userFacingError(error, 'Não foi possível consultar a integração com o Google.'));
       return null;
     }
   }, []);
@@ -173,7 +174,7 @@ export function BibliotecaPage() {
         }
       } catch (error: unknown) {
         if (active) {
-          toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar os acessos do Google.');
+          toast.error(userFacingError(error, 'Não foi possível atualizar os acessos do Google. Tente novamente.'));
         }
       } finally {
         if (active) setIsGoogleActionLoading(false);
@@ -205,7 +206,7 @@ export function BibliotecaPage() {
       const authorizationUrl = await bibliotecaService.iniciarConexaoGoogleDrive();
       window.location.assign(authorizationUrl);
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao iniciar conexão com o Google.');
+      toast.error(userFacingError(error, 'Não foi possível iniciar a conexão com o Google. Tente novamente.'));
       setIsGoogleActionLoading(false);
     }
   };
@@ -223,7 +224,7 @@ export function BibliotecaPage() {
       await loadGoogleStatus();
       actions.refresh();
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao sincronizar permissões.');
+      toast.error(userFacingError(error, 'Não foi possível sincronizar as permissões. Tente novamente.'));
     } finally {
       setIsGoogleActionLoading(false);
     }
@@ -267,7 +268,7 @@ export function BibliotecaPage() {
         ? `Pasta atualizada; ${pendingIds.length} arquivo(s) processado(s).`
         : 'Pasta atualizada.');
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a pasta.');
+      toast.error(userFacingError(error, 'Não foi possível atualizar a pasta. Tente novamente.'));
       await actions.refresh();
     } finally {
       setIsFolderRefreshing(false);
@@ -296,7 +297,7 @@ export function BibliotecaPage() {
           : 'Documento criado no Google Drive.');
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao criar arquivo no Google.');
+      toast.error(userFacingError(error, 'Não foi possível criar o arquivo no Google. Tente novamente.'));
     } finally {
       setIsGoogleActionLoading(false);
     }
@@ -325,7 +326,7 @@ export function BibliotecaPage() {
       setRenamingFolder(null);
       actions.refresh();
     } catch (error: unknown) {
-      toast.error('Erro: ' + (error instanceof Error ? error.message : 'falha desconhecida.'));
+      toast.error(userFacingError(error, 'Não foi possível criar a pasta. Tente novamente.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -348,7 +349,7 @@ export function BibliotecaPage() {
       setFileName('');
       actions.refresh();
     } catch (error: unknown) {
-      toast.error('Erro ao renomear: ' + (error instanceof Error ? error.message : 'falha desconhecida.'));
+      toast.error(userFacingError(error, 'Não foi possível renomear o item. Tente novamente.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -389,7 +390,7 @@ export function BibliotecaPage() {
       setEditingGoogleFile(null);
       actions.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao salvar a referência do Google.');
+      toast.error(userFacingError(error, 'Não foi possível salvar a referência do Google. Tente novamente.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -407,7 +408,7 @@ export function BibliotecaPage() {
       setIsShowingIgnoredGoogleItems(showIgnored);
       setGoogleDifferencesOpen(true);
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível sincronizar com Google Drive.');
+      toast.error(userFacingError(error, 'Não foi possível sincronizar com o Google Drive. Tente novamente.'));
     } finally {
       setIsScanningGoogleFolder(false);
     }
@@ -441,7 +442,7 @@ export function BibliotecaPage() {
         toast.success(`${result.addedFolders} pasta(s) e ${result.addedFiles} arquivo(s) adicionados e sincronizados.`);
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível adicionar os itens selecionados.');
+      toast.error(userFacingError(error, 'Não foi possível adicionar os itens selecionados. Tente novamente.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -481,7 +482,7 @@ export function BibliotecaPage() {
         toast.success(`${result.deletedFolders} pasta(s) e ${result.deletedFiles} arquivo(s) removidos somente da Biblioteca.`);
       }
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível remover os itens da Biblioteca.');
+      toast.error(userFacingError(error, 'Não foi possível remover os itens da Biblioteca. Tente novamente.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -502,8 +503,7 @@ export function BibliotecaPage() {
     try {
       await bibliotecaService.baixarArquivo(arquivo);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Falha desconhecida.';
-      toast.error(arquivo.origem === 'google_drive' ? message : `Erro ao gerar link de download: ${message}`);
+      toast.error(userFacingError(error, 'Não foi possível baixar o arquivo. Tente novamente.'));
     }
   };
 
@@ -511,7 +511,7 @@ export function BibliotecaPage() {
     try {
       await bibliotecaService.abrirArquivo(arquivo);
     } catch (error: unknown) {
-      toast.error('Erro ao abrir arquivo: ' + (error instanceof Error ? error.message : 'falha desconhecida.'));
+      toast.error(userFacingError(error, 'Não foi possível abrir o arquivo. Verifique seu acesso e tente novamente.'));
     }
   };
 
@@ -560,7 +560,7 @@ export function BibliotecaPage() {
       }
       actions.refresh();
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao excluir o item.');
+      toast.error(userFacingError(error, 'Não foi possível excluir o item. Tente novamente.'));
     } finally {
       deleteInFlightRef.current = false;
       setIsDeleteSubmitting(false);
@@ -582,7 +582,7 @@ export function BibliotecaPage() {
       }
       actions.refresh();
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível mover o arquivo para o Google.');
+      toast.error(userFacingError(error, 'Não foi possível mover o arquivo para o Google. Tente novamente.'));
     } finally {
       googleImportInFlightRef.current = false;
       setIsGoogleImporting(false);
@@ -606,7 +606,7 @@ export function BibliotecaPage() {
             toast.error(`"${file.name}" foi convertido, mas possui pendência de acesso.`);
           }
         } catch (error: unknown) {
-          toast.error(`Erro ao enviar "${file.name}": ${error instanceof Error ? error.message : 'falha desconhecida.'}`);
+          toast.error(userFacingError(error, `Não foi possível enviar "${file.name}". Tente novamente.`));
         }
       }
       if (successCount > 0) {

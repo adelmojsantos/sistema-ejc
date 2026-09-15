@@ -24,6 +24,7 @@ import type {
   FinanceiroTipo,
 } from '../../types/financeiro';
 import './AlmoxarifadoPage.css';
+import { userFacingError } from '../../utils/userFacingError';
 
 const hoje = () => new Date().toISOString().slice(0, 10);
 
@@ -87,10 +88,7 @@ const emptyReconciliationPendencies: FinanceiroReconciliacaoPendencias = {
 };
 
 const errorMessage = (error: unknown, fallback: string) => {
-  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
-    return error.message;
-  }
-  return fallback;
+  return userFacingError(error, fallback);
 };
 
 const tipoLancamentoOptions: GroupedDropdownItem<FinanceiroTipo>[] = [

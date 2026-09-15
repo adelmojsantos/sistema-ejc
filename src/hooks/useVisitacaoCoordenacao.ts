@@ -6,6 +6,7 @@ import { normalizeString } from '../utils/stringUtils';
 import type { VisitaGrupo, VisitaParticipacaoEnriched } from '../types/visitacao';
 import type { InscricaoEnriched } from '../types/inscricao';
 import type { Equipe } from '../types/equipe';
+import { userFacingError } from '../utils/userFacingError';
 
 interface UseVisitacaoCoordenacaoProps {
   encontroId: string;
@@ -63,8 +64,7 @@ export function useVisitacaoCoordenacao({ encontroId, equipes }: UseVisitacaoCoo
       setGrupos(gData);
       setVinculos(vData || []);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro desconhecido.';
-      toast.error('Erro ao carregar dados de coordenação: ' + message);
+      toast.error(userFacingError(err, 'Não foi possível carregar os dados da coordenação. Tente novamente.'));
     } finally {
       setIsFetching(false);
     }
@@ -121,8 +121,7 @@ export function useVisitacaoCoordenacao({ encontroId, equipes }: UseVisitacaoCoo
       loadData();
       return newGroup;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro desconhecido.';
-      toast.error('Erro ao criar dupla: ' + message);
+      toast.error(userFacingError(err, 'Não foi possível criar a dupla. Tente novamente.'));
     } finally {
       setIsLoading(false);
     }
@@ -136,8 +135,7 @@ export function useVisitacaoCoordenacao({ encontroId, equipes }: UseVisitacaoCoo
       toast.success('Encontrista vinculado!');
       loadData();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Erro desconhecido.';
-      toast.error('Erro ao vincular: ' + message);
+      toast.error(userFacingError(err, 'Não foi possível vincular o participante. Tente novamente.'));
     } finally {
       setIsLoading(false);
     }

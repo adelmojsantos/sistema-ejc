@@ -7,6 +7,7 @@ import type { InscricaoEnriched } from '../../types/inscricao';
 import { ChevronLeft, Search, Users, User, Download, FileText, FileSpreadsheet, MapPin, Loader, Plus, CheckCircle, XCircle, Clock, UserMinus, X, Car, Camera, SlidersHorizontal, Image as ImageIcon, Upload, Settings2, Minus, Plus as PlusIcon, RotateCcw, Pencil, Eye } from 'lucide-react';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../../utils/userFacingError';
 import { useDebounce } from '../../hooks/useDebounce';
 import { useAuth } from '../../hooks/useAuth';
 import { Modal } from '../../components/ui/Modal';
@@ -412,7 +413,7 @@ export function SecretariaParticipantesPage() {
       setMotivoCancelamento('');
       await Promise.all([loadParticipantes(), loadDesistentes()]);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao cancelar participação.');
+      toast.error(userFacingError(error, 'Não foi possível cancelar a participação. Tente novamente.'));
     } finally {
       setIsUnlinking(false);
     }
@@ -497,8 +498,7 @@ export function SecretariaParticipantesPage() {
       );
     } catch (error) {
       console.error('Erro ao desfazer desistência:', error);
-      const message = error instanceof Error ? error.message : 'Erro ao reverter cancelamento.';
-      toast.error(message);
+      toast.error(userFacingError(error, 'Não foi possível reverter o cancelamento. Tente novamente.'));
     } finally {
       setIsRestoringDesistencia(false);
     }

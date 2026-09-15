@@ -17,6 +17,7 @@ import type { Equipe } from '../../types/equipe';
 import type { PosEncontroParticipanteCirculo } from '../../types/posEncontro';
 import { compressImage } from '../../utils/imageHelper';
 import { findBestTeamMatch } from '../../utils/stringSimilarity';
+import { userFacingError } from '../../utils/userFacingError';
 
 export function PosEncontroFichasPage() {
   const navigate = useNavigate();
@@ -274,8 +275,10 @@ export function PosEncontroFichasPage() {
       toast.success('Ficha lida com sucesso! Revise os dados e salve.', { id: loadingToast });
     } catch (err: unknown) {
       console.error('Erro ao escanear foto da ficha:', err);
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      toast.error(errorMessage || 'Erro ao processar imagem da ficha física.', { id: loadingToast });
+      toast.error(
+        userFacingError(err, 'Não foi possível processar a imagem da ficha física. Tente novamente.'),
+        { id: loadingToast }
+      );
     } finally {
       setIsScanningFoto(false);
       // Limpa o input do arquivo para permitir nova seleção do mesmo arquivo se necessário

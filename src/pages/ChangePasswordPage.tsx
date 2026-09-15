@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { PasswordInput } from '../components/ui/PasswordInput';
 import { motion } from 'framer-motion';
 import logoEjc from '../assets/logo-ejc.svg';
+import { userFacingError } from '../utils/userFacingError';
 
 export function ChangePasswordPage() {
     const [newPassword, setNewPassword] = useState('');
@@ -90,13 +91,20 @@ export function ChangePasswordPage() {
 
         } catch (submitError: unknown) {
             console.error('Erro crítico na troca de senha:', submitError);
-            const message = submitError instanceof Error
-                ? submitError.message
-                : 'Erro ao processar alteração de senha.';
+            const technicalMessage = submitError instanceof Error ? submitError.message : '';
+            const message = userFacingError(
+                submitError,
+                'Não foi possível alterar a senha. Verifique os dados e tente novamente.'
+            );
             setError(message);
             
             // Se for erro de sessão, limpa tudo e manda pro login após 3 segundos
-            if (message.includes('Sessão') || message.includes('inconsistência') || message.includes('identidade')) {
+            if (
+                message.includes('sessão expirou')
+                || technicalMessage.includes('Sessão')
+                || technicalMessage.includes('inconsistência')
+                || technicalMessage.includes('identidade')
+            ) {
                 toast.error(message);
                 setTimeout(async () => {
                     await supabase.auth.signOut();

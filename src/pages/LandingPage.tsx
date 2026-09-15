@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BadgeCheck, Calendar, CheckCircle2, Phone, Send, ShieldCheck, User } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { userFacingError } from '../utils/userFacingError';
 import { FormField } from '../components/ui/FormField';
 import { Benefits } from '../components/landing/Benefits';
 import { FAQ } from '../components/landing/FAQ';
@@ -98,7 +99,7 @@ export default function LandingPage() {
       toast.success('Pré-cadastro realizado com sucesso!');
     } catch (error) {
       const err = error as Error;
-      toast.error(err.message || 'Erro ao realizar pré-cadastro');
+      toast.error(userFacingError(err, 'Não foi possível realizar o pré-cadastro. Tente novamente.'));
     } finally {
       setIsLoading(false);
     }

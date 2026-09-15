@@ -14,6 +14,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { toast } from 'react-hot-toast';
 import { useEffect, useState } from 'react';
 import { BibliotecaPage } from '../admin/BibliotecaPage';
+import { userFacingError } from '../../utils/userFacingError';
 
 export default function LibraryPage() {
     const { hasPermission, refreshProfile } = useAuth();
@@ -94,8 +95,7 @@ function SharedLibraryContent() {
         try {
             await bibliotecaService.baixarArquivo(arquivo);
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Falha inesperada.';
-            toast.error('Erro ao baixar arquivo: ' + message);
+            toast.error(userFacingError(error, 'Não foi possível baixar o arquivo. Tente novamente.'));
         }
     };
 
@@ -103,8 +103,7 @@ function SharedLibraryContent() {
         try {
             await bibliotecaService.abrirArquivo(arquivo);
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Falha inesperada.';
-            toast.error('Erro ao abrir arquivo: ' + message);
+            toast.error(userFacingError(error, 'Não foi possível abrir o arquivo. Verifique seu acesso e tente novamente.'));
         }
     };
 
