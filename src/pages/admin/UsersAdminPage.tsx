@@ -1,5 +1,5 @@
 import type { SyntheticEvent } from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { CheckCircle, Mail, RotateCcw, Search, ShieldCheck, UserPlus, Users2, X, Trash2 } from 'lucide-react';
 import { ActionStepper } from '../../components/ui/ActionStepper';
@@ -25,6 +25,7 @@ import { exportConfigService, type ExportConfig } from '../../services/exportCon
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
 import { userFacingError } from '../../utils/userFacingError';
+import { TeamAccessReleasePanel } from '../../components/admin/TeamAccessReleasePanel';
 
 export interface UserExtended {
     id: string;
@@ -70,7 +71,7 @@ export function UsersAdminPage() {
     const [individualStep, setIndividualStep] = useState<'contexto' | 'pessoa' | 'perfil' | 'criar'>('pessoa');
 
     // Bulk creation state
-    const [creationMode, setCreationMode] = useState<'individual' | 'lote' | 'coordenadores'>('individual');
+    const [creationMode, setCreationMode] = useState<'liberar' | 'individual' | 'lote' | 'coordenadores'>('liberar');
     const { encontros, encontroSelecionadoId } = useEncontros();
     const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
     const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
@@ -103,6 +104,8 @@ export function UsersAdminPage() {
     const [filterEncontroId, setFilterEncontroId] = useState<string>('all');
     const [filterTempPassword, setFilterTempPassword] = useState<'all' | 'sim' | 'nao'>('all');
     const [filterAccessScope, setFilterAccessScope] = useState<'with' | 'without' | 'all'>('with');
+    const [filterPersonLinkScope, setFilterPersonLinkScope] = useState<'linked' | 'unlinked' | 'all'>('all');
+    const loadUsersRequestIdRef = useRef(0);
 
     const loadSupportData = useCallback(async () => {
         try {
@@ -117,6 +120,7 @@ export function UsersAdminPage() {
     }, []);
 
     const loadUsers = useCallback(async () => {
+        const requestId = ++loadUsersRequestIdRef.current;
         setLoading(true);
         setError(null);
         try {
@@ -129,19 +133,22 @@ export function UsersAdminPage() {
                 tempPassword: filterTempPassword,
                 targetEncontroId,
                 accessScope: filterAccessScope,
+                personLinkScope: filterPersonLinkScope,
             });
 
+            if (requestId !== loadUsersRequestIdRef.current) return;
             setUsers(response.users as UserExtended[]);
             setTotalUsers(response.total);
             setSummary(response.summary);
 
         } catch (err: unknown) {
+            if (requestId !== loadUsersRequestIdRef.current) return;
             console.error('Falha em loadUsers', err);
             setError(userFacingError(err, 'Não foi possível carregar os usuários. Tente novamente.'));
         } finally {
-            setLoading(false);
+            if (requestId === loadUsersRequestIdRef.current) setLoading(false);
         }
-    }, [currentPage, pageSize, debouncedSearchTerm, filterGrupoId, filterEncontroId, filterTempPassword, filterAccessScope, targetEncontroId]);
+    }, [currentPage, pageSize, debouncedSearchTerm, filterGrupoId, filterEncontroId, filterTempPassword, filterAccessScope, filterPersonLinkScope, targetEncontroId]);
 
     useEffect(() => {
         loadSupportData();
@@ -153,7 +160,7 @@ export function UsersAdminPage() {
 
     useEffect(() => {
         setCurrentPage(0);
-    }, [debouncedSearchTerm, filterGrupoId, filterEncontroId, filterTempPassword, filterAccessScope, targetEncontroId]);
+    }, [debouncedSearchTerm, filterGrupoId, filterEncontroId, filterTempPassword, filterAccessScope, filterPersonLinkScope, targetEncontroId]);
 
     // Segue o encontro global até que o administrador escolha outro contexto nesta tela.
     useEffect(() => {
@@ -226,7 +233,8 @@ export function UsersAdminPage() {
         setFilterGrupoId('all');
         setFilterEncontroId('all');
         setFilterTempPassword('all');
-        setFilterAccessScope('with');
+        setFilterAccessScope('all');
+        setFilterPersonLinkScope('all');
     };
 
     const handleClearSelection = () => {
@@ -632,7 +640,7 @@ export function UsersAdminPage() {
             return {
                 ...u,
                 resolvedEquipe: equipe,
-                resolvedNome: u.nome || '[Sem vínculo]'
+                resolvedNome: u.nome || '[Conta sem pessoa vinculada]'
             };
         });
 
@@ -690,7 +698,7 @@ export function UsersAdminPage() {
         filteredUsers.forEach(u => {
             const gNames = u.grupos?.map(v => grupos.find(g => g.id === v.grupo_id)?.nome || '').filter(Boolean).join('; ') || '';
             rows.push([
-                `"${u.nome || 'Sem vínculo'}"`,
+                `"${u.nome || 'Conta sem pessoa vinculada'}"`,
                 `"${u.email}"`,
                 `"${new Date(u.created_at).toLocaleDateString('pt-BR')}"`,
                 u.temporary_password ? 'Sim' : 'Não',
@@ -739,7 +747,8 @@ export function UsersAdminPage() {
         filterGrupoId !== 'all',
         filterEncontroId !== 'all',
         filterTempPassword !== 'all',
-        filterAccessScope !== 'with',
+        filterAccessScope !== 'all',
+        filterPersonLinkScope !== 'all',
     ].filter(Boolean).length;
 
     return (
@@ -754,19 +763,21 @@ export function UsersAdminPage() {
                         Configure usuários, perfis de acesso, convites e recuperação por e-mail.
                     </p>
                 </div>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--surface-1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                    <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-color)' }}>Contexto de edição:</label>
-                    <select
-                        className="form-input"
-                        style={{ padding: '0.2rem 2rem 0.2rem 0.5rem', height: '32px', minWidth: '220px', fontWeight: 600, color: targetEncontroId === null ? 'var(--danger-text)' : 'inherit' }}
-                        value={targetEncontroId === null ? 'global' : (targetEncontroId || '')}
-                        onChange={e => handleContextChange(e.target.value)}
-                    >
-                        <option value="global" style={{ color: 'var(--danger-text)' }}>Escopo global permanente</option>
-                        {encontros.map(e => (
-                            <option key={e.id} value={e.id}>{e.nome || e.edicao || e.tema} {e.ativo ? '⭐ (Atual Ativo)' : ''}</option>
-                        ))}
-                    </select>
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--surface-1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-color)' }}>Contexto de edição:</label>
+                        <select
+                            className="form-input"
+                            style={{ padding: '0.2rem 2rem 0.2rem 0.5rem', height: '32px', minWidth: '220px', fontWeight: 600, color: targetEncontroId === null ? 'var(--danger-text)' : 'inherit' }}
+                            value={targetEncontroId === null ? 'global' : (targetEncontroId || '')}
+                            onChange={e => handleContextChange(e.target.value)}
+                        >
+                            <option value="global" style={{ color: 'var(--danger-text)' }}>Escopo global permanente</option>
+                            {encontros.map(e => (
+                                <option key={e.id} value={e.id}>{e.nome || e.edicao || e.tema} {e.ativo ? '⭐ (Atual Ativo)' : ''}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
             </div>
 
@@ -801,14 +812,29 @@ export function UsersAdminPage() {
                 <div className="card" style={{ padding: '1rem' }}>
                     <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>No contexto</span>
                     <strong style={{ display: 'block', fontSize: '1.6rem', marginTop: '0.25rem', color: 'var(--primary-color)' }}>{summary.totalWithTargetAccess}</strong>
-                    <small style={{ color: 'var(--muted-text)' }}>Com acesso no contexto selecionado</small>
+                    <small style={{ color: 'var(--muted-text)' }}>Com perfil no contexto selecionado</small>
                 </div>
             </section>
 
             <section className="card" style={{ marginBottom: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
                     <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Conceder novo acesso</h2>
-                    <div style={{ display: 'flex', gap: '0.5rem', backgroundColor: 'var(--secondary-bg)', padding: '0.25rem', borderRadius: '12px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', backgroundColor: 'var(--secondary-bg)', padding: '0.25rem', borderRadius: '12px' }}>
+                        <button
+                            type="button"
+                            className={`btn-text ${creationMode === 'liberar' ? 'active' : ''}`}
+                            onClick={() => setCreationMode('liberar')}
+                            style={{
+                                backgroundColor: creationMode === 'liberar' ? 'var(--surface-1)' : 'transparent',
+                                color: creationMode === 'liberar' ? 'var(--primary-color)' : 'var(--muted-text)',
+                                boxShadow: creationMode === 'liberar' ? 'var(--shadow-sm)' : 'none',
+                                borderRadius: '8px',
+                                padding: '0.5rem 1rem',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            Liberar acessos
+                        </button>
                         <button
                             type="button"
                             className={`btn-text ${creationMode === 'individual' ? 'active' : ''}`}
@@ -850,28 +876,12 @@ export function UsersAdminPage() {
                         >
                             Em Lote (Equipe)
                         </button>
-                        <button
-                            type="button"
-                            className={`btn-text ${creationMode === 'coordenadores' ? 'active' : ''}`}
-                            onClick={() => {
-                                setCreationMode('coordenadores')
-                                setCoordenadorResults([])
-                            }}
-                            style={{
-                                backgroundColor: creationMode === 'coordenadores' ? 'var(--surface-1)' : 'transparent',
-                                color: creationMode === 'coordenadores' ? 'var(--primary-color)' : 'var(--muted-text)',
-                                boxShadow: creationMode === 'coordenadores' ? 'var(--shadow-sm)' : 'none',
-                                borderRadius: '8px',
-                                padding: '0.5rem 1rem',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            Coordenadores
-                        </button>
                     </div>
                 </div>
 
-                {creationMode === 'individual' ? (
+                {creationMode === 'liberar' ? (
+                    <TeamAccessReleasePanel encontroId={targetEncontroId} encontroLabel={contextoLabel} />
+                ) : creationMode === 'individual' ? (
                     <form onSubmit={handleCreateUser} onKeyDown={handleKeyDown}>
                         <ActionStepper
                             steps={[
@@ -1516,11 +1526,11 @@ export function UsersAdminPage() {
                         </div>
 
                         <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Vínculo em {contextoLabel}</label>
+                            <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Acesso em {contextoLabel}</label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                                 {([
-                                    ['with', 'Com acesso'],
-                                    ['without', 'Sem acesso'],
+                                    ['with', 'Com perfil'],
+                                    ['without', 'Sem perfil'],
                                     ['all', 'Todos'],
                                 ] as const).map(([value, label]) => (
                                     <button
@@ -1541,17 +1551,25 @@ export function UsersAdminPage() {
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.85rem', alignItems: 'end' }}>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Perfil neste contexto</label>
+                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Perfil de acesso no contexto</label>
                                 <select className="form-input" value={filterGrupoId} onChange={e => setFilterGrupoId(e.target.value)} disabled={filterAccessScope === 'without'}>
                                     <option value="all">Todos os perfis</option>
                                     {grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
                                 </select>
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Participação cadastrada</label>
+                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Participação da pessoa</label>
                                 <select className="form-input" value={filterEncontroId} onChange={e => setFilterEncontroId(e.target.value)}>
-                                    <option value="all">Qualquer encontro</option>
+                                    <option value="all">Qualquer participação</option>
                                     {encontros.map(enc => <option key={enc.id} value={enc.id}>{enc.edicao} - {enc.tema}</option>)}
+                                </select>
+                            </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Vínculo com pessoa</label>
+                                <select className="form-input" value={filterPersonLinkScope} onChange={e => setFilterPersonLinkScope(e.target.value as 'linked' | 'unlinked' | 'all')}>
+                                    <option value="all">Todos os vínculos</option>
+                                    <option value="linked">Com pessoa vinculada</option>
+                                    <option value="unlinked">Sem pessoa vinculada</option>
                                 </select>
                             </div>
                             <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1607,7 +1625,7 @@ export function UsersAdminPage() {
                                     {/* Info */}
                                     <div style={{ flex: 1, minWidth: '160px' }}>
                                         <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>
-                                            {user.nome || <span style={{ fontStyle: 'italic', opacity: 0.6 }}>Sem vínculo</span>}
+                                            {user.nome || <span style={{ fontStyle: 'italic', opacity: 0.6 }}>Conta sem pessoa vinculada</span>}
                                         </div>
                                         <div style={{ fontSize: '0.82rem', color: 'var(--muted-text)' }}>{user.email}</div>
                                         {targetEquipe && (

@@ -28,6 +28,7 @@ export interface AdminUsersQuery {
     tempPassword?: 'all' | 'sim' | 'nao';
     targetEncontroId?: string | null;
     accessScope?: 'with' | 'without' | 'all';
+    personLinkScope?: 'linked' | 'unlinked' | 'all';
 }
 
 export interface AdminUsersSummary {
@@ -125,6 +126,7 @@ export const adminUserService = {
                 tempPassword: query.tempPassword ?? 'all',
                 targetEncontroId: query.targetEncontroId ?? null,
                 accessScope: query.accessScope ?? 'with',
+                personLinkScope: query.personLinkScope ?? 'all',
             },
             headers,
         });

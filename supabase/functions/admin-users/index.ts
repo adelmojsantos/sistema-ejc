@@ -2,7 +2,10 @@ import { createClient } from '@supabase/supabase-js';
 import {
   hasAccessInContext,
   matchesContextMembershipFilters,
+  matchesPersonLinkScope,
+  matchesUserSearch,
   type AdminUserAccessScope,
+  type AdminUserPersonLinkScope,
 } from './listFilters.ts';
 
 type UserRole = 'admin' | 'secretaria' | 'visitacao' | 'coordenador' | 'viewer';
@@ -46,6 +49,22 @@ interface FolderCoordinatorAccessItem {
   possui_usuario: boolean;
   possui_perfil: boolean;
   temporary_password: boolean | null;
+}
+
+interface ConfiguredAccessCandidate {
+  participacao_id: string;
+  pessoa_id: string;
+  nome_completo: string;
+  email: string | null;
+  equipe_id: string;
+  equipe_nome: string;
+  papel: 'coordenador' | 'integrante';
+  grupo_ids: string[];
+  grupos_nomes: string[];
+  user_id: string | null;
+  pessoa_vinculada: boolean;
+  grupos_pendentes_ids: string[];
+  status: 'sem_email' | 'sem_usuario' | 'sem_vinculo' | 'perfis_pendentes' | 'pronto' | 'conflito_vinculo';
 }
 
 const corsHeaders = {
@@ -233,6 +252,130 @@ async function getFolderCoordinatorsAccessStatus(
     semPerfil: coordenadores.filter((coordenador) => coordenador.email && (!coordenador.possui_usuario || !coordenador.possui_perfil)).length,
   };
 }
+
+async function getConfiguredAccessCandidates(
+  adminClient: ReturnType<typeof createClient>,
+  encontroId: string,
+): Promise<ConfiguredAccessCandidate[]> {
+  const { data: rules, error: rulesError } = await adminClient
+    .from('equipe_acesso_regras')
+    .select('equipe_id, papel, grupo_id, grupos(nome)')
+    .eq('encontro_id', encontroId);
+
+  if (rulesError) throw new Error('Não foi possível consultar a configuração de acessos.');
+  if (!rules || rules.length === 0) return [];
+
+  const equipeIds = [...new Set(rules.map((rule) => rule.equipe_id))];
+  const { data: participacoes, error: participacoesError } = await adminClient
+    .from('participacoes')
+    .select('id, pessoa_id, equipe_id, coordenador, pessoas(nome_completo, email), equipes(nome)')
+    .eq('encontro_id', encontroId)
+    .in('equipe_id', equipeIds);
+
+  if (participacoesError) throw new Error('Não foi possível consultar as pessoas elegíveis.');
+
+  const { data: profiles, error: profilesError } = await adminClient
+    .from('profiles')
+    .select('id, email, pessoa_id');
+
+  if (profilesError) throw new Error('Não foi possível consultar as contas existentes.');
+
+  const profileIndex = indexProfilesByIdentity(profiles ?? []);
+  const profilesByEmail = new Map<string, Array<(typeof profiles)[number]>>();
+  for (const profile of profiles ?? []) {
+    const email = normalizeEmail(profile.email);
+    if (!email) continue;
+    const matches = profilesByEmail.get(email) ?? [];
+    matches.push(profile);
+    profilesByEmail.set(email, matches);
+  }
+
+  const profileIds = (profiles ?? []).map((profile) => profile.id);
+  const { data: memberships, error: membershipsError } = profileIds.length > 0
+    ? await adminClient
+        .from('usuario_grupos')
+        .select('usuario_id, grupo_id')
+        .eq('encontro_id', encontroId)
+        .in('usuario_id', profileIds)
+    : { data: [], error: null };
+
+  if (membershipsError) throw new Error('Não foi possível consultar os perfis já concedidos.');
+
+  const membershipsByUser = new Map<string, Set<string>>();
+  for (const membership of memberships ?? []) {
+    const current = membershipsByUser.get(membership.usuario_id) ?? new Set<string>();
+    current.add(membership.grupo_id);
+    membershipsByUser.set(membership.usuario_id, current);
+  }
+
+  const rulesByTeamAndRole = new Map<string, Array<{ grupo_id: string; grupo_nome: string }>>();
+  for (const rule of rules) {
+    const key = `${rule.equipe_id}:${rule.papel}`;
+    const group = Array.isArray(rule.grupos) ? rule.grupos[0] : rule.grupos;
+    const current = rulesByTeamAndRole.get(key) ?? [];
+    if (!current.some((item) => item.grupo_id === rule.grupo_id)) {
+      current.push({ grupo_id: rule.grupo_id, grupo_nome: group?.nome ?? 'Perfil sem nome' });
+    }
+    rulesByTeamAndRole.set(key, current);
+  }
+
+  const candidates: ConfiguredAccessCandidate[] = [];
+  for (const participation of participacoes ?? []) {
+    const papel = participation.coordenador ? 'coordenador' : 'integrante';
+    const configuredGroups = rulesByTeamAndRole.get(`${participation.equipe_id}:${papel}`) ?? [];
+    if (configuredGroups.length === 0) continue;
+
+    const person = Array.isArray(participation.pessoas) ? participation.pessoas[0] : participation.pessoas;
+    const team = Array.isArray(participation.equipes) ? participation.equipes[0] : participation.equipes;
+    const email = person?.email?.trim() || null;
+    let profile = profileIndex.find(participation.pessoa_id, email);
+    let hasIdentityConflict = false;
+
+    if (!profile && email) {
+      const emailProfiles = profilesByEmail.get(normalizeEmail(email)) ?? [];
+      if (emailProfiles.length === 1) {
+        profile = emailProfiles[0];
+        hasIdentityConflict = Boolean(profile.pessoa_id && profile.pessoa_id !== participation.pessoa_id);
+      }
+    }
+
+    const grantedGroups = profile ? membershipsByUser.get(profile.id) ?? new Set<string>() : new Set<string>();
+    const grupoIds = configuredGroups.map((group) => group.grupo_id);
+    const pendingGroupIds = grupoIds.filter((groupId) => !grantedGroups.has(groupId));
+    const pessoaVinculada = profile?.pessoa_id === participation.pessoa_id;
+
+    let status: ConfiguredAccessCandidate['status'];
+    if (!email) status = 'sem_email';
+    else if (hasIdentityConflict) status = 'conflito_vinculo';
+    else if (!profile) status = 'sem_usuario';
+    else if (!pessoaVinculada) status = 'sem_vinculo';
+    else if (pendingGroupIds.length > 0) status = 'perfis_pendentes';
+    else status = 'pronto';
+
+    candidates.push({
+      participacao_id: participation.id,
+      pessoa_id: participation.pessoa_id,
+      nome_completo: person?.nome_completo ?? 'Pessoa sem nome',
+      email,
+      equipe_id: participation.equipe_id,
+      equipe_nome: team?.nome ?? 'Equipe não informada',
+      papel,
+      grupo_ids: grupoIds,
+      grupos_nomes: configuredGroups.map((group) => group.grupo_nome),
+      user_id: profile?.id ?? null,
+      pessoa_vinculada: pessoaVinculada,
+      grupos_pendentes_ids: pendingGroupIds,
+      status,
+    });
+  }
+
+  return candidates.sort((first, second) => {
+    const teamComparison = first.equipe_nome.localeCompare(second.equipe_nome, 'pt-BR');
+    if (teamComparison !== 0) return teamComparison;
+    if (first.papel !== second.papel) return first.papel === 'coordenador' ? -1 : 1;
+    return first.nome_completo.localeCompare(second.nome_completo, 'pt-BR');
+  });
+}
 // @ts-nocheck
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -374,6 +517,174 @@ Deno.serve(async (request) => {
       }
 
       return jsonResponse(200, await getFolderCoordinatorsAccessStatus(adminClient, encontroId, grupoId));
+    }
+
+    if (action === 'list-configured-access-candidates') {
+      const encontroId = String(body?.encontroId ?? '').trim();
+      if (!encontroId) return jsonResponse(400, { error: 'encontroId is required' });
+
+      const candidates = await getConfiguredAccessCandidates(adminClient, encontroId);
+      return jsonResponse(200, { candidates, total: candidates.length });
+    }
+
+    if (action === 'prepare-configured-accesses') {
+      const encontroId = String(body?.encontroId ?? '').trim();
+      const participacaoIds = Array.isArray(body?.participacaoIds)
+        ? [...new Set(body.participacaoIds.map((id: unknown) => String(id)))]
+        : [];
+
+      if (!encontroId || participacaoIds.length === 0) {
+        return jsonResponse(400, { error: 'Selecione ao menos uma pessoa para liberar os acessos.' });
+      }
+
+      const candidates = await getConfiguredAccessCandidates(adminClient, encontroId);
+      const selectedCandidates = candidates.filter((candidate) => participacaoIds.includes(candidate.participacao_id));
+      if (selectedCandidates.length !== participacaoIds.length) {
+        return jsonResponse(400, { error: 'A seleção contém uma pessoa que não corresponde mais à configuração de acessos.' });
+      }
+
+      const results = [];
+      for (const candidate of selectedCandidates) {
+        if (!candidate.email) {
+          results.push({
+            ...candidate,
+            success: false,
+            created: false,
+            linked: false,
+            granted: 0,
+            message: 'Cadastre um e-mail para esta pessoa antes de liberar o acesso.',
+          });
+          continue;
+        }
+        if (candidate.status === 'conflito_vinculo') {
+          results.push({
+            ...candidate,
+            success: false,
+            created: false,
+            linked: false,
+            granted: 0,
+            message: 'O e-mail pertence a uma conta vinculada a outra pessoa.',
+          });
+          continue;
+        }
+
+        let userId = candidate.user_id;
+        let created = false;
+        let linked = candidate.pessoa_vinculada;
+
+        if (!userId) {
+          const email = normalizeEmail(candidate.email);
+          const { data: createdUser, error: createUserError } =
+            await adminClient.auth.admin.inviteUserByEmail(email, { redirectTo: passwordRedirectUrl });
+
+          if (createUserError || !createdUser.user) {
+            results.push({
+              ...candidate,
+              success: false,
+              created: false,
+              linked: false,
+              granted: 0,
+              message: createUserError?.message ?? 'Não foi possível criar a conta.',
+            });
+            continue;
+          }
+
+          userId = createdUser.user.id;
+          created = true;
+          const { error: profileError } = await adminClient.from('profiles').upsert({
+            id: userId,
+            email,
+            pessoa_id: candidate.pessoa_id,
+            role: 'viewer',
+            temporary_password: true,
+          });
+
+          if (profileError) {
+            results.push({
+              ...candidate,
+              user_id: userId,
+              success: false,
+              created,
+              linked: false,
+              granted: 0,
+              message: 'A conta foi criada, mas não foi possível vinculá-la à pessoa.',
+            });
+            continue;
+          }
+          linked = true;
+        } else if (!linked) {
+          const { data: linkedProfile, error: linkError } = await adminClient
+            .from('profiles')
+            .update({ pessoa_id: candidate.pessoa_id })
+            .eq('id', userId)
+            .is('pessoa_id', null)
+            .select('id')
+            .maybeSingle();
+
+          if (linkError || !linkedProfile) {
+            results.push({
+              ...candidate,
+              success: false,
+              created,
+              linked: false,
+              granted: 0,
+              message: 'Não foi possível vincular a conta à pessoa.',
+            });
+            continue;
+          }
+          const { error: auditError } = await adminClient.from('profile_pessoa_vinculo_auditoria').insert({
+            profile_id: userId,
+            pessoa_id_anterior: null,
+            pessoa_id_novo: candidate.pessoa_id,
+            alterado_por: requesterId,
+          });
+          if (auditError) {
+            results.push({
+              ...candidate,
+              success: false,
+              created,
+              linked: true,
+              granted: 0,
+              message: 'A conta foi vinculada, mas a auditoria falhou. Revise antes de conceder os perfis.',
+            });
+            continue;
+          }
+          linked = true;
+        }
+
+        let granted = 0;
+        if (candidate.grupos_pendentes_ids.length > 0) {
+          const payload = candidate.grupos_pendentes_ids.map((grupoId) => ({
+            usuario_id: userId,
+            grupo_id: grupoId,
+            encontro_id: encontroId,
+          }));
+          const { error: grantError } = await adminClient.from('usuario_grupos').insert(payload);
+          if (grantError) {
+            results.push({
+              ...candidate,
+              success: false,
+              created,
+              linked,
+              granted: 0,
+              message: 'A conta foi preparada, mas não foi possível conceder todos os perfis.',
+            });
+            continue;
+          }
+          granted = payload.length;
+        }
+
+        results.push({
+          ...candidate,
+          user_id: userId,
+          success: true,
+          created,
+          linked,
+          granted,
+        });
+      }
+
+      return jsonResponse(200, { results });
     }
 
     if (action === 'update-person-email') {
@@ -578,6 +889,10 @@ Deno.serve(async (request) => {
       const accessScope: AdminUserAccessScope = ['with', 'without', 'all'].includes(requestedAccessScope)
         ? requestedAccessScope as AdminUserAccessScope
         : 'all';
+      const requestedPersonLinkScope = String(body?.personLinkScope ?? 'all');
+      const personLinkScope: AdminUserPersonLinkScope = ['linked', 'unlinked', 'all'].includes(requestedPersonLinkScope)
+        ? requestedPersonLinkScope as AdminUserPersonLinkScope
+        : 'all';
 
       const { data, error } = await adminClient
         .from('profiles')
@@ -674,18 +989,15 @@ Deno.serve(async (request) => {
 
       const filteredUsers = enrichedUsers.filter((user) => {
         if (!matchesContextMembershipFilters(user, { targetEncontroId, accessScope, grupoId })) return false;
+        if (!matchesPersonLinkScope(user, personLinkScope)) return false;
         if (encontroId !== 'all' && !user.encontrosIds.includes(encontroId)) return false;
         if (tempPassword !== 'all') {
           const wantsTemporary = tempPassword === 'sim';
           if (user.temporary_password !== wantsTemporary) return false;
         }
         if (search) {
-          const searchable = [
-            user.email,
-            user.nome ?? '',
-            ...Object.values(user.equipesNomes || {}),
-          ].join(' ').toLowerCase();
-          if (!searchable.includes(search)) return false;
+          const equipeEncontroId = encontroId !== 'all' ? encontroId : targetEncontroId;
+          if (!matchesUserSearch(user, search, equipeEncontroId)) return false;
         }
         return true;
       });
