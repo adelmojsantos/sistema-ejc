@@ -36,6 +36,7 @@ function lazyNamed<TProps extends object = Record<string, never>>(
 }
 
 const UsersAdminPage = lazyNamed(() => import('./pages/admin/UsersAdminPage'), 'UsersAdminPage');
+const EncounterAccessProvisioningPage = lazyNamed(() => import('./pages/admin/EncounterAccessProvisioningPage'), 'EncounterAccessProvisioningPage');
 const ImportarDadosPage = lazyNamed(() => import('./pages/admin/ImportarDadosPage'), 'ImportarDadosPage');
 const AccessAdminPage = lazyNamed(() => import('./pages/admin/AccessAdminPage'), 'AccessAdminPage');
 const ExportConfigListPage = lazyNamed(() => import('./pages/admin/ExportConfigListPage'), 'ExportConfigListPage');
@@ -244,6 +245,16 @@ function AnimatedRoutes() {
             <ProtectedRoute requiredPermissions={['modulo_admin']}>
               <UsersAdminPage />
             </ProtectedRoute>
+          } />
+
+          <Route path="/admin/usuarios/configurar-acessos" element={
+            <ProtectedRoute requiredPermissions={['modulo_admin']}>
+              <EncounterAccessProvisioningPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/admin/usuarios/acessos-por-equipe" element={
+            <Navigate to="/admin/usuarios/configurar-acessos" replace />
           } />
 
           <Route path="/admin/acessos" element={

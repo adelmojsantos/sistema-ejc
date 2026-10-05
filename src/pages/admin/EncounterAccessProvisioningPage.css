@@ -1,0 +1,65 @@
+.team-access-role-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.team-access-role-column {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.team-access-profile-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+.team-access-profile {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.team-access-profile input {
+  flex: 0 0 auto;
+  margin-top: 0.08rem;
+  accent-color: var(--primary-color);
+}
+
+.team-access-profile span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.team-access-profile--selected {
+  border-color: var(--primary-color);
+  background: var(--primary-color);
+  color: #fff;
+}
+
+@media (max-width: 720px) {
+  .team-access-role-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .team-access-profile-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

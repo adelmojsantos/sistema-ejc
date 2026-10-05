@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { matchesContextMembershipFilters } from './listFilters';
+import {
+  matchesContextMembershipFilters,
+  matchesPersonLinkScope,
+  matchesUserSearch,
+} from './listFilters';
 
 const user = {
   grupos: [
@@ -46,5 +50,44 @@ describe('admin user context membership filters', () => {
       accessScope: 'with',
       grupoId: 'admin',
     })).toBe(true);
+  });
+});
+
+describe('admin user person link filter', () => {
+  it('separa contas vinculadas das contas sem pessoa', () => {
+    expect(matchesPersonLinkScope({ pessoaVinculo: 'explicit' }, 'linked')).toBe(true);
+    expect(matchesPersonLinkScope({ pessoaVinculo: 'email_fallback' }, 'linked')).toBe(true);
+    expect(matchesPersonLinkScope({ pessoaVinculo: 'none' }, 'linked')).toBe(false);
+    expect(matchesPersonLinkScope({ pessoaVinculo: 'none' }, 'unlinked')).toBe(true);
+  });
+
+  it('não restringe resultados quando o filtro está neutro', () => {
+    expect(matchesPersonLinkScope({ pessoaVinculo: 'none' }, 'all')).toBe(true);
+  });
+});
+
+describe('admin user search', () => {
+  const searchableUser = {
+    email: 'maria@example.com',
+    nome: 'Maria da Silva',
+    equipesNomes: {
+      atual: 'Acolhida',
+      anterior: 'Cozinha',
+    },
+  };
+
+  it('busca por nome e e-mail independentemente do encontro', () => {
+    expect(matchesUserSearch(searchableUser, 'maria da', 'atual')).toBe(true);
+    expect(matchesUserSearch(searchableUser, 'EXAMPLE.COM', 'atual')).toBe(true);
+  });
+
+  it('considera somente a equipe do encontro relevante', () => {
+    expect(matchesUserSearch(searchableUser, 'acolhida', 'atual')).toBe(true);
+    expect(matchesUserSearch(searchableUser, 'cozinha', 'atual')).toBe(false);
+    expect(matchesUserSearch(searchableUser, 'cozinha', 'anterior')).toBe(true);
+  });
+
+  it('considera todas as equipes apenas no contexto global', () => {
+    expect(matchesUserSearch(searchableUser, 'cozinha', null)).toBe(true);
   });
 });

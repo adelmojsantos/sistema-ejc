@@ -1,4 +1,5 @@
 export type AdminUserAccessScope = 'with' | 'without' | 'all';
+export type AdminUserPersonLinkScope = 'linked' | 'unlinked' | 'all';
 
 interface UserMembership {
   grupo_id: string;
@@ -7,6 +8,16 @@ interface UserMembership {
 
 interface UserWithMemberships {
   grupos: UserMembership[];
+}
+
+interface UserWithPersonLink {
+  pessoaVinculo: 'explicit' | 'email_fallback' | 'none';
+}
+
+interface SearchableUser {
+  email: string;
+  nome?: string;
+  equipesNomes: Record<string, string>;
 }
 
 interface ContextMembershipFilter {
@@ -38,4 +49,29 @@ export function matchesContextMembershipFilters(
   ) return false;
 
   return true;
+}
+
+export function matchesPersonLinkScope(
+  user: UserWithPersonLink,
+  scope: AdminUserPersonLinkScope,
+) {
+  if (scope === 'all') return true;
+  const hasLinkedPerson = user.pessoaVinculo !== 'none';
+  return scope === 'linked' ? hasLinkedPerson : !hasLinkedPerson;
+}
+
+export function matchesUserSearch(
+  user: SearchableUser,
+  rawSearch: string,
+  equipeEncontroId: string | null,
+) {
+  const search = rawSearch.trim().toLowerCase();
+  if (!search) return true;
+
+  const equipes = equipeEncontroId
+    ? [user.equipesNomes[equipeEncontroId] ?? '']
+    : Object.values(user.equipesNomes);
+  const searchable = [user.email, user.nome ?? '', ...equipes].join(' ').toLowerCase();
+
+  return searchable.includes(search);
 }
