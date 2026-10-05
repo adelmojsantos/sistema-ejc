@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle, RotateCcw, Settings2, UserPlus, Users2 } from 'lucide-react';
+import { CheckCircle, Maximize2, Minimize2, RotateCcw, Settings2, UserPlus, Users2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import {
@@ -8,6 +8,7 @@ import {
   type AccessProvisioningResult,
 } from '../../services/accessProvisioningService';
 import { userFacingError } from '../../utils/userFacingError';
+import './TeamAccessReleasePanel.css';
 
 interface TeamAccessReleasePanelProps {
   encontroId: string | null;
@@ -30,6 +31,7 @@ export function TeamAccessReleasePanel({ encontroId, encontroLabel }: TeamAccess
   const [results, setResults] = useState<AccessProvisioningResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [preparing, setPreparing] = useState(false);
+  const [isListExpanded, setIsListExpanded] = useState(false);
   const requestRef = useRef(0);
 
   const loadCandidates = useCallback(async () => {
@@ -132,13 +134,30 @@ export function TeamAccessReleasePanel({ encontroId, encontroLabel }: TeamAccess
         </div>
       ) : (
         <>
-          {actionableCandidates.length > 0 && (
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.84rem', cursor: 'pointer' }}>
-              <input type="checkbox" checked={selectedIds.length === actionableCandidates.length} onChange={toggleAllCandidates} />
-              Selecionar todas as pendências
-            </label>
-          )}
-          <div style={{ display: 'grid', gap: '0.6rem' }}>
+          <div className="team-access-list-toolbar">
+            {actionableCandidates.length > 0 ? (
+              <label className="team-access-select-all">
+                <input type="checkbox" checked={selectedIds.length === actionableCandidates.length} onChange={toggleAllCandidates} />
+                Selecionar todas as pendências
+              </label>
+            ) : <span />}
+            <button
+              type="button"
+              className="btn-secondary team-access-expand-button"
+              aria-expanded={isListExpanded}
+              aria-controls="team-access-candidate-list"
+              onClick={() => setIsListExpanded(current => !current)}
+            >
+              {isListExpanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+              {isListExpanded ? 'Recolher lista' : 'Expandir lista'}
+            </button>
+          </div>
+          <div
+            id="team-access-candidate-list"
+            className={`team-access-candidate-list${isListExpanded ? ' team-access-candidate-list--expanded' : ''}`}
+            role="region"
+            aria-label="Pessoas com acesso previsto"
+          >
             {candidates.map(candidate => {
               const actionable = !['pronto', 'sem_email', 'conflito_vinculo'].includes(candidate.status);
               const result = results.find(current => current.participacao_id === candidate.participacao_id);
