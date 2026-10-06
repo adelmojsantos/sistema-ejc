@@ -90,6 +90,7 @@ interface CreateAdminUserPayload {
 interface CreateAdminUserResponse {
     user: AdminUserListItem;
     invitationSent: boolean;
+    accessesGranted?: boolean;
 }
 
 interface ResetPasswordResponse {
@@ -109,6 +110,26 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     const token = data.session?.access_token;
     if (!token) throw new Error('Sessão expirada. Faça login novamente.');
     return { Authorization: `Bearer ${token}` };
+}
+
+async function edgeFunctionErrorMessage(error: unknown): Promise<string | null> {
+    const context = error && typeof error === 'object' && 'context' in error
+        ? (error as { context?: Response }).context
+        : undefined;
+    if (!context) return null;
+
+    try {
+        const payload = await context.clone().json() as { error?: unknown };
+        return typeof payload.error === 'string' ? payload.error : null;
+    } catch {
+        return null;
+    }
+}
+
+async function throwEdgeFunctionError(error: unknown): Promise<never> {
+    const message = await edgeFunctionErrorMessage(error);
+    if (message) throw new Error(message);
+    throw error;
 }
 
 export const adminUserService = {
@@ -239,23 +260,40 @@ export const adminUserService = {
     async createUser(payload: CreateAdminUserPayload): Promise<CreateAdminUserResponse> {
         const headers = await getAuthHeaders();
         const { data, error } = await supabase.functions.invoke('admin-users', {
-            // we pass a dummy 'viewer' role to not break the edge function's upsert to profiles, which might still have role fallback
-            body: { action: 'create', email: payload.email, pessoaId: payload.pessoaId, role: 'viewer' },
+            body: {
+                action: 'create',
+                email: payload.email,
+                pessoaId: payload.pessoaId,
+                role: 'viewer',
+                gruposIds: payload.gruposIds,
+                encontroId: payload.encontroId,
+            },
             headers,
         });
 
-        if (error) throw error;
+        if (error) await throwEdgeFunctionError(error);
+        if (data?.error) throw new Error(data.error);
 
         const response = data as CreateAdminUserResponse;
 
-        // Link groups
-        if (payload.gruposIds.length > 0) {
+        // Compatibilidade temporária caso o frontend seja publicado antes da Edge Function nova.
+        if (response.accessesGranted !== true && payload.gruposIds.length > 0) {
             const ugPayload = payload.gruposIds.map(gId => ({ 
                 usuario_id: response.user.id, 
                 grupo_id: gId,
                 encontro_id: payload.encontroId
             }));
-            await supabase.from('usuario_grupos').insert(ugPayload);
+            const { error: grantError } = await supabase.from('usuario_grupos').insert(ugPayload);
+            if (grantError) {
+                const { error: cleanupError } = await supabase.functions.invoke('admin-users', {
+                    body: { action: 'delete', userId: response.user.id },
+                    headers,
+                });
+                if (cleanupError) {
+                    throw new Error('A conta foi criada, mas os acessos não foram concedidos. Localize a conta pelo e-mail antes de tentar novamente.');
+                }
+                throw new Error('Não foi possível conceder os perfis selecionados. Nenhuma conta foi mantida; tente novamente.');
+            }
         }
 
         return response;

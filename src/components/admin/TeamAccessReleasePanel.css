@@ -1,0 +1,62 @@
+.team-access-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.team-access-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+
+.team-access-expand-button {
+  flex: 0 0 auto;
+}
+
+.team-access-candidate-list {
+  display: grid;
+  max-height: 440px;
+  gap: 0.6rem;
+  padding-right: 0.35rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.team-access-candidate-list--expanded {
+  max-height: none;
+  padding-right: 0;
+  overflow-y: visible;
+}
+
+@media (max-width: 600px) {
+  .team-access-list-toolbar {
+    align-items: stretch;
+  }
+
+  .team-access-select-all {
+    min-height: 2.5rem;
+  }
+
+  .team-access-expand-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .team-access-candidate-list {
+    max-height: 55vh;
+    max-height: min(55dvh, 420px);
+    padding-right: 0.2rem;
+  }
+
+  .team-access-candidate-list--expanded {
+    max-height: none;
+    padding-right: 0;
+  }
+}
