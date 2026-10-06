@@ -7,6 +7,11 @@ import {
   type AdminUserAccessScope,
   type AdminUserPersonLinkScope,
 } from './listFilters.ts';
+import {
+  individualAccessConflict,
+  normalizeGroupIds,
+  profileFailureMessage,
+} from './individualAccess.ts';
 
 type UserRole = 'admin' | 'secretaria' | 'visitacao' | 'coordenador' | 'viewer';
 
@@ -81,6 +86,32 @@ function jsonResponse(status: number, body: unknown) {
       'Content-Type': 'application/json'
     }
   });
+}
+
+function provisioningErrorCode(error: unknown) {
+  if (!error || typeof error !== 'object' || !('code' in error)) return undefined;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+function logProvisioningFailure(stage: 'profile' | 'groups' | 'cleanup', error: unknown) {
+  const code = provisioningErrorCode(error);
+  const category = code === '23505'
+    ? 'unique_conflict'
+    : code === '23503'
+      ? 'foreign_key_conflict'
+      : 'unexpected';
+
+  console.error('[admin-users] Individual access provisioning failed', { stage, code, category });
+}
+
+async function removePartiallyCreatedUser(
+  adminClient: ReturnType<typeof createClient>,
+  userId: string,
+) {
+  const { error } = await adminClient.auth.admin.deleteUser(userId);
+  if (error) logProvisioningFailure('cleanup', error);
+  return !error;
 }
 
 async function getDirigenciaAccessStatus(adminClient: ReturnType<typeof createClient>, dirigenciaId: string) {
@@ -1053,9 +1084,17 @@ Deno.serve(async (request) => {
       const rawEmail = body?.email as string | undefined;
       const pessoaId = body?.pessoaId as string | undefined;
       const role = body?.role as UserRole | undefined;
+      const gruposIds = normalizeGroupIds(body?.gruposIds);
+      const encontroId = body?.encontroId == null ? null : String(body.encontroId).trim();
 
       if (!rawEmail || !pessoaId || !role) {
         return jsonResponse(400, { error: 'email, pessoaId and role are required' });
+      }
+      if (gruposIds !== null && gruposIds.length === 0) {
+        return jsonResponse(400, { error: 'Selecione ao menos um perfil de acesso.' });
+      }
+      if (body?.encontroId != null && !encontroId) {
+        return jsonResponse(400, { error: 'O contexto do encontro informado é inválido.' });
       }
 
       const email = rawEmail.trim().toLowerCase();
@@ -1073,6 +1112,57 @@ Deno.serve(async (request) => {
         return jsonResponse(400, {
           error: 'O e-mail informado não corresponde à pessoa selecionada. Atualize o cadastro e tente novamente.'
         });
+      }
+
+      const [profileForPersonResult, profilesForEmailResult] = await Promise.all([
+        adminClient
+          .from('profiles')
+          .select('id, email, pessoa_id')
+          .eq('pessoa_id', pessoaId)
+          .maybeSingle(),
+        adminClient
+          .from('profiles')
+          .select('id, email, pessoa_id')
+          .eq('email', email)
+          .limit(2),
+      ]);
+
+      if (profileForPersonResult.error || profilesForEmailResult.error) {
+        return jsonResponse(500, { error: 'Não foi possível validar os acessos existentes. Tente novamente.' });
+      }
+
+      const conflictMessage = individualAccessConflict(
+        pessoaId,
+        profileForPersonResult.data,
+        profilesForEmailResult.data ?? [],
+      );
+      if (conflictMessage) {
+        return jsonResponse(409, { error: conflictMessage });
+      }
+
+      if (gruposIds !== null) {
+        const { data: validGroups, error: groupsError } = await adminClient
+          .from('grupos')
+          .select('id')
+          .in('id', gruposIds);
+
+        if (groupsError) {
+          return jsonResponse(500, { error: 'Não foi possível validar os perfis de acesso selecionados.' });
+        }
+        if ((validGroups ?? []).length !== gruposIds.length) {
+          return jsonResponse(400, { error: 'Um dos perfis de acesso selecionados não existe mais.' });
+        }
+
+        if (encontroId) {
+          const { data: encontro, error: encontroError } = await adminClient
+            .from('encontros')
+            .select('id')
+            .eq('id', encontroId)
+            .maybeSingle();
+          if (encontroError || !encontro) {
+            return jsonResponse(400, { error: 'O encontro selecionado não existe mais.' });
+          }
+        }
       }
 
       const { data: createdUser, error: createUserError } =
@@ -1093,7 +1183,38 @@ Deno.serve(async (request) => {
       });
 
       if (upsertError) {
-        return jsonResponse(500, { error: 'User created but failed to save profile' });
+        logProvisioningFailure('profile', upsertError);
+        const removed = await removePartiallyCreatedUser(adminClient, createdUser.user.id);
+        if (!removed) {
+          return jsonResponse(500, {
+            error: 'A conta foi criada, mas não foi possível vinculá-la nem desfazer a criação. Localize a conta pelo e-mail antes de tentar novamente.'
+          });
+        }
+        return jsonResponse(provisioningErrorCode(upsertError) === '23505' ? 409 : 500, {
+          error: profileFailureMessage(provisioningErrorCode(upsertError))
+        });
+      }
+
+      if (gruposIds !== null) {
+        const grants = gruposIds.map((grupoId) => ({
+          usuario_id: createdUser.user.id,
+          grupo_id: grupoId,
+          encontro_id: encontroId,
+        }));
+        const { error: grantError } = await adminClient.from('usuario_grupos').insert(grants);
+
+        if (grantError) {
+          logProvisioningFailure('groups', grantError);
+          const removed = await removePartiallyCreatedUser(adminClient, createdUser.user.id);
+          if (!removed) {
+            return jsonResponse(500, {
+              error: 'A conta foi criada, mas os acessos não foram concedidos e não foi possível desfazer a criação. Localize a conta pelo e-mail antes de tentar novamente.'
+            });
+          }
+          return jsonResponse(500, {
+            error: 'Não foi possível conceder os perfis selecionados. Nenhuma conta foi mantida; tente novamente.'
+          });
+        }
       }
 
       return jsonResponse(200, {
@@ -1106,7 +1227,8 @@ Deno.serve(async (request) => {
           temporary_password: true,
           created_at: createdUser.user.created_at
         },
-        invitationSent: true
+        invitationSent: true,
+        accessesGranted: gruposIds !== null,
       });
     }
 
