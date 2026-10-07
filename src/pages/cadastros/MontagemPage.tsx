@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Search, Plus, Trash2, Loader, Check, X, UserPlus, History, ChevronDown, ChevronUp, Save } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { Modal } from '../../components/ui/Modal';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { HistoricoModal } from '../../components/pessoa/HistoricoModal';
 import { inscricaoService } from '../../services/inscricaoService';
@@ -12,17 +13,31 @@ import { pessoaService } from '../../services/pessoaService';
 import { useEncontros } from '../../contexts/EncontroContext';
 import { useEquipes } from '../../hooks/useEquipes';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
+import { pesquisaEncontristaService } from '../../services/pesquisaEncontristaService';
+import type { PesquisaEncontristaDetalhe, PesquisaEncontristaPreferenciasEncontro } from '../../types/pesquisaEncontrista';
+import { findPreviousEncounter } from '../../utils/encontroPrevious';
+import './MontagemPage.css';
 
 interface StagedMembro {
     pessoa_id: string;
+    equipe_id: string;
     nome_completo: string;
     cpf: string | null;
     coordenador: boolean;
+    preferenciaOrigem?: {
+        encontroNome: string;
+        ordemPreferencia: number;
+    };
 }
 
 type PessoaSearchResult = Pessoa & {
     infoEquipe?: { id: string | null; nome: string };
     noStaging: boolean;
+};
+
+type PreferenciaEquipeEncontrista = {
+    encontrista: PesquisaEncontristaDetalhe;
+    preferencia: PesquisaEncontristaDetalhe['preferencias'][number];
 };
 
 export function MontagemPage() {
@@ -49,6 +64,15 @@ export function MontagemPage() {
     const [deleteTarget, setDeleteTarget] = useState<InscricaoEnriched | null>(null);
     const [historyTarget, setHistoryTarget] = useState<Pessoa | null>(null);
     const [expandedEquipeId, setExpandedEquipeId] = useState<string | null>(null);
+    const [preferenciasAnteriores, setPreferenciasAnteriores] = useState<PesquisaEncontristaPreferenciasEncontro | null>(null);
+    const [isLoadingPreferencias, setIsLoadingPreferencias] = useState(false);
+    const [preferenciasError, setPreferenciasError] = useState(false);
+    const [preferenciaEquipeId, setPreferenciaEquipeId] = useState<string | null>(null);
+
+    const encontroAnterior = useMemo(
+        () => findPreviousEncounter(encontros, selectedEncontroId),
+        [encontros, selectedEncontroId]
+    );
 
     // Efeito para rolar até a equipe expandida
     useEffect(() => {
@@ -77,6 +101,56 @@ export function MontagemPage() {
 
     useEffect(() => { loadInscricoes(); }, [loadInscricoes]);
 
+    useEffect(() => {
+        setPreferenciaEquipeId(null);
+        if (!encontroAnterior) {
+            setPreferenciasAnteriores(null);
+            setPreferenciasError(false);
+            return;
+        }
+
+        let active = true;
+        setIsLoadingPreferencias(true);
+        setPreferenciasError(false);
+        setPreferenciasAnteriores(null);
+        pesquisaEncontristaService.listarPreferenciasPorEncontrista(encontroAnterior.id)
+            .then((data) => {
+                if (active) setPreferenciasAnteriores(data);
+            })
+            .catch((error) => {
+                console.error('Erro ao carregar preferências do encontro anterior:', error);
+                if (active) {
+                    setPreferenciasAnteriores(null);
+                    setPreferenciasError(true);
+                }
+            })
+            .finally(() => {
+                if (active) setIsLoadingPreferencias(false);
+            });
+
+        return () => { active = false; };
+    }, [encontroAnterior]);
+
+    const preferenciasPorEquipe = useMemo(() => {
+        const result = new Map<string, PreferenciaEquipeEncontrista[]>();
+        (preferenciasAnteriores?.encontristas ?? []).forEach((encontrista) => {
+            encontrista.preferencias.forEach((preferencia) => {
+                if (!preferencia.equipeDisponivel) return;
+                const current = result.get(preferencia.equipeId) ?? [];
+                current.push({ encontrista, preferencia });
+                result.set(preferencia.equipeId, current);
+            });
+        });
+        result.forEach((items) => {
+            items.sort((a, b) => a.preferencia.ordemPreferencia - b.preferencia.ordemPreferencia
+                || a.encontrista.nome.localeCompare(b.encontrista.nome, 'pt-BR'));
+        });
+        return result;
+    }, [preferenciasAnteriores]);
+
+    const preferenciaEquipe = equipes.find((equipe) => equipe.id === preferenciaEquipeId) ?? null;
+    const preferenciasSelecionadas = preferenciaEquipeId ? preferenciasPorEquipe.get(preferenciaEquipeId) ?? [] : [];
+
     const equipeCounts = useMemo(() => {
         const counts: Record<string, number> = {};
         inscricoes.forEach(i => {
@@ -85,12 +159,11 @@ export function MontagemPage() {
             }
         });
         const countsWithoutStaging = { ...counts };
-        // Adiciona contagem do staging
-        if (selectedEquipeId) { // Only count staging for the currently selected team
-            counts[selectedEquipeId] = (counts[selectedEquipeId] || 0) + staging.length;
-        }
+        staging.forEach((item) => {
+            counts[item.equipe_id] = (counts[item.equipe_id] || 0) + 1;
+        });
         return { withStaging: counts, withoutStaging: countsWithoutStaging };
-    }, [inscricoes, staging, selectedEquipeId]);
+    }, [inscricoes, staging]);
 
     // Busca de pessoas (debounced)
     useEffect(() => {
@@ -127,8 +200,10 @@ export function MontagemPage() {
 
     // Handlers
     const addToStaging = (p: Pessoa) => {
+        if (!selectedEquipeId) return;
         setStaging(prev => [...prev, {
             pessoa_id: p.id,
+            equipe_id: selectedEquipeId,
             nome_completo: p.nome_completo,
             cpf: p.cpf,
             coordenador: false
@@ -139,6 +214,34 @@ export function MontagemPage() {
 
     const removeFromStaging = (pessoa_id: string) => {
         setStaging(prev => prev.filter(s => s.pessoa_id !== pessoa_id));
+    };
+
+    const addPreferenceToStaging = (
+        encontrista: PesquisaEncontristaDetalhe,
+        equipeId: string,
+        ordemPreferencia: number,
+    ) => {
+        const existing = inscricoes.find((item) => item.pessoa_id === encontrista.pessoaId);
+        if (existing) {
+            toast.error(existing.equipes?.nome
+                ? `Esta pessoa já está vinculada a ${existing.equipes.nome} neste encontro.`
+                : 'Esta pessoa já está vinculada ao encontro atual.');
+            return;
+        }
+        if (staging.some((item) => item.pessoa_id === encontrista.pessoaId)) return;
+
+        setSelectedEquipeId(equipeId);
+        setStaging((current) => [...current, {
+            pessoa_id: encontrista.pessoaId,
+            equipe_id: equipeId,
+            nome_completo: encontrista.nome,
+            cpf: null,
+            coordenador: false,
+            preferenciaOrigem: {
+                encontroNome: preferenciasAnteriores?.encontro.nome ?? encontroAnterior?.nome ?? 'Encontro anterior',
+                ordemPreferencia,
+            },
+        }]);
     };
 
     const handleQuickAddPerson = async (formData: PessoaFormData, _shouldConfirm: boolean) => {
@@ -176,7 +279,7 @@ export function MontagemPage() {
 
             const payload = staging.map(s => ({
                 encontro_id: selectedEncontroId,
-                equipe_id: selectedEquipeId,
+                equipe_id: s.equipe_id,
                 pessoa_id: s.pessoa_id,
                 coordenador: s.coordenador,
                 participante: false,
@@ -257,6 +360,7 @@ export function MontagemPage() {
                 {equipes.map(eq => {
                     const isExpanded = expandedEquipeId === eq.id;
                     const count = equipeCounts.withStaging[eq.id] || 0;
+                    const preferenciasDaEquipe = preferenciasPorEquipe.get(eq.id) ?? [];
 
                     // Membros filtrados para esta equipe
                     const membrosDaEquipe = isExpanded ? inscricoes
@@ -303,7 +407,6 @@ export function MontagemPage() {
                                         } else {
                                             setExpandedEquipeId(eq.id);
                                             setSelectedEquipeId(eq.id);
-                                            setStaging([]);
                                             setSearchPessoa('');
                                             setShowSearchResults(false);
                                         }
@@ -360,7 +463,7 @@ export function MontagemPage() {
                                                 ) : (
                                                     <Save size={16} />
                                                 )}
-                                                Confirmar Alteraçoes({staging.length})
+                                                Confirmar alterações ({staging.length})
                                             </motion.button>
                                         )}
                                         {isExpanded ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
@@ -479,10 +582,37 @@ export function MontagemPage() {
                                                 )}
                                             </div>
 
+                                            {encontroAnterior && (
+                                                <section className="montagem-preference-summary" aria-live="polite">
+                                                    <div>
+                                                        {isLoadingPreferencias ? (
+                                                            <small><Loader size={14} className="animate-spin" /> Carregando...</small>
+                                                        ) : preferenciasError ? (
+                                                            <small className="is-error">Preferências indisponíveis</small>
+                                                        ) : (
+                                                            <>
+                                                                <strong>{preferenciasDaEquipe.length} encontrista{preferenciasDaEquipe.length === 1 ? '' : 's'} optaram por esta equipe no pós-encontro</strong>
+                                                                <span>
+                                                                    Encontro de origem: {encontroAnterior.edicao ? `${encontroAnterior.edicao}º EJC · ` : ''}{encontroAnterior.nome}
+                                                                </span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        className="btn-secondary"
+                                                        disabled={isLoadingPreferencias || preferenciasError}
+                                                        onClick={() => setPreferenciaEquipeId(eq.id)}
+                                                    >
+                                                        Ver encontristas
+                                                    </button>
+                                                </section>
+                                            )}
+
                                             {/* Listagem de Membros */}
                                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1rem' }}>
                                                 {/* Membros em Staging */}
-                                                {staging.map(s => (
+                                                {staging.filter((item) => item.equipe_id === eq.id).map(s => (
                                                     <motion.div
                                                         key={s.pessoa_id}
                                                         initial={{ opacity: 0, x: -10 }}
@@ -501,6 +631,11 @@ export function MontagemPage() {
                                                             <div>
                                                                 <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{s.nome_completo}</div>
                                                                 <span style={{ fontSize: '0.65rem', background: '#f59e0b', color: 'white', padding: '1px 6px', borderRadius: '4px', fontWeight: 'bold' }}>RASCUNHO</span>
+                                                                {s.preferenciaOrigem && (
+                                                                    <small className="montagem-staged-preference">
+                                                                        {s.preferenciaOrigem.ordemPreferencia}ª opção no {s.preferenciaOrigem.encontroNome}
+                                                                    </small>
+                                                                )}
                                                             </div>
                                                             <button
                                                                 className="btn-secondary danger"
@@ -598,6 +733,66 @@ export function MontagemPage() {
                     );
                 })}
             </motion.div>
+
+            <Modal
+                isOpen={!!preferenciaEquipe}
+                onClose={() => setPreferenciaEquipeId(null)}
+                title={preferenciaEquipe ? `Interessados em ${preferenciaEquipe.nome}` : 'Preferências de equipe'}
+                maxWidth="820px"
+            >
+                {preferenciaEquipe && encontroAnterior && (
+                    <div className="montagem-preference-modal">
+                        {!preferenciasSelecionadas.length ? (
+                            <div className="montagem-preference-modal__empty">Nenhum encontrista marcou esta equipe.</div>
+                        ) : (
+                            <div className="montagem-preference-modal__list">
+                                {preferenciasSelecionadas.map(({ encontrista, preferencia }) => {
+                                    const currentMembership = inscricoes.find((item) => item.pessoa_id === encontrista.pessoaId);
+                                    const stagedMembership = staging.find((item) => item.pessoa_id === encontrista.pessoaId);
+                                    const assignedTeamName = currentMembership
+                                        ? currentMembership.equipes?.nome ?? equipes.find((item) => item.id === currentMembership.equipe_id)?.nome
+                                        : stagedMembership
+                                            ? equipes.find((item) => item.id === stagedMembership.equipe_id)?.nome
+                                            : null;
+                                    const isAssigned = Boolean(currentMembership) || Boolean(stagedMembership);
+
+                                    return (
+                                        <article key={encontrista.pessoaId}>
+                                            <div className="montagem-preference-modal__person">
+                                                <span className={`montagem-preference-order montagem-preference-order--${preferencia.ordemPreferencia}`}>
+                                                    {preferencia.ordemPreferencia}ª opção
+                                                </span>
+                                                <strong>{encontrista.nome}</strong>
+                                            </div>
+                                            <ol>
+                                                {encontrista.preferencias.map((item) => (
+                                                    <li key={item.equipeId}>{item.ordemPreferencia}ª {item.equipeNome}</li>
+                                                ))}
+                                            </ol>
+                                            {isAssigned ? (
+                                                <span className="montagem-preference-assigned">
+                                                    {assignedTeamName
+                                                        ? `Já em: ${assignedTeamName}`
+                                                        : 'Adicionado em uma equipe'}
+                                                </span>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    className="btn-secondary"
+                                                    onClick={() => addPreferenceToStaging(encontrista, preferenciaEquipe.id, preferencia.ordemPreferencia)}
+                                                >
+                                                    <Plus size={15} />
+                                                    Adicionar à equipe
+                                                </button>
+                                            )}
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </Modal>
 
             <ConfirmDialog
                 isOpen={!!deleteTarget}

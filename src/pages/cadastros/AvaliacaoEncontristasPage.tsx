@@ -11,6 +11,7 @@ import {
   Plus,
   QrCode,
   Save,
+  Search,
   Sparkles,
   Trash2,
   Users,
@@ -23,9 +24,10 @@ import { Modal } from '../../components/ui/Modal';
 import { PesquisaPublicacaoAudit } from '../../components/pesquisa/PesquisaPublicacaoAudit';
 import { PesquisaSatisfacaoShareModal } from '../../components/pesquisa/PesquisaSatisfacaoShareModal';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { pesquisaEncontristaService } from '../../services/pesquisaEncontristaService';
+import { pesquisaEncontristaService, resumirEscolhasEquipes } from '../../services/pesquisaEncontristaService';
 import type {
   PesquisaEncontristaConfig,
+  PesquisaEncontristaDetalhe,
   PesquisaEncontristaEquipeResumo,
   PesquisaEncontristaEnvio,
   PesquisaEncontristaPainel,
@@ -48,7 +50,7 @@ const typeLabels: Record<PesquisaSatisfacaoQuestionType, string> = {
 
 const MAX_RESUMOS_IA_POR_ENCONTRO = 5;
 
-type Tab = 'resumo' | 'perguntas' | 'respostas' | 'equipes';
+type Tab = 'resumo' | 'perguntas' | 'respostas' | 'encontristas' | 'equipes';
 
 function slug(value: string) {
   return value
@@ -80,6 +82,8 @@ export function AvaliacaoEncontristasPage() {
   const [envios, setEnvios] = useState<PesquisaEncontristaEnvio[]>([]);
   const [painel, setPainel] = useState<PesquisaEncontristaPainel | null>(null);
   const [equipeResumos, setEquipeResumos] = useState<PesquisaEncontristaEquipeResumo[]>([]);
+  const [encontristas, setEncontristas] = useState<PesquisaEncontristaDetalhe[]>([]);
+  const [encontristasError, setEncontristasError] = useState(false);
   const [resumosIA, setResumosIA] = useState<PesquisaEncontristaResumoIA[]>([]);
   const [tab, setTab] = useState<Tab>('resumo');
   const [loading, setLoading] = useState(false);
@@ -89,39 +93,67 @@ export function AvaliacaoEncontristasPage() {
   const [selectedEnvio, setSelectedEnvio] = useState<PesquisaEncontristaEnvio | null>(null);
   const [responsesModalSummary, setResponsesModalSummary] = useState<PesquisaEncontristaPerguntaResumo | null>(null);
   const [selectedEquipeResumo, setSelectedEquipeResumo] = useState<PesquisaEncontristaEquipeResumo | null>(null);
+  const [selectedEncontrista, setSelectedEncontrista] = useState<PesquisaEncontristaDetalhe | null>(null);
+  const [encontristaSearch, setEncontristaSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [form, setForm] = useState<PesquisaSatisfacaoPerguntaFormData>(emptyForm('', 1));
 
   useEffect(() => {
     if (!encontroId) return;
+    let active = true;
+
     setLoading(true);
     Promise.all([
       pesquisaEncontristaService.obterConfig(encontroId),
       pesquisaEncontristaService.listarPerguntas(encontroId),
       pesquisaEncontristaService.listarEnvios(encontroId),
       pesquisaEncontristaService.listarPainel(encontroId),
-      pesquisaEncontristaService.listarResumoEscolhasEquipes(encontroId),
     ])
-      .then(([nextConfig, nextPerguntas, nextEnvios, nextPainel, nextEquipeResumos]) => {
+      .then(([nextConfig, nextPerguntas, nextEnvios, nextPainel]) => {
+        if (!active) return;
         setConfig(nextConfig);
         setPerguntas(nextPerguntas);
         setEnvios(nextEnvios);
         setPainel(nextPainel);
-        setEquipeResumos(nextEquipeResumos);
       })
       .catch((error) => {
+        if (!active) return;
         console.error(error);
         toast.error('Não foi possível carregar a pesquisa dos encontristas.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    setEncontristasError(false);
+    pesquisaEncontristaService.listarPreferenciasPorEncontrista(encontroId)
+      .then((data) => {
+        if (!active) return;
+        setEncontristas(data.encontristas);
+        setEquipeResumos(resumirEscolhasEquipes(data.encontristas));
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error('Não foi possível carregar respostas e preferências por encontrista.', error);
+        setEncontristas([]);
+        setEquipeResumos([]);
+        setEncontristasError(true);
+      });
 
     pesquisaEncontristaService.listarResumosIA(encontroId)
-      .then(setResumosIA)
+      .then((data) => {
+        if (active) setResumosIA(data);
+      })
       .catch((error) => {
+        if (!active) return;
         console.warn('Não foi possível carregar os relatórios de IA dos encontristas.', error);
         setResumosIA([]);
       });
+
+    return () => {
+      active = false;
+    };
   }, [encontroId]);
 
   const sections = useMemo(() => {
@@ -132,6 +164,14 @@ export function AvaliacaoEncontristasPage() {
     });
     return Array.from(result.entries());
   }, [perguntas]);
+
+  const filteredEncontristas = useMemo(() => {
+    const search = encontristaSearch.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    if (!search) return encontristas;
+    return encontristas.filter((item) => (
+      item.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(search)
+    ));
+  }, [encontristaSearch, encontristas]);
 
   const completion = painel?.totalParticipantes
     ? (painel.totalEnviados / painel.totalParticipantes) * 100
@@ -217,7 +257,7 @@ export function AvaliacaoEncontristasPage() {
     }
   };
 
-  const answerText = (envio: PesquisaEncontristaEnvio, pergunta: PesquisaSatisfacaoQuestion) => {
+  const answerText = (envio: PesquisaEncontristaEnvio | PesquisaEncontristaDetalhe, pergunta: PesquisaSatisfacaoQuestion) => {
     const resposta = envio.respostas[pergunta.id];
     if (!resposta) return 'Sem resposta';
     if (pergunta.type === 'nota') return resposta.nota ? `Nota ${resposta.nota}` : 'Sem resposta';
@@ -298,6 +338,10 @@ export function AvaliacaoEncontristasPage() {
         <button className={tab === 'respostas' ? 'is-active' : ''} onClick={() => setTab('respostas')}>
           <span>Respostas</span>
           <strong>{envios.length}</strong>
+        </button>
+        <button className={tab === 'encontristas' ? 'is-active' : ''} onClick={() => setTab('encontristas')}>
+          <span>Por encontrista</span>
+          <strong>{encontristas.length}</strong>
         </button>
         <button className={tab === 'resumo' ? 'is-active' : ''} onClick={() => setTab('resumo')}>
           <span>Resumo</span>
@@ -502,6 +546,58 @@ export function AvaliacaoEncontristasPage() {
             ))}
           </div>
         </section>
+      ) : tab === 'encontristas' ? (
+        <section>
+          <div className="pesquisa-encontristas-admin__section-heading">
+            <div>
+              <h2>Respostas e preferências por encontrista</h2>
+              <p>Mostra somente as pessoas vinculadas ao encontro selecionado.</p>
+            </div>
+          </div>
+
+          <div className="card pesquisa-encontristas-admin__person-filter">
+            <Search size={18} />
+            <input
+              value={encontristaSearch}
+              onChange={(event) => setEncontristaSearch(event.target.value)}
+              placeholder="Buscar encontrista pelo nome..."
+              aria-label="Buscar encontrista pelo nome"
+            />
+            <span>{filteredEncontristas.length} de {encontristas.length}</span>
+          </div>
+
+          <div className="pesquisa-encontristas-admin__person-grid">
+            {!filteredEncontristas.length ? (
+              <article className="card pesquisa-encontristas-admin__empty">
+                {encontristasError
+                  ? 'Não foi possível carregar as respostas e preferências por encontrista.'
+                  : encontristas.length ? 'Nenhum encontrista corresponde à busca.' : 'Nenhum encontrista cadastrado neste encontro.'}
+              </article>
+            ) : filteredEncontristas.map((encontrista) => (
+              <article className="card pesquisa-encontristas-admin__person-card" key={encontrista.participacaoId}>
+                <header>
+                  <div>
+                    <span>Encontrista</span>
+                    <h3>{encontrista.nome}</h3>
+                  </div>
+                  <span className={`pesquisa-status pesquisa-status--${encontrista.avaliacaoStatus}`}>
+                    {encontrista.avaliacaoStatus === 'enviado' ? 'Enviada' : encontrista.avaliacaoStatus === 'rascunho' ? 'Rascunho' : 'Pendente'}
+                  </span>
+                </header>
+                <div className="pesquisa-encontristas-admin__person-preferences">
+                  {encontrista.preferencias.length ? encontrista.preferencias.map((preferencia) => (
+                    <span key={preferencia.equipeId} className={!preferencia.equipeDisponivel ? 'is-unavailable' : ''}>
+                      <strong>{preferencia.ordemPreferencia}ª</strong> {preferencia.equipeNome}
+                    </span>
+                  )) : <span className="is-empty">Nenhuma equipe escolhida</span>}
+                </div>
+                <button type="button" className="btn-secondary" onClick={() => setSelectedEncontrista(encontrista)}>
+                  Ver respostas e ficha
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
       ) : tab === 'equipes' ? (
         <section>
           <div className="pesquisa-encontristas-admin__section-heading">
@@ -513,7 +609,9 @@ export function AvaliacaoEncontristasPage() {
 
           <div className="pesquisa-encontristas-admin__team-choice-grid">
             {!equipeResumos.length ? (
-              <article className="card pesquisa-encontristas-admin__empty">Nenhuma escolha de equipe preenchida até agora.</article>
+              <article className="card pesquisa-encontristas-admin__empty">
+                {encontristasError ? 'Não foi possível carregar as opções de equipe.' : 'Nenhuma escolha de equipe preenchida até agora.'}
+              </article>
             ) : equipeResumos.map((resumo) => (
               <article className="card pesquisa-encontristas-admin__team-choice" key={resumo.equipeId}>
                 <header>
@@ -536,6 +634,53 @@ export function AvaliacaoEncontristasPage() {
           </div>
         </section>
       ) : null}
+
+      <Modal
+        isOpen={!!selectedEncontrista}
+        onClose={() => setSelectedEncontrista(null)}
+        title="Detalhes do encontrista"
+        maxWidth="760px"
+      >
+        {selectedEncontrista && (
+          <div className="pesquisa-encontristas-admin__answer-modal">
+            <header>
+              <span>{selectedEncontrista.avaliacaoStatus === 'enviado' ? 'Avaliação enviada' : selectedEncontrista.avaliacaoStatus === 'rascunho' ? 'Rascunho salvo' : 'Avaliação pendente'}</span>
+              <h3>{selectedEncontrista.nome}</h3>
+              <p>{selectedEncontrista.enviadoEm ? new Date(selectedEncontrista.enviadoEm).toLocaleString('pt-BR') : 'Sem data de envio'}</p>
+            </header>
+
+            <section className="pesquisa-encontristas-admin__person-detail-preferences">
+              <h4>Opções de equipe</h4>
+              {selectedEncontrista.preferencias.length ? (
+                <ol>
+                  {selectedEncontrista.preferencias.map((preferencia) => (
+                    <li key={preferencia.equipeId}>
+                      <strong>{preferencia.ordemPreferencia}ª opção:</strong> {preferencia.equipeNome}
+                      {!preferencia.equipeDisponivel && <small>Equipe indisponível atualmente</small>}
+                    </li>
+                  ))}
+                </ol>
+              ) : <p>Nenhuma opção de equipe preenchida.</p>}
+            </section>
+
+            <div className="pesquisa-encontristas-admin__team-choice-tags">
+              <span>{selectedEncontrista.tocaInstrumento ? `Toca: ${selectedEncontrista.instrumentos || 'instrumento não informado'}` : 'Não toca instrumento'}</span>
+              <span>{selectedEncontrista.temCarro ? 'Tem carro' : 'Sem carro'}</span>
+              <span>{selectedEncontrista.temMoto ? 'Tem moto' : 'Sem moto'}</span>
+            </div>
+            {selectedEncontrista.observacoes && <p>{selectedEncontrista.observacoes}</p>}
+
+            <div className="pesquisa-encontristas-admin__answer-list">
+              {perguntas.filter(item => item.active !== false).map(pergunta => (
+                <article key={pergunta.id}>
+                  <strong>{pergunta.title}</strong>
+                  <p>{answerText(selectedEncontrista, pergunta)}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <Modal
         isOpen={!!selectedEquipeResumo}
@@ -732,6 +877,24 @@ export function AvaliacaoEncontristasPage() {
         .pesquisa-encontristas-admin__responses > div { align-items: center; border-top: 1px solid var(--border-color); display: grid; gap: .6rem; grid-template-columns: auto 1fr auto auto auto; padding: .8rem 0; }
         .pesquisa-encontristas-admin__responses > div:first-child { border-top: 0; }
         .pesquisa-encontristas-admin__responses small { color: var(--muted-text); }
+        .pesquisa-encontristas-admin__person-filter { align-items: center; display: grid; gap: .65rem; grid-template-columns: auto 1fr auto; margin-bottom: 1rem; padding: .8rem 1rem; }
+        .pesquisa-encontristas-admin__person-filter svg, .pesquisa-encontristas-admin__person-filter span { color: var(--muted-text); }
+        .pesquisa-encontristas-admin__person-filter input { background: transparent; border: 0; color: var(--text-color); font: inherit; outline: 0; width: 100%; }
+        .pesquisa-encontristas-admin__person-filter span { font-size: .78rem; font-weight: 700; white-space: nowrap; }
+        .pesquisa-encontristas-admin__person-grid { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .pesquisa-encontristas-admin__person-card { display: grid; gap: .85rem; padding: 1rem; }
+        .pesquisa-encontristas-admin__person-card > header { align-items: flex-start; display: flex; gap: .75rem; justify-content: space-between; }
+        .pesquisa-encontristas-admin__person-card header > div > span { color: var(--muted-text); font-size: .72rem; font-weight: 800; text-transform: uppercase; }
+        .pesquisa-encontristas-admin__person-card h3 { margin: .15rem 0 0; overflow-wrap: anywhere; }
+        .pesquisa-encontristas-admin__person-preferences { display: grid; gap: .4rem; }
+        .pesquisa-encontristas-admin__person-preferences > span { background: var(--secondary-bg); border: 1px solid var(--border-color); border-radius: 10px; color: var(--muted-text); padding: .55rem .65rem; }
+        .pesquisa-encontristas-admin__person-preferences strong { color: var(--primary-color); margin-right: .35rem; }
+        .pesquisa-encontristas-admin__person-preferences .is-unavailable { opacity: .6; text-decoration: line-through; }
+        .pesquisa-encontristas-admin__person-preferences .is-empty { font-style: italic; }
+        .pesquisa-encontristas-admin__person-detail-preferences { background: var(--secondary-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: .85rem; }
+        .pesquisa-encontristas-admin__person-detail-preferences h4 { margin: 0 0 .55rem; }
+        .pesquisa-encontristas-admin__person-detail-preferences ol { display: grid; gap: .35rem; margin: 0; padding-left: 1.25rem; }
+        .pesquisa-encontristas-admin__person-detail-preferences li small { color: var(--muted-text); display: block; }
         .pesquisa-encontristas-admin__team-choice-grid { display: grid; gap: 1rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
         .pesquisa-encontristas-admin__team-choice { display: grid; gap: .85rem; padding: 1rem; }
         .pesquisa-encontristas-admin__team-choice header { align-items: flex-start; display: flex; justify-content: space-between; gap: 1rem; }
@@ -798,7 +961,7 @@ export function AvaliacaoEncontristasPage() {
         @media (max-width: 980px) {
           .pesquisa-encontristas-admin__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
           .pesquisa-encontristas-admin__team-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-          .pesquisa-encontristas-admin__question-summaries, .pesquisa-encontristas-admin__manual-ai-grid { grid-template-columns: 1fr; }
+          .pesquisa-encontristas-admin__question-summaries, .pesquisa-encontristas-admin__manual-ai-grid, .pesquisa-encontristas-admin__person-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 700px) {
           .pesquisa-encontristas-admin { padding: .75rem; }
@@ -819,6 +982,7 @@ export function AvaliacaoEncontristasPage() {
           .pesquisa-encontristas-admin__responses > div { grid-template-columns: auto 1fr auto; }
           .pesquisa-encontristas-admin__responses small, .pesquisa-encontristas-admin__responses button { grid-column: 2 / -1; }
           .pesquisa-encontristas-admin__responses button { justify-content: center; width: 100%; }
+          .pesquisa-encontristas-admin__person-card > button { justify-content: center; width: 100%; }
         }
         @media (max-width: 460px) {
           .pesquisa-encontristas-admin { gap: .8rem; padding: .6rem; }
@@ -842,6 +1006,10 @@ export function AvaliacaoEncontristasPage() {
           .pesquisa-encontristas-admin__respondents .pesquisa-status, .pesquisa-encontristas-admin__respondents small { grid-column: 2 / -1; justify-self: start; }
           .pesquisa-encontristas-admin__responses > div { align-items: start; grid-template-columns: auto 1fr; }
           .pesquisa-encontristas-admin__responses .pesquisa-status, .pesquisa-encontristas-admin__responses small, .pesquisa-encontristas-admin__responses button { grid-column: 2 / -1; justify-self: stretch; }
+          .pesquisa-encontristas-admin__person-filter { grid-template-columns: auto 1fr; }
+          .pesquisa-encontristas-admin__person-filter span { grid-column: 2; }
+          .pesquisa-encontristas-admin__person-card > header { align-items: stretch; flex-direction: column; }
+          .pesquisa-encontristas-admin__person-card .pesquisa-status { align-self: flex-start; }
         }
       `}</style>
     </div>
