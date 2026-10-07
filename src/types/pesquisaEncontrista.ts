@@ -84,6 +84,39 @@ export interface PesquisaEncontristaEquipeResumo {
   escolhas: PesquisaEncontristaEquipeEscolha[];
 }
 
+export interface PesquisaEncontristaPreferenciaEquipe {
+  equipeId: string;
+  equipeNome: string;
+  ordemPreferencia: number;
+  equipeDisponivel: boolean;
+}
+
+export interface PesquisaEncontristaDetalhe {
+  participacaoId: string;
+  pessoaId: string;
+  nome: string;
+  avaliacaoStatus: PesquisaSatisfacaoStatus;
+  respostas: PesquisaSatisfacaoRespostas;
+  enviadoEm: string | null;
+  tocaInstrumento: boolean;
+  instrumentos: string | null;
+  temCarro: boolean;
+  temMoto: boolean;
+  observacoes: string | null;
+  preferencias: PesquisaEncontristaPreferenciaEquipe[];
+}
+
+export interface PesquisaEncontristaPreferenciasEncontro {
+  encontro: {
+    id: string;
+    nome: string;
+    edicao: number | null;
+    dataInicio: string;
+    dataFim: string;
+  };
+  encontristas: PesquisaEncontristaDetalhe[];
+}
+
 export interface PesquisaEncontristaRelatorioIAResultado {
   metadata: {
     encontroId: string;

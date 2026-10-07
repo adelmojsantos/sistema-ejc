@@ -11,9 +11,11 @@ import type {
   PesquisaEncontristaEnvio,
   PesquisaEncontristaFluxo,
   PesquisaEncontristaPainel,
+  PesquisaEncontristaPreferenciasEncontro,
   PesquisaEncontristaPerguntaResumo,
   PesquisaEncontristaResumoIA,
 } from '../types/pesquisaEncontrista';
+import { resumirEscolhasEquipes } from '../utils/pesquisaEncontrista';
 
 interface PerguntaRow {
   id: string;
@@ -25,26 +27,6 @@ interface PerguntaRow {
   type: PesquisaSatisfacaoQuestion['type'];
   required: boolean;
   active: boolean;
-}
-
-interface FichaEquipeRow {
-  id: string;
-  participacao_id: string;
-  toca_instrumento: boolean | null;
-  instrumentos: string | null;
-  tem_carro: boolean | null;
-  tem_moto: boolean | null;
-  observacoes: string | null;
-  participacoes?: {
-    pessoas?: { nome_completo?: string | null } | { nome_completo?: string | null }[] | null;
-  } | Array<{
-    pessoas?: { nome_completo?: string | null } | { nome_completo?: string | null }[] | null;
-  }> | null;
-  pos_encontro_ficha_equipes?: Array<{
-    equipe_id: string;
-    ordem_preferencia: number;
-    equipes?: { nome?: string | null } | { nome?: string | null }[] | null;
-  }> | null;
 }
 
 function mapPergunta(row: PerguntaRow): PesquisaSatisfacaoQuestion {
@@ -84,6 +66,14 @@ function respostaTexto(resposta: PesquisaSatisfacaoRespostas[string] | undefined
 }
 
 export const pesquisaEncontristaService = {
+  async listarPreferenciasPorEncontrista(encontroId: string): Promise<PesquisaEncontristaPreferenciasEncontro> {
+    const { data, error } = await supabase.rpc('get_encontrista_team_preferences', {
+      p_encontro_id: encontroId,
+    });
+    if (error) throw error;
+    return data as PesquisaEncontristaPreferenciasEncontro;
+  },
+
   async obterFluxo(token: string): Promise<PesquisaEncontristaFluxo> {
     const { data, error } = await supabase.rpc('get_pesquisa_encontrista_fluxo', {
       p_token: token,
@@ -304,81 +294,8 @@ export const pesquisaEncontristaService = {
   },
 
   async listarResumoEscolhasEquipes(encontroId: string): Promise<PesquisaEncontristaEquipeResumo[]> {
-    const { data, error } = await supabase
-      .from('pos_encontro_fichas')
-      .select(`
-        id,
-        participacao_id,
-        toca_instrumento,
-        instrumentos,
-        tem_carro,
-        tem_moto,
-        observacoes,
-        participacoes (
-          pessoas (nome_completo)
-        ),
-        pos_encontro_ficha_equipes (
-          equipe_id,
-          ordem_preferencia,
-          equipes (nome)
-        )
-      `)
-      .eq('encontro_id', encontroId);
-
-    if (error) throw error;
-
-    const resumoMap = new Map<string, PesquisaEncontristaEquipeResumo>();
-
-    ((data ?? []) as unknown as FichaEquipeRow[]).forEach((ficha) => {
-      const participacao = related(ficha.participacoes);
-      const pessoa = related(participacao?.pessoas ?? null);
-      const nome = pessoa?.nome_completo?.trim() || 'Encontrista sem nome';
-      const preferencias = (ficha.pos_encontro_ficha_equipes ?? [])
-        .map((preferencia) => {
-          const equipe = related(preferencia.equipes ?? null);
-          return {
-            equipeId: preferencia.equipe_id,
-            equipeNome: equipe?.nome?.trim() || 'Equipe sem nome',
-            ordemPreferencia: preferencia.ordem_preferencia,
-          };
-        })
-        .sort((a, b) => a.ordemPreferencia - b.ordemPreferencia);
-
-      (ficha.pos_encontro_ficha_equipes ?? []).forEach((preferencia) => {
-        const equipe = related(preferencia.equipes ?? null);
-        const equipeNome = equipe?.nome?.trim() || 'Equipe sem nome';
-        const current = resumoMap.get(preferencia.equipe_id) ?? {
-          equipeId: preferencia.equipe_id,
-          equipeNome,
-          total: 0,
-          primeiraOpcao: 0,
-          segundaOpcao: 0,
-          terceiraOpcao: 0,
-          escolhas: [],
-        };
-
-        current.total += 1;
-        if (preferencia.ordem_preferencia === 1) current.primeiraOpcao += 1;
-        if (preferencia.ordem_preferencia === 2) current.segundaOpcao += 1;
-        if (preferencia.ordem_preferencia === 3) current.terceiraOpcao += 1;
-        current.escolhas.push({
-          participacaoId: ficha.participacao_id,
-          nome,
-          ordemPreferencia: preferencia.ordem_preferencia,
-          tocaInstrumento: ficha.toca_instrumento ?? false,
-          instrumentos: ficha.instrumentos?.trim() || null,
-          temCarro: ficha.tem_carro ?? false,
-          temMoto: ficha.tem_moto ?? false,
-          observacoes: ficha.observacoes?.trim() || null,
-          preferencias,
-        });
-        current.escolhas.sort((a, b) => a.ordemPreferencia - b.ordemPreferencia || a.nome.localeCompare(b.nome, 'pt-BR'));
-        resumoMap.set(preferencia.equipe_id, current);
-      });
-    });
-
-    return Array.from(resumoMap.values())
-      .sort((a, b) => b.total - a.total || a.equipeNome.localeCompare(b.equipeNome, 'pt-BR'));
+    const data = await this.listarPreferenciasPorEncontrista(encontroId);
+    return resumirEscolhasEquipes(data.encontristas);
   },
 
   async listarResumosIA(encontroId: string): Promise<PesquisaEncontristaResumoIA[]> {
