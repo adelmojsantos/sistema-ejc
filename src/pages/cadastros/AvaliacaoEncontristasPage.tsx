@@ -24,7 +24,8 @@ import { Modal } from '../../components/ui/Modal';
 import { PesquisaPublicacaoAudit } from '../../components/pesquisa/PesquisaPublicacaoAudit';
 import { PesquisaSatisfacaoShareModal } from '../../components/pesquisa/PesquisaSatisfacaoShareModal';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { pesquisaEncontristaService, resumirEscolhasEquipes } from '../../services/pesquisaEncontristaService';
+import { pesquisaEncontristaService } from '../../services/pesquisaEncontristaService';
+import { resumirEscolhasEquipes } from '../../utils/pesquisaEncontrista';
 import type {
   PesquisaEncontristaConfig,
   PesquisaEncontristaDetalhe,

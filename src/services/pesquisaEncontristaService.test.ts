@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PesquisaEncontristaDetalhe } from '../types/pesquisaEncontrista';
-import { resumirEscolhasEquipes } from './pesquisaEncontristaService';
+import { resumirEscolhasEquipes } from '../utils/pesquisaEncontrista';
 
 function encontrista(
   participacaoId: string,
