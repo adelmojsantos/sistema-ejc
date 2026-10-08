@@ -117,6 +117,17 @@ export interface PesquisaEncontristaPreferenciasEncontro {
   encontristas: PesquisaEncontristaDetalhe[];
 }
 
+export interface PesquisaEncontristaAtribuicaoEquipe {
+  pessoaId: string;
+  equipeId: string;
+}
+
+export interface PesquisaEncontristaAtribuicaoResultado {
+  total: number;
+  created: number;
+  updated: number;
+}
+
 export interface PesquisaEncontristaRelatorioIAResultado {
   metadata: {
     encontroId: string;

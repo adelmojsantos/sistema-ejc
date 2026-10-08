@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Search, Plus, Trash2, Loader, Check, X, UserPlus, History, ChevronDown, ChevronUp, Save } from 'lucide-react';
+import { ChevronLeft, Search, Plus, Trash2, Loader, Check, X, UserPlus, History, ChevronDown, ChevronUp, Save, ClipboardCheck } from 'lucide-react';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
@@ -338,7 +338,7 @@ export function MontagemPage() {
 
     return (
         <div className="container montagem-container" style={{ paddingBottom: '2rem' }}>
-            <div className="page-header" style={{ marginBottom: '1.5rem' }}>
+            <div className="page-header montagem-page-header" style={{ marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <button onClick={() => navigate('/cadastros')} className="icon-btn" title="Voltar"><ChevronLeft size={18} /></button>
                     <div>
@@ -346,7 +346,16 @@ export function MontagemPage() {
                         <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.55 }}>Selecione o encontro e gerencie as equipes abaixo</p>
                     </div>
                 </div>
-
+                <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => navigate('/cadastros/montagem/conferencia-preferencias')}
+                >
+                    <ClipboardCheck size={17} />
+                    {encontroAnterior?.edicao
+                        ? `Preferências ${encontroAnterior.edicao}º EJC`
+                        : 'Preferências do encontro anterior'}
+                </button>
             </div>
 
             <motion.div
