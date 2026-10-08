@@ -1,0 +1,385 @@
+.team-preference-conference {
+  container-name: team-preference-conference;
+  container-type: inline-size;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  padding-bottom: 2rem;
+}
+
+.team-preference-conference > * {
+  min-width: 0;
+}
+
+.team-preference-conference__source {
+  align-items: center;
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+}
+
+.team-preference-conference__source > svg {
+  color: var(--primary-color);
+}
+
+.team-preference-conference__source div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.team-preference-conference__source span {
+  color: var(--muted-text);
+  font-size: 0.8rem;
+}
+
+.team-preference-conference__metrics {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.team-preference-metric {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+}
+
+.team-preference-metric > svg {
+  flex-shrink: 0;
+  height: 17px;
+  width: 17px;
+}
+
+.team-preference-metric > div {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.team-preference-metric span {
+  color: var(--muted-text);
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.team-preference-metric strong {
+  font-size: 1.05rem;
+  line-height: 1.1;
+}
+
+.team-preference-metric--blue > svg { color: #3b82f6; }
+.team-preference-metric--green > svg { color: #16a34a; }
+.team-preference-metric--orange > svg { color: #d97706; }
+.team-preference-metric--purple > svg { color: #8b5cf6; }
+.team-preference-metric--gray > svg { color: var(--muted-text); }
+
+.team-preference-conference__filters {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0.85rem;
+}
+
+.team-preference-filter-field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.team-preference-filter-field > span {
+  color: var(--muted-text);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.team-preference-filter-field select,
+.team-preference-table__assignment select {
+  background: var(--surface-1);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  color: var(--text-color);
+  font: inherit;
+  min-height: 42px;
+  padding: 0.55rem 0.7rem;
+  width: 100%;
+}
+
+.team-preference-conference__search {
+  align-items: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  display: flex;
+  gap: 0.5rem;
+  min-height: 42px;
+  padding: 0 0.7rem;
+}
+
+.team-preference-conference__search svg {
+  color: var(--muted-text);
+  flex-shrink: 0;
+}
+
+.team-preference-conference__search input {
+  background: transparent;
+  border: 0;
+  color: var(--text-color);
+  font: inherit;
+  min-width: 0;
+  outline: 0;
+  width: 100%;
+}
+
+.team-preference-filter-clear {
+  align-self: end;
+  justify-content: center;
+  min-height: 42px;
+  white-space: nowrap;
+}
+
+.team-preference-conference__relation {
+  overflow-x: auto;
+  padding: 0;
+}
+
+.team-preference-conference__relation > header {
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 1rem;
+}
+
+.team-preference-conference__relation > header > div {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.team-preference-conference__relation > header span {
+  color: var(--muted-text);
+  font-size: 0.78rem;
+}
+
+.team-preference-conference__draft {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 999px;
+  color: #d97706 !important;
+  font-weight: 800;
+  padding: 0.3rem 0.65rem;
+}
+
+.team-preference-table__header,
+.team-preference-table__row {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: minmax(160px, 1.1fr) minmax(220px, 1.7fr) minmax(130px, 0.9fr) minmax(130px, 0.9fr) minmax(180px, 1.1fr);
+}
+
+.team-preference-table__header {
+  background: var(--secondary-bg);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--muted-text);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.7rem 1rem;
+  text-transform: uppercase;
+}
+
+.team-preference-table__row {
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.85rem 1rem;
+}
+
+.team-preference-table__row:last-child {
+  border-bottom: 0;
+}
+
+.team-preference-table__row > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.team-preference-table__row small,
+.is-muted {
+  color: var(--muted-text);
+  font-size: 0.75rem;
+}
+
+.team-preference-table__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.team-preference-table__choices button,
+.team-preference-table__choices > span {
+  background: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-color);
+  font-size: 0.72rem;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.team-preference-table__choices button {
+  cursor: pointer;
+}
+
+.team-preference-table__choices button:hover,
+.team-preference-table__choices button.is-selected {
+  background: rgba(59, 130, 246, 0.13);
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+
+.team-preference-table__choices b {
+  color: var(--primary-color);
+  margin-right: 0.15rem;
+}
+
+.team-preference-table__choices .is-unavailable {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.team-preference-current-team,
+.team-preference-assigned,
+.team-preference-match {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 0.4rem 0.55rem;
+}
+
+.team-preference-current-team,
+.team-preference-assigned {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #3b82f6;
+}
+
+.team-preference-match--primeira,
+.team-preference-match--segunda,
+.team-preference-match--terceira {
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #16a34a;
+}
+
+.team-preference-match--sem_equipe {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  color: #d97706;
+}
+
+.team-preference-match--fora_das_opcoes {
+  background: var(--secondary-bg);
+  color: var(--muted-text);
+}
+
+.team-preference-table__assignment {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.team-preference-table__assignment small {
+  color: #d97706;
+  font-weight: 700;
+}
+
+.team-preference-conference__empty {
+  align-items: center;
+  color: var(--muted-text);
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  min-height: 120px;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.team-preference-conference__empty.is-error {
+  color: #ef4444;
+}
+
+@container team-preference-conference (max-width: 720px) {
+  .team-preference-conference__metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container team-preference-conference (max-width: 820px) {
+  .team-preference-conference__filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container team-preference-conference (max-width: 920px) {
+  .team-preference-table__header {
+    display: none;
+  }
+
+  .team-preference-table {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .team-preference-table__row {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    gap: 0.75rem;
+    grid-template-columns: 1fr;
+    padding: 0.85rem;
+  }
+
+  .team-preference-table__row > div {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .team-preference-table__row > div::before {
+    color: var(--muted-text);
+    content: attr(data-label);
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .team-preference-table__choices {
+    align-items: flex-start;
+  }
+}
+
+@container team-preference-conference (max-width: 600px) {
+  .team-preference-conference__filters {
+    grid-template-columns: 1fr;
+  }
+
+  .team-preference-conference__relation > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@container team-preference-conference (max-width: 380px) {
+  .team-preference-conference__metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .team-preference-conference {
+    padding-inline: 0.65rem;
+  }
+}

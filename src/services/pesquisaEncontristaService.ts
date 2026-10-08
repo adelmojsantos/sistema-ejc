@@ -7,6 +7,8 @@ import type {
 } from '../types/pesquisaSatisfacao';
 import type {
   PesquisaEncontristaConfig,
+  PesquisaEncontristaAtribuicaoEquipe,
+  PesquisaEncontristaAtribuicaoResultado,
   PesquisaEncontristaEquipeResumo,
   PesquisaEncontristaEnvio,
   PesquisaEncontristaFluxo,
@@ -66,6 +68,21 @@ function respostaTexto(resposta: PesquisaSatisfacaoRespostas[string] | undefined
 }
 
 export const pesquisaEncontristaService = {
+  async atribuirEquipesEmLote(
+    encontroId: string,
+    atribuicoes: PesquisaEncontristaAtribuicaoEquipe[],
+  ): Promise<PesquisaEncontristaAtribuicaoResultado> {
+    const { data, error } = await supabase.rpc('assign_team_preferences_batch', {
+      p_encontro_id: encontroId,
+      p_assignments: atribuicoes.map((item) => ({
+        pessoa_id: item.pessoaId,
+        equipe_id: item.equipeId,
+      })),
+    });
+    if (error) throw error;
+    return data as PesquisaEncontristaAtribuicaoResultado;
+  },
+
   async listarPreferenciasPorEncontrista(encontroId: string): Promise<PesquisaEncontristaPreferenciasEncontro> {
     const { data, error } = await supabase.rpc('get_encontrista_team_preferences', {
       p_encontro_id: encontroId,

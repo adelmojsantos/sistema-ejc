@@ -59,6 +59,10 @@ const ResumoPalestrasPage = lazyNamed(() => import('./pages/circulos/ResumoPales
 const PosEncontroCirculosPage = lazyNamed(() => import('./pages/circulos/PosEncontroCirculosPage'), 'PosEncontroCirculosPage');
 const PosEncontroFichasPage = lazyNamed(() => import('./pages/circulos/PosEncontroFichasPage'), 'PosEncontroFichasPage');
 const MontagemPage = lazyNamed(() => import('./pages/cadastros/MontagemPage'), 'MontagemPage');
+const ConferenciaPreferenciasEquipesPage = lazyNamed(
+  () => import('./pages/cadastros/ConferenciaPreferenciasEquipesPage'),
+  'ConferenciaPreferenciasEquipesPage'
+);
 const PessoasPage = lazyNamed(() => import('./pages/cadastros/PessoasPage'), 'PessoasPage');
 const PalestrasGestaoPage = lazyNamed(() => import('./pages/cadastros/PalestrasGestaoPage'), 'PalestrasGestaoPage');
 const PalestrasResumoPage = lazyNamed(() => import('./pages/cadastros/PalestrasResumoPage'), 'PalestrasResumoPage');
@@ -605,6 +609,11 @@ function AnimatedRoutes() {
             <Route path="encontros/participantes" element={<EncontroParticipantesPage />} />
             <Route path="equipes" element={<EquipesPage />} />
             <Route path="montagem" element={<MontagemPage />} />
+            <Route path="montagem/conferencia-preferencias" element={
+              <ProtectedRoute requiredPermissions={['modulo_cadastros', 'modulo_admin']}>
+                <ConferenciaPreferenciasEquipesPage />
+              </ProtectedRoute>
+            } />
             <Route path="avaliacao" element={<AvaliacaoEncontroPage />} />
             <Route path="avaliacao-encontristas" element={<AvaliacaoEncontristasPage />} />
             <Route path="cronograma" element={<CronogramaEncontroPage />} />

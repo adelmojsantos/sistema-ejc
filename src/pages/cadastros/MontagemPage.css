@@ -1,3 +1,14 @@
+.montagem-page-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.montagem-page-header > button {
+  flex-shrink: 0;
+}
+
 .montagem-preference-summary {
   align-items: center;
   background: var(--surface-1);
@@ -139,6 +150,16 @@
 }
 
 @media (max-width: 760px) {
+  .montagem-page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .montagem-page-header > button {
+    justify-content: center;
+    width: 100%;
+  }
+
   .montagem-preference-summary {
     align-items: stretch;
     flex-direction: column;
