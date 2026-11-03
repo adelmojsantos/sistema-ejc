@@ -1,4 +1,4 @@
-import { Calendar, Check, CheckCircle2, Heart, Loader, MapPin, Send, ShieldCheck, User, Users } from 'lucide-react';
+import { Calendar, Check, CheckCircle2, Heart, Hourglass, Loader, MapPin, Send, ShieldCheck, User, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { userFacingError } from '../utils/userFacingError';
@@ -10,6 +10,7 @@ import { LandingFooter } from '../components/landing/LandingFooter';
 import { LandingHeader } from '../components/landing/LandingHeader';
 import { SEO } from '../components/landing/SEO';
 import { Section } from '../components/landing/Section';
+import { DateInput } from '../components/ui/DateInput';
 import { FormField } from '../components/ui/FormField';
 import { FormRow } from '../components/ui/FormRow';
 import { RadioGroup } from '../components/ui/RadioGroup';
@@ -20,6 +21,18 @@ import type { Encontro } from '../types/encontro';
 import { type ListaEsperaFormData, listaEsperaFormDataVazia } from '../types/listaEspera';
 
 import './LandingPage.css';
+
+const FIELD_ORDER: Array<keyof ListaEsperaFormData | 'consent'> = [
+    'nome_completo', 'data_nascimento', 'telefone', 'email', 'endereco', 'bairro', 'cidade', 'estado',
+    'fez_ejc_outra_paroquia', 'qual_paroquia_ejc', 'consent',
+];
+
+function focusField(key: string) {
+    const element = document.getElementById(key) ?? document.getElementById(`field-${key}`);
+    if (!element) return;
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (element instanceof HTMLInputElement) element.focus({ preventScroll: true });
+}
 
 export default function InscricaoPublicaPage() {
     const [form, setForm] = useState<ListaEsperaFormData>(listaEsperaFormDataVazia());
@@ -32,6 +45,7 @@ export default function InscricaoPublicaPage() {
     const [consent, setConsent] = useState(false);
     const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
     const [ageError, setAgeError] = useState<string | null>(null);
+    const [focusBirthDate, setFocusBirthDate] = useState(false);
 
     const [encontro, setEncontro] = useState<Encontro | null>(null);
     const [vagasStatus, setVagasStatus] = useState<'open' | 'closed' | 'full'>('open');
@@ -86,7 +100,7 @@ export default function InscricaoPublicaPage() {
         if (field === 'data_nascimento' && typeof val === 'string') {
             const age = calculateAge(val, encontro?.data_inicio);
             if (age !== null && age < 15) {
-                setAgeError('Olá! Percebemos que você terá menos de 15 anos na data do encontro. O EJC é destinado a jovens a partir de 15 anos. Por favor, aguarde as próximas edições para realizar sua inscrição. Ficaremos muito felizes em te receber em breve!');
+                setAgeError('Pela data informada, você ainda não terá 15 anos no dia do encontro.');
             } else {
                 setAgeError(null);
             }
@@ -142,7 +156,7 @@ export default function InscricaoPublicaPage() {
             const age = calculateAge(form.data_nascimento, encontro?.data_inicio);
             if (age !== null && age < 15) {
                 newErrors.data_nascimento = 'Idade mínima de 15 anos na data do encontro.';
-                setAgeError('Olá! Percebemos que você terá menos de 15 anos na data do encontro. O EJC é destinado a jovens a partir de 15 anos. Por favor, aguarde as próximas edições para realizar sua inscrição. Ficaremos muito felizes em te receber em breve!');
+                setAgeError('Pela data informada, você ainda não terá 15 anos no dia do encontro.');
             }
         }
 
@@ -150,8 +164,10 @@ export default function InscricaoPublicaPage() {
 
         setErrors(newErrors);
 
-        if (Object.keys(newErrors).length > 0) {
+        const firstInvalid = FIELD_ORDER.find((key) => newErrors[key]);
+        if (firstInvalid) {
             toast.error('Preencha todos os campos obrigatórios corretamente.');
+            requestAnimationFrame(() => focusField(firstInvalid));
         }
 
         return Object.keys(newErrors).length === 0;
@@ -254,7 +270,7 @@ export default function InscricaoPublicaPage() {
                             </ul>
                         </aside>
 
-                        <div className="landing-form-card">
+                        <div className={`landing-form-card${ageError && vagasStatus === 'open' && !isSubmitted ? ' landing-form-card--notice' : ''}`}>
                             {vagasStatus === 'closed' ? (
                                 <div className="landing-success" style={{ padding: '3rem 2rem' }}>
                                     <span className="landing-success__icon" style={{ borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.8)' }}>
@@ -298,35 +314,44 @@ export default function InscricaoPublicaPage() {
                                     </Link>
                                 </div>
                             ) : ageError ? (
-                                <div className="landing-success" style={{ padding: '3rem 2rem', background: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                                    <span className="landing-success__icon" style={{ borderColor: 'rgba(245, 158, 11, 0.4)', color: '#f59e0b' }}>
-                                        <Heart size={36} />
+                                <div className="age-notice" role="alert">
+                                    <span className="age-notice__halo">
+                                        <span className="age-notice__icon" aria-hidden="true">
+                                            <Hourglass size={32} />
+                                        </span>
                                     </span>
-                                    <h3 style={{ color: '#f59e0b' }}>Aguarde só mais um pouquinho...</h3>
-                                    <p style={{ color: 'rgba(255,255,255,0.9)' }}>
-                                        {ageError}
+                                    <h3 className="age-notice__title">Aguarde só mais um pouquinho</h3>
+                                    <p className="age-notice__text">{ageError}</p>
+                                    <span className="age-notice__badge">EJC · a partir de 15 anos</span>
+                                    <p className="age-notice__footnote">
+                                        Fique de olho nas próximas edições. Vamos adorar te receber!
                                     </p>
-                                    <button 
-                                        type="button" 
-                                        className="landing-button landing-button--secondary" 
-                                        style={{ marginTop: '1.5rem' }}
-                                        onClick={() => {
-                                            setAgeError(null);
-                                            setForm(prev => ({ ...prev, data_nascimento: '' }));
-                                        }}
-                                    >
-                                        Corrigir Data de Nascimento
-                                    </button>
+                                    <div className="age-notice__actions">
+                                        <button
+                                            type="button"
+                                            className="landing-button landing-button--primary"
+                                            onClick={() => {
+                                                setAgeError(null);
+                                                setFocusBirthDate(true);
+                                                setForm(prev => ({ ...prev, data_nascimento: '' }));
+                                            }}
+                                        >
+                                            Revisar data de nascimento
+                                        </button>
+                                        <Link to="/inicio" className="age-notice__link">
+                                            Voltar ao início
+                                        </Link>
+                                    </div>
                                 </div>
                             ) : (
-                                <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="landing-form">
+                                <form noValidate onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="landing-form">
                                     <h4 style={{ color: 'var(--text-color)', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
                                         <User size={16} style={{ display: 'inline', marginRight: '8px', verticalAlign: 'middle' }} />
                                         Dados Pessoais
                                     </h4>
 
                                     <FormField
-                                        label="Nome Completo *"
+                                        label="Nome Completo"
                                         name="nome_completo"
                                         value={form.nome_completo}
                                         onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('nome_completo', event.target.value)}
@@ -346,21 +371,21 @@ export default function InscricaoPublicaPage() {
                                             placeholder="xxx.xxx.xxx-xx"
                                             className="landing-form__input"
                                         />
-                                        <FormField
-                                            label="Nascimento *"
+                                        <DateInput
+                                            label="Nascimento"
                                             name="data_nascimento"
-                                            type="date"
                                             value={form.data_nascimento || ''}
-                                            onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('data_nascimento', event.target.value)}
+                                            onChange={(isoValue) => handleChange('data_nascimento', isoValue)}
                                             error={errors.data_nascimento}
                                             required
+                                            autoFocus={focusBirthDate}
                                             className="landing-form__input"
                                         />
                                     </div>
 
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: '1rem' }}>
                                         <FormField
-                                            label="WhatsApp / Telefone *"
+                                            label="WhatsApp / Telefone"
                                             name="telefone"
                                             value={form.telefone}
                                             onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('telefone', event.target.value)}
@@ -370,7 +395,7 @@ export default function InscricaoPublicaPage() {
                                             className="landing-form__input"
                                         />
                                         <FormField
-                                            label="E-mail *"
+                                            label="E-mail"
                                             name="email"
                                             type="email"
                                             value={form.email || ''}
@@ -400,7 +425,7 @@ export default function InscricaoPublicaPage() {
                                             colSpan={3}
                                         />
                                         <FormField
-                                            label="Endereço (Rua/Avenida) *"
+                                            label="Endereço (Rua/Avenida)"
                                             name="endereco"
                                             value={form.endereco || ''}
                                             onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('endereco', event.target.value)}
@@ -419,7 +444,7 @@ export default function InscricaoPublicaPage() {
                                             colSpan={2}
                                         />
                                     </FormRow>
-                                    <div style={{ marginBottom: '1rem' }}>
+                                    <div>
                                         <FormField
                                             label="Complemento"
                                             name="complemento"
@@ -432,7 +457,7 @@ export default function InscricaoPublicaPage() {
 
                                     <FormRow>
                                         <FormField
-                                            label="Bairro *"
+                                            label="Bairro"
                                             name="bairro"
                                             value={form.bairro || ''}
                                             onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('bairro', event.target.value)}
@@ -442,7 +467,7 @@ export default function InscricaoPublicaPage() {
                                             colSpan={5}
                                         />
                                         <FormField
-                                            label="Cidade *"
+                                            label="Cidade"
                                             name="cidade"
                                             value={form.cidade || ''}
                                             onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('cidade', event.target.value)}
@@ -452,7 +477,7 @@ export default function InscricaoPublicaPage() {
                                             colSpan={5}
                                         />
                                         <FormField
-                                            label="Estado *"
+                                            label="Estado"
                                             name="estado"
                                             value={form.estado || ''}
                                             onChange={(event: React.ChangeEvent<HTMLInputElement>) => handleChange('estado', event.target.value)}
@@ -519,6 +544,7 @@ export default function InscricaoPublicaPage() {
                                     />
 
                                     {/* Pergunta de EJC */}
+                                    <div id="field-fez_ejc_outra_paroquia">
                                     <RadioGroup
                                         label="Já fez EJC em outra paróquia? *"
                                         value={form.fez_ejc_outra_paroquia}
@@ -529,6 +555,7 @@ export default function InscricaoPublicaPage() {
                                         ]}
                                         error={errors.fez_ejc_outra_paroquia}
                                     />
+                                    </div>
 
                                         {form.fez_ejc_outra_paroquia === true && (
                                             <div style={{ marginTop: '0.5rem' }}>
@@ -547,7 +574,7 @@ export default function InscricaoPublicaPage() {
 
 
                                     {/* Consentimento LGPD */}
-                                    <div style={{
+                                    <div id="field-consent" style={{
                                         display: 'flex', flexDirection: 'column', gap: '0.4rem',
                                         padding: '0.875rem 1rem', marginTop: '0.5rem',
                                         background: 'rgba(255,255,255,0.07)',
