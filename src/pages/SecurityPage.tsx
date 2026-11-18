@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { Fingerprint, KeyRound, Pencil, Trash2 } from 'lucide-react';
+import { Fingerprint, KeyRound, LogOut, Pencil, Trash2 } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { useAuth } from '../hooks/useAuth';
@@ -15,6 +15,7 @@ import {
     type PasskeyItem
 } from '../services/passkeyService';
 import { userFacingError } from '../utils/userFacingError';
+import { authService } from '../services/authService';
 import { SESSION_IDLE_TIMEOUT_MS, SESSION_MAX_AGE_MS } from '../utils/sessionPolicy';
 
 const IDLE_TIMEOUT_HOURS = Math.round(SESSION_IDLE_TIMEOUT_MS / (60 * 60 * 1000));
@@ -48,6 +49,8 @@ export function SecurityPage() {
     const [savingName, setSavingName] = useState(false);
     const [removeTarget, setRemoveTarget] = useState<PasskeyItem | null>(null);
     const [removing, setRemoving] = useState(false);
+    const [confirmSignOutAll, setConfirmSignOutAll] = useState(false);
+    const [signingOutAll, setSigningOutAll] = useState(false);
 
     const loadPasskeys = useCallback(async () => {
         setLoading(true);
@@ -112,6 +115,17 @@ export function SecurityPage() {
             toast.error(userFacingError(error, 'Não foi possível remover a chave de acesso.'));
         } finally {
             setRemoving(false);
+        }
+    };
+
+    const handleSignOutAll = async () => {
+        setSigningOutAll(true);
+        try {
+            await authService.signOutAllDevices();
+            navigate('/login', { replace: true });
+        } catch (error) {
+            toast.error(userFacingError(error, 'Não foi possível encerrar as sessões. Tente novamente.'));
+            setSigningOutAll(false);
         }
     };
 
@@ -268,7 +282,36 @@ export function SecurityPage() {
                         </button>
                     </div>
                 </section>
+
+                <section style={cardStyle} aria-labelledby="security-sessions-title">
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', flex: '1 1 260px' }}>
+                            <LogOut size={24} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--primary-color)' }} />
+                            <div>
+                                <h2 id="security-sessions-title" style={{ fontSize: '1.125rem', margin: '0 0 0.25rem' }}>Aparelhos conectados</h2>
+                                <p style={{ margin: 0, color: 'var(--muted-text)', fontSize: '0.875rem' }}>
+                                    "Sair" encerra apenas este aparelho. Se perdeu um celular ou entrou em um aparelho de outra pessoa, encerre todas as sessões.
+                                </p>
+                            </div>
+                        </div>
+                        <button type="button" className="btn-secondary" onClick={() => setConfirmSignOutAll(true)}>
+                            Sair de todos os aparelhos
+                        </button>
+                    </div>
+                </section>
             </div>
+
+            <ConfirmDialog
+                isOpen={confirmSignOutAll}
+                title="Sair de todos os aparelhos?"
+                message="Todas as sessões abertas, inclusive esta, serão encerradas. Será preciso entrar novamente em cada aparelho. As chaves de acesso continuam cadastradas."
+                confirmText="Sair de todos"
+                loadingText="Encerrando..."
+                onConfirm={() => void handleSignOutAll()}
+                onCancel={() => setConfirmSignOutAll(false)}
+                isLoading={signingOutAll}
+                isDestructive
+            />
 
             <ConfirmDialog
                 isOpen={!!removeTarget}

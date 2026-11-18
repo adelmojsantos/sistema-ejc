@@ -25,6 +25,10 @@ no computador ou um celular via QR code.
 
 ### Sessão
 
+- **Sair** (menu do usuário) encerra a sessão apenas no aparelho atual.
+- **Segurança → Sair de todos os aparelhos** encerra todas as sessões do usuário.
+- Redefinir a senha pelo link do e-mail continua encerrando todas as sessões.
+
 | Regra | Valor | Onde alterar |
 | --- | --- | --- |
 | Inatividade | 12 horas | `SESSION_IDLE_TIMEOUT_MS` em `src/utils/sessionPolicy.ts` |
@@ -47,8 +51,11 @@ A ordem importa: o frontend só mostra a chave de acesso quando a variável esti
    - Ative "Enable Passkey authentication".
    - **RP ID:** `ejccapelinha.com.br` (sem `https://`, sem `www`).
      Trocar o RP ID depois invalida todas as chaves de acesso cadastradas.
-   - **Origens permitidas:** `https://ejccapelinha.com.br` e, se usado,
-     `https://www.ejccapelinha.com.br`.
+   - **Origens permitidas (obrigatório incluir as duas):** `https://ejccapelinha.com.br`
+     e `https://www.ejccapelinha.com.br`. Sem a origem exata da página, o cadastro
+     falha com `webauthn_verification_failed`.
+   - Recomendado: redirecionar `www` para o domínio sem `www` na Vercel, mantendo um
+     único endereço (a sessão salva no navegador é separada por endereço).
    - **Nome exibido:** `EJC Capelinha`.
 2. **Vercel → Environment Variables (Production)**
    - `VITE_ENABLE_PASSKEY_LOGIN=true`

@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const resetPasswordForEmail = vi.hoisted(() => vi.fn());
+const signOut = vi.hoisted(() => vi.fn());
 
 vi.mock('../lib/supabase', () => ({
   supabase: {
     auth: {
       resetPasswordForEmail,
+      signOut,
     },
   },
 }));
@@ -34,5 +36,26 @@ describe('authService.resetPassword', () => {
     resetPasswordForEmail.mockResolvedValue({ error });
 
     await expect(authService.resetPassword('pessoa@example.com')).rejects.toBe(error);
+  });
+});
+
+describe('authService.signOutAllDevices', () => {
+  beforeEach(() => {
+    signOut.mockReset();
+  });
+
+  it('encerra as sessões de todos os aparelhos', async () => {
+    signOut.mockResolvedValue({ error: null });
+
+    await authService.signOutAllDevices();
+
+    expect(signOut).toHaveBeenCalledWith({ scope: 'global' });
+  });
+
+  it('propaga falha ao encerrar as sessões', async () => {
+    const error = new Error('falha');
+    signOut.mockResolvedValue({ error });
+
+    await expect(authService.signOutAllDevices()).rejects.toBe(error);
   });
 });

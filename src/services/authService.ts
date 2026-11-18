@@ -15,6 +15,13 @@ export const authService = {
         if (error) throw error;
     },
 
+    /** Encerra a sessão em todos os aparelhos do usuário, inclusive este. */
+    async signOutAllDevices(): Promise<void> {
+        const { error } = await supabase.auth.signOut({ scope: 'global' });
+
+        if (error) throw error;
+    },
+
     async resetPassword(email: string): Promise<void> {
         const normalizedEmail = email.trim().toLowerCase();
         const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
