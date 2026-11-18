@@ -969,6 +969,7 @@ export function PalestrasModulePage() {
 
         .palestras-section {
           display: grid;
+          grid-template-columns: minmax(0, 1fr);
           gap: 1rem;
         }
 
@@ -1007,6 +1008,9 @@ export function PalestrasModulePage() {
           align-items: center;
           justify-content: center;
           gap: 0.5rem;
+          max-width: 100%;
+          white-space: normal;
+          text-align: center;
         }
 
         .palestras-copy {
@@ -1486,6 +1490,10 @@ export function PalestrasModulePage() {
 
           .palestras-action-label {
             display: inline;
+          }
+
+          .palestras-empty {
+            padding: 2rem 0;
           }
 
           .palestras-copy-btn {
