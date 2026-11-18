@@ -5,6 +5,17 @@ import type { UserProfile } from '../types/auth';
 import { AuthContext } from './auth-context';
 import type { InscricaoEnriched } from '../types/inscricao';
 import { syncBackendAdminPermission } from '../utils/accessControl';
+import {
+    checkSessionPolicy,
+    clearSessionPolicyRecord,
+    getSessionKey,
+    registerSessionActivity,
+    storeSessionExpiredReason,
+    type SessionExpiryReason
+} from '../utils/sessionPolicy';
+
+const SESSION_POLICY_CHECK_INTERVAL_MS = 60 * 1000;
+const SESSION_ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel'] as const;
 
 const PROFILE_CACHE_TTL_MS = 3 * 60 * 1000;
 
@@ -253,6 +264,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
+    const expiringSessionRef = useRef(false);
+
+    const expireSession = useCallback(async (reason: SessionExpiryReason) => {
+        if (expiringSessionRef.current) return;
+        expiringSessionRef.current = true;
+
+        storeSessionExpiredReason(reason);
+        clearSessionPolicyRecord();
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setUserParticipacao(null);
+
+        try {
+            // scope 'local' revoga apenas esta sessão no Supabase, sem derrubar outros aparelhos.
+            const { error } = await supabase.auth.signOut({ scope: 'local' });
+            if (error) console.error('Erro ao encerrar sessão expirada:', error);
+        } finally {
+            expiringSessionRef.current = false;
+        }
+    }, []);
+
     const refreshProfile = useCallback(async (options?: { force?: boolean }) => {
         if (!user) return;
         if (options?.force) clearProfileCache(user.id);
@@ -261,7 +294,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        supabase.auth.getSession().then(async ({ data: { session: storedSession } }) => {
+            let session = storedSession;
+            const sessionKey = getSessionKey(session);
+            const expiredReason = sessionKey ? checkSessionPolicy(sessionKey, Date.now()) : null;
+            if (expiredReason) {
+                // Encerra antes de exibir qualquer tela autenticada.
+                await expireSession(expiredReason);
+                session = null;
+            }
+
             setSession(session);
             setUser(session?.user ?? null);
 
@@ -284,6 +326,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // identidade do usuário, portanto não precisamos recarregar nada.
             if (event === 'TOKEN_REFRESHED') return;
 
+            if (event === 'SIGNED_OUT') clearSessionPolicyRecord();
+
+            const sessionKey = getSessionKey(session);
+            const expiredReason = sessionKey ? checkSessionPolicy(sessionKey, Date.now()) : null;
+            if (expiredReason) {
+                // Chamadas ao Supabase dentro deste callback podem travar o lock de auth.
+                setTimeout(() => { void expireSession(expiredReason); }, 0);
+                setSession(null);
+                setUser(null);
+                setProfile(null);
+                setUserParticipacao(null);
+                setLoading(false);
+                return;
+            }
+
             setSession(session);
             setUser(session?.user ?? null);
 
@@ -297,7 +354,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         return () => subscription.unsubscribe();
-    }, [loadProfile]);
+    }, [loadProfile, expireSession]);
+
+    const activeSessionKey = getSessionKey(session);
+
+    useEffect(() => {
+        if (!activeSessionKey) return;
+
+        const handleActivity = () => {
+            const expiredReason = registerSessionActivity(activeSessionKey, Date.now());
+            if (expiredReason) void expireSession(expiredReason);
+        };
+
+        const handleCheck = () => {
+            const expiredReason = checkSessionPolicy(activeSessionKey, Date.now());
+            if (expiredReason) void expireSession(expiredReason);
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') handleActivity();
+        };
+
+        SESSION_ACTIVITY_EVENTS.forEach((eventName) => {
+            window.addEventListener(eventName, handleActivity, { passive: true, capture: true });
+        });
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        const intervalId = window.setInterval(handleCheck, SESSION_POLICY_CHECK_INTERVAL_MS);
+
+        return () => {
+            SESSION_ACTIVITY_EVENTS.forEach((eventName) => {
+                window.removeEventListener(eventName, handleActivity, { capture: true });
+            });
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.clearInterval(intervalId);
+        };
+    }, [activeSessionKey, expireSession]);
  
     useEffect(() => {
         if (!user) return;

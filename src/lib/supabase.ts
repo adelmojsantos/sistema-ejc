@@ -30,5 +30,8 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
         persistSession: true,
         detectSessionInUrl: true,
         autoRefreshToken: true,
+        // Habilita a API de passkeys (beta). A interface só a usa quando
+        // VITE_ENABLE_PASSKEY_LOGIN=true (ver services/passkeyService.ts).
+        experimental: { passkey: true },
     },
 });

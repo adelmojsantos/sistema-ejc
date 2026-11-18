@@ -1,20 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Info, UserPlus } from 'lucide-react';
+import { Fingerprint, Info, UserPlus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { PasswordInput } from '../components/ui/PasswordInput';
 import { motion } from 'framer-motion';
 import logoEjc from '../assets/logo-ejc.svg';
 import { userFacingError } from '../utils/userFacingError';
+import {
+  isPasskeyLoginAvailable,
+  markPasskeyOfferPending,
+  passkeyErrorMessage,
+  passkeyService
+} from '../services/passkeyService';
+import {
+  clearSessionExpiredReason,
+  readSessionExpiredReason,
+  sessionExpiredMessage
+} from '../utils/sessionPolicy';
 
 export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [notice] = useState<string | null>(() => {
+    const expiredReason = readSessionExpiredReason();
+    return expiredReason ? sessionExpiredMessage(expiredReason) : null;
+  });
+  const [showPasskeyLogin] = useState(isPasskeyLoginAvailable);
   const navigate = useNavigate();
   const { user, mustChangePassword } = useAuth();
+
+  useEffect(() => {
+    // Remove somente após a tela ser montada; renderizações descartadas não perdem o aviso.
+    clearSessionExpiredReason();
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -42,6 +64,7 @@ export function Login() {
         return;
       }
 
+      markPasskeyOfferPending();
       navigate('/dashboard', { replace: true });
     } catch (caughtError) {
       console.error('Erro de rede ao autenticar:', caughtError);
@@ -52,6 +75,24 @@ export function Login() {
       setLoading(false);
     }
   };
+
+  const handlePasskeyLogin = async () => {
+    setPasskeyLoading(true);
+    setError(null);
+
+    try {
+      await passkeyService.signIn();
+      navigate('/dashboard', { replace: true });
+    } catch (caughtError) {
+      setError(passkeyErrorMessage(
+        caughtError,
+        'Não foi possível entrar com a chave de acesso agora. Tente novamente ou use e-mail e senha.'
+      ));
+      setPasskeyLoading(false);
+    }
+  };
+
+  const busy = loading || passkeyLoading;
 
   return (
     <div className="auth-split">
@@ -113,6 +154,12 @@ export function Login() {
               <p>Insira suas credenciais para acessar o sistema</p>
             </div>
 
+            {notice && (
+              <div className="auth-session-notice" role="status">
+                {notice}
+              </div>
+            )}
+
             <form onSubmit={handleLogin} className="auth-form">
               <div className="form-group">
                 <label className="form-label" htmlFor="email">Email</label>
@@ -169,9 +216,25 @@ export function Login() {
                 </motion.div>
               )}
 
-              <button type="submit" className="btn-primary auth-submit" disabled={loading} style={{ width: '100%', height: '48px', fontSize: '1rem' }}>
+              <button type="submit" className="btn-primary auth-submit" disabled={busy} style={{ width: '100%', height: '48px', fontSize: '1rem' }}>
                 {loading ? 'Validando acesso...' : 'Entrar no Sistema'}
               </button>
+
+              {showPasskeyLogin && (
+                <>
+                  <div className="auth-divider" aria-hidden="true"><span>ou</span></div>
+                  <button
+                    type="button"
+                    className="btn-secondary auth-passkey-button"
+                    onClick={() => void handlePasskeyLogin()}
+                    disabled={busy}
+                  >
+                    <Fingerprint size={20} aria-hidden="true" />
+                    <span>{passkeyLoading ? 'Aguardando confirmação...' : 'Entrar com chave de acesso'}</span>
+                  </button>
+                  <p className="auth-passkey-hint">Confirme com a digital, o rosto ou o PIN do aparelho.</p>
+                </>
+              )}
             </form>
 
             <nav className="auth-public-access" aria-label="Acessos públicos">
