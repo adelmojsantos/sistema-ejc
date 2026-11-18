@@ -1,5 +1,5 @@
-import { Camera, ImagePlus, Loader, Mic2, Minus, Pencil, Plus, SlidersHorizontal, Trash2, Upload, User } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Camera, Copy, ImagePlus, Loader, Mic2, Minus, Pencil, Plus, SlidersHorizontal, Trash2, Upload, User } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
@@ -7,7 +7,7 @@ import { Modal } from '../../components/ui/Modal';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
 import { useEncontros } from '../../contexts/EncontroContext';
-import { palestraService } from '../../services/palestraService';
+import { PalestraCopiaError, palestraService } from '../../services/palestraService';
 import { pessoaService } from '../../services/pessoaService';
 import type { Palestra, PalestraFormData } from '../../types/palestra';
 import type { Pessoa } from '../../types/pessoa';
@@ -37,7 +37,7 @@ const emptyForm = (encontroId: string, ordem: number): PalestraFormData => ({
 });
 
 export function PalestrasModulePage() {
-  const { encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
+  const { encontros, encontroSelecionadoId: selectedEncontroId, encontroSelecionado } = useEncontros();
   const [palestras, setPalestras] = useState<Palestra[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -54,12 +54,28 @@ export function PalestrasModulePage() {
   const [editingPalestra, setEditingPalestra] = useState<Palestra | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Palestra | null>(null);
   const [formData, setFormData] = useState<PalestraFormData>(emptyForm('', 1));
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+  const [copySourceId, setCopySourceId] = useState('');
+  const [copyPreview, setCopyPreview] = useState<Palestra[]>([]);
+  const [isLoadingCopyPreview, setIsLoadingCopyPreview] = useState(false);
+  const [isCopying, setIsCopying] = useState(false);
   const photoFileInputRef = useRef<HTMLInputElement>(null);
   const photoCameraInputRef = useRef<HTMLInputElement>(null);
   const listPhotoFileInputRef = useRef<HTMLInputElement>(null);
   const listPhotoCameraInputRef = useRef<HTMLInputElement>(null);
 
   const selectedEncontro = encontroSelecionado;
+  const canCopyPalestras = !!selectedEncontro?.ativo && !isLoading && palestras.length === 0;
+
+  // Encontros que começaram antes do encontro selecionado, do mais recente ao mais antigo.
+  const encontrosAnteriores = useMemo(() => {
+    if (!selectedEncontro) return [];
+    return encontros
+      .filter((encontro) => encontro.id !== selectedEncontro.id
+        && !!encontro.data_inicio
+        && (!selectedEncontro.data_inicio || encontro.data_inicio < selectedEncontro.data_inicio))
+      .sort((a, b) => b.data_inicio.localeCompare(a.data_inicio));
+  }, [encontros, selectedEncontro]);
 
   const loadPalestras = async () => {
     if (!selectedEncontroId) return;
@@ -79,6 +95,52 @@ export function PalestrasModulePage() {
     loadPalestras();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedEncontroId]);
+
+  const openCopyModal = () => {
+    setCopySourceId('');
+    setCopyPreview([]);
+    setIsCopyModalOpen(true);
+  };
+
+  const closeCopyModal = () => {
+    if (isCopying) return;
+    setIsCopyModalOpen(false);
+  };
+
+  const handleCopySourceChange = async (encontroId: string) => {
+    setCopySourceId(encontroId);
+    setCopyPreview([]);
+    if (!encontroId) return;
+
+    setIsLoadingCopyPreview(true);
+    try {
+      const preview = await palestraService.listarPorEncontro(encontroId);
+      setCopyPreview(preview);
+    } catch (error) {
+      console.error('Erro ao carregar palestras do encontro de origem:', error);
+      toast.error('Não foi possível carregar as palestras do encontro escolhido.');
+    } finally {
+      setIsLoadingCopyPreview(false);
+    }
+  };
+
+  const handleCopyPalestras = async () => {
+    if (!selectedEncontroId || !copySourceId || copyPreview.length === 0) return;
+
+    setIsCopying(true);
+    try {
+      const total = await palestraService.copiarDoEncontro(copySourceId, selectedEncontroId);
+      toast.success(`${total} palestra(s) copiada(s). Complete palestrante, resumo e foto.`);
+      setIsCopyModalOpen(false);
+      await loadPalestras();
+    } catch (error) {
+      console.error('Erro ao copiar palestras:', error);
+      toast.error(error instanceof PalestraCopiaError ? error.message : 'Não foi possível copiar as palestras.');
+      await loadPalestras();
+    } finally {
+      setIsCopying(false);
+    }
+  };
 
   const openCreateModal = () => {
     const nextOrder = palestras.length > 0 ? Math.max(...palestras.map((palestra) => palestra.ordem)) + 1 : 1;
@@ -341,7 +403,6 @@ export function PalestrasModulePage() {
       />
 
       <section className="palestras-toolbar">
-        <span className="badge">{selectedEncontro?.nome ?? 'Selecione um encontro'}</span>
         <button
           className="btn-primary palestras-new-btn"
           type="button"
@@ -356,10 +417,12 @@ export function PalestrasModulePage() {
       <section className="palestras-section">
         <div className="palestras-list-header">
           <div>
-            <strong>Palestras cadastradas</strong>
-            <p className="text-muted" style={{ margin: '0.25rem 0 0' }}>Cronograma e palestrantes do encontro selecionado.</p>
+            <strong>{selectedEncontro ? `Palestras do ${selectedEncontro.nome}` : 'Selecione um encontro'}</strong>
+            <p className="text-muted palestras-list-subtitle">Cronograma e palestrantes do encontro.</p>
           </div>
-          <span className="text-muted">{palestras.length} item(ns)</span>
+          <span className="text-muted palestras-count">
+            {palestras.length} {palestras.length === 1 ? 'palestra' : 'palestras'}
+          </span>
         </div>
 
         {isLoading ? (
@@ -371,6 +434,12 @@ export function PalestrasModulePage() {
           <div className="empty-state palestras-empty">
             <Mic2 size={44} style={{ opacity: 0.28 }} />
             <p>Nenhuma palestra cadastrada para este encontro.</p>
+            {canCopyPalestras && (
+              <button className="btn btn-secondary palestras-copy-btn" type="button" onClick={openCopyModal}>
+                <Copy size={16} />
+                Copiar palestras de outro encontro
+              </button>
+            )}
           </div>
         ) : (
           <div className="pessoa-grid palestras-list">
@@ -410,12 +479,14 @@ export function PalestrasModulePage() {
                   <span className="pessoa-row-value">{htmlToText(palestra.resumo) || 'Sem resumo'}</span>
                 </div>
 
-                <div className="pessoa-row-actions">
+                <div className="pessoa-row-actions palestras-row-actions">
                   <button className="icon-btn" type="button" onClick={() => openEditModal(palestra)} title="Editar" aria-label="Editar palestra">
                     <Pencil size={16} />
+                    <span className="palestras-action-label" aria-hidden="true">Editar</span>
                   </button>
                   <button className="icon-btn icon-btn-danger" type="button" onClick={() => setDeleteTarget(palestra)} title="Excluir" aria-label="Excluir palestra">
                     <Trash2 size={16} />
+                    <span className="palestras-action-label" aria-hidden="true">Excluir</span>
                   </button>
                 </div>
               </article>
@@ -717,6 +788,78 @@ export function PalestrasModulePage() {
         disabled={isSavingListPhoto}
       />
 
+      <Modal
+        isOpen={isCopyModalOpen}
+        onClose={closeCopyModal}
+        title="Copiar palestras"
+        maxWidth="560px"
+      >
+        <div className="palestras-copy">
+          <p className="text-muted palestras-copy-intro">
+            Copia o título e a ordem das palestras para o {selectedEncontro?.nome ?? 'encontro atual'}.
+            Palestrante, resumo e foto ficam em branco para preencher depois.
+          </p>
+
+          <div className="form-group">
+            <label className="form-label" htmlFor="palestras-copy-source">Copiar do encontro</label>
+            <select
+              id="palestras-copy-source"
+              className="form-input"
+              value={copySourceId}
+              onChange={(event) => handleCopySourceChange(event.target.value)}
+              disabled={isCopying || encontrosAnteriores.length === 0}
+            >
+              <option value="">
+                {encontrosAnteriores.length === 0 ? 'Nenhum encontro anterior disponível' : 'Selecione um encontro'}
+              </option>
+              {encontrosAnteriores.map((encontro) => (
+                <option key={encontro.id} value={encontro.id}>{encontro.nome}</option>
+              ))}
+            </select>
+          </div>
+
+          {copySourceId && (
+            <div className="palestras-copy-preview">
+              {isLoadingCopyPreview ? (
+                <span className="text-muted palestras-loading">
+                  <Loader className="animate-spin" size={16} />
+                  Carregando palestras...
+                </span>
+              ) : copyPreview.length === 0 ? (
+                <span className="text-muted">Este encontro não possui palestras cadastradas.</span>
+              ) : (
+                <ol>
+                  {copyPreview.map((palestra) => (
+                    <li key={palestra.id}>
+                      <span className="palestras-copy-order">{palestra.ordem}</span>
+                      <span>{palestra.titulo}</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
+
+          <div className="palestras-form-actions">
+            <button className="btn btn-secondary" type="button" onClick={closeCopyModal} disabled={isCopying}>
+              Cancelar
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={handleCopyPalestras}
+              disabled={isCopying || isLoadingCopyPreview || copyPreview.length === 0}
+            >
+              {isCopying
+                ? 'Copiando...'
+                : copyPreview.length > 0
+                  ? `Copiar ${copyPreview.length} ${copyPreview.length === 1 ? 'palestra' : 'palestras'}`
+                  : 'Copiar palestras'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       <ConfirmDialog
         isOpen={!!deleteTarget}
         title="Remover Palestra"
@@ -812,7 +955,7 @@ export function PalestrasModulePage() {
 
         .palestras-toolbar {
           display: flex;
-          justify-content: space-between;
+          justify-content: flex-end;
           align-items: center;
           gap: 1rem;
           margin-bottom: 1rem;
@@ -839,6 +982,77 @@ export function PalestrasModulePage() {
         .palestras-loading,
         .palestras-empty {
           padding: 2rem;
+        }
+
+        .palestras-list-subtitle {
+          margin: 0.25rem 0 0;
+        }
+
+        .palestras-count {
+          white-space: nowrap;
+          font-size: 0.85rem;
+        }
+
+        .palestras-empty {
+          opacity: 1;
+        }
+
+        .palestras-empty p {
+          margin: 0;
+          color: var(--muted-text);
+        }
+
+        .palestras-copy-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+        }
+
+        .palestras-copy {
+          display: grid;
+          gap: 1rem;
+        }
+
+        .palestras-copy-intro {
+          margin: 0;
+          font-size: 0.9rem;
+          line-height: 1.5;
+        }
+
+        .palestras-copy-preview {
+          max-height: 260px;
+          overflow-y: auto;
+          padding: 0.75rem;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          background: var(--secondary-bg);
+        }
+
+        .palestras-copy-preview ol {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: grid;
+          gap: 0.5rem;
+        }
+
+        .palestras-copy-preview li {
+          display: flex;
+          align-items: baseline;
+          gap: 0.6rem;
+          font-size: 0.9rem;
+        }
+
+        .palestras-copy-order {
+          flex: none;
+          min-width: 1.5rem;
+          font-weight: 700;
+          color: var(--muted-text);
+        }
+
+        .palestras-action-label {
+          display: none;
         }
 
         .palestras-loading {
@@ -1195,10 +1409,87 @@ export function PalestrasModulePage() {
         }
 
         @media (max-width: 640px) {
-          .palestras-toolbar,
-          .palestras-list-header {
+          .palestras-toolbar {
             align-items: stretch;
             flex-direction: column;
+          }
+
+          .palestras-list-header {
+            align-items: baseline;
+          }
+
+          /* Card: foto à esquerda, textos alinhados numa coluna e ações com texto no rodapé. */
+          .pessoa-row.palestras-row {
+            grid-template-columns: 48px minmax(0, 1fr);
+            grid-template-areas:
+              "avatar info"
+              "avatar summary"
+              "actions actions";
+            align-items: start;
+            column-gap: 0.85rem;
+            row-gap: 0.4rem;
+          }
+
+          .palestras-row .palestras-row-main {
+            display: contents;
+          }
+
+          .pessoa-avatar.small.palestras-row-avatar {
+            grid-area: avatar;
+            width: 48px;
+            height: 48px;
+          }
+
+          .palestras-row .pessoa-row-info {
+            grid-area: info;
+          }
+
+          .palestras-row .pessoa-row-name {
+            white-space: normal;
+            font-size: 1rem;
+            line-height: 1.3;
+          }
+
+          .palestras-summary-col {
+            grid-area: summary;
+            min-width: 0;
+          }
+
+          .palestras-summary-col .pessoa-row-label {
+            display: none;
+          }
+
+          .pessoa-row-actions.palestras-row-actions {
+            grid-area: actions;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            min-width: 0;
+            margin-top: 0.4rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border-color);
+          }
+
+          .palestras-row-actions .icon-btn {
+            width: auto;
+            height: 40px;
+            gap: 0.4rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+          }
+
+          .palestras-row-actions .icon-btn-danger {
+            color: var(--danger-text);
+            background: var(--danger-bg);
+            border-color: color-mix(in srgb, var(--danger-border) 40%, transparent);
+          }
+
+          .palestras-action-label {
+            display: inline;
+          }
+
+          .palestras-copy-btn {
+            width: 100%;
           }
 
           .palestras-new-btn,
