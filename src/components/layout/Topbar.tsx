@@ -9,6 +9,7 @@ import {
   Settings,
   LockKeyhole,
   Mail,
+  ShieldCheck,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -258,6 +259,16 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
                 <button className="dropdown-item" onClick={() => navigate('/alterar-senha')}>
                   <Settings size={18} />
                   <span>Alterar Senha</span>
+                </button>
+                <button
+                  className="dropdown-item"
+                  onClick={() => {
+                    setIsUserMenuOpen(false);
+                    navigate('/seguranca');
+                  }}
+                >
+                  <ShieldCheck size={18} />
+                  <span>Segurança</span>
                 </button>
                 <div className="dropdown-divider" />
                 <button

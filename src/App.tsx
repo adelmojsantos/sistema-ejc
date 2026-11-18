@@ -71,6 +71,7 @@ const PosEncontroFormPage = lazyNamed(() => import('./pages/cadastros/PosEncontr
 const PreparacaoEncontroPage = lazyNamed(() => import('./pages/cadastros/PreparacaoEncontroPage'), 'PreparacaoEncontroPage');
 const PalestrasModulePage = lazyNamed(() => import('./pages/atividades/PalestrasModulePage'), 'PalestrasModulePage');
 const ChangePasswordPage = lazyNamed(() => import('./pages/ChangePasswordPage'), 'ChangePasswordPage');
+const SecurityPage = lazyNamed(() => import('./pages/SecurityPage'), 'SecurityPage');
 const CoordenadorAvaliacaoPage = lazyNamed(() => import('./pages/coordenador/CoordenadorAvaliacaoPage'), 'CoordenadorAvaliacaoPage');
 const CoordenadorCozinhaPage = lazyNamed(() => import('./pages/coordenador/CoordenadorCozinhaPage'), 'CoordenadorCozinhaPage');
 const CoordenadorMinhaEquipePage = lazyNamed(() => import('./pages/coordenador/CoordenadorMinhaEquipePage'), 'CoordenadorMinhaEquipePage');
@@ -394,6 +395,8 @@ function AnimatedRoutes() {
               <Navigate to="/circulos/cadastros" replace />
             </ProtectedRoute>
           } />
+
+          <Route path="/seguranca" element={<PageTransition><SecurityPage /></PageTransition>} />
 
           <Route path="/biblioteca" element={
             <ProtectedRoute>

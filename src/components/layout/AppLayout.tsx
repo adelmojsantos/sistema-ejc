@@ -2,6 +2,7 @@ import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { useLocation } from 'react-router-dom';
+import { PasskeyEnrollmentPrompt } from '../auth/PasskeyEnrollmentPrompt';
 
 
 interface AppLayoutProps {
@@ -75,6 +76,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           {children}
         </main>
       </div>
+      <PasskeyEnrollmentPrompt />
     </div>
   );
 };

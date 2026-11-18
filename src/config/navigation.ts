@@ -433,6 +433,7 @@ const NAVIGATION_TITLES: readonly NavigationTitle[] = [
   { pathPrefix: '/secretaria', title: 'Secretaria' },
   { pathPrefix: '/cadastros', title: 'Cadastros' },
   { pathPrefix: '/biblioteca', title: 'Biblioteca' },
+  { pathPrefix: '/seguranca', title: 'Segurança' },
   { pathPrefix: '/compras', title: 'Compras' },
   { pathPrefix: '/cuidados', title: 'Cuidados' },
   { pathPrefix: '/ligacao', title: 'Ligação' },
