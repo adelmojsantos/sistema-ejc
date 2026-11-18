@@ -45,9 +45,14 @@ const session = {
 };
 
 function UserProbe() {
-    const { user, loading } = useAuth();
+    const { user, loading, signOut } = useAuth();
     if (loading) return <span>carregando</span>;
-    return <span>{user ? 'autenticado' : 'deslogado'}</span>;
+    return (
+        <>
+            <span>{user ? 'autenticado' : 'deslogado'}</span>
+            <button type="button" onClick={() => void signOut()}>Sair</button>
+        </>
+    );
 }
 
 function renderProvider() {
@@ -58,7 +63,7 @@ function renderProvider() {
     );
 }
 
-describe('AuthProvider — política de sessão', () => {
+describe('AuthProvider — sessão', () => {
     beforeEach(() => {
         vi.useFakeTimers({ toFake: ['Date'] });
         vi.setSystemTime(NOW);
@@ -105,5 +110,14 @@ describe('AuthProvider — política de sessão', () => {
 
         await waitFor(() => expect(screen.getByText('deslogado')).toBeInTheDocument());
         expect(authMocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    });
+
+    it('"Sair" encerra apenas a sessão deste aparelho', async () => {
+        renderProvider();
+        expect(await screen.findByText('autenticado')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Sair' }));
+
+        await waitFor(() => expect(authMocks.signOut).toHaveBeenCalledWith({ scope: 'local' }));
     });
 });

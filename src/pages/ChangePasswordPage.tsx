@@ -107,7 +107,7 @@ export function ChangePasswordPage() {
             ) {
                 toast.error(message);
                 setTimeout(async () => {
-                    await supabase.auth.signOut();
+                    await supabase.auth.signOut({ scope: 'local' });
                     navigate('/login', { replace: true });
                 }, 3000);
             }
@@ -203,7 +203,7 @@ export function ChangePasswordPage() {
                                     className="btn-secondary"
                                     onClick={async () => {
                                         if (mustChangePassword) {
-                                            await supabase.auth.signOut();
+                                            await supabase.auth.signOut({ scope: 'local' });
                                             navigate('/login', { replace: true });
                                         } else {
                                             navigate('/dashboard', { replace: true });

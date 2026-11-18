@@ -416,7 +416,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [user, refreshProfile]);
 
     const signOut = useCallback(async () => {
-        await supabase.auth.signOut();
+        // Encerra apenas este aparelho. Para todos, use authService.signOutAllDevices.
+        await supabase.auth.signOut({ scope: 'local' });
     }, []);
 
     const permissionSet = useMemo(() => new Set(profile?.permissions ?? []), [profile?.permissions]);
