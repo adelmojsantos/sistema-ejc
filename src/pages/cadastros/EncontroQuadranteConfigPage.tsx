@@ -11,14 +11,13 @@ import {
     QrCode,
     RefreshCw,
     Shield,
-    Type,
-    Upload,
-    X
+    Type
 } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'react-hot-toast';
-import { userFacingError } from '../../utils/userFacingError';
+import { isEncontroHistorico } from '../../utils/encontroHistorico';
+import { EncontroLogoField } from '../../components/encontro/EncontroLogoField';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { RichTextEditor } from '../../components/ui/RichTextEditor';
@@ -36,19 +35,6 @@ const visibilityOptions: { key: keyof QuadranteVisibilityConfig; label: string; 
     { key: 'palestras', label: 'Palestras', description: 'Lista de palestras e resumos.' },
 ];
 
-const sanitizeFileName = (value: string) =>
-    value
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-zA-Z0-9_-]+/g, '_')
-        .replace(/^_+|_+$/g, '');
-
-const isHistoricalEncounter = (encontro: Encontro | null) => {
-    if (!encontro?.data_fim || encontro.ativo) return false;
-    const endOfEncounter = new Date(`${encontro.data_fim}T23:59:59`);
-    return !Number.isNaN(endOfEncounter.getTime()) && endOfEncounter < new Date();
-};
-
 export function EncontroQuadranteConfigPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -59,20 +45,17 @@ export function EncontroQuadranteConfigPage() {
     const [showPin, setShowPin] = useState(false);
     const [activeTab, setActiveTab] = useState<'acesso' | 'conteudo'>('acesso');
     const qrRef = useRef<HTMLDivElement>(null);
-    const logoInputRef = useRef<HTMLInputElement>(null);
 
     // Form states - Acesso
     const [ativo, setAtivo] = useState(false);
     const [pin, setPin] = useState('');
 
     // Form states - Editorial
-    const [logoUrl, setLogoUrl] = useState('');
     const [simbologiaTexto, setSimbologiaTexto] = useState('');
     const [tematicaTexto, setTematicaTexto] = useState('');
     const [musicaLetra, setMusicaLetra] = useState('');
     const [visibilityConfig, setVisibilityConfig] = useState<QuadranteVisibilityConfig>(quadranteVisibilityDefault);
-    const [uploadingLogo, setUploadingLogo] = useState(false);
-    const isHistorical = isHistoricalEncounter(encontro);
+    const isHistorical = isEncontroHistorico(encontro);
 
 
     useEffect(() => {
@@ -90,7 +73,6 @@ export function EncontroQuadranteConfigPage() {
                     setEncontro(data);
                     setAtivo(data.quadrante_ativo || false);
                     setPin(data.quadrante_pin || '');
-                    setLogoUrl(data.logo_url || '');
                     setSimbologiaTexto(data.simbologia_texto || '');
                     setTematicaTexto(data.tematica_texto || '');
                     setMusicaLetra(data.musica_letra || '');
@@ -156,7 +138,6 @@ export function EncontroQuadranteConfigPage() {
         setSaving(true);
         try {
             await encontroService.salvarDadosEditoriais(id, {
-                logo_url: logoUrl || null,
                 simbologia_texto: simbologiaTexto || null,
                 tematica_texto: tematicaTexto || null,
                 musica_letra: musicaLetra || null,
@@ -164,7 +145,6 @@ export function EncontroQuadranteConfigPage() {
             });
             setEncontro(prev => prev ? {
                 ...prev,
-                logo_url: logoUrl || null,
                 simbologia_texto: simbologiaTexto || null,
                 tematica_texto: tematicaTexto || null,
                 musica_letra: musicaLetra || null,
@@ -176,31 +156,6 @@ export function EncontroQuadranteConfigPage() {
             toast.error('Erro ao salvar conteúdo editorial.');
         } finally {
             setSaving(false);
-        }
-    };
-
-    const handleLogoUpload = async (file?: File) => {
-        if (!id || !file) return;
-        if (isHistorical) {
-            toast.error('A logo de um Quadrante histórico não pode ser alterada.');
-            return;
-        }
-        if (!file.type.startsWith('image/')) {
-            toast.error('Selecione um arquivo de imagem.');
-            return;
-        }
-
-        setUploadingLogo(true);
-        try {
-            const url = await encontroService.uploadLogoQuadrante(id, file);
-            setLogoUrl(url);
-            toast.success('Logo enviada com sucesso.');
-        } catch (error) {
-            console.error('Erro ao enviar logo:', error);
-            toast.error(userFacingError(error, 'Não foi possível enviar a logo. Tente novamente.'));
-        } finally {
-            setUploadingLogo(false);
-            if (logoInputRef.current) logoInputRef.current.value = '';
         }
     };
 
@@ -279,33 +234,6 @@ export function EncontroQuadranteConfigPage() {
         link.href = url;
         link.click();
         toast.success('Download do QR Code iniciado com margens!');
-    };
-
-    const handleViewLogo = () => {
-        if (!logoUrl) return;
-        window.open(logoUrl, '_blank', 'noopener,noreferrer');
-    };
-
-    const handleDownloadLogo = async () => {
-        if (!logoUrl) return;
-
-        try {
-            const response = await fetch(logoUrl);
-            if (!response.ok) throw new Error('Erro ao baixar logo.');
-
-            const blob = await response.blob();
-            const objectUrl = URL.createObjectURL(blob);
-            const extension = blob.type.split('/')[1] || 'png';
-            const link = document.createElement('a');
-            link.href = objectUrl;
-            link.download = `logo-quadrante-${sanitizeFileName(encontro?.nome || 'encontro')}.${extension}`;
-            link.click();
-            URL.revokeObjectURL(objectUrl);
-            toast.success('Download da logo iniciado.');
-        } catch (error) {
-            console.error('Erro ao baixar logo:', error);
-            toast.error('Não foi possível baixar a logo.');
-        }
     };
 
     if (loading) return <div className="p-8 text-center">Carregando...</div>;
@@ -549,69 +477,16 @@ export function EncontroQuadranteConfigPage() {
                                     <ImageIcon size={24} />
                                 </div>
                                 <div>
-                                    <h3>Logo temática</h3>
-                                    <p>Imagem própria deste encontro, usada na capa, na seção Temática e na exportação em PDF.</p>
+                                    <h3>Logo do encontro</h3>
+                                    <p>Usado na capa, na seção Temática e na exportação em PDF. O cadastro e a troca são feitos no cadastro do encontro.</p>
                                 </div>
                             </div>
 
-                            <div className="logo-upload-panel">
-                                <div className="logo-preview-large">
-                                    {logoUrl ? (
-                                        <img src={logoUrl} alt="Logo do encontro" />
-                                    ) : (
-                                        <div className="logo-empty-state">
-                                            <ImageIcon size={34} />
-                                            <span>Sem logo</span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="logo-upload-actions">
-                                    <input
-                                        ref={logoInputRef}
-                                        type="file"
-                                        accept="image/*"
-                                        hidden
-                                        onChange={(event) => handleLogoUpload(event.target.files?.[0])}
-                                    />
-                                    <button
-                                        type="button"
-                                        className="btn-secondary"
-                                        onClick={() => logoInputRef.current?.click()}
-                                        disabled={uploadingLogo || isHistorical}
-                                    >
-                                        <Upload size={16} /> {uploadingLogo ? 'Enviando...' : logoUrl ? 'Trocar logo' : 'Enviar logo'}
-                                    </button>
-                                    {logoUrl && (
-                                        <>
-                                            <button
-                                                type="button"
-                                                className="btn-outline"
-                                                onClick={handleViewLogo}
-                                            >
-                                                <Eye size={16} /> Visualizar
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="btn-outline"
-                                                onClick={handleDownloadLogo}
-                                            >
-                                                <Download size={16} /> Baixar
-                                            </button>
-                                            {!isHistorical && (
-                                                <button
-                                                    type="button"
-                                                    className="btn-outline compact-danger"
-                                                    onClick={() => setLogoUrl('')}
-                                                >
-                                                    <X size={16} /> Remover
-                                                </button>
-                                            )}
-                                        </>
-                                    )}
-                                    <p className="field-hint">Use uma imagem quadrada ou com fundo transparente para melhor resultado.</p>
-                                </div>
-                            </div>
+                            <EncontroLogoField
+                                logoUrl={encontro.logo_url ?? null}
+                                encontroNome={encontro.nome}
+                                editPath={`/cadastros/encontros/${encontro.id}/editar#logo-encontro`}
+                            />
                         </section>
 
                         <section className="card config-section-card">
@@ -662,7 +537,7 @@ export function EncontroQuadranteConfigPage() {
                                 </div>
                                 <div>
                                     <h3>Textos editoriais</h3>
-                                    <p>A Simbologia usa a logo oficial do EJC; a Temática usa a logo enviada acima.</p>
+                                    <p>A Simbologia usa a logo oficial do EJC; a Temática usa o logo do encontro, exibido acima.</p>
                                 </div>
                             </div>
 
@@ -683,7 +558,7 @@ export function EncontroQuadranteConfigPage() {
                                     <div className="form-group editorial-field">
                                         <div className="editorial-field-header">
                                             <h4>Inspiração do Tema</h4>
-                                            <p className="field-hint">Contextualize a logo temática enviada, as referências, inspirações e mensagem central deste encontro.</p>
+                                            <p className="field-hint">Contextualize o logo do encontro, as referências, inspirações e mensagem central deste encontro.</p>
                                         </div>
                                         <RichTextEditor
                                             content={tematicaTexto}
@@ -709,7 +584,7 @@ export function EncontroQuadranteConfigPage() {
 
                             {!isHistorical && (
                                 <div className="card-footer-actions">
-                                    <button className="btn-primary" onClick={handleSaveEditorial} disabled={saving || uploadingLogo}>
+                                    <button className="btn-primary" onClick={handleSaveEditorial} disabled={saving}>
                                         {saving ? 'Salvando...' : <><Check size={18} /> Salvar conteúdo e seções</>}
                                     </button>
                                 </div>
@@ -976,63 +851,12 @@ export function EncontroQuadranteConfigPage() {
                     border-color: var(--border-color);
                 }
 
-                .logo-upload-panel {
-                    display: grid;
-                    grid-template-columns: 180px minmax(0, 1fr);
-                    gap: 1.25rem;
-                    align-items: center;
-                    padding: 1rem;
-                    border: 1px dashed var(--border-color);
-                    border-radius: 14px;
-                    background: var(--surface-1);
-                }
 
-                .logo-preview-large {
-                    width: 180px;
-                    aspect-ratio: 1;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    border-radius: 16px;
-                    border: 1px solid var(--border-color);
-                    background: var(--bg-color);
-                    overflow: hidden;
-                }
 
-                .logo-preview-large img {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: contain;
-                    padding: 1rem;
-                }
 
-                .logo-empty-state {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    gap: 0.5rem;
-                    color: var(--muted-text);
-                    font-size: 0.85rem;
-                    font-weight: 700;
-                }
 
-                .logo-upload-actions {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.75rem;
-                    flex-wrap: wrap;
-                }
 
-                .logo-upload-actions .field-hint {
-                    flex-basis: 100%;
-                    margin: 0.25rem 0 0;
-                }
 
-                .compact-danger {
-                    color: #ef4444;
-                    border-color: rgba(239, 68, 68, 0.45);
-                    background: transparent;
-                }
 
                 .visibility-grid {
                     display: grid;
@@ -1102,10 +926,6 @@ export function EncontroQuadranteConfigPage() {
                     color: var(--muted-text);
                 }
 
-                .logo-upload-actions .field-hint {
-                    color: var(--muted-text);
-                    line-height: 1.35;
-                }
 
                 .arrow-icon { opacity: 0.3; transition: all 0.3s; }
                 .option-entry-card:hover .arrow-icon { opacity: 1; color: var(--primary-color); }
@@ -1207,13 +1027,11 @@ export function EncontroQuadranteConfigPage() {
                     }
 
                     .config-item-pin,
-                    .logo-upload-panel,
                     .visibility-grid {
                         grid-template-columns: 1fr;
                     }
 
-                    .pin-input-wrapper,
-                    .logo-preview-large {
+                    .pin-input-wrapper {
                         width: 100%;
                         max-width: none;
                     }
@@ -1284,7 +1102,6 @@ export function EncontroQuadranteConfigPage() {
                         box-shadow: none;
                     }
 
-                    .logo-upload-panel,
                     .visibility-option {
                         padding: 0.85rem;
                     }
