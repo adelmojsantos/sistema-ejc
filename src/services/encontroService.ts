@@ -117,15 +117,21 @@ export const encontroService = {
         if (error) throw error;
     },
 
-    async uploadLogoQuadrante(encontroId: string, file: File): Promise<string> {
+    /**
+     * Envia o logo do encontro já otimizado (WebP, lado maior até 1200 px).
+     * Sem `encontroId` (encontro ainda não criado), usa um identificador aleatório.
+     * O prefixo `fotos/quadrante/` é mantido por ser o caminho autorizado no armazenamento.
+     */
+    async uploadLogoEncontro(file: File, encontroId?: string): Promise<string> {
         const { data: { user }, error: userError } = await supabase.auth.getUser();
         if (userError || !user) {
-            throw new Error('Sessão expirada. Faça login novamente para enviar a logo.');
+            throw new Error('Sessão expirada. Faça login novamente para enviar o logo.');
         }
 
         const optimizedFile = await optimizeImageForUpload(file, { maxDimension: 1200, quality: 0.9 });
         const extension = getFileExtension(optimizedFile, 'webp');
-        const filePath = `fotos/quadrante/${encontroId}-${Date.now()}.${extension}`;
+        const owner = encontroId || `novo-${crypto.randomUUID()}`;
+        const filePath = `fotos/quadrante/${owner}-${Date.now()}.${extension}`;
 
         return uploadPublicImage(filePath, optimizedFile);
     },

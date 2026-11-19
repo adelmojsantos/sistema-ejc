@@ -1,5 +1,5 @@
-import { Calendar, Check, Copy, Info, LinkIcon, Loader, Plus, QrCode, Shirt, Tag, X, FileText, Download } from 'lucide-react';
-import React, { useState } from 'react';
+import { Calendar, Check, Copy, Info, LinkIcon, Loader, Plus, QrCode, Shirt, Tag, X, FileText, Download, Image as ImageIcon } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { Encontro, EncontroFormData } from '../../types/encontro';
 import { FormField } from '../ui/FormField';
@@ -8,6 +8,8 @@ import { FormRow } from '../ui/FormRow';
 import { FormSection } from '../ui/FormSection';
 import toast from 'react-hot-toast';
 import { buildOnlineRegistrationUrl, buildPublicFormUrl } from '../../utils/publicFormUrl';
+import { isEncontroHistorico } from '../../utils/encontroHistorico';
+import { EncontroLogoField } from './EncontroLogoField';
 
 interface EncontroFormProps {
     title: string;
@@ -49,9 +51,17 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
         pix_camisetas_chave: initialData?.pix_camisetas_chave ?? '',
         pix_camisetas_tipo: initialData?.pix_camisetas_tipo ?? null,
         pix_camisetas_qrcode_url: initialData?.pix_camisetas_qrcode_url ?? '',
+        logo_url: initialData?.logo_url ?? null,
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+    const isHistorico = isEncontroHistorico(initialData);
+
+    useEffect(() => {
+        if (window.location.hash !== '#logo-encontro') return;
+        document.getElementById('logo-encontro')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, []);
 
     const handleDownloadQr = async (url: string) => {
         if (!url) return;
@@ -353,6 +363,19 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                 </FormRow>
             </FormSection>
 
+            <div id="logo-encontro" className="encontro-logo-section">
+                <FormSection title="Logo do Encontro" icon={<ImageIcon size={18} />} columns={0}>
+                    <EncontroLogoField
+                        logoUrl={form.logo_url ?? null}
+                        encontroId={initialData?.id}
+                        encontroNome={form.nome || initialData?.nome}
+                        onChange={(url) => handleChange('logo_url', url)}
+                        onUploadingChange={setIsUploadingLogo}
+                        readOnlyMessage={isHistorico ? 'Encontro encerrado: o logo é somente leitura.' : undefined}
+                    />
+                </FormSection>
+            </div>
+
             <FormSection title="Informações de Pagamento" icon={<Info size={18} />} columns={0}>
                 <div className="payment-config-grid">
                     {/* Painel Taxas */}
@@ -592,7 +615,7 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
                     <X size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
                     Cancelar
                 </button>
-                <button type="submit" disabled={isLoading || isSubmitting}>
+                <button type="submit" disabled={isLoading || isSubmitting || isUploadingLogo}>
                     {isLoading || isSubmitting ? (
                         <><Loader size={16} className="animate-spin" style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />Salvando...</>
                     ) : (
@@ -614,6 +637,10 @@ export function EncontroForm({ title, initialData, onSubmit, onCancel, isLoading
 
                 .encontro-basic-row > .form-group {
                     grid-column: auto !important;
+                }
+
+                .encontro-logo-section {
+                    scroll-margin-top: 5rem;
                 }
 
                 .encontro-form-actions {

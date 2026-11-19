@@ -1,0 +1,239 @@
+.encontro-logo-field__panel {
+    display: grid;
+    grid-template-columns: 160px minmax(0, 1fr);
+    gap: 1.25rem;
+    align-items: center;
+    padding: 1rem;
+    border: 1px dashed var(--border-color);
+    border-radius: 14px;
+    background: var(--surface-1);
+}
+
+.encontro-logo-field__preview,
+.encontro-logo-field__preview:hover {
+    width: 160px;
+    aspect-ratio: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-color);
+    color: var(--muted-text);
+    overflow: hidden;
+    cursor: zoom-in;
+}
+
+.encontro-logo-field__preview:disabled {
+    cursor: default;
+    opacity: 1;
+}
+
+.encontro-logo-field__preview:not(:disabled):hover,
+.encontro-logo-field__preview:focus-visible {
+    border-color: var(--primary-color);
+}
+
+.encontro-logo-field__preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    padding: 0.85rem;
+}
+
+.encontro-logo-field__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.encontro-logo-field__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    min-width: 0;
+}
+
+.encontro-logo-field__actions,
+.encontro-logo-viewer__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.encontro-logo-field__actions .btn-secondary,
+.encontro-logo-viewer__actions .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 40px;
+    padding: 0.5rem 0.9rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.encontro-logo-field__actions .encontro-logo-field__remove {
+    color: var(--danger-text);
+    border-color: var(--danger-border);
+}
+
+.encontro-logo-field__hint {
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--muted-text);
+}
+
+.encontro-logo-field__managed {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.encontro-logo-field__tooltip {
+    position: relative;
+    display: inline-flex;
+}
+
+.encontro-logo-field__tooltip-trigger,
+.encontro-logo-field__tooltip-trigger:hover {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--surface-2);
+    color: var(--primary-color);
+}
+
+.encontro-logo-field__tooltip-bubble {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 8px);
+    z-index: 30;
+    width: max-content;
+    max-width: min(280px, 80vw);
+    padding: 0.5rem 0.65rem;
+    border-radius: 8px;
+    background: var(--text-color);
+    color: var(--bg-color);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    white-space: normal;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(4px);
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+    pointer-events: none;
+}
+
+.encontro-logo-field__tooltip:hover .encontro-logo-field__tooltip-bubble,
+.encontro-logo-field__tooltip:focus-within .encontro-logo-field__tooltip-bubble {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.encontro-logo-field__edit-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.encontro-logo-field__edit-link:hover {
+    text-decoration: underline;
+}
+
+.encontro-logo-viewer {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.encontro-logo-viewer__stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: min(60vh, 560px);
+    padding: 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background-color: #ffffff;
+    background-image:
+        linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+        linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+        linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+    background-size: 20px 20px;
+    background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+    overflow: hidden;
+}
+
+.encontro-logo-viewer__stage img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.encontro-logo-viewer__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.encontro-logo-viewer__meta {
+    display: grid;
+    gap: 0.15rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.encontro-logo-viewer__meta small {
+    font-weight: 400;
+    font-size: 0.75rem;
+    color: var(--muted-text);
+}
+
+@media (max-width: 640px) {
+    .encontro-logo-field__panel {
+        grid-template-columns: 1fr;
+        padding: 0.85rem;
+    }
+
+    .encontro-logo-field__preview,
+    .encontro-logo-field__preview:hover {
+        width: 100%;
+        max-width: 220px;
+        justify-self: center;
+    }
+
+    .encontro-logo-field__actions .btn-secondary,
+    .encontro-logo-viewer__actions .btn-secondary {
+        flex: 1 1 calc(50% - 0.6rem);
+    }
+
+    .encontro-logo-viewer__actions {
+        width: 100%;
+    }
+
+    .encontro-logo-viewer__actions .btn-secondary {
+        flex: 1 1 auto;
+    }
+
+    .encontro-logo-viewer__stage {
+        height: min(50vh, 360px);
+    }
+}
