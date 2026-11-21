@@ -29,7 +29,8 @@ import {
   QrCode,
   LayoutGrid,
   ArrowRight,
-  ExternalLink
+  ExternalLink,
+  KeyRound
 } from 'lucide-react';
 import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
@@ -115,6 +116,7 @@ export function CoordenadorMinhaEquipePage() {
   const [loading, setLoading] = useState(true);
   const [equipeNome, setEquipeNome] = useState('');
   const [equipeAcesso, setEquipeAcesso] = useState<EquipeAcesso>('verde');
+  const [liberaAcessoIntegrantes, setLiberaAcessoIntegrantes] = useState(false);
   const [editingPessoa, setEditingPessoa] = useState<Pessoa | null>(null);
   const [isLoadingPessoaEdit, setIsLoadingPessoaEdit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -286,14 +288,15 @@ export function CoordenadorMinhaEquipePage() {
       if (userParticipacao.equipes?.nome) {
         setEquipeNome(userParticipacao.equipes.nome);
         const equipeParticipacao = userParticipacao.equipes as UserParticipacaoEquipe;
-        if (equipeParticipacao.acesso_plenario) {
-          setEquipeAcesso(equipeParticipacao.acesso_plenario);
-        } else if (userParticipacao.equipe_id) {
-          const equipeFull = await equipeService.buscarPorId(userParticipacao.equipe_id);
-          if (equipeFull?.acesso_plenario) {
-             setEquipeAcesso(equipeFull.acesso_plenario);
-          }
+        const precisaEquipeCompleta = !equipeParticipacao.acesso_plenario || Boolean(userParticipacao.coordenador);
+        const equipeFull = precisaEquipeCompleta && userParticipacao.equipe_id
+          ? await equipeService.buscarPorId(userParticipacao.equipe_id)
+          : null;
+        const acessoPlenario = equipeParticipacao.acesso_plenario ?? equipeFull?.acesso_plenario;
+        if (acessoPlenario) {
+          setEquipeAcesso(acessoPlenario);
         }
+        setLiberaAcessoIntegrantes(Boolean(userParticipacao.coordenador) && equipeFull?.libera_acesso_integrantes === true);
       }
 
       if (userParticipacao?.encontro_id && userParticipacao?.equipe_id) {
@@ -895,6 +898,19 @@ export function CoordenadorMinhaEquipePage() {
             >
               <MapPin size={16} />
               <span>Mapa da equipe</span>
+            </button>
+          )}
+
+          {userParticipacao?.coordenador && liberaAcessoIntegrantes && (
+            <button
+              type="button"
+              onClick={() => navigate('/coordenador/minha-equipe/acessos')}
+              className="btn-secondary flex items-center gap-2"
+              style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+              title="Liberar o acesso ao sistema para os integrantes da equipe"
+            >
+              <KeyRound size={16} />
+              <span>Liberar acessos</span>
             </button>
           )}
 

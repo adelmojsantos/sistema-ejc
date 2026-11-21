@@ -15,6 +15,7 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
     const [editNome, setEditNome] = useState(equipe.nome || '');
     const [editAcesso, setEditAcesso] = useState<'verde' | 'amarela' | 'vermelha'>(equipe.acesso_plenario || 'verde');
     const [editAparecePosEncontro, setEditAparecePosEncontro] = useState(equipe.aparece_pos_encontro !== false);
+    const [editLiberaAcessoIntegrantes, setEditLiberaAcessoIntegrantes] = useState(equipe.libera_acesso_integrantes === true);
     const [isSaving, setIsSaving] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -23,13 +24,15 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
         const trimmedNome = editNome.trim();
         const hasChanges = trimmedNome !== equipe.nome || 
             editAcesso !== (equipe.acesso_plenario || 'verde') || 
-            editAparecePosEncontro !== (equipe.aparece_pos_encontro !== false);
+            editAparecePosEncontro !== (equipe.aparece_pos_encontro !== false) ||
+            editLiberaAcessoIntegrantes !== (equipe.libera_acesso_integrantes === true);
 
         if (!trimmedNome || !hasChanges) {
             setIsEditing(false);
             setEditNome(equipe.nome || '');
             setEditAcesso(equipe.acesso_plenario || 'verde');
             setEditAparecePosEncontro(equipe.aparece_pos_encontro !== false);
+            setEditLiberaAcessoIntegrantes(equipe.libera_acesso_integrantes === true);
             return;
         }
 
@@ -39,7 +42,8 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
                 nome: trimmedNome, 
                 foto_url: equipe.foto_url, 
                 acesso_plenario: editAcesso,
-                aparece_pos_encontro: editAparecePosEncontro
+                aparece_pos_encontro: editAparecePosEncontro,
+                libera_acesso_integrantes: editLiberaAcessoIntegrantes
             });
             setIsEditing(false);
         } catch (error) {
@@ -47,6 +51,7 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
             setEditNome(equipe.nome || '');
             setEditAcesso(equipe.acesso_plenario || 'verde');
             setEditAparecePosEncontro(equipe.aparece_pos_encontro !== false);
+            setEditLiberaAcessoIntegrantes(equipe.libera_acesso_integrantes === true);
         } finally {
             setIsSaving(false);
         }
@@ -56,6 +61,7 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
         setEditNome(equipe.nome || '');
         setEditAcesso(equipe.acesso_plenario || 'verde');
         setEditAparecePosEncontro(equipe.aparece_pos_encontro !== false);
+        setEditLiberaAcessoIntegrantes(equipe.libera_acesso_integrantes === true);
         setIsEditing(false);
     };
 
@@ -70,7 +76,8 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
                 nome: equipe.nome || '', 
                 foto_url: url, 
                 acesso_plenario: equipe.acesso_plenario || 'verde',
-                aparece_pos_encontro: equipe.aparece_pos_encontro !== false
+                aparece_pos_encontro: equipe.aparece_pos_encontro !== false,
+                libera_acesso_integrantes: equipe.libera_acesso_integrantes === true
             });
             toast.success('Foto da equipe atualizada!');
         } catch (error) {
@@ -164,6 +171,15 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
                                 />
                                 Aparece na ficha de pós-encontro
                             </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-color)', cursor: 'pointer' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={editLiberaAcessoIntegrantes}
+                                    onChange={(e) => setEditLiberaAcessoIntegrantes(e.target.checked)}
+                                    disabled={isSaving}
+                                />
+                                Libera acesso de integrantes
+                            </label>
                         </>
                     ) : (
                         <div>
@@ -190,6 +206,21 @@ export function EquipeRow({ equipe, onUpdate, onDelete }: EquipeRowProps) {
                                 }}>
                                     {equipe.aparece_pos_encontro !== false ? '✓ Pós-Encontro' : '✗ Pós-Encontro'}
                                 </span>
+                                {equipe.libera_acesso_integrantes === true && (
+                                    <span
+                                        title="O coordenador pode liberar os acessos configurados para os integrantes da equipe"
+                                        style={{
+                                            fontSize: '0.7rem',
+                                            fontWeight: 600,
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                            color: '#10b981'
+                                        }}
+                                    >
+                                        ✓ Libera acessos
+                                    </span>
+                                )}
                             </div>
                         </div>
                     )}

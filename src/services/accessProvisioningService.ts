@@ -40,7 +40,46 @@ export interface AccessProvisioningResult {
   message?: string;
 }
 
-async function invokeAdminUsers<T>(body: Record<string, unknown>): Promise<T> {
+export type MyTeamAccessOverview =
+  | {
+      disponivel: false;
+      motivo: 'encontro_inativo' | 'equipe_nao_habilitada';
+      mensagem: string;
+    }
+  | {
+      disponivel: true;
+      encontro_id: string;
+      encontro_nome: string;
+      equipe_id: string;
+      equipe_nome: string;
+      grupos_nomes: string[];
+      candidates: AccessProvisioningCandidate[];
+    };
+
+interface FunctionErrorWithContext {
+  context?: { json?: () => Promise<unknown> };
+}
+
+/** Lê a mensagem devolvida pela Edge Function em respostas não-2xx. */
+async function functionErrorMessage(error: unknown): Promise<Error> {
+  const context = (error as FunctionErrorWithContext | null)?.context;
+  if (context?.json) {
+    try {
+      const payload = await context.json();
+      if (payload && typeof payload === 'object' && 'error' in payload && typeof payload.error === 'string') {
+        return new Error(payload.error);
+      }
+    } catch {
+      // Corpo ausente ou não-JSON: mantém o erro original.
+    }
+  }
+  return error instanceof Error ? error : new Error('Não foi possível concluir a operação.');
+}
+
+async function invokeAdminUsers<T>(
+  body: Record<string, unknown>,
+  options: { readErrorBody?: boolean } = {},
+): Promise<T> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
   if (!token) throw new Error('Sessão expirada. Faça login novamente.');
@@ -50,7 +89,7 @@ async function invokeAdminUsers<T>(body: Record<string, unknown>): Promise<T> {
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  if (error) throw error;
+  if (error) throw options.readErrorBody ? await functionErrorMessage(error) : error;
   if (data?.error) throw new Error(data.error);
   return data as T;
 }
@@ -106,6 +145,20 @@ export const accessProvisioningService = {
   async prepareCandidates(encontroId: string, participacaoIds: string[]): Promise<AccessProvisioningResult[]> {
     const response = await invokeAdminUsers<{ results: AccessProvisioningResult[] }>(
       { action: 'prepare-configured-accesses', encontroId, participacaoIds },
+    );
+    return response.results;
+  },
+
+  /** Coordenação: integrantes da própria equipe com acesso configurado no encontro ativo. */
+  async getMyTeamOverview(): Promise<MyTeamAccessOverview> {
+    return invokeAdminUsers<MyTeamAccessOverview>({ action: 'list-my-team-access-candidates' }, { readErrorBody: true });
+  },
+
+  /** Coordenação: cria conta (convite) ou concede perfis pendentes dos integrantes selecionados. */
+  async prepareMyTeamAccesses(participacaoIds: string[]): Promise<AccessProvisioningResult[]> {
+    const response = await invokeAdminUsers<{ results: AccessProvisioningResult[] }>(
+      { action: 'prepare-my-team-accesses', participacaoIds },
+      { readErrorBody: true },
     );
     return response.results;
   },

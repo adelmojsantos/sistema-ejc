@@ -1,0 +1,249 @@
+.team-release-page {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 5.5rem;
+}
+
+.team-release-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.team-release-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.team-release-header p {
+  margin: 0.15rem 0 0;
+  color: var(--muted-text);
+  font-size: 0.85rem;
+}
+
+.team-release-card {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  padding: 1rem;
+}
+
+.team-release-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.team-release-card p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--muted-text);
+}
+
+.team-release-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.team-release-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  font-size: 0.84rem;
+}
+
+.team-release-toolbar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.team-release-counts {
+  color: var(--muted-text);
+}
+
+.team-release-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team-release-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--surface-1, var(--card-bg));
+  padding: 0.8rem 0.9rem;
+}
+
+.team-release-item--selectable {
+  cursor: pointer;
+}
+
+.team-release-item--selected {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 1px var(--primary-color);
+}
+
+.team-release-item--disabled {
+  opacity: 0.8;
+}
+
+.team-release-item input[type='checkbox'] {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.team-release-item-body {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.team-release-item-body strong {
+  overflow-wrap: anywhere;
+}
+
+.team-release-item-body small {
+  color: var(--muted-text);
+  overflow-wrap: anywhere;
+}
+
+.team-release-status {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.team-release-status--pending {
+  color: var(--warning-text, #d97706);
+}
+
+.team-release-status--success {
+  color: var(--success-text);
+}
+
+.team-release-status--blocked {
+  color: var(--danger-text);
+}
+
+.team-release-status-hint {
+  font-weight: 500;
+  color: var(--muted-text);
+}
+
+.team-release-section {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  overflow: hidden;
+}
+
+.team-release-section summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.9rem;
+  list-style: none;
+}
+
+.team-release-section summary::-webkit-details-marker {
+  display: none;
+}
+
+.team-release-section summary .team-release-chevron {
+  margin-left: auto;
+  transition: transform 0.2s;
+}
+
+.team-release-section[open] summary .team-release-chevron {
+  transform: rotate(180deg);
+}
+
+.team-release-section-desc {
+  margin: 0;
+  padding: 0 1rem 0.6rem;
+  font-size: 0.82rem;
+  color: var(--muted-text);
+}
+
+.team-release-names {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0 1rem 0.9rem 2rem;
+  font-size: 0.85rem;
+}
+
+.team-release-names small {
+  color: var(--muted-text);
+  overflow-wrap: anywhere;
+}
+
+.team-release-steps {
+  margin: 0.35rem 0 0.6rem;
+  padding-left: 1.25rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.team-release-steps-title {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.team-release-actionbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin: 0 -0.25rem;
+  padding: 0.75rem 0.25rem calc(0.75rem + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg-color, var(--card-bg)) 75%, transparent);
+}
+
+.team-release-actionbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 44px;
+}
+
+.team-release-result-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .team-release-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .team-release-actionbar button {
+    flex: 1;
+  }
+}

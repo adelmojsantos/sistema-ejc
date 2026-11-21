@@ -72,6 +72,7 @@ const PreparacaoEncontroPage = lazyNamed(() => import('./pages/cadastros/Prepara
 const PalestrasModulePage = lazyNamed(() => import('./pages/atividades/PalestrasModulePage'), 'PalestrasModulePage');
 const ChangePasswordPage = lazyNamed(() => import('./pages/ChangePasswordPage'), 'ChangePasswordPage');
 const SecurityPage = lazyNamed(() => import('./pages/SecurityPage'), 'SecurityPage');
+const CoordenadorAcessosPage = lazyNamed(() => import('./pages/coordenador/CoordenadorAcessosPage'), 'CoordenadorAcessosPage');
 const CoordenadorAvaliacaoPage = lazyNamed(() => import('./pages/coordenador/CoordenadorAvaliacaoPage'), 'CoordenadorAvaliacaoPage');
 const CoordenadorCozinhaPage = lazyNamed(() => import('./pages/coordenador/CoordenadorCozinhaPage'), 'CoordenadorCozinhaPage');
 const CoordenadorMinhaEquipePage = lazyNamed(() => import('./pages/coordenador/CoordenadorMinhaEquipePage'), 'CoordenadorMinhaEquipePage');
@@ -488,6 +489,10 @@ function AnimatedRoutes() {
 
           <Route path="/coordenador/minha-equipe/avaliacao" element={
             canAccessMinhaEquipe ? <CoordenadorAvaliacaoPage /> : <Navigate to="/dashboard" replace />
+          } />
+
+          <Route path="/coordenador/minha-equipe/acessos" element={
+            canAccessMinhaEquipe ? <CoordenadorAcessosPage /> : <Navigate to="/dashboard" replace />
           } />
 
           <Route path="/coordenador/cozinha" element={
