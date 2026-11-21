@@ -154,12 +154,14 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick, mobileMenuOpen }) =
                   aria-label="Encontro selecionado e bloqueado para coordenadores"
                 >
                   <LockKeyhole size={14} aria-hidden="true" />
-                  <span>
+                  <span className="topbar-encounter-content">
                     <small>Edição selecionada</small>
-                    <strong>{encontroSelecionado?.edicao ? `${encontroSelecionado.edicao}º EJC` : encontroSelecionado?.nome ?? 'Encontro'}</strong>
-                    <em className={`topbar-encounter-status ${encontroSelecionado?.ativo ? 'is-active' : 'is-history'}`}>
-                      {encontroSelecionado?.ativo ? 'Ativo' : 'Histórico'}
-                    </em>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <strong>{encontroSelecionado?.edicao ? `${encontroSelecionado.edicao}º EJC` : encontroSelecionado?.nome ?? 'Encontro'}</strong>
+                      <em className={`topbar-encounter-status ${encontroSelecionado?.ativo ? 'is-active' : 'is-history'}`}>
+                        {encontroSelecionado?.ativo ? 'Ativo' : 'Histórico'}
+                      </em>
+                    </span>
                   </span>
                 </span>
               ) : (

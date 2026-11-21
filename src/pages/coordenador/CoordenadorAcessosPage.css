@@ -146,6 +146,37 @@
   color: var(--muted-text);
 }
 
+.team-release-item--with-form {
+  opacity: 1;
+  flex-wrap: wrap;
+  row-gap: 0.6rem;
+}
+
+.team-release-email-form {
+  display: flex;
+  flex-basis: 100%;
+  gap: 0.5rem;
+}
+
+.team-release-email-form .form-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.team-release-email-form button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  min-height: 0;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
 .team-release-section {
   border: 1px solid var(--border-color);
   border-radius: 12px;
@@ -241,6 +272,18 @@
 @media (max-width: 600px) {
   .team-release-header h1 {
     font-size: 1.25rem;
+  }
+
+  .team-release-email-form {
+    flex-direction: column;
+  }
+
+  .team-release-email-form .form-input {
+    flex: none;
+  }
+
+  .team-release-email-form button {
+    justify-content: center;
   }
 
   .team-release-actionbar button {

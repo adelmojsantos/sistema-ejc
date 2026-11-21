@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { ArrowLeft, CheckCircle, ChevronDown, ClipboardCopy, KeyRound, Loader, Mail, RotateCcw, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle, ChevronDown, ClipboardCopy, KeyRound, Loader, Mail, RotateCcw, Save, XCircle } from 'lucide-react';
 import {
   accessProvisioningService,
   type AccessProvisioningResult,
@@ -29,7 +29,7 @@ export function CoordenadorAcessosPage() {
   const [results, setResults] = useState<AccessProvisioningResult[]>([]);
   const requestRef = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (keepSelectedIds: string[] = []) => {
     const requestId = ++requestRef.current;
     setLoading(true);
     setLoadError(null);
@@ -37,7 +37,10 @@ export function CoordenadorAcessosPage() {
       const data = await accessProvisioningService.getMyTeamOverview();
       if (requestId !== requestRef.current) return;
       setOverview(data);
-      setSelectedIds([]);
+      const releasableIds = new Set((data.disponivel ? data.candidates : [])
+        .filter(candidate => isCoordinatorReleasable(candidate.status))
+        .map(candidate => candidate.participacao_id));
+      setSelectedIds(keepSelectedIds.filter(id => releasableIds.has(id)));
     } catch (error: unknown) {
       if (requestId !== requestRef.current) return;
       setLoadError(userFacingError(error, 'Não foi possível carregar os integrantes da equipe.'));
@@ -71,6 +74,16 @@ export function CoordenadorAcessosPage() {
       toast.success('Orientações copiadas.');
     } catch {
       toast.error('Não foi possível copiar. Selecione o texto e copie manualmente.');
+    }
+  };
+
+  const saveEmail = async (participacaoId: string, email: string) => {
+    try {
+      await accessProvisioningService.setMyTeamMemberEmail(participacaoId, email);
+      toast.success('E-mail salvo.');
+      await load([...selectedIds, participacaoId]);
+    } catch (error: unknown) {
+      toast.error(userFacingError(error, 'Não foi possível salvar o e-mail.'));
     }
   };
 
@@ -295,10 +308,14 @@ export function CoordenadorAcessosPage() {
                 'team-release-item',
                 actionable ? 'team-release-item--selectable' : 'team-release-item--disabled',
                 selected ? 'team-release-item--selected' : '',
+                candidate.status === 'sem_email' ? 'team-release-item--with-form' : '',
               ].filter(Boolean).join(' ');
+              // Linhas não selecionáveis não usam <label> para que o campo de e-mail
+              // não acione o checkbox.
+              const Row = actionable ? 'label' : 'div';
               return (
                 <li key={candidate.participacao_id}>
-                  <label className={className}>
+                  <Row className={className}>
                     <input
                       type="checkbox"
                       aria-label={`Selecionar ${candidate.nome_completo}`}
@@ -314,7 +331,13 @@ export function CoordenadorAcessosPage() {
                         {info.hint && <span className="team-release-status-hint"> · {info.hint}</span>}
                       </span>
                     </span>
-                  </label>
+                    {candidate.status === 'sem_email' && (
+                      <MemberEmailForm
+                        nome={candidate.nome_completo}
+                        onSave={email => saveEmail(candidate.participacao_id, email)}
+                      />
+                    )}
+                  </Row>
                 </li>
               );
             })}
@@ -331,6 +354,43 @@ export function CoordenadorAcessosPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+function MemberEmailForm({ nome, onSave }: { nome: string; onSave: (email: string) => Promise<void> }) {
+  const [email, setEmail] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!email.trim()) return;
+    setSaving(true);
+    try {
+      await onSave(email);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form className="team-release-email-form" onSubmit={event => void submit(event)}>
+      <input
+        type="email"
+        className="form-input"
+        inputMode="email"
+        autoComplete="off"
+        placeholder="email@exemplo.com"
+        aria-label={`E-mail de ${nome}`}
+        value={email}
+        onChange={event => setEmail(event.target.value)}
+        disabled={saving}
+        required
+      />
+      <button type="submit" className="btn-secondary" disabled={saving || !email.trim()}>
+        {saving ? <Loader size={15} className="animate-spin" /> : <Save size={15} />}
+        {saving ? 'Salvando...' : 'Salvar'}
+      </button>
+    </form>
   );
 }
 

@@ -162,4 +162,13 @@ export const accessProvisioningService = {
     );
     return response.results;
   },
+
+  /** Coordenação: cadastra o e-mail de integrante da própria equipe que ainda não tem e-mail. */
+  async setMyTeamMemberEmail(participacaoId: string, email: string): Promise<string> {
+    const response = await invokeAdminUsers<{ email: string }>(
+      { action: 'set-my-team-member-email', participacaoId, email },
+      { readErrorBody: true },
+    );
+    return response.email;
+  },
 };

@@ -17,11 +17,11 @@ export interface CoordinatorStatusInfo {
 
 export const COORDINATOR_STATUS_INFO: Record<CandidateStatus, CoordinatorStatusInfo> = {
   sem_usuario: { label: 'Criar conta', hint: 'Receberá convite por e-mail', tone: 'pending' },
-  perfis_pendentes: { label: 'Conceder perfis', hint: 'Já tem conta; sem e-mail', tone: 'pending' },
+  perfis_pendentes: { label: 'Conceder perfis', hint: 'Já tem conta; liberar acesso', tone: 'pending' },
   pronto: { label: 'Acesso liberado', tone: 'success' },
-  sem_email: { label: 'Sem e-mail', hint: 'Cadastre o e-mail em Minha Equipe', tone: 'blocked' },
-  sem_vinculo: { label: 'Procure a administração', hint: 'Conta existente precisa ser vinculada', tone: 'blocked' },
-  conflito_vinculo: { label: 'Procure a administração', hint: 'E-mail ligado a outra pessoa', tone: 'blocked' },
+  sem_email: { label: 'Sem e-mail', hint: 'Informe o e-mail para liberar', tone: 'blocked' },
+  sem_vinculo: { label: 'Procure a secretaria', hint: 'Conta existente precisa ser vinculada', tone: 'blocked' },
+  conflito_vinculo: { label: 'Procure a secretaria', hint: 'E-mail ligado a outra pessoa', tone: 'blocked' },
 };
 
 export interface TeamAccessReleasePlan {

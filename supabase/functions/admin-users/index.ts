@@ -16,6 +16,7 @@ import {
   evaluateCoordinatorScope,
   filterCoordinatorTeamCandidates,
   selectCoordinatorCandidates,
+  validateCoordinatorEmailTarget,
   type CoordinatorScope,
 } from './coordinatorAccess.ts';
 
@@ -682,7 +683,11 @@ Deno.serve(async (request) => {
 
     // Ações da coordenação de equipe: autorizadas pelo vínculo de coordenador no
     // encontro ativo e pela marcação da equipe, sem exigir perfil de administrador.
-    if (action === 'list-my-team-access-candidates' || action === 'prepare-my-team-accesses') {
+    if (
+      action === 'list-my-team-access-candidates'
+      || action === 'prepare-my-team-accesses'
+      || action === 'set-my-team-member-email'
+    ) {
       const scope = await resolveCoordinatorScope(adminClient, requesterId, authUserData.user.email);
 
       if (action === 'list-my-team-access-candidates') {
@@ -708,6 +713,34 @@ Deno.serve(async (request) => {
       }
 
       if (!scope.ok) return jsonResponse(403, { error: scope.message });
+
+      if (action === 'set-my-team-member-email') {
+        const teamCandidates = filterCoordinatorTeamCandidates(
+          await getConfiguredAccessCandidates(adminClient, scope.encontroId, { equipeId: scope.equipeId }),
+          scope.equipeId,
+        );
+        const target = validateCoordinatorEmailTarget(teamCandidates, String(body?.participacaoId ?? ''), body?.email);
+        if (!target.ok) return jsonResponse(400, { error: target.message });
+
+        const { data: owners, error: ownersError } = await adminClient
+          .from('pessoas')
+          .select('id')
+          .ilike('email', target.email.replace(/[\\%_]/g, '\\$&'))
+          .neq('id', target.candidate.pessoa_id)
+          .limit(1);
+        if (ownersError) return jsonResponse(500, { error: 'Não foi possível verificar o e-mail informado.' });
+        if (owners && owners.length > 0) {
+          return jsonResponse(400, { error: 'Este e-mail já está cadastrado para outra pessoa. Procure a administração.' });
+        }
+
+        const { error: updateError } = await adminClient
+          .from('pessoas')
+          .update({ email: target.email })
+          .eq('id', target.candidate.pessoa_id);
+        if (updateError) return jsonResponse(500, { error: 'Não foi possível salvar o e-mail.' });
+
+        return jsonResponse(200, { email: target.email });
+      }
 
       const participacaoIds = Array.isArray(body?.participacaoIds)
         ? body.participacaoIds.map((id: unknown) => String(id))

@@ -83,3 +83,34 @@ export function selectCoordinatorCandidates<T extends ScopedCandidate>(
 
   return { ok: true, selected };
 }
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+interface EmailTargetCandidate extends ScopedCandidate {
+  pessoa_id: string;
+}
+
+/**
+ * Valida o cadastro de e-mail feito pela coordenação: somente integrante da própria
+ * equipe que ainda está sem e-mail, sem sobrescrever e-mail já cadastrado.
+ */
+export function validateCoordinatorEmailTarget<T extends EmailTargetCandidate>(
+  teamCandidates: T[],
+  participacaoId: string,
+  rawEmail: unknown,
+): { ok: true; candidate: T; email: string } | { ok: false; message: string } {
+  const candidate = teamCandidates.find((item) => item.participacao_id === participacaoId);
+  if (!candidate) {
+    return { ok: false, message: 'Esta pessoa não é integrante da sua equipe com acesso configurado.' };
+  }
+  if (candidate.status !== 'sem_email') {
+    return { ok: false, message: 'Esta pessoa já possui e-mail cadastrado. Atualize a lista.' };
+  }
+
+  const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
+  if (!EMAIL_PATTERN.test(email)) {
+    return { ok: false, message: 'Informe um e-mail válido.' };
+  }
+
+  return { ok: true, candidate, email };
+}

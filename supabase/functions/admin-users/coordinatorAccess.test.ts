@@ -4,6 +4,7 @@ import {
   filterCoordinatorTeamCandidates,
   isCoordinatorReleasable,
   selectCoordinatorCandidates,
+  validateCoordinatorEmailTarget,
 } from './coordinatorAccess';
 
 const encontro = { id: 'encontro-ativo', nome: 'EJC 2026' };
@@ -78,5 +79,29 @@ describe('candidatos liberáveis pelo coordenador', () => {
     expect(selectCoordinatorCandidates(team, ['p4']).ok).toBe(false);
     expect(selectCoordinatorCandidates(team, ['p1', 'p3']).ok).toBe(false);
     expect(selectCoordinatorCandidates(team, []).ok).toBe(false);
+  });
+});
+
+describe('cadastro de e-mail pela coordenação', () => {
+  const team = [
+    { participacao_id: 'p1', pessoa_id: 'pessoa-1', equipe_id: 'equipe-visitacao', papel: 'integrante' as const, status: 'sem_email' },
+    { participacao_id: 'p2', pessoa_id: 'pessoa-2', equipe_id: 'equipe-visitacao', papel: 'integrante' as const, status: 'sem_usuario' },
+  ];
+
+  it('aceita integrante sem e-mail e normaliza o endereço', () => {
+    const result = validateCoordinatorEmailTarget(team, 'p1', '  Fulano@Exemplo.com ');
+    expect(result).toMatchObject({ ok: true, email: 'fulano@exemplo.com' });
+    if (result.ok) expect(result.candidate.pessoa_id).toBe('pessoa-1');
+  });
+
+  it('não sobrescreve e-mail já cadastrado', () => {
+    expect(validateCoordinatorEmailTarget(team, 'p2', 'novo@exemplo.com').ok).toBe(false);
+  });
+
+  it('recusa pessoa fora da equipe e e-mail inválido', () => {
+    expect(validateCoordinatorEmailTarget(team, 'p9', 'novo@exemplo.com').ok).toBe(false);
+    expect(validateCoordinatorEmailTarget(team, 'p1', 'sem-arroba').ok).toBe(false);
+    expect(validateCoordinatorEmailTarget(team, 'p1', '').ok).toBe(false);
+    expect(validateCoordinatorEmailTarget(team, 'p1', undefined).ok).toBe(false);
   });
 });
