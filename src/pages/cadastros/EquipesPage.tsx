@@ -18,6 +18,7 @@ export function EquipesPage() {
     const [novoNome, setNovoNome] = useState('');
     const [novoAcesso, setNovoAcesso] = useState<'verde' | 'amarela' | 'vermelha'>('verde');
     const [novoAparecePosEncontro, setNovoAparecePosEncontro] = useState(true);
+    const [novoLiberaAcessoIntegrantes, setNovoLiberaAcessoIntegrantes] = useState(false);
     const [isAdding, setIsAdding] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(true);
@@ -57,12 +58,14 @@ export function EquipesPage() {
             const nova = await equipeService.criar({ 
                 nome: novoNome.trim(), 
                 acesso_plenario: novoAcesso,
-                aparece_pos_encontro: novoAparecePosEncontro
+                aparece_pos_encontro: novoAparecePosEncontro,
+                libera_acesso_integrantes: novoLiberaAcessoIntegrantes
             });
             setEquipes((prev) => [...prev, nova].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')));
             setNovoNome('');
             setNovoAcesso('verde');
             setNovoAparecePosEncontro(true);
+            setNovoLiberaAcessoIntegrantes(false);
             setIsAdding(false);
             toast.success('Equipe criada com sucesso!');
         } catch {
@@ -201,7 +204,7 @@ export function EquipesPage() {
                         </button>
                         <button
                             className="icon-btn"
-                            onClick={() => { setNovoNome(''); setNovoAcesso('verde'); setNovoAparecePosEncontro(true); setIsAdding(false); }}
+                            onClick={() => { setNovoNome(''); setNovoAcesso('verde'); setNovoAparecePosEncontro(true); setNovoLiberaAcessoIntegrantes(false); setIsAdding(false); }}
                             disabled={isLoading}
                             title="Cancelar"
                             style={{ height: '38px', width: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -209,7 +212,7 @@ export function EquipesPage() {
                             <X size={18} color="#ef4444" />
                         </button>
                     </div>
-                    <div style={{ marginTop: '0.5rem', paddingLeft: '3.25rem' }}>
+                    <div style={{ marginTop: '0.5rem', paddingLeft: '3.25rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem 1rem' }}>
                         <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-color)', cursor: 'pointer' }}>
                             <input
                                 type="checkbox"
@@ -218,6 +221,15 @@ export function EquipesPage() {
                                 disabled={isLoading}
                             />
                             Aparece na ficha de pós-encontro
+                        </label>
+                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-color)', cursor: 'pointer' }}>
+                            <input
+                                type="checkbox"
+                                checked={novoLiberaAcessoIntegrantes}
+                                onChange={(e) => setNovoLiberaAcessoIntegrantes(e.target.checked)}
+                                disabled={isLoading}
+                            />
+                            Libera acesso de integrantes
                         </label>
                     </div>
                     {error && <p className="error-message" style={{ marginTop: '0.5rem', marginBottom: 0 }}>{error}</p>}
