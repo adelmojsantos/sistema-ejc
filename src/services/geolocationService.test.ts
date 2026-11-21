@@ -115,6 +115,7 @@ describe('geolocationService', () => {
       },
       error: null,
     });
+    rpcMock.mockResolvedValue({ data: 'fingerprint-3', error: null });
 
     await expect(geolocationService.resolveRegionalReferenceForPersistence({ endereco: 'Rua Um', numero: '10' }))
       .resolves.toMatchObject({
@@ -124,6 +125,39 @@ describe('geolocationService', () => {
           geo_reference_precision: 'street',
         },
       });
+  });
+
+  it('descarta a referência quando o serviço completou o endereço com CEP que não será salvo', async () => {
+    invokeMock.mockResolvedValue({
+      data: {
+        status: 'failed',
+        addressFingerprint: 'fingerprint-com-cep',
+        latitude: null,
+        longitude: null,
+        source: null,
+        precision: null,
+        checkedAt: '2026-11-21T12:00:00.000Z',
+        failureCode: 'manual_confirmation_required',
+        retryable: false,
+        candidate: { latitude: -20.5, longitude: -47.4, source: 'nominatim', precision: 'street' },
+        cached: false,
+      },
+      error: null,
+    });
+    rpcMock.mockResolvedValue({ data: 'fingerprint-sem-cep', error: null });
+
+    const resolution = await geolocationService.resolveRegionalReferenceForPersistence({
+      endereco: 'Rua Um',
+      cidade: 'Franca',
+      estado: 'SP',
+    });
+
+    expect(resolution.result.candidate).toBeNull();
+    expect(resolution.update).toMatchObject({
+      geo_reference_latitude: null,
+      geo_reference_longitude: null,
+      geo_reference_address_fingerprint: null,
+    });
   });
 
   it('mantém referência nula quando o provedor fica indisponível', async () => {
