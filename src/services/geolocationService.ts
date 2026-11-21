@@ -132,7 +132,14 @@ export const geolocationService = {
 
   async resolveRegionalReferenceForPersistence(address: AddressInput, force = false) {
     try {
-      const result = await this.geocode(address, force);
+      const geocoded = await this.geocode(address, force);
+      // O serviço pode completar o endereço (ex.: CEP ausente) antes de gerar o
+      // fingerprint. A referência só vale para o endereço que será salvo; caso
+      // contrário o banco recusa a gravação.
+      const hasReference = this.regionalReferenceFromResult(geocoded).geo_reference_latitude != null;
+      const result = hasReference && geocoded.addressFingerprint !== await getAddressFingerprint(address)
+        ? { ...geocoded, latitude: null, longitude: null, candidate: null }
+        : geocoded;
       return {
         result,
         update: this.regionalReferenceFromResult(result),

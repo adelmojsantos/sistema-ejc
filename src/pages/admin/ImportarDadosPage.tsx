@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import {
@@ -10,7 +10,9 @@ import {
   Shield,
   FileSpreadsheet,
   AlertCircle,
-  Loader
+  Loader,
+  History,
+  CalendarPlus
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
@@ -19,7 +21,7 @@ import { equipeService } from '../../services/equipeService';
 import { inscricaoService } from '../../services/inscricaoService';
 import { encontroService } from '../../services/encontroService';
 import { findSimilarPeoples } from '../../utils/similarity';
-import type { Encontro } from '../../types/encontro';
+import { encontroFormDataVazio, type Encontro } from '../../types/encontro';
 import type { Equipe } from '../../types/equipe';
 import type { Pessoa, PessoaFormData } from '../../types/pessoa';
 import type { InscricaoFormData } from '../../types/inscricao';
@@ -27,6 +29,9 @@ import type { InscricaoFormData } from '../../types/inscricao';
 interface RawRow {
   [key: string]: unknown;
 }
+
+type ImportMode = 'encontro-atual' | 'historico';
+type RowStatus = 'new' | 'match' | 'ignore' | 'multiple-matches' | 'already-linked' | 'missing-encontro';
 
 interface ProcessedRow {
   id: string;
@@ -38,25 +43,83 @@ interface ProcessedRow {
   equipeOriginal: string;
   funcaoOriginal: string;
   isCoordenador: boolean;
-
-  // Matching state
   matchedPessoa: Pessoa | null;
   possibleMatches?: Pessoa[];
-  status: 'new' | 'match' | 'ignore' | 'multiple-matches';
+  status: RowStatus;
   selected: boolean;
-
-  // Persistence state
   pessoaId?: string;
   equipeId?: string;
-  importResult?: 'success' | 'error';
+  importResult?: 'success' | 'error' | 'skipped';
+  errorMessage?: string;
+  encontroId?: string | null;
+  encontroEdicao?: number | null;
+  encontroNome?: string;
+  encontroDataInicio?: string;
+  encontroDataFim?: string;
+  encontroNeedsCreation?: boolean;
 }
 
 interface ProcessedSheet {
   sheetName: string;
   rows: ProcessedRow[];
-  teamId: string | null; // null means team needs to be created
+  teamId: string | null;
   status: 'existing' | 'create';
 }
+
+const getRowValue = (raw: RawRow, keys: string[]) => {
+  const normalizedKeys = keys.map(normalizeHeader);
+  const rowKey = Object.keys(raw).find(rk => normalizedKeys.includes(normalizeHeader(rk)));
+  return rowKey ? String(raw[rowKey] ?? '').trim() : '';
+};
+
+const normalizeHeader = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+const normalizeName = (value: string) =>
+  value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const getStableRowId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2, 11);
+
+const parseEdition = (value: string) => {
+  const match = value.match(/\d{1,3}/);
+  if (!match) return null;
+  const edition = Number(match[0]);
+  return Number.isFinite(edition) && edition > 0 ? edition : null;
+};
+
+const normalizeDate = (value: string) => {
+  if (!value.trim()) return '';
+  const trimmed = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+  const brMatch = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (!brMatch) return '';
+
+  const [, day, month, rawYear] = brMatch;
+  const yearNumber = Number(rawYear.length === 2 ? `20${rawYear}` : rawYear);
+  if (!yearNumber || Number(day) < 1 || Number(day) > 31 || Number(month) < 1 || Number(month) > 12) return '';
+
+  return `${yearNumber}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+};
+
+const inferEncounterName = (edition: number | null, rawName: string) => {
+  if (rawName.trim()) return rawName.trim();
+  if (edition) return `${edition}º EJC`;
+  return '';
+};
 
 export function ImportarDadosPage() {
   const navigate = useNavigate();
@@ -70,22 +133,43 @@ export function ImportarDadosPage() {
   const [progressCount, setProgressCount] = useState(0);
   const [progressTotal, setProgressTotal] = useState(0);
   const [progressText, setProgressText] = useState('');
+  const [importMode, setImportMode] = useState<ImportMode>('encontro-atual');
+  const [defaultHistoricalEdition, setDefaultHistoricalEdition] = useState('');
+  const [defaultHistoricalStartDate, setDefaultHistoricalStartDate] = useState('');
+  const [defaultHistoricalEndDate, setDefaultHistoricalEndDate] = useState('');
 
   const [sheets, setSheets] = useState<ProcessedSheet[]>([]);
   const [allTeams, setAllTeams] = useState<Equipe[]>([]);
   const [allPessoas, setAllPessoas] = useState<Pessoa[]>([]);
+  const [existingParticipationKeys, setExistingParticipationKeys] = useState<Set<string>>(new Set());
+
+  const activeEncounter = useMemo(() => encontros.find(e => e.ativo) ?? null, [encontros]);
+  const maxKnownEdition = useMemo(
+    () => Math.max(0, ...encontros.map(e => e.edicao ?? 0)),
+    [encontros]
+  );
+
+  const selectedEncounter = useMemo(
+    () => encontros.find(e => e.id === selectedEncontroId) ?? null,
+    [encontros, selectedEncontroId]
+  );
 
   useEffect(() => {
     async function init() {
       try {
-        const [encontrosData, equipesData, pessoasData] = await Promise.all([
+        const [encontrosData, equipesData, pessoasData, participacoesData] = await Promise.all([
           encontroService.listar(),
           equipeService.listar(),
-          pessoaService.listar()
+          pessoaService.listar(),
+          inscricaoService.listar()
         ]);
+
         setEncontros(encontrosData);
         setAllTeams(equipesData);
         setAllPessoas(pessoasData);
+        setExistingParticipationKeys(new Set(
+          participacoesData.map(p => `${p.pessoa_id}:${p.encontro_id}`)
+        ));
 
         const active = encontrosData.find(e => e.ativo);
         if (active) setSelectedEncontroId(active.id);
@@ -99,10 +183,42 @@ export function ImportarDadosPage() {
     init();
   }, []);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const resolveEncounter = (raw: RawRow, sheetName: string) => {
+    if (importMode === 'encontro-atual') {
+      return {
+        encontroId: selectedEncontroId,
+        encontroEdicao: selectedEncounter?.edicao ?? null,
+        encontroNome: selectedEncounter?.nome ?? '',
+        encontroDataInicio: selectedEncounter?.data_inicio ?? '',
+        encontroDataFim: selectedEncounter?.data_fim ?? '',
+        encontroNeedsCreation: false
+      };
+    }
 
+    const rawEdition = getRowValue(raw, ['EDICAO', 'EDIÇÃO', 'N ENCONTRO', 'Nº ENCONTRO', 'ENCONTRO NUMERO', 'ENCONTRO N']);
+    const rawEncounterName = getRowValue(raw, ['ENCONTRO', 'NOME ENCONTRO', 'NOME DO ENCONTRO']);
+    const edition = parseEdition(rawEdition) ?? parseEdition(rawEncounterName) ?? parseEdition(sheetName) ?? parseEdition(defaultHistoricalEdition);
+    const found = edition
+      ? encontros.find(e => e.edicao === edition)
+      : encontros.find(e => normalizeName(e.nome) === normalizeName(rawEncounterName));
+
+    const startDate = normalizeDate(getRowValue(raw, ['DATA INICIO', 'DATA INÍCIO', 'INICIO', 'INÍCIO', 'DATA']))
+      || defaultHistoricalStartDate;
+    const endDate = normalizeDate(getRowValue(raw, ['DATA FIM', 'FIM']))
+      || defaultHistoricalEndDate
+      || startDate;
+
+    return {
+      encontroId: found?.id ?? null,
+      encontroEdicao: edition,
+      encontroNome: found?.nome ?? inferEncounterName(edition, rawEncounterName),
+      encontroDataInicio: found?.data_inicio ?? startDate,
+      encontroDataFim: found?.data_fim ?? endDate,
+      encontroNeedsCreation: !found
+    };
+  };
+
+  const processWorkbook = async (file: File) => {
     setIsProcessing(true);
     setProgressCount(0);
     setProgressTotal(0);
@@ -117,12 +233,9 @@ export function ImportarDadosPage() {
       let totalRows = 0;
       const parsedSheets: { sheetName: string, rawData: RawRow[] }[] = [];
 
-      // We'll collect all people to search for duplicates in bulk if possible, 
-      // but building a map of names to search for similarity.
-
       for (const sheetName of workbook.SheetNames) {
         const worksheet = workbook.Sheets[sheetName];
-        const rowsArray = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
+        const rowsArray = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: '' });
         let headerRowIdx = 0;
 
         for (let i = 0; i < rowsArray.length; i++) {
@@ -130,8 +243,8 @@ export function ImportarDadosPage() {
           if (!row || !Array.isArray(row)) continue;
 
           const hasNome = row.some(cell => {
-            const val = String(cell || '').trim().toUpperCase();
-            return val === 'NOME' || val === 'NOME COMPLETO';
+            const val = normalizeHeader(String(cell || ''));
+            return val === 'nome' || val === 'nomecompleto';
           });
 
           if (hasNome) {
@@ -140,9 +253,9 @@ export function ImportarDadosPage() {
           }
         }
 
-        const rawData = XLSX.utils.sheet_to_json<RawRow>(worksheet, { range: headerRowIdx });
-
+        const rawData = XLSX.utils.sheet_to_json<RawRow>(worksheet, { range: headerRowIdx, defval: '' });
         if (rawData.length === 0) continue;
+
         parsedSheets.push({ sheetName, rawData });
         totalRows += rawData.length;
       }
@@ -153,7 +266,6 @@ export function ImportarDadosPage() {
       let currentCount = 0;
 
       for (const { sheetName, rawData } of parsedSheets) {
-        // Match team
         const matchedTeam = allTeams.find(t =>
           (t.nome?.toLowerCase() === sheetName.toLowerCase()) ||
           (t.nome?.toLowerCase().includes(sheetName.toLowerCase())) ||
@@ -163,13 +275,7 @@ export function ImportarDadosPage() {
         const rows: ProcessedRow[] = [];
 
         for (const raw of rawData) {
-          // Normalize keys (case insensitive)
-          const findValue = (keys: string[]) => {
-            const rowKey = Object.keys(raw).find(rk => keys.includes(rk.toUpperCase()));
-            return rowKey ? String(raw[rowKey] ?? '').trim() : '';
-          };
-
-          const nome = findValue(['NOME', 'NOME COMPLETO']);
+          const nome = getRowValue(raw, ['NOME', 'NOME COMPLETO']);
           if (!nome) {
             currentCount++;
             setProgressCount(currentCount);
@@ -178,37 +284,45 @@ export function ImportarDadosPage() {
 
           setProgressText(`Verificando: ${nome.split(' ')[0]}...`);
 
-          const telefone = findValue(['TELEFONE', 'WHATSAPP', 'CELULAR']).replace(/\D/g, '');
-          const funcao = findValue(['COORD/ENCONT', 'FUNCÃO', 'CARGO', 'ROLE']).toUpperCase();
+          const telefone = getRowValue(raw, ['TELEFONE', 'WHATSAPP', 'CELULAR']).replace(/\D/g, '');
+          const funcao = getRowValue(raw, ['COORD/ENCONT', 'FUNCAO', 'FUNÇÃO', 'CARGO', 'ROLE']).toUpperCase();
           const isCoordenador = funcao.includes('COORDENADOR') || funcao === 'COORD';
-
-          // Duplicate detection - fast local test avoiding N+1 database roundtrips
           const matches = findSimilarPeoples(nome, allPessoas, telefone);
-          let matchedPessoa = null;
-          let status: ProcessedRow['status'] = 'new';
-          
+          const encounter = resolveEncounter(raw, sheetName);
+
+          let matchedPessoa: Pessoa | null = null;
+          let status: RowStatus = 'new';
+
           if (matches.length === 1) {
             matchedPessoa = matches[0];
             status = 'match';
           } else if (matches.length > 1) {
-            matchedPessoa = null;
             status = 'multiple-matches';
           }
 
+          if (importMode === 'historico' && (!encounter.encontroEdicao || !encounter.encontroNome)) {
+            status = 'missing-encontro';
+          }
+
+          if (matchedPessoa && encounter.encontroId && existingParticipationKeys.has(`${matchedPessoa.id}:${encounter.encontroId}`)) {
+            status = 'already-linked';
+          }
+
           rows.push({
-            id: Math.random().toString(36).substr(2, 9),
+            id: getStableRowId(),
             nome,
-            endereco: findValue(['ENDEREÇO', 'RUA', 'ENDERECO']),
-            numero: findValue(['Nº', 'N', 'NUMERO', 'NÚMERO']),
-            bairro: findValue(['BAIRRO']),
+            endereco: getRowValue(raw, ['ENDERECO', 'ENDEREÇO', 'RUA']),
+            numero: getRowValue(raw, ['N', 'Nº', 'NUMERO', 'NÚMERO']),
+            bairro: getRowValue(raw, ['BAIRRO']),
             telefone,
             equipeOriginal: sheetName,
-            funcaoOriginal: findValue(['COORD/ENCONT']),
+            funcaoOriginal: getRowValue(raw, ['COORD/ENCONT', 'FUNCAO', 'FUNÇÃO', 'CARGO', 'ROLE']),
             isCoordenador,
             matchedPessoa,
             possibleMatches: matches,
             status,
-            selected: true
+            selected: status !== 'already-linked' && status !== 'missing-encontro',
+            ...encounter
           });
 
           currentCount++;
@@ -229,7 +343,7 @@ export function ImportarDadosPage() {
       if (processedSheets.length === 0) {
         toast.error('Nenhum dado válido encontrado na planilha.');
       } else {
-        toast.success(`${processedSheets.length} abas processadas!`);
+        toast.success(`${processedSheets.length} abas processadas para revisão.`);
       }
     } catch {
       console.error('Erro ao ler planilha');
@@ -239,26 +353,39 @@ export function ImportarDadosPage() {
     }
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processWorkbook(file);
+  };
+
   const handleToggleRow = (sheetIdx: number, rowIdx: number) => {
     const newSheets = [...sheets];
-    newSheets[sheetIdx].rows[rowIdx].selected = !newSheets[sheetIdx].rows[rowIdx].selected;
+    const row = newSheets[sheetIdx].rows[rowIdx];
+    if (row.status === 'already-linked' || row.status === 'missing-encontro') return;
+    row.selected = !row.selected;
     setSheets(newSheets);
   };
 
   const handleToggleAll = (sheetIdx: number) => {
     const newSheets = [...sheets];
-    const allSelected = newSheets[sheetIdx].rows.every(r => r.selected);
-    newSheets[sheetIdx].rows.forEach(r => r.selected = !allSelected);
+    const eligibleRows = newSheets[sheetIdx].rows.filter(r => r.status !== 'already-linked' && r.status !== 'missing-encontro');
+    const allSelected = eligibleRows.every(r => r.selected);
+    eligibleRows.forEach(r => r.selected = !allSelected);
     setSheets(newSheets);
   };
 
   const toggleRowStatus = (sheetIdx: number, rowIdx: number) => {
     const newSheets = [...sheets];
     const row = newSheets[sheetIdx].rows[rowIdx];
+    if (row.status === 'already-linked' || row.status === 'missing-encontro') return;
+
     if (row.status === 'match' && row.matchedPessoa) {
       row.status = 'new';
-    } else if (row.status === 'new' && row.matchedPessoa) {
+      row.matchedPessoa = null;
+    } else if (row.status === 'new' && row.possibleMatches?.length === 1) {
       row.status = 'match';
+      row.matchedPessoa = row.possibleMatches[0];
     } else if (row.status === 'new' && row.possibleMatches && row.possibleMatches.length > 1) {
       row.status = 'multiple-matches';
       row.matchedPessoa = null;
@@ -269,82 +396,138 @@ export function ImportarDadosPage() {
   const handleSelectMatch = (sheetIdx: number, rowIdx: number, pessoaId: string) => {
     const newSheets = [...sheets];
     const row = newSheets[sheetIdx].rows[rowIdx];
-    
+
     if (pessoaId === 'new') {
       row.status = 'new';
       row.matchedPessoa = null;
     } else {
       const selected = row.possibleMatches?.find(p => p.id === pessoaId);
       if (selected) {
-        row.status = 'match';
-        row.matchedPessoa = selected;
+        if (row.encontroId && existingParticipationKeys.has(`${selected.id}:${row.encontroId}`)) {
+          row.status = 'already-linked';
+          row.selected = false;
+        } else {
+          row.status = 'match';
+          row.matchedPessoa = selected;
+          row.selected = true;
+        }
       }
     }
     setSheets(newSheets);
   };
 
+  const getRowTargetEncontroId = (row: ProcessedRow, encounterMap: Map<number, string>) => {
+    if (importMode === 'encontro-atual') return selectedEncontroId;
+    if (row.encontroId) return row.encontroId;
+    if (row.encontroEdicao) return encounterMap.get(row.encontroEdicao) ?? '';
+    return '';
+  };
+
+  const createMissingHistoricalEncounters = async (rowsToImport: ProcessedRow[]) => {
+    const encounterMap = new Map<number, string>();
+    const missing = missingEncounters.filter(item =>
+      rowsToImport.some(row => row.encontroEdicao === item.edicao)
+    );
+
+    for (const item of missing) {
+      if (!item.dataInicio || !item.dataFim) {
+        throw new Error(`Informe data de início e fim para criar o encontro ${item.edicao}.`);
+      }
+
+      if (activeEncounter?.edicao && item.edicao >= activeEncounter.edicao) {
+        throw new Error(`A edição ${item.edicao} não pode ser criada como histórico porque é igual ou posterior ao encontro ativo.`);
+      }
+
+      const form = {
+        ...encontroFormDataVazio(),
+        nome: item.nome,
+        edicao: item.edicao,
+        data_inicio: item.dataInicio,
+        data_fim: item.dataFim,
+        ativo: false,
+        formulario_publico_ativo: false,
+        descricao: 'Criado pela importação de histórico.'
+      };
+
+      const created = await encontroService.criar(form);
+      encounterMap.set(item.edicao, created.id);
+    }
+
+    return encounterMap;
+  };
+
   const startImport = async () => {
-    if (!selectedEncontroId) {
+    if (importMode === 'encontro-atual' && !selectedEncontroId) {
       toast.error('Selecione um encontro primeiro.');
+      return;
+    }
+
+    const rowsToImport = sheets.flatMap(sheet => sheet.rows.filter(row => row.selected));
+    if (rowsToImport.some(row => row.status === 'multiple-matches')) {
+      toast.error('Resolva as correspondências múltiplas antes de importar.');
+      return;
+    }
+
+    if (rowsToImport.some(row => row.status === 'missing-encontro')) {
+      toast.error('Há linhas sem encontro histórico identificado.');
       return;
     }
 
     setIsImporting(true);
     let successCount = 0;
+    let skippedCount = 0;
 
     try {
-      // 1. Create missing teams
-      const teamMap = new Map<string, string>(); // sheetName -> teamId
+      const teamMap = new Map<string, string>();
 
       for (const sheet of sheets) {
         if (sheet.status === 'create') {
-          try {
-            const newTeam = await equipeService.criar({ nome: sheet.sheetName, acesso_plenario: 'verde' });
-            teamMap.set(sheet.sheetName, newTeam.id);
-            // Also update the local state for reference
-            sheet.teamId = newTeam.id;
-            sheet.status = 'existing';
-          } catch {
-            toast.error(`Erro ao criar equipe ${sheet.sheetName}`);
-          }
+          const newTeam = await equipeService.criar({
+            nome: sheet.sheetName,
+            acesso_plenario: 'verde',
+            aparece_pos_encontro: true
+          });
+          teamMap.set(sheet.sheetName, newTeam.id);
+          sheet.teamId = newTeam.id;
+          sheet.status = 'existing';
         } else if (sheet.teamId) {
           teamMap.set(sheet.sheetName, sheet.teamId);
         }
       }
 
-      // 2. Process rows
+      const encounterMap = importMode === 'historico'
+        ? await createMissingHistoricalEncounters(rowsToImport)
+        : new Map<number, string>();
+
+      const newParticipationKeys = new Set(existingParticipationKeys);
+
       for (const sheet of sheets) {
         const teamId = teamMap.get(sheet.sheetName);
         if (!teamId) continue;
 
-        const rowsToImport = sheet.rows.filter(r => r.selected);
-
-        for (const row of rowsToImport) {
-          if (row.status === 'multiple-matches') {
-            toast.error(`Resolva as correspondências múltiplas detectadas para "${row.nome}" antes de importar (escolha um correspondente ou indique como NOVO).`);
-            setIsImporting(false);
-            return;
-          }
-        }
-
-        for (const row of rowsToImport) {
+        for (const row of sheet.rows.filter(r => r.selected)) {
           try {
             let finalPessoaId = '';
+            const targetEncontroId = getRowTargetEncontroId(row, encounterMap);
 
-            // If status is 'match', we use the existing person
+            if (!targetEncontroId) {
+              row.importResult = 'error';
+              row.errorMessage = 'Encontro alvo não identificado.';
+              continue;
+            }
+
             if (row.status === 'match' && row.matchedPessoa) {
               finalPessoaId = row.matchedPessoa.id;
             } else {
-              // Create new person
               const pessoaData: PessoaFormData = {
                 nome_completo: row.nome,
                 telefone: row.telefone,
-                endereco: row.endereco,
-                numero: row.numero,
-                bairro: row.bairro,
-                cidade: 'Franca', // Default per user request
+                endereco: row.endereco || null,
+                numero: row.numero || null,
+                bairro: row.bairro || null,
+                cidade: 'Franca',
                 complemento: '',
-                estado: '',
+                estado: 'SP',
                 cep: null,
                 data_nascimento: null,
                 cpf: null,
@@ -362,33 +545,57 @@ export function ImportarDadosPage() {
                 automaticApproximateLocation: false,
               });
               finalPessoaId = newPessoa.id;
+              setAllPessoas(prev => [...prev, newPessoa]);
             }
 
-            // 3. Create Participation
+            const participationKey = `${finalPessoaId}:${targetEncontroId}`;
+            if (newParticipationKeys.has(participationKey)) {
+              row.status = 'already-linked';
+              row.importResult = 'skipped';
+              row.selected = false;
+              skippedCount++;
+              continue;
+            }
+
+            const existing = await inscricaoService.buscarPorPessoaEEncontro(finalPessoaId, targetEncontroId);
+            if (existing) {
+              newParticipationKeys.add(participationKey);
+              row.status = 'already-linked';
+              row.importResult = 'skipped';
+              row.selected = false;
+              skippedCount++;
+              continue;
+            }
+
             const participationData: InscricaoFormData = {
               pessoa_id: finalPessoaId,
-              encontro_id: selectedEncontroId,
+              encontro_id: targetEncontroId,
               equipe_id: teamId,
               coordenador: row.isCoordenador,
               participante: false,
-              dados_confirmados: false,
-              confirmado_em: null,
-              pago_taxa: false
+              dados_confirmados: importMode === 'historico',
+              confirmado_em: importMode === 'historico' ? new Date().toISOString() : null,
+              pago_taxa: false,
+              pago_camiseta: false,
+              origem: importMode === 'historico' ? 'historico_importacao' : 'sistema'
             };
 
             await inscricaoService.criar(participationData);
+            newParticipationKeys.add(participationKey);
             row.importResult = 'success';
             successCount++;
-          } catch {
+          } catch (error) {
             row.importResult = 'error';
+            row.errorMessage = error instanceof Error ? error.message : 'Erro ao importar linha.';
           }
         }
       }
 
-      toast.success(`Importação concluída: ${successCount} registros vinculados!`);
-      setSheets([...sheets]); // trigger re-render to show success icons
-    } catch {
-      toast.error('Ocorreu um erro durante a importação.');
+      setExistingParticipationKeys(newParticipationKeys);
+      toast.success(`Importação concluída: ${successCount} vínculos criados${skippedCount ? `, ${skippedCount} ignorados` : ''}.`);
+      setSheets([...sheets]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Ocorreu um erro durante a importação.');
     } finally {
       setIsImporting(false);
     }
@@ -398,9 +605,42 @@ export function ImportarDadosPage() {
     return sheets.reduce((total, s) => total + s.rows.filter(r => r.selected).length, 0);
   }, [sheets]);
 
+  const allRows = useMemo(() => sheets.flatMap(sheet => sheet.rows), [sheets]);
+  const missingEncounters = useMemo(() => {
+    const map = new Map<number, { edicao: number; nome: string; dataInicio: string; dataFim: string; total: number }>();
+
+    for (const row of allRows) {
+      if (!row.encontroNeedsCreation || !row.encontroEdicao) continue;
+      const current = map.get(row.encontroEdicao);
+      if (current) {
+        current.total++;
+      } else {
+        map.set(row.encontroEdicao, {
+          edicao: row.encontroEdicao,
+          nome: row.encontroNome || `${row.encontroEdicao}º EJC`,
+          dataInicio: row.encontroDataInicio || defaultHistoricalStartDate,
+          dataFim: row.encontroDataFim || defaultHistoricalEndDate || row.encontroDataInicio || defaultHistoricalStartDate,
+          total: 1
+        });
+      }
+    }
+
+    return [...map.values()].sort((a, b) => a.edicao - b.edicao);
+  }, [allRows, defaultHistoricalEndDate, defaultHistoricalStartDate]);
+
+  const summary = useMemo(() => ({
+    matches: allRows.filter(row => row.status === 'match').length,
+    newPeople: allRows.filter(row => row.status === 'new').length,
+    conflicts: allRows.filter(row => row.status === 'multiple-matches').length,
+    alreadyLinked: allRows.filter(row => row.status === 'already-linked').length,
+    missingEncounterRows: allRows.filter(row => row.status === 'missing-encontro').length,
+    teamsToCreate: sheets.filter(sheet => sheet.status === 'create').length
+  }), [allRows, sheets]);
+
+  const shouldBlockImport = summary.conflicts > 0 || summary.missingEncounterRows > 0 || totalSelected === 0;
+
   return (
     <div className="app-shell">
-
       <main className="main-content container page-fade-in">
         <div className="page-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -414,29 +654,98 @@ export function ImportarDadosPage() {
           </div>
         </div>
 
-        <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: '1.5rem', alignItems: 'start' }}>
-
-          {/* Configuration Card */}
+        <div className="grid-container" style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) minmax(0, 3fr)', gap: '1.5rem', alignItems: 'start' }}>
           <div className="card" style={{ position: 'sticky', top: '90px' }}>
             <h3 style={{ marginTop: 0, marginBottom: '1rem', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Shield size={18} className="text-primary" /> Configuração
             </h3>
 
             <div className="form-group">
-              <label className="form-label">Encontro Alvo</label>
-              <LiveSearchSelect<Encontro>
-                value={selectedEncontroId}
-                onChange={(val) => setSelectedEncontroId(val)}
-                fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-                getOptionLabel={(e) => `${e.nome}${e.tema ? ` (${e.tema})` : ''} ${e.ativo ? '(Ativo)' : ''}`}
-                getOptionValue={(e) => String(e.id)}
-                placeholder="Selecione um Encontro..."
-                initialOptions={encontros}
-              />
-              <p style={{ fontSize: '0.7rem', opacity: 0.5, marginTop: '0.5rem' }}>
-                Todos os importados serão vinculados a este encontro.
-              </p>
+              <label className="form-label">Tipo de importação</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className={importMode === 'encontro-atual' ? 'btn-primary' : 'btn-secondary'}
+                  onClick={() => {
+                    setImportMode('encontro-atual');
+                    setSheets([]);
+                  }}
+                >
+                  <Users size={16} /> Encontro
+                </button>
+                <button
+                  type="button"
+                  className={importMode === 'historico' ? 'btn-primary' : 'btn-secondary'}
+                  onClick={() => {
+                    setImportMode('historico');
+                    setSheets([]);
+                  }}
+                >
+                  <History size={16} /> Histórico
+                </button>
+              </div>
             </div>
+
+            {importMode === 'encontro-atual' ? (
+              <div className="form-group">
+                <label className="form-label">Encontro Alvo</label>
+                <LiveSearchSelect<Encontro>
+                  value={selectedEncontroId}
+                  onChange={(val) => setSelectedEncontroId(val)}
+                  fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
+                  getOptionLabel={(e) => `${e.nome}${e.tema ? ` (${e.tema})` : ''} ${e.ativo ? '(Ativo)' : ''}`}
+                  getOptionValue={(e) => String(e.id)}
+                  placeholder="Selecione um Encontro..."
+                  initialOptions={encontros}
+                />
+                <p style={{ fontSize: '0.7rem', opacity: 0.5, marginTop: '0.5rem' }}>
+                  Todos os importados serão vinculados a este encontro.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                <div className="alert alert--warning" style={{ fontSize: '0.78rem', lineHeight: 1.4 }}>
+                  O modo histórico cria encontros faltantes como inativos e ignora participações já existentes.
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Edição padrão, se a planilha não informar</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    value={defaultHistoricalEdition}
+                    onChange={(event) => {
+                      setDefaultHistoricalEdition(event.target.value);
+                      setSheets([]);
+                    }}
+                    placeholder={`Ex: ${Math.max(1, maxKnownEdition - 1)}`}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Data início padrão para criar encontro</label>
+                  <input
+                    className="form-input"
+                    type="date"
+                    value={defaultHistoricalStartDate}
+                    onChange={(event) => {
+                      setDefaultHistoricalStartDate(event.target.value);
+                      setSheets([]);
+                    }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Data fim padrão para criar encontro</label>
+                  <input
+                    className="form-input"
+                    type="date"
+                    value={defaultHistoricalEndDate}
+                    onChange={(event) => {
+                      setDefaultHistoricalEndDate(event.target.value);
+                      setSheets([]);
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
             <div
               className="import-dropzone"
@@ -448,7 +757,8 @@ export function ImportarDadosPage() {
                 textAlign: 'center',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                backgroundColor: 'rgba(0,0,0,0.02)'
+                backgroundColor: 'rgba(0,0,0,0.02)',
+                marginTop: '1rem'
               }}
             >
               <input
@@ -465,14 +775,19 @@ export function ImportarDadosPage() {
 
             {sheets.length > 0 && (
               <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
-                  <span>Selecionados:</span>
-                  <span style={{ fontWeight: 700 }}>{totalSelected}</span>
+                <div style={{ display: 'grid', gap: '0.5rem', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                  <SummaryLine label="Selecionados" value={totalSelected} />
+                  <SummaryLine label="Pessoas encontradas" value={summary.matches} />
+                  <SummaryLine label="Pessoas novas" value={summary.newPeople} />
+                  <SummaryLine label="Conflitos" value={summary.conflicts} tone={summary.conflicts ? 'danger' : undefined} />
+                  <SummaryLine label="Já vinculadas" value={summary.alreadyLinked} />
+                  <SummaryLine label="Equipes a criar" value={summary.teamsToCreate} />
+                  {importMode === 'historico' && <SummaryLine label="Encontros a criar" value={missingEncounters.length} />}
                 </div>
                 <button
                   className="btn-primary"
                   style={{ width: '100%' }}
-                  disabled={totalSelected === 0 || isImporting}
+                  disabled={shouldBlockImport || isImporting}
                   onClick={startImport}
                 >
                   {isImporting ? (
@@ -492,7 +807,6 @@ export function ImportarDadosPage() {
             )}
           </div>
 
-          {/* Review Area */}
           <div className="import-review-area">
             {isProcessing ? (
               <div className="card text-center py-12">
@@ -523,12 +837,28 @@ export function ImportarDadosPage() {
               <div className="card text-center py-12" style={{ border: '2px dashed var(--border-color)', backgroundColor: 'transparent' }}>
                 <FileSpreadsheet size={64} style={{ margin: '0 auto 1.5rem', opacity: 0.1 }} />
                 <h3 className="text-muted">Nenhum dado para exibir</h3>
-                <p className="text-muted" style={{ maxWidth: '400px', margin: '0 auto' }}>
-                  Faça o upload da planilha ao lado para revisar os dados antes de importar para o banco.
+                <p className="text-muted" style={{ maxWidth: '420px', margin: '0 auto' }}>
+                  Faça o upload da planilha para revisar pessoas, equipes, encontros e duplicidades antes de importar.
                 </p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {importMode === 'historico' && missingEncounters.length > 0 && (
+                  <div className="card" style={{ borderColor: 'rgba(245, 158, 11, 0.45)' }}>
+                    <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <CalendarPlus size={18} /> Encontros que serão criados
+                    </h3>
+                    <div style={{ display: 'grid', gap: '0.6rem' }}>
+                      {missingEncounters.map(item => (
+                        <div key={item.edicao} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.6rem', fontSize: '0.85rem' }}>
+                          <strong>{item.nome}</strong>
+                          <span className="text-muted">{item.dataInicio || 'sem data'} até {item.dataFim || 'sem data'} · {item.total} linhas</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {sheets.map((sheet, sIdx) => (
                   <div key={sIdx} className="card" style={{ padding: 0, overflow: 'hidden' }}>
                     <div style={{
@@ -537,7 +867,8 @@ export function ImportarDadosPage() {
                       borderBottom: '1px solid var(--border-color)',
                       display: 'flex',
                       justifyContent: 'space-between',
-                      alignItems: 'center'
+                      alignItems: 'center',
+                      gap: '1rem'
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <div style={{
@@ -551,12 +882,12 @@ export function ImportarDadosPage() {
                         <div>
                           <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{sheet.sheetName}</h3>
                           <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, opacity: 0.6 }}>
-                            {sheet.status === 'create' ? '⚠ Será criada como nova equipe' : '✓ Equipe já existe'}
+                            {sheet.status === 'create' ? 'Será criada como nova equipe' : 'Equipe já existe'}
                           </span>
                         </div>
                       </div>
                       <button className="btn-text" onClick={() => handleToggleAll(sIdx)}>
-                        {sheet.rows.every(r => r.selected) ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                        {sheet.rows.filter(r => r.status !== 'already-linked' && r.status !== 'missing-encontro').every(r => r.selected) ? 'Desmarcar Todos' : 'Selecionar Todos'}
                       </button>
                     </div>
 
@@ -567,9 +898,10 @@ export function ImportarDadosPage() {
                             <th style={{ width: '40px' }}></th>
                             <th>Status</th>
                             <th>Nome</th>
+                            {importMode === 'historico' && <th>Encontro</th>}
                             <th>Telefone</th>
                             <th>Endereço</th>
-                            <th>Cargo/Role</th>
+                            <th>Cargo</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -579,79 +911,30 @@ export function ImportarDadosPage() {
                                 <input
                                   type="checkbox"
                                   checked={row.selected}
+                                  disabled={row.status === 'already-linked' || row.status === 'missing-encontro'}
                                   onChange={() => handleToggleRow(sIdx, rIdx)}
                                 />
                               </td>
-                              <td>
-                                {row.importResult === 'success' ? (
-                                  <CheckCircle size={16} color="#10b981" />
-                                ) : row.importResult === 'error' ? (
-                                  <AlertCircle size={16} color="#ef4444" />
-                                ) : row.status === 'multiple-matches' ? (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', minWidth: '180px' }}>
-                                    <div 
-                                      style={{ 
-                                        display: 'inline-flex', alignItems: 'center', gap: '0.4rem', 
-                                        color: '#6366f1', fontWeight: 700,
-                                        fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '12px',
-                                        backgroundColor: 'rgba(99, 102, 241, 0.1)', border: '1px solid #6366f1'
-                                      }}
-                                    >
-                                      <AlertTriangle size={12} /> {row.possibleMatches?.length} SEMELHANTES ENCONTRADOS
-                                    </div>
-                                    <select 
-                                      className="form-input" 
-                                      style={{ fontSize: '0.75rem', padding: '0.2rem', minWidth: '150px' }}
-                                      onChange={(e) => handleSelectMatch(sIdx, rIdx, e.target.value)}
-                                      value=""
-                                    >
-                                      <option value="" disabled>Escolha para resolver...</option>
-                                      {row.possibleMatches?.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                          {p.nome_completo} {p.telefone ? `(${p.telefone})` : ''}
-                                        </option>
-                                      ))}
-                                      <option value="new">+ CRIAR NOVO (Não é nenhum desses)</option>
-                                    </select>
-                                  </div>
-                                ) : row.status === 'match' ? (
-                                  <div
-                                    onClick={() => toggleRowStatus(sIdx, rIdx)}
-                                    style={{
-                                      display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                                      color: '#f59e0b', fontWeight: 700, cursor: 'pointer',
-                                      fontSize: '0.7rem', padding: '0.2rem 0.5rem', borderRadius: '12px',
-                                      backgroundColor: 'rgba(245, 158, 11, 0.1)'
-                                    }}
-                                    title="Pessoa já existe no sistema. Clique para criar novo cadastro ao invés de usar o existente."
-                                  >
-                                    <AlertTriangle size={12} /> JÁ EXISTE {row.possibleMatches && row.possibleMatches.length > 1 ? '(ESCOLHIDO)' : ''}
-                                  </div>
-                                ) : (
-                                  <div 
-                                    onClick={() => toggleRowStatus(sIdx, rIdx)}
-                                    style={{
-                                      display: 'inline-block', fontSize: '0.7rem', fontWeight: 700,
-                                      color: 'var(--primary-color)', padding: '0.2rem 0.5rem',
-                                      borderRadius: '12px', backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                                      cursor: row.matchedPessoa || (row.possibleMatches && row.possibleMatches.length > 0) ? 'pointer' : 'default'
-                                    }}
-                                    title={row.matchedPessoa || (row.possibleMatches && row.possibleMatches.length > 0) ? "Clique para descartar e escolher correspondente" : ""}
-                                  >
-                                    NOVO {(row.matchedPessoa || (row.possibleMatches && row.possibleMatches.length > 0)) ? '(TROCADO)' : ''}
-                                  </div>
-                                )}
-                              </td>
+                              <td><RowStatusBadge row={row} onToggle={() => toggleRowStatus(sIdx, rIdx)} onSelect={(value) => handleSelectMatch(sIdx, rIdx, value)} /></td>
                               <td>
                                 <div style={{ fontWeight: 600 }}>{row.nome}</div>
                                 {row.matchedPessoa && (
                                   <div style={{ fontSize: '0.7rem', color: 'var(--text-color)', opacity: 0.7, marginTop: '0.2rem' }}>
-                                    ➥ Vinculado a: <strong>{row.matchedPessoa.nome_completo}</strong>
+                                    Vinculado a: <strong>{row.matchedPessoa.nome_completo}</strong>
                                   </div>
                                 )}
+                                {row.errorMessage && <div style={{ fontSize: '0.7rem', color: '#ef4444', marginTop: '0.2rem' }}>{row.errorMessage}</div>}
                               </td>
-                              <td>{row.telefone || '—'}</td>
-                              <td>{row.endereco ? `${row.endereco}, ${row.numero}` : '—'}</td>
+                              {importMode === 'historico' && (
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{row.encontroNome || 'Não identificado'}</div>
+                                  <div style={{ fontSize: '0.7rem', opacity: 0.65 }}>
+                                    {row.encontroNeedsCreation ? 'Será criado' : 'Encontrado'}{row.encontroEdicao ? ` · edição ${row.encontroEdicao}` : ''}
+                                  </div>
+                                </td>
+                              )}
+                              <td>{row.telefone || '-'}</td>
+                              <td>{row.endereco ? `${row.endereco}, ${row.numero}` : '-'}</td>
                               <td>
                                 <span style={{
                                   fontSize: '0.7rem', fontWeight: 700,
@@ -659,7 +942,7 @@ export function ImportarDadosPage() {
                                   padding: '0.2rem 0.4rem', borderRadius: '4px',
                                   backgroundColor: row.isCoordenador ? 'rgba(236, 72, 153, 0.1)' : 'rgba(99, 102, 241, 0.1)'
                                 }}>
-                                  {row.funcaoOriginal}
+                                  {row.funcaoOriginal || 'ENCONTREIRO'}
                                 </span>
                               </td>
                             </tr>
@@ -676,4 +959,80 @@ export function ImportarDadosPage() {
       </main>
     </div>
   );
+}
+
+function SummaryLine({ label, value, tone }: { label: string; value: number; tone?: 'danger' }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', color: tone === 'danger' ? '#ef4444' : undefined }}>
+      <span>{label}:</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function RowStatusBadge({ row, onToggle, onSelect }: { row: ProcessedRow; onToggle: () => void; onSelect: (value: string) => void }) {
+  if (row.importResult === 'success') return <CheckCircle size={16} color="#10b981" />;
+  if (row.importResult === 'error') return <AlertCircle size={16} color="#ef4444" />;
+  if (row.importResult === 'skipped') return <span style={badgeStyle('#64748b')}>IGNORADO</span>;
+
+  if (row.status === 'already-linked') {
+    return <span style={badgeStyle('#64748b')}>JÁ VINCULADA</span>;
+  }
+
+  if (row.status === 'missing-encontro') {
+    return <span style={badgeStyle('#ef4444')}>SEM ENCONTRO</span>;
+  }
+
+  if (row.status === 'multiple-matches') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', minWidth: '190px' }}>
+        <span style={badgeStyle('#6366f1')}>
+          <AlertTriangle size={12} /> {row.possibleMatches?.length} SEMELHANTES
+        </span>
+        <select
+          className="form-input"
+          style={{ fontSize: '0.75rem', padding: '0.2rem', minWidth: '170px' }}
+          onChange={(e) => onSelect(e.target.value)}
+          value=""
+        >
+          <option value="" disabled>Escolha para resolver...</option>
+          {row.possibleMatches?.map(p => (
+            <option key={p.id} value={p.id}>
+              {p.nome_completo} {p.telefone ? `(${p.telefone})` : ''}
+            </option>
+          ))}
+          <option value="new">+ CRIAR NOVO</option>
+        </select>
+      </div>
+    );
+  }
+
+  if (row.status === 'match') {
+    return (
+      <span onClick={onToggle} style={{ ...badgeStyle('#f59e0b'), cursor: 'pointer' }} title="Clique para criar novo cadastro ao invés de usar o existente.">
+        <AlertTriangle size={12} /> JÁ EXISTE
+      </span>
+    );
+  }
+
+  return (
+    <span onClick={onToggle} style={{ ...badgeStyle('var(--primary-color)'), cursor: row.possibleMatches?.length ? 'pointer' : 'default' }}>
+      NOVO
+    </span>
+  );
+}
+
+function badgeStyle(color: string): CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.4rem',
+    color,
+    fontWeight: 700,
+    fontSize: '0.7rem',
+    padding: '0.2rem 0.5rem',
+    borderRadius: '12px',
+    backgroundColor: 'rgba(100, 116, 139, 0.1)',
+    whiteSpace: 'nowrap'
+  };
 }

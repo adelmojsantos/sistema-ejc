@@ -196,6 +196,18 @@ export const inscricaoService = {
         return data as Inscricao;
     },
 
+    async buscarPorPessoaEEncontro(pessoaId: string, encontroId: string): Promise<Inscricao | null> {
+        const { data, error } = await supabase
+            .from(TABLE)
+            .select('*')
+            .eq('pessoa_id', pessoaId)
+            .eq('encontro_id', encontroId)
+            .maybeSingle();
+
+        if (error) throw error;
+        return data as Inscricao | null;
+    },
+
     async criarMuitos(formDataArray: InscricaoFormData[]): Promise<Inscricao[]> {
         const { data, error } = await supabase
             .from(TABLE)
