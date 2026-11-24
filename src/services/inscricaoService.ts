@@ -325,6 +325,28 @@ export const inscricaoService = {
         if (error) throw error;
     },
 
+    async uploadFotoEncontreiro(participacaoId: string, file: File): Promise<string> {
+        const optimizedFile = await optimizeImageForUpload(file);
+        const fileExt = getFileExtension(optimizedFile, 'webp');
+        const fileName = `${participacaoId}_${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+
+        return uploadPublicImage(`fotos/encontreiros/${fileName}`, optimizedFile);
+    },
+
+    /**
+     * Define, ajusta ou remove (fotoUrl = null) a foto individual de um encontreiro.
+     * A autorização (coordenador da própria equipe ou gestão) é validada no banco.
+     */
+    async definirFotoEncontreiro(participacaoId: string, fotoUrl: string | null, fotoPosicaoY = 50): Promise<void> {
+        const { error } = await supabase.rpc('definir_foto_encontreiro', {
+            p_participacao_id: participacaoId,
+            p_foto_url: fotoUrl,
+            p_foto_posicao_y: fotoPosicaoY,
+        });
+
+        if (error) throw error;
+    },
+
     async verificarSeJaFoiParticipante(pessoaId: string): Promise<boolean> {
         const { data, error } = await supabase
             .from(TABLE)

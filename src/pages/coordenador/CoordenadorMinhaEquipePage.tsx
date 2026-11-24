@@ -30,7 +30,9 @@ import {
   LayoutGrid,
   ArrowRight,
   ExternalLink,
-  KeyRound
+  KeyRound,
+  Camera,
+  User
 } from 'lucide-react';
 import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
@@ -63,6 +65,8 @@ import { formatChildAge } from '../../utils/ageUtils';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
 import { EquipeMapaModal } from '../../components/coordenador/EquipeMapaModal';
+import { EncontreiroFotoModal, type EncontreiroFotoTarget } from '../../components/coordenador/EncontreiroFotoModal';
+import './CoordenadorMinhaEquipePage.css';
 import { Minus, Plus } from 'phosphor-react';
 import { buildPublicFormUrl } from '../../utils/publicFormUrl';
 
@@ -74,6 +78,8 @@ interface EquipeMember {
   dados_confirmados: boolean;
   pago_taxa: boolean;
   pago_camiseta: boolean;
+  foto_url: string | null;
+  foto_posicao_y: number | null;
   pessoas: Pessoa;
   recepcao_dados: RecepcaoDados | null;
   recreacao_dados: RecreacaoDados[];
@@ -123,6 +129,7 @@ export function CoordenadorMinhaEquipePage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<EquipeMember | null>(null);
+  const [fotoTarget, setFotoTarget] = useState<EncontreiroFotoTarget | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [teamConfirmation, setTeamConfirmation] = useState<{ confirmado_por: string; confirmado_em: string; profiles?: { email?: string } | null } | null>(null);
   const [valorTaxa, setValorTaxa] = useState(0);
@@ -133,7 +140,7 @@ export function CoordenadorMinhaEquipePage() {
   const [tamanhosCamiseta, setTamanhosCamiseta] = useState<CamisetaTamanho[]>([]);
   const [newShirtData, setNewShirtData] = useState({ modelo_id: '', tamanho: 'G', quantidade: 1 });
   const [isExporting, setIsExporting] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending' | 'noPhoto'>('all');
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [isFinalizingTeam, setIsFinalizingTeam] = useState(false);
   const [isUploadingProof, setIsUploadingProof] = useState<string | null>(null); // 'taxas' | 'camisetas' | null
@@ -215,6 +222,11 @@ export function CoordenadorMinhaEquipePage() {
 
   const isMobile = windowWidth < 768;
   const isAdmin = hasPermission('modulo_admin');
+  // UX apenas: a autorização definitiva fica na RPC definir_foto_encontreiro.
+  const canManagePhotos = isAdmin
+    || hasPermission('modulo_secretaria')
+    || hasPermission('modulo_cadastros')
+    || Boolean(userParticipacao?.coordenador);
   const pesquisaPublicLink = useMemo(() => {
     if (!userParticipacao?.encontro_id) return '';
     return `${window.location.origin}/pesquisa-satisfacao?encontro=${userParticipacao.encontro_id}`;
@@ -699,6 +711,7 @@ export function CoordenadorMinhaEquipePage() {
     return members.filter(m => {
       if (activeFilter === 'confirmed') return m.dados_confirmados;
       if (activeFilter === 'pending') return !m.dados_confirmados;
+      if (activeFilter === 'noPhoto') return !m.foto_url;
       return true;
     });
   }, [members, activeFilter]);
@@ -1466,6 +1479,32 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       </div>
 
+      {canManagePhotos && members.length > 0 && (() => {
+        const comFoto = members.filter(m => m.foto_url).length;
+        const semFoto = members.length - comFoto;
+        return (
+          <div className="card team-photo-status">
+            <div className="team-photo-status-info">
+              <Camera size={18} />
+              <span>
+                <strong>Fotos para o Quadrante:</strong> {comFoto}/{members.length}
+                {semFoto > 0 ? ` · ${semFoto} sem foto` : ' · todos com foto'}
+              </span>
+            </div>
+            {semFoto > 0 && (
+              <button
+                type="button"
+                className="btn-secondary team-photo-status-filter"
+                onClick={() => setActiveFilter(activeFilter === 'noPhoto' ? 'all' : 'noPhoto')}
+                aria-pressed={activeFilter === 'noPhoto'}
+              >
+                {activeFilter === 'noPhoto' ? 'Mostrar todos' : 'Mostrar sem foto'}
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {!userParticipacao ? (
         <div className="card empty-state">
           <Users size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
@@ -1510,7 +1549,41 @@ export function CoordenadorMinhaEquipePage() {
               >
                 {/* Header: Basic Info and Right-side Actions */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                    {(() => {
+                      const avatarContent = m.foto_url ? (
+                        <img
+                          src={m.foto_url}
+                          alt=""
+                          loading="lazy"
+                          style={{ objectPosition: `center ${m.foto_posicao_y ?? 50}%` }}
+                        />
+                      ) : (
+                        <User size={24} />
+                      );
+
+                      if (!canManagePhotos) {
+                        return m.foto_url ? <span className="team-member-avatar">{avatarContent}</span> : null;
+                      }
+
+                      return (
+                        <button
+                          type="button"
+                          className={`team-member-avatar is-editable${m.foto_url ? '' : ' is-empty'}`}
+                          onClick={() => setFotoTarget({
+                            id: m.id,
+                            nome: p.nome_completo,
+                            foto_url: m.foto_url,
+                            foto_posicao_y: m.foto_posicao_y,
+                          })}
+                          title={m.foto_url ? 'Alterar foto' : 'Adicionar foto'}
+                          aria-label={`${m.foto_url ? 'Alterar' : 'Adicionar'} foto de ${p.nome_completo}`}
+                        >
+                          {avatarContent}
+                          <span className="team-member-avatar-badge" aria-hidden="true"><Camera size={11} /></span>
+                        </button>
+                      );
+                    })()}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
                         <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>{p.nome_completo}</h3>
@@ -2097,6 +2170,17 @@ export function CoordenadorMinhaEquipePage() {
       )}
 
 
+
+      <EncontreiroFotoModal
+        target={fotoTarget}
+        onClose={() => setFotoTarget(null)}
+        onChange={(participacaoId, foto) => {
+          setMembers(current => current.map(member => (
+            member.id === participacaoId ? { ...member, ...foto } : member
+          )));
+          setFotoTarget(current => (current?.id === participacaoId ? { ...current, ...foto } : current));
+        }}
+      />
 
       <EquipeMapaModal
         isOpen={showTeamMapModal}
