@@ -1,0 +1,7 @@
+# Pacotes autorizados a executar scripts de instalação (exigido pelo pnpm).
+allowBuilds:
+  core-js: true
+  esbuild: true
+  workerd: true
+  # O sharp usa binários pré-compilados (@img/sharp-*); o script só compila do código-fonte.
+  sharp: false
