@@ -24,6 +24,7 @@ import {
 import {
   PURCHASES_ROUTE_PERMISSIONS,
   canAccessKitchenArea,
+  canAccessMinhaEquipe,
 } from '../utils/accessControl';
 
 export type NavigationSurface = 'sidebar' | 'dashboard';
@@ -345,7 +346,11 @@ export function canViewNavigationModule(
   }
 
   if (module.accessRule === 'coordinator-team') {
-    return context.isCoordinator;
+    return canAccessMinhaEquipe({
+      hasPermission: context.hasPermission,
+      hasExactPermission: context.hasExactPermission,
+      isCoordinator: context.isCoordinator,
+    });
   }
 
   if (module.accessRule === 'kitchen-team') {

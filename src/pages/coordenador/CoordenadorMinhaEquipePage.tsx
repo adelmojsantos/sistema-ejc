@@ -30,7 +30,8 @@ import {
   LayoutGrid,
   ArrowRight,
   ExternalLink,
-  KeyRound
+  KeyRound,
+  Camera
 } from 'lucide-react';
 import { RecepcaoDadosModal } from '../../components/coordenador/RecepcaoDadosModal';
 import { RecreacaoDadosModal } from '../../components/coordenador/RecreacaoDadosModal';
@@ -39,11 +40,14 @@ import { TeamShirtSummaryModal } from '../../components/coordenador/TeamShirtSum
 import { TeamTaxaSummaryModal } from '../../components/coordenador/TeamTaxaSummaryModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { PesquisaSatisfacaoShareModal } from '../../components/pesquisa/PesquisaSatisfacaoShareModal';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { equipeService } from '../../services/equipeService';
+import type { InscricaoEnriched } from '../../types/inscricao';
+import type { Equipe } from '../../types/equipe';
+import { useEncontros } from '../../contexts/EncontroContext';
 import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
@@ -63,6 +67,12 @@ import { formatChildAge } from '../../utils/ageUtils';
 import { PixPaymentInfo } from '../../components/financeiro/PixPaymentInfo';
 import { PaymentProofGalleryModal } from '../../components/compras/PaymentProofGalleryModal';
 import { EquipeMapaModal } from '../../components/coordenador/EquipeMapaModal';
+import { Modal } from '../../components/ui/Modal';
+import { GroupedDropdown } from '../../components/ui/GroupedDropdown';
+import { EncontreiroFotoModal, type EncontreiroFotoTarget } from '../../components/coordenador/EncontreiroFotoModal';
+import './CoordenadorMinhaEquipePage.css';
+import { getInitials } from '../../components/equipe/teamMemberCard';
+import '../../components/equipe/TeamMemberCard.css';
 import { Minus, Plus } from 'phosphor-react';
 import { buildPublicFormUrl } from '../../utils/publicFormUrl';
 
@@ -74,6 +84,8 @@ interface EquipeMember {
   dados_confirmados: boolean;
   pago_taxa: boolean;
   pago_camiseta: boolean;
+  foto_url: string | null;
+  foto_posicao_y: number | null;
   pessoas: Pessoa;
   recepcao_dados: RecepcaoDados | null;
   recreacao_dados: RecreacaoDados[];
@@ -110,7 +122,50 @@ function isPixTipo(value: string | null | undefined): value is PixTipo {
 }
 
 export function CoordenadorMinhaEquipePage() {
-  const { user, userParticipacao, hasPermission } = useAuth();
+  const { user, userParticipacao: ownParticipacao, hasPermission, hasExactPermission } = useAuth();
+  const { encontroAtivo } = useEncontros();
+
+  // Suporte: desenvolvedores escolhem a equipe do encontro ativo.
+  // A autorização de leitura e escrita continua no banco (RLS/RPCs).
+  const isDeveloper = hasExactPermission('modulo_diagnosticos');
+  const [devEquipes, setDevEquipes] = useState<Equipe[]>([]);
+  const [devEquipeId, setDevEquipeId] = useState('');
+
+  useEffect(() => {
+    if (!isDeveloper) return;
+    let cancelled = false;
+    equipeService.listar()
+      .then(equipes => {
+        if (cancelled) return;
+        setDevEquipes(equipes);
+        setDevEquipeId(current => current || ownParticipacao?.equipe_id || equipes[0]?.id || '');
+      })
+      .catch(() => toast.error('Não foi possível carregar as equipes.'));
+    return () => { cancelled = true; };
+  }, [isDeveloper, ownParticipacao?.equipe_id]);
+
+  const devEquipe = devEquipes.find(equipe => equipe.id === devEquipeId) ?? null;
+
+  const userParticipacao = useMemo<InscricaoEnriched | null>(() => {
+    if (!isDeveloper || !devEquipe || !encontroAtivo) return ownParticipacao;
+    if (ownParticipacao?.equipe_id === devEquipe.id && ownParticipacao.encontro_id === encontroAtivo.id) {
+      return ownParticipacao;
+    }
+    // Visualização de outra equipe: sem papel de coordenador (oculta ações exclusivas).
+    return {
+      id: ownParticipacao?.id ?? '',
+      pessoa_id: ownParticipacao?.pessoa_id ?? '',
+      encontro_id: encontroAtivo.id,
+      data_inscricao: null,
+      participante: false,
+      equipe_id: devEquipe.id,
+      coordenador: false,
+      dados_confirmados: null,
+      confirmado_em: null,
+      pago_taxa: null,
+      equipes: { nome: devEquipe.nome },
+    };
+  }, [isDeveloper, devEquipe, encontroAtivo, ownParticipacao]);
   const navigate = useNavigate();
   const [members, setMembers] = useState<EquipeMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +178,9 @@ export function CoordenadorMinhaEquipePage() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<EquipeMember | null>(null);
+  const [fotoTarget, setFotoTarget] = useState<EncontreiroFotoTarget | null>(null);
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
+  const [shirtModalMemberId, setShirtModalMemberId] = useState<string | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [teamConfirmation, setTeamConfirmation] = useState<{ confirmado_por: string; confirmado_em: string; profiles?: { email?: string } | null } | null>(null);
   const [valorTaxa, setValorTaxa] = useState(0);
@@ -133,7 +191,7 @@ export function CoordenadorMinhaEquipePage() {
   const [tamanhosCamiseta, setTamanhosCamiseta] = useState<CamisetaTamanho[]>([]);
   const [newShirtData, setNewShirtData] = useState({ modelo_id: '', tamanho: 'G', quantidade: 1 });
   const [isExporting, setIsExporting] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'confirmed' | 'pending' | 'noPhoto'>('all');
   const [showFinalizeModal, setShowFinalizeModal] = useState(false);
   const [isFinalizingTeam, setIsFinalizingTeam] = useState(false);
   const [isUploadingProof, setIsUploadingProof] = useState<string | null>(null); // 'taxas' | 'camisetas' | null
@@ -215,6 +273,11 @@ export function CoordenadorMinhaEquipePage() {
 
   const isMobile = windowWidth < 768;
   const isAdmin = hasPermission('modulo_admin');
+  // UX apenas: a autorização definitiva fica na RPC definir_foto_encontreiro.
+  const canManagePhotos = isAdmin
+    || hasPermission('modulo_secretaria')
+    || hasPermission('modulo_cadastros')
+    || Boolean(userParticipacao?.coordenador);
   const pesquisaPublicLink = useMemo(() => {
     if (!userParticipacao?.encontro_id) return '';
     return `${window.location.origin}/pesquisa-satisfacao?encontro=${userParticipacao.encontro_id}`;
@@ -699,9 +762,23 @@ export function CoordenadorMinhaEquipePage() {
     return members.filter(m => {
       if (activeFilter === 'confirmed') return m.dados_confirmados;
       if (activeFilter === 'pending') return !m.dados_confirmados;
+      if (activeFilter === 'noPhoto') return !m.foto_url;
       return true;
     });
   }, [members, activeFilter]);
+
+  // Rótulos de grupo da lista (Coordenação / Integrantes).
+  const memberGroupStats = useMemo(() => {
+    const integrantes = displayedMembers.filter(m => !m.coordenador);
+    return {
+      integrantes: integrantes.length,
+      pendentes: integrantes.filter(m => !m.dados_confirmados).length,
+    };
+  }, [displayedMembers]);
+
+  const toggleMemberDetails = (memberId: string) => {
+    setExpandedMemberId(current => (current === memberId ? null : memberId));
+  };
 
   const handleExportPDF = async () => {
     const { rows, shirtCombinations } = getExportData();
@@ -1466,6 +1543,50 @@ export function CoordenadorMinhaEquipePage() {
         </div>
       </div>
 
+      {isDeveloper && (
+        <div className="card team-dev-selector">
+          <div className="team-dev-selector__info">
+            <Shield size={18} />
+            <span><strong>Modo desenvolvedor:</strong> visualizar a equipe</span>
+          </div>
+          <div className="team-dev-selector__field">
+            <GroupedDropdown
+              ariaLabel="Equipe exibida"
+              value={devEquipeId}
+              onChange={setDevEquipeId}
+              placeholder="Selecione a equipe"
+              items={devEquipes.map(equipe => ({ value: equipe.id, label: equipe.nome || 'Sem nome' }))}
+            />
+          </div>
+        </div>
+      )}
+
+      {canManagePhotos && members.length > 0 && (() => {
+        const comFoto = members.filter(m => m.foto_url).length;
+        const semFoto = members.length - comFoto;
+        return (
+          <div className="card team-photo-status">
+            <div className="team-photo-status-info">
+              <Camera size={18} />
+              <span>
+                <strong>Fotos para o Quadrante:</strong> {comFoto}/{members.length}
+                {semFoto > 0 ? ` · ${semFoto} sem foto` : ' · todos com foto'}
+              </span>
+            </div>
+            {semFoto > 0 && (
+              <button
+                type="button"
+                className="btn-secondary team-photo-status-filter"
+                onClick={() => setActiveFilter(activeFilter === 'noPhoto' ? 'all' : 'noPhoto')}
+                aria-pressed={activeFilter === 'noPhoto'}
+              >
+                {activeFilter === 'noPhoto' ? 'Mostrar todos' : 'Mostrar sem foto'}
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {!userParticipacao ? (
         <div className="card empty-state">
           <Users size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
@@ -1477,8 +1598,8 @@ export function CoordenadorMinhaEquipePage() {
           <p>Nenhum membro encontrado na sua equipe.</p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {displayedMembers.map((m: EquipeMember) => {
+        <div className="secretaria-team-member-list">
+          {displayedMembers.map((m: EquipeMember, index: number) => {
             const p = m.pessoas;
             const address = [p.endereco, p.numero, p.bairro, p.cidade, p.estado]
               .map(v => v?.trim())
@@ -1494,247 +1615,395 @@ export function CoordenadorMinhaEquipePage() {
               )}`
               : null;
             const memberOrders = pedidosCamisetas.filter(pc => pc.participacao_id === m.id);
+            const shirtsTotal = memberOrders.reduce((total, order) => {
+              const modelo = modelosCamiseta.find(mod => mod.id === order.modelo_id);
+              return total + (modelo?.valor || 0) * (order.quantidade || 1);
+            }, 0);
+            const criancas = [...(m.recreacao_dados || []), ...(m.recreacao_dados_secundario || [])];
+            const isExpanded = expandedMemberId === m.id;
+            const previous = displayedMembers[index - 1];
+            const showCoordinationLabel = m.coordenador && index === 0;
+            const showMembersLabel = !m.coordenador && (!previous || previous.coordenador);
+            const avatarClassName = `secretaria-team-member-photo secretaria-team-member-photo--${m.coordenador ? 'coordenacao' : 'integrante'}`;
+            const avatarContent = (
+              <>
+                {m.foto_url ? (
+                  <img
+                    src={m.foto_url}
+                    alt=""
+                    loading="lazy"
+                    style={{ objectPosition: `center ${m.foto_posicao_y ?? 50}%` }}
+                  />
+                ) : (
+                  <span className="secretaria-team-member-photo__initials">{getInitials(p.nome_completo)}</span>
+                )}
+              </>
+            );
 
             return (
+              <Fragment key={m.id}>
+              {showCoordinationLabel && (
+                <div className="secretaria-team-member-group-label">
+                  <span>Coordenação</span>
+                </div>
+              )}
+              {showMembersLabel && (
+                <div className="secretaria-team-member-group-label">
+                  <span>Integrantes ({memberGroupStats.integrantes})</span>
+                  {memberGroupStats.pendentes > 0 && (
+                    <small>
+                      {memberGroupStats.pendentes} {memberGroupStats.pendentes === 1 ? 'pendente' : 'pendentes'}
+                    </small>
+                  )}
+                </div>
+              )}
               <div
-                key={m.id}
-                className="card animate-fade-in"
-                style={{
-                  padding: '1.5rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '1.5rem',
-                  position: 'relative',
-                  borderLeft: m.coordenador ? '4px solid #f59e0b' : '1px solid var(--border-color)',
-                }}
+                className={`card animate-fade-in secretaria-team-member-card${isExpanded ? ' secretaria-team-member-card--expanded' : ''}${m.dados_confirmados ? '' : ' secretaria-team-member-card--pending'}`}
               >
-                {/* Header: Basic Info and Right-side Actions */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-                  <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                <div
+                  className="secretaria-team-member-card__header"
+                  onClick={() => toggleMemberDetails(m.id)}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={isExpanded}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      toggleMemberDetails(m.id);
+                    }
+                  }}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}
+                >
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                    {canManagePhotos ? (
+                      <button
+                        type="button"
+                        className={avatarClassName}
+                        onClick={event => {
+                          event.stopPropagation();
+                          setFotoTarget({
+                            id: m.id,
+                            nome: p.nome_completo,
+                            foto_url: m.foto_url,
+                            foto_posicao_y: m.foto_posicao_y,
+                          });
+                        }}
+                        onKeyDown={event => event.stopPropagation()}
+                        title={m.foto_url ? 'Alterar foto' : 'Adicionar foto'}
+                        aria-label={`${m.foto_url ? 'Alterar' : 'Adicionar'} foto de ${p.nome_completo}`}
+                      >
+                        {avatarContent}
+                        <span className="secretaria-team-member-photo__badge" aria-hidden="true"><Camera size={10} /></span>
+                      </button>
+                    ) : (
+                      <span className={avatarClassName} style={{ cursor: 'default' }}>{avatarContent}</span>
+                    )}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
-                        <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>{p.nome_completo}</h3>
-                        {m.coordenador && (
-                          <span className="badge badge-primary" style={{ fontSize: '0.65rem', backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: 'none' }}>
-                            COORDENADOR
-                          </span>
-                        )}
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          fontSize: '0.68rem',
-                          fontWeight: 700,
-                          color: m.dados_confirmados ? '#10b981' : '#f59e0b',
-                          backgroundColor: m.dados_confirmados ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                          borderRadius: '999px',
-                          padding: '0.25rem 0.55rem',
-                        }}>
-                          {m.dados_confirmados ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
-                          {m.dados_confirmados ? 'Dados confirmados' : 'Dados pendentes'}
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>{p.nome_completo}</h3>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', opacity: 0.8, fontSize: '0.85rem', width: '100%' }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', rowGap: '0.3rem' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Phone size={16} style={{ color: 'var(--primary-color)', opacity: 0.8 }} />
-                            {formatTelefone(p.telefone)}
+                      <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem', fontSize: '0.85rem', opacity: 0.7, flexWrap: 'wrap', minWidth: 0 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <Phone size={14} style={{ flexShrink: 0 }} /> {formatTelefone(p.telefone)}
+                        </span>
+                        {!p.email && !address ? (
+                          <span className="secretaria-team-member-card__contact-extra is-missing">
+                            E-mail e endereço ainda não informados
                           </span>
-                          {p.email && (
-                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', letterSpacing: '0.05rem' }}>
-                              <Mail size={16} style={{ color: 'var(--primary-color)', opacity: 0.8 }} />
-                              {p.email}
-                            </span>
-                          )}
-                        </div>
+                        ) : (
+                          <>
+                            {p.email && (
+                              <span className="secretaria-team-member-card__contact-extra" title={p.email}>
+                                <Mail size={14} /> {p.email}
+                              </span>
+                            )}
+                            {address && (
+                              <span className="secretaria-team-member-card__contact-extra secretaria-team-member-card__contact-extra--address">
+                                <MapPin size={14} />
+                                <span className="secretaria-team-member-card__address-label" title={address}>{address}</span>
+                                {mapsUrl && (
+                                  <a
+                                    href={mapsUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="secretaria-team-member-card__maps-link"
+                                    onClick={event => event.stopPropagation()}
+                                    title="Abrir endereço no Google Maps"
+                                  >
+                                    <ExternalLink size={13} /> Maps
+                                  </a>
+                                )}
+                              </span>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  <div className="team-member-actions" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {!m.dados_confirmados && (
-                      <button
-                        onClick={() => handleConfirmOneMember(m.id)}
-                        className="btn-secondary"
-                        title="Confirmar dados do integrante"
-                        style={{
-                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                          color: '#10b981',
-                          padding: '0.5rem',
-                          borderRadius: '10px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          height: '32px'
-                        }}
-                      >
-                        <Check size={18} />
-                        <span>Confirmar dados</span>
-                      </button>
+                  <div
+                    className="secretaria-team-member-card__actions secretaria-team-member-card__actions--no-summary"
+                    onClick={event => event.stopPropagation()}
+                    onKeyDown={event => event.stopPropagation()}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}
+                  >
+                    {m.dados_confirmados ? (
+                      <span className="secretaria-team-member-card__confirmed-badge">
+                        <Check size={16} aria-hidden="true" />
+                        Confirmado
+                      </span>
+                    ) : (
+                      <>
+                        <span className="secretaria-team-member-card__pending-badge">
+                          <AlertCircle size={16} aria-hidden="true" />
+                          Pendente
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmOneMember(m.id)}
+                          className="secretaria-team-member-card__confirm-action"
+                          title="Confirmar dados do integrante"
+                        >
+                          <Check size={18} style={{ flexShrink: 0 }} />
+                          <span>Confirmar dados</span>
+                        </button>
+                      </>
                     )}
                     <button
+                      type="button"
+                      onClick={() => setDeleteTarget(m)}
+                      className="secretaria-team-member-card__desktop-action secretaria-team-member-card__desktop-action--remove"
+                      title="Desvincular integrante"
+                    >
+                      <UserX size={16} />
+                      <span>Desvincular</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => void handleOpenPessoaEdit(p.id)}
                       disabled={isLoadingPessoaEdit}
-                      className="btn-secondary"
-                      style={{
-                        backgroundColor: 'rgba(0,0,0,0.05)',
-                        padding: '0.5rem',
-                        borderRadius: '10px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                          height: '32px'
-                        }}
-                      title="Editar Dados"
+                      className="secretaria-team-member-card__desktop-action secretaria-team-member-card__desktop-action--edit"
+                      title="Editar dados do integrante"
                     >
-                      <Pencil size={18} />
+                      <Pencil size={16} />
                       <span>Editar dados</span>
                     </button>
                     <button
-                      onClick={() => setDeleteTarget(m)}
-                      className="btn-secondary"
-                      style={{
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                        color: '#ef4444',
-                        padding: '0.5rem',
-                        borderRadius: '10px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                          height: '32px'
-                        }}
-                      title="Desvincular Integrante"
+                      type="button"
+                      className="btn-icon secretaria-team-member-card__toggle"
+                      onClick={() => toggleMemberDetails(m.id)}
+                      aria-label={isExpanded ? 'Ocultar detalhes do integrante' : 'Exibir detalhes do integrante'}
+                      aria-expanded={isExpanded}
                     >
-                      <UserX size={18} />
-                      <span>Desvincular</span>
+                      <span className="secretaria-team-member-card__toggle-label">
+                        {isExpanded ? 'Menos detalhes' : 'Mais detalhes'}
+                      </span>
+                      <span className="secretaria-team-member-card__chevron" aria-hidden="true" />
                     </button>
                   </div>
                 </div>
 
-                {/* Full-width Address */}
-                {address && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '0.5rem',
-                    width: '100%',
-                    opacity: 0.8,
-                    fontSize: '0.85rem',
-                    marginTop: '-0.85rem'
-                  }}>
-                    <MapPin size={16} style={{ flexShrink: 0, marginTop: '2px', color: 'var(--primary-color)', opacity: 0.8 }} />
-                    <span style={{ flex: 1, lineHeight: '1.5', letterSpacing: '0.05rem' }}>{address}</span>
-                    {mapsUrl ? (
-                      <a
-                        href={mapsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn-text"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}
-                        title="Abrir endereço no Google Maps"
-                      >
-                        <ExternalLink size={14} />
-                        Maps
-                      </a>
-                    ) : (
-                      <span style={{ fontSize: '0.7rem', opacity: 0.55, whiteSpace: 'nowrap' }}>
-                        Endereço incompleto
+                <div className="secretaria-team-member-card__details">
+                  <div className="secretaria-team-member-card__contact-details">
+                    {p.email && (
+                      <span title={p.email}>
+                        <Mail size={14} /> {p.email}
                       </span>
                     )}
+                    <span>
+                      <MapPin size={14} />
+                      {address || 'Endereço não informado'}
+                    </span>
+                    {mapsUrl && (
+                      <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="secretaria-team-member-card__maps-link">
+                        <ExternalLink size={14} /> Abrir no Google Maps
+                      </a>
+                    )}
                   </div>
-                )}
 
-                {/* Body: 3-column Grid (Taxa, Camisetas, Recepção) */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-                  gap: '1.25rem',
-                  paddingTop: '1.25rem',
-                  borderTop: '1px solid var(--border-color)'
-                }}>
-                  {/* Taxa Section */}
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: isMobile ? 'row' : 'column',
-                    alignItems: isMobile ? 'center' : 'flex-start',
-                    justifyContent: isMobile ? 'space-between' : 'flex-start',
-                    gap: isMobile ? '1rem' : '0.75rem',
-                    padding: '1rem',
-                    backgroundColor: 'rgba(var(--primary-rgb, 37, 99, 235), 0.03)',
-                    borderRadius: '12px',
-                    border: '1px solid var(--border-color)',
-                    minHeight: isMobile ? 'auto' : '150px'
-                  }}>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
-                        Taxa
-                      </div>
-                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: m.pago_taxa ? '#10b981' : 'var(--text-color)' }}>
-                        {formatBRL(valorTaxa)}
-                      </div>
-                    </div>
-
+                  <div className="secretaria-team-member-card__mobile-actions">
                     <button
-                      onClick={() => handleTogglePayment(m)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        padding: isMobile ? '0.4rem 0.8rem' : '0.6rem 1rem',
-                        width: isMobile ? 'auto' : '100%',
-                        justifyContent: 'center',
-                        borderRadius: '10px',
-                        border: m.pago_taxa ? 'none' : '2px dashed var(--border-color)',
-                        backgroundColor: m.pago_taxa ? '#10b981' : 'transparent',
-                        color: m.pago_taxa ? '#fff' : 'var(--text-color)',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        fontSize: '0.75rem',
-                        fontWeight: 800,
-                        textTransform: 'uppercase'
-                      }}
+                      type="button"
+                      onClick={() => setDeleteTarget(m)}
+                      className="btn-secondary secretaria-team-member-card__remove-action"
                     >
-                      <DollarSign size={14} />
-                      {m.pago_taxa ? 'Pago' : 'Marcar'}
+                      <UserX size={16} />
+                      Desvincular
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenPessoaEdit(p.id)}
+                      disabled={isLoadingPessoaEdit}
+                      className="btn-secondary secretaria-team-member-card__edit-action"
+                    >
+                      <Pencil size={16} />
+                      Editar dados
                     </button>
                   </div>
 
-                  {/* Camisetas Section */}
-                  <div style={{
-                    padding: '1rem',
-                    backgroundColor: 'var(--secondary-bg)',
-                    borderRadius: '12px',
-                    border: '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem',
-                    minHeight: '150px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
-                        Camisetas
+                  <div className="secretaria-team-member-card__sections secretaria-team-member-card__sections--four">
+                    {/* Taxa */}
+                    <div className="secretaria-member-panel">
+                      <span className="secretaria-member-panel__icon" aria-hidden="true"><DollarSign size={18} /></span>
+                      <div className="secretaria-member-panel__body">
+                        <strong>Taxa</strong>
+                        <span>{formatBRL(valorTaxa)} · {m.pago_taxa ? 'Pago' : 'Pendente'}</span>
                       </div>
-                      {!addingShirtToMemberId && (
+                      <div className="secretaria-member-panel__actions">
                         <button
-                          onClick={() => setAddingShirtToMemberId(m.id)}
-                          className="btn-text"
-                          style={{
-                            padding: '0 0.5rem',
-                            fontSize: '0.6rem',
-                            fontWeight: 600,
-                            color: 'var(--primary-color)',
-                            letterSpacing: '0.05em',
-                          }}
+                          type="button"
+                          className={`secretaria-member-panel__action${m.pago_taxa ? ' is-paid' : ' is-add'}`}
+                          onClick={() => handleTogglePayment(m)}
+                          title={m.pago_taxa ? 'Desmarcar pagamento da taxa' : 'Marcar taxa como paga'}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <ShirtIcon size={14} />
-                            SOLICITAR
-                          </div>
+                          {m.pago_taxa ? <CheckCircle size={14} /> : <DollarSign size={14} />}
+                          <span className="secretaria-member-panel__label">{m.pago_taxa ? 'Pago' : 'Marcar pago'}</span>
                         </button>
-                      )}
+                      </div>
                     </div>
 
-                    {addingShirtToMemberId === m.id ? (
+                    {/* Recepção */}
+                    <div className={`secretaria-member-panel${m.recepcao_dados ? '' : ' is-empty'}`}>
+                      <span className="secretaria-member-panel__icon" aria-hidden="true"><Car size={18} /></span>
+                      <div className="secretaria-member-panel__body">
+                        <strong>Recepção</strong>
+                        {m.recepcao_dados ? (
+                          <span>
+                            {m.recepcao_dados.veiculo_tipo === 'moto' ? 'Moto' : 'Carro'} · {[m.recepcao_dados.veiculo_modelo, m.recepcao_dados.veiculo_cor].filter(Boolean).join(' ')}
+                            {m.recepcao_dados.veiculo_placa ? ` · ${m.recepcao_dados.veiculo_placa}` : ''}
+                          </span>
+                        ) : (
+                          <span>Não cadastrado</span>
+                        )}
+                      </div>
+                      <div className="secretaria-member-panel__actions">
+                        <button
+                          type="button"
+                          className={`secretaria-member-panel__action${m.recepcao_dados ? '' : ' is-add'}`}
+                          onClick={() => {
+                            setRecepcaoParticipacaoId(m.id);
+                            setRecepcaoParticipanteNome(p.nome_completo || '');
+                          }}
+                          title={m.recepcao_dados ? 'Editar recepção' : 'Cadastrar recepção'}
+                        >
+                          {m.recepcao_dados ? <Pencil size={14} /> : <Plus size={14} />}
+                          <span className="secretaria-member-panel__label">{m.recepcao_dados ? 'Editar' : 'Cadastrar'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Recreação */}
+                    <div className={`secretaria-member-panel${criancas.length > 0 ? '' : ' is-empty'}`}>
+                      <span className="secretaria-member-panel__icon" aria-hidden="true"><Baby size={18} /></span>
+                      <div className="secretaria-member-panel__body">
+                        <strong>
+                          Recreação
+                          {criancas.length > 0 && ` · ${criancas.length} ${criancas.length === 1 ? 'criança' : 'crianças'}`}
+                        </strong>
+                        <span>
+                          {criancas.length > 0
+                            ? criancas.map(c => `${c.nome_crianca}, ${formatChildAge(c.data_nascimento, c.idade)}`).join(' · ')
+                            : 'Não cadastrado'}
+                        </span>
+                      </div>
+                      <div className="secretaria-member-panel__actions">
+                        <button
+                          type="button"
+                          className={`secretaria-member-panel__action${criancas.length > 0 ? '' : ' is-add'}`}
+                          onClick={() => {
+                            setRecreacaoParticipacaoId(m.id);
+                            setRecreacaoParticipanteNome(p.nome_completo || '');
+                          }}
+                          title={criancas.length > 0 ? 'Editar recreação' : 'Cadastrar recreação'}
+                        >
+                          {criancas.length > 0 ? <Pencil size={14} /> : <Plus size={14} />}
+                          <span className="secretaria-member-panel__label">{criancas.length > 0 ? 'Editar' : 'Cadastrar'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Camisetas: resumo; pedidos e formulário ficam na janela "Editar" */}
+                    <div className={`secretaria-member-panel${memberOrders.length > 0 ? '' : ' is-empty'}`}>
+                      <span className="secretaria-member-panel__icon" aria-hidden="true"><ShirtIcon size={18} /></span>
+                      <div className="secretaria-member-panel__body">
+                        <strong>
+                          Camisetas
+                          {memberOrders.length > 0 && ` · ${memberOrders.length} ${memberOrders.length === 1 ? 'pedido' : 'pedidos'}`}
+                        </strong>
+                        <span>
+                          {memberOrders.length > 0
+                            ? `${formatBRL(shirtsTotal)} · ${m.pago_camiseta ? 'Pago' : 'Pendente'}`
+                            : 'Nenhum pedido'}
+                        </span>
+                      </div>
+                      <div className="secretaria-member-panel__actions">
+                        {memberOrders.length > 0 && (
+                          <button
+                            type="button"
+                            className={`secretaria-member-panel__action${m.pago_camiseta ? ' is-paid' : ' is-add'}`}
+                            onClick={() => handleToggleShirtPayment(m)}
+                            title={m.pago_camiseta ? 'Desmarcar pagamento das camisetas' : 'Marcar camisetas como pagas'}
+                          >
+                            {m.pago_camiseta ? <CheckCircle size={14} /> : <DollarSign size={14} />}
+                            <span className="secretaria-member-panel__label">{m.pago_camiseta ? 'Pago' : 'Marcar pago'}</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className={`secretaria-member-panel__action${memberOrders.length > 0 ? '' : ' is-add'}`}
+                          onClick={() => {
+                            setShirtModalMemberId(m.id);
+                            setAddingShirtToMemberId(memberOrders.length > 0 ? null : m.id);
+                          }}
+                          title={memberOrders.length > 0 ? 'Editar pedidos de camiseta' : 'Solicitar camiseta'}
+                        >
+                          {memberOrders.length > 0 ? <Pencil size={14} /> : <Plus size={14} />}
+                          <span className="secretaria-member-panel__label">{memberOrders.length > 0 ? 'Editar' : 'Solicitar'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              </Fragment>
+            );
+          })}
+        </div>
+      )}
+
+
+
+      {(() => {
+        const m = members.find(member => member.id === shirtModalMemberId);
+        if (!m) return null;
+        const memberOrders = pedidosCamisetas.filter(pc => pc.participacao_id === m.id);
+        const shirtsTotal = memberOrders.reduce((total, order) => {
+          const modelo = modelosCamiseta.find(mod => mod.id === order.modelo_id);
+          return total + (modelo?.valor || 0) * (order.quantidade || 1);
+        }, 0);
+        const closeShirtModal = () => {
+          setShirtModalMemberId(null);
+          setAddingShirtToMemberId(null);
+        };
+
+        return (
+          <Modal isOpen onClose={closeShirtModal} title={`Camisetas · ${m.pessoas.nome_completo}`} maxWidth="520px">
+            <div className="team-shirt-modal">
+              <div className="team-shirt-modal__header">
+                <span>Pedidos</span>
+                {addingShirtToMemberId !== m.id && (
+                  <button
+                    type="button"
+                    className="secretaria-member-panel__action is-add"
+                    onClick={() => setAddingShirtToMemberId(m.id)}
+                  >
+                    <Plus size={14} />
+                    Adicionar
+                  </button>
+                )}
+              </div>
+
+              {addingShirtToMemberId === m.id && (
                       <div className="animate-fade-in" style={{
                         display: 'flex',
                         flexDirection: 'column',
@@ -1752,41 +2021,34 @@ export function CoordenadorMinhaEquipePage() {
                         }}>
                           <div style={{ flex: '2', minWidth: '0' }}>
                             <label style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.3rem', display: 'block' }}>Modelo</label>
-                            <select
+                            <GroupedDropdown
+                              className="team-shirt-dropdown"
+                              ariaLabel="Modelo da camiseta"
                               value={newShirtData.modelo_id}
-                              onChange={e => {
-                                const newModelId = e.target.value;
+                              onChange={newModelId => {
                                 const availableSizes = tamanhosCamiseta.filter(t => !t.modelo_id || t.modelo_id === newModelId);
                                 const newSize = availableSizes.some(t => t.sigla === newShirtData.tamanho) ? newShirtData.tamanho : (availableSizes[0]?.sigla || '');
                                 setNewShirtData({ ...newShirtData, modelo_id: newModelId, tamanho: newSize });
                               }}
-                              className="form-input"
-                              style={{ width: '100%', padding: '0.5rem', fontSize: '0.8rem', height: '44px' }}
-                            >
-                              {modelosCamiseta.map(mod => (
-                                <option key={mod.id} value={mod.id}>{mod.nome}</option>
-                              ))}
-                            </select>
+                              items={modelosCamiseta.map(mod => ({ value: mod.id, label: mod.nome }))}
+                            />
                           </div>
 
                           <div style={{ flex: 1, flexShrink: 1 }}>
-                            <label style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.3rem', display: 'block', textAlign: 'left' }}>Tam</label>
-                            <select
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.3rem', display: 'block', textAlign: 'left' }}>Tamanho</label>
+                            <GroupedDropdown
+                              className="team-shirt-dropdown"
+                              ariaLabel="Tamanho da camiseta"
                               value={newShirtData.tamanho}
-                              onChange={e => setNewShirtData({ ...newShirtData, tamanho: e.target.value })}
-                              className="form-input"
-                              style={{ width: '100%', padding: '0.5rem', fontSize: '0.8rem', textAlign: 'left', height: '44px' }}
-                            >
-                              {tamanhosCamiseta
+                              onChange={tamanho => setNewShirtData({ ...newShirtData, tamanho })}
+                              items={tamanhosCamiseta
                                 .filter(t => !t.modelo_id || t.modelo_id === newShirtData.modelo_id)
-                                .map(t => (
-                                  <option key={t.id} value={t.sigla}>{t.sigla}</option>
-                                ))}
-                            </select>
+                                .map(t => ({ value: t.sigla, label: t.sigla }))}
+                            />
                           </div>
 
                           <div style={{ flex: 1, flexShrink: 1 }}>
-                            <label style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.3rem', display: 'block', textAlign: 'left' }}>Qtd</label>
+                            <label style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, marginBottom: '0.3rem', display: 'block', textAlign: 'left' }}>Quantidade</label>
                             <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden', height: '44px', padding: '2px' }}>
                               <button
                                 type="button"
@@ -1871,232 +2133,68 @@ export function CoordenadorMinhaEquipePage() {
                         </div>
 
                         <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
-                          <button onClick={() => setAddingShirtToMemberId(null)} className="btn-text" style={{ fontSize: '0.75rem' }}>Canc.</button>
+                          <button type="button" onClick={() => setAddingShirtToMemberId(null)} className="btn-secondary" style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}>Cancelar</button>
                           <button onClick={() => handleAddShirt(m.id)} disabled={isSaving} className="btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.8rem' }}>Salvar</button>
                         </div>
                       </div>
-                    ) : memberOrders.length === 0 ? (
-                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
-                        Nenhum pedido
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr style={{ textAlign: 'left', opacity: 0.5 }}>
-                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Mod</th>
-                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>T</th>
-                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'center' }}>Q</th>
-                                <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem', textAlign: 'right' }}>Valor</th>
-                                <th style={{ width: '20px' }}></th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {memberOrders.map((order) => (
-                                <tr key={order.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                                  <td style={{ padding: '0.4rem 0.25rem' }}>{order.camiseta_modelos?.nome}</td>
-                                  <td style={{ padding: '0.4rem 0.25rem' }}>{order.tamanho}</td>
-                                  <td style={{ padding: '0.4rem 0.25rem', textAlign: 'center' }}>{order.quantidade}</td>
-                                  <td style={{ padding: '0.4rem 0.25rem', textAlign: 'right', fontWeight: 600 }}>
-                                    {(() => {
-                                      const modeloEncontro = modelosCamiseta.find(m => m.id === order.modelo_id);
-                                      const val = (modeloEncontro?.valor || 0) * (order.quantidade || 1);
-                                      return formatBRL(val);
-                                    })()}
-                                  </td>
-                                  <td style={{ padding: '0.25rem', textAlign: 'right' }}>
-                                    <button onClick={() => handleDeleteShirt(order.id)} style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.4, cursor: 'pointer' }}><X size={12} /></button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+              )}
 
-                        <div style={{ 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          justifyContent: 'space-between', 
-                          paddingTop: '0.5rem', 
-                          borderTop: '1px dashed var(--border-color)',
-                          marginTop: '0.25rem',
-                          gap: '1rem'
-                        }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, opacity: 0.8 }}>
-                            Pagamento:
+              {memberOrders.length === 0 ? (
+                <p className="team-shirt-modal__empty">Nenhum pedido.</p>
+              ) : (
+                  <ul className="secretaria-member-panel__list">
+                    {memberOrders.map(order => {
+                      const modeloEncontro = modelosCamiseta.find(mod => mod.id === order.modelo_id);
+                      const valor = (modeloEncontro?.valor || 0) * (order.quantidade || 1);
+                      return (
+                        <li key={order.id}>
+                          <span className="secretaria-member-panel__list-main">
+                            {order.camiseta_modelos?.nome} · {order.tamanho} · {order.quantidade}x
                           </span>
+                          <span className="secretaria-member-panel__list-value">{formatBRL(valor)}</span>
                           <button
-                            onClick={() => handleToggleShirtPayment(m)}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.35rem',
-                              padding: '0.35rem 0.75rem',
-                              borderRadius: '8px',
-                              border: m.pago_camiseta ? 'none' : '1px dashed var(--border-color)',
-                              backgroundColor: m.pago_camiseta ? '#10b981' : 'rgba(0,0,0,0.02)',
-                              color: m.pago_camiseta ? '#fff' : 'var(--text-color)',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s',
-                              fontSize: '0.7rem',
-                              fontWeight: 800,
-                              textTransform: 'uppercase'
-                            }}
+                            type="button"
+                            className="secretaria-member-panel__icon-action secretaria-member-panel__icon-action--small"
+                            onClick={() => handleDeleteShirt(order.id)}
+                            title="Remover pedido"
+                            aria-label={`Remover pedido ${order.camiseta_modelos?.nome ?? ''} ${order.tamanho}`}
                           >
-                            {m.pago_camiseta ? <CheckCircle size={12} /> : <DollarSign size={12} />}
-                            {m.pago_camiseta ? 'Pago' : 'Marcar Pago'}
+                            <X size={13} />
                           </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+              )}
 
-                  {/* Recepção Section */}
-                  <div style={{
-                    padding: '1rem',
-                    backgroundColor: 'rgba(var(--primary-rgb), 0.02)',
-                    borderRadius: '12px',
-                    border: '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem',
-                    minHeight: '150px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
-                        Recepção
-                      </div>
-                      <button
-                        onClick={() => {
-                          setRecepcaoParticipacaoId(m.id);
-                          setRecepcaoParticipanteNome(p.nome_completo || '');
-                        }}
-                        className="btn-text"
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          fontSize: '0.6rem',
-                          fontWeight: 600,
-                          color: 'var(--primary-color)',
-                          letterSpacing: '0.05em',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Car size={16} />
-                          {m.recepcao_dados ? (
-                            'EDITAR'
-                          ) : (
-                            'CADASTRAR'
-                          )}
-                        </div>
-                      </button>
-                    </div>
-
-                    {!m.recepcao_dados ? (
-                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
-                        Não cadastrado
-                      </div>
-                    ) : (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Veículo</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Cor</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Placa</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                              <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{m.recepcao_dados.veiculo_modelo}</td>
-                              <td style={{ padding: '0.4rem 0.25rem' }}>{m.recepcao_dados.veiculo_cor}</td>
-                              <td style={{ padding: '0.4rem 0.25rem' }}>{m.recepcao_dados.veiculo_placa}</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Recreação Section */}
-                  <div style={{
-                    padding: '1rem',
-                    backgroundColor: 'rgba(var(--primary-rgb), 0.02)',
-                    borderRadius: '12px',
-                    border: '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem',
-                    minHeight: '150px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
-                        Recreação
-                      </div>
-                      <button
-                        onClick={() => {
-                          setRecreacaoParticipacaoId(m.id);
-                          setRecreacaoParticipanteNome(p.nome_completo || '');
-                        }}
-                        className="btn-text"
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          fontSize: '0.6rem',
-                          fontWeight: 600,
-                          color: 'var(--primary-color)',
-                          letterSpacing: '0.05em',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Baby size={16} />
-                          {m.recreacao_dados && m.recreacao_dados.length > 0 ? (
-                            'GERENCIAR'
-                          ) : (
-                            'CADASTRAR'
-                          )}
-                        </div>
-                      </button>
-                    </div>
-
-                    {(!m.recreacao_dados || m.recreacao_dados.length === 0) && (!m.recreacao_dados_secundario || m.recreacao_dados_secundario.length === 0) ? (
-                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
-                        Não cadastrado
-                      </div>
-                    ) : (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', fontSize: '0.7rem', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.6rem' }}>Criança</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.6rem' }}>Idade</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {[...(m.recreacao_dados || []), ...(m.recreacao_dados_secundario || [])].map(c => (
-                              <tr key={c.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                                <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    {c.nome_crianca}
-                                  </div>
-                                </td>
-                                <td style={{ padding: '0.4rem 0.25rem' }}>{formatChildAge(c.data_nascimento, c.idade)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-
+              {memberOrders.length > 0 && (
+                <div className="team-shirt-modal__summary">
+                  <span>Total: <strong>{formatBRL(shirtsTotal)}</strong></span>
+                  <button
+                    type="button"
+                    className={`secretaria-member-panel__action${m.pago_camiseta ? ' is-paid' : ' is-add'}`}
+                    onClick={() => handleToggleShirtPayment(m)}
+                  >
+                    {m.pago_camiseta ? <CheckCircle size={14} /> : <DollarSign size={14} />}
+                    {m.pago_camiseta ? 'Pago' : 'Marcar pago'}
+                  </button>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              )}
+            </div>
+          </Modal>
+        );
+      })()}
 
-
+      <EncontreiroFotoModal
+        target={fotoTarget}
+        onClose={() => setFotoTarget(null)}
+        onChange={(participacaoId, foto) => {
+          setMembers(current => current.map(member => (
+            member.id === participacaoId ? { ...member, ...foto } : member
+          )));
+          setFotoTarget(current => (current?.id === participacaoId ? { ...current, ...foto } : current));
+        }}
+      />
 
       <EquipeMapaModal
         isOpen={showTeamMapModal}

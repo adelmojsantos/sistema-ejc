@@ -104,6 +104,41 @@ function ParticipantCard({ item, eager = false }: { item: QuadranteData; eager?:
     );
 }
 
+function getInitials(nome: string | null | undefined): string {
+    const parts = (nome || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return '?';
+    const first = parts[0][0] ?? '';
+    const last = parts.length > 1 ? parts[parts.length - 1][0] ?? '' : '';
+    return `${first}${last}`.toUpperCase();
+}
+
+// --- Avatar individual dos encontreiros na lista da equipe ---
+function MemberAvatar({ member, eager = false }: { member: QuadranteData; eager?: boolean }) {
+    const [failed, setFailed] = useState(false);
+    const nome = member.pessoas?.nome_completo;
+
+    if (!member.foto_url || failed) {
+        return (
+            <span className="member-avatar is-placeholder" aria-hidden="true">
+                {getInitials(nome)}
+            </span>
+        );
+    }
+
+    return (
+        <span className="member-avatar">
+            <img
+                src={member.foto_url}
+                alt={nome ? `Foto de ${nome}` : ''}
+                loading={eager ? 'eager' : 'lazy'}
+                decoding="async"
+                onError={() => setFailed(true)}
+                style={{ objectPosition: `center ${member.foto_posicao_y ?? 50}%` }}
+            />
+        </span>
+    );
+}
+
 function PalestraCard({ palestra, printOptimized = false }: { palestra: Palestra; printOptimized?: boolean }) {
     return (
         <div className="palestra-card">
@@ -852,6 +887,7 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         ? 1
                         : 0;
                     const effectiveSectionIndex = sectionIndex + secoesExtrasAnteriores;
+                    const teamHasMemberPhotos = members.some(member => Boolean(member.foto_url));
                     const fotoEquipe = members[0]?.equipes?.foto_url;
                     const fotoPosicaoY = members[0]?.equipes?.foto_posicao_y ?? 50;
                     const fotoCriancas = members[0]?.recreacao_criancas_foto?.foto_url || fotoEquipe;
@@ -896,12 +932,15 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                                                 <h3>{team}</h3>
                                                 <div className="line"></div>
                                             </div>
-                                            <ol className="numbered-list">
+                                            <ol className={`numbered-list${teamHasMemberPhotos ? ' with-member-photos' : ''}`}>
                                                 {[...members]
                                                     .sort((a, b) => a.pessoas.nome_completo.localeCompare(b.pessoas.nome_completo, 'pt-BR'))
                                                     .map((member, mIdx) => (
                                                         <li key={member.id} className="member-item">
                                                             <span className="number">{(mIdx + 1).toString().padStart(2, '0')}</span>
+                                                            {teamHasMemberPhotos && (
+                                                                <MemberAvatar member={member} eager={printOptimized} />
+                                                            )}
                                                             <span className="name">{member.pessoas.nome_completo}</span>
                                                         </li>
                                                     ))
@@ -2243,6 +2282,38 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                     letter-spacing: -0.01em;
                 }
 
+                .with-member-photos .member-item {
+                    gap: 0.9rem;
+                    padding: 0.75rem 1rem;
+                }
+
+                .member-avatar {
+                    width: 48px;
+                    height: 48px;
+                    min-width: 48px;
+                    border-radius: 50%;
+                    overflow: hidden;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    border: 2px solid var(--glass-border);
+                    background: rgba(59, 130, 246, 0.08);
+                }
+
+                .member-avatar img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                    display: block;
+                }
+
+                .member-avatar.is-placeholder {
+                    font-size: 0.8rem;
+                    font-weight: 800;
+                    color: var(--primary-color);
+                    opacity: 0.75;
+                }
+
                 .children-numbered-list {
                     grid-template-columns: repeat(3, 1fr);
                 }
@@ -3308,6 +3379,20 @@ export function QuadrantePage({ isAdminView = false }: { isAdminView?: boolean }
                         font-size: 9pt !important;
                         font-weight: 600 !important;
                         color: #0f172a !important;
+                    }
+
+                    .member-avatar {
+                        width: 28px !important;
+                        height: 28px !important;
+                        min-width: 28px !important;
+                        border: 1px solid #e2e8f0 !important;
+                        print-color-adjust: exact;
+                        -webkit-print-color-adjust: exact;
+                    }
+
+                    .member-avatar.is-placeholder {
+                        font-size: 7pt !important;
+                        color: #1d4ed8 !important;
                     }
 
                     .child-member-content {

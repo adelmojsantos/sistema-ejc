@@ -84,6 +84,21 @@ export function syncBackendAdminPermission(
   return [...effectivePermissions];
 }
 
+// Desenvolvedores (permissão exata modulo_diagnosticos) também abrem Minha Equipe,
+// escolhendo a equipe, para dar suporte. A autorização dos dados continua no banco.
+export function canAccessMinhaEquipe({
+  hasPermission,
+  hasExactPermission,
+  isCoordinator,
+}: {
+  hasPermission: PermissionChecker;
+  hasExactPermission: PermissionChecker;
+  isCoordinator: boolean;
+}) {
+  if (hasPermission('modulo_coordenador') && isCoordinator) return true;
+  return hasExactPermission('modulo_diagnosticos');
+}
+
 export function canAccessKitchenArea({
   hasPermission,
   isCoordinator,
