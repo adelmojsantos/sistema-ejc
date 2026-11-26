@@ -26,6 +26,13 @@ const FOTO_URL = 'https://arquivos.example.test/fotos/encontreiros/p1.webp';
 const semFoto: EncontreiroFotoTarget = { id: 'p1', nome: 'Integrante Teste', foto_url: null, foto_posicao_y: null };
 const comFoto: EncontreiroFotoTarget = { ...semFoto, foto_url: FOTO_URL, foto_posicao_y: 30 };
 
+// Input da galeria do MobileFileUploadButton (o da câmera usa o atributo capture).
+const galleryInput = () => {
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]:not([capture])');
+    if (!input) throw new Error('Input de galeria não encontrado');
+    return input;
+};
+
 describe('EncontreiroFotoModal', () => {
     beforeEach(() => {
         uploadFotoEncontreiro.mockReset();
@@ -47,7 +54,7 @@ describe('EncontreiroFotoModal', () => {
 
         expect(screen.getByRole('button', { name: /Adicionar foto/ })).toBeEnabled();
         const file = new File(['foto'], 'foto.jpg', { type: 'image/jpeg' });
-        fireEvent.change(screen.getByTestId('encontreiro-foto-input'), { target: { files: [file] } });
+        fireEvent.change(galleryInput(), { target: { files: [file] } });
 
         await waitFor(() => expect(onChange).toHaveBeenCalledWith('p1', { foto_url: FOTO_URL, foto_posicao_y: 50 }));
         expect(uploadFotoEncontreiro).toHaveBeenCalledWith('p1', file);
@@ -58,7 +65,7 @@ describe('EncontreiroFotoModal', () => {
         render(<EncontreiroFotoModal target={semFoto} onClose={vi.fn()} onChange={vi.fn()} />);
 
         const file = new File(['x'], 'doc.pdf', { type: 'application/pdf' });
-        fireEvent.change(screen.getByTestId('encontreiro-foto-input'), { target: { files: [file] } });
+        fireEvent.change(galleryInput(), { target: { files: [file] } });
 
         expect(uploadFotoEncontreiro).not.toHaveBeenCalled();
         expect(toastError).toHaveBeenCalled();
@@ -99,7 +106,7 @@ describe('EncontreiroFotoModal', () => {
         render(<EncontreiroFotoModal target={semFoto} onClose={vi.fn()} onChange={vi.fn()} />);
 
         const file = new File(['foto'], 'foto.jpg', { type: 'image/jpeg' });
-        fireEvent.change(screen.getByTestId('encontreiro-foto-input'), { target: { files: [file] } });
+        fireEvent.change(galleryInput(), { target: { files: [file] } });
 
         await waitFor(() => expect(toastError).toHaveBeenCalled());
         expect(toastError.mock.calls[0][0]).toMatch(/permissão/);

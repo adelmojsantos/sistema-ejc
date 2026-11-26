@@ -1,0 +1,971 @@
+/* Card de integrante compartilhado:
+ * Secretaria › Confirmações › Visualizar equipe e Coordenador › Minha Equipe.
+ *
+ * Celular (≤768px): card compacto com "Mais detalhes" recolhível.
+ * Tablet e desktop (≥769px): card completo, sempre aberto, que se adapta à largura
+ * disponível do próprio card (container queries).
+ */
+
+/* ─── Avatar com foto ──────────────────────────────────────────── */
+.secretaria-team-member-photo {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: var(--member-tone, #2563eb);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.secretaria-team-member-photo:hover,
+.secretaria-team-member-photo:focus-visible {
+  box-shadow: 0 0 0 2px var(--primary-color);
+  transform: scale(1.04);
+}
+
+.secretaria-team-member-photo img {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+  display: block;
+}
+
+.secretaria-team-member-photo__badge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--primary-color);
+  color: #fff;
+  border: 2px solid var(--card-bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Cor do avatar pelo papel na equipe */
+.secretaria-team-member-photo--coordenacao { --member-tone: #b45309; }
+.secretaria-team-member-photo--integrante { --member-tone: #2563eb; }
+
+/* ─── Lista e rótulos de grupo ─────────────────────────────────── */
+.secretaria-team-member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.secretaria-team-member-group-label {
+  margin: 0.5rem 0.15rem -0.35rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--muted-text);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.secretaria-team-member-group-label small {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.secretaria-team-member-add-bottom {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.75rem 1rem;
+  border: 1.5px dashed var(--border-color);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.secretaria-team-member-add-bottom:hover,
+.secretaria-team-member-add-bottom:active {
+  background: rgba(var(--primary-rgb), 0.08);
+}
+
+/* ─── Card (comum) ─────────────────────────────────────────────── */
+.secretaria-team-member-card.card {
+  position: relative;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 16px;
+  box-shadow: none;
+}
+
+.secretaria-team-member-card.secretaria-team-member-card--pending {
+  background: rgba(var(--primary-rgb), 0.12);
+  border-color: transparent !important;
+}
+
+:root[data-theme="dark"] .secretaria-team-member-card.secretaria-team-member-card--pending,
+.dark .secretaria-team-member-card.secretaria-team-member-card--pending {
+  background: #202d49;
+}
+
+.secretaria-team-member-card .secretaria-team-member-card__header > div:first-child > div {
+  gap: 0 !important;
+}
+
+.secretaria-team-member-card .secretaria-team-member-card__header h3 {
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.secretaria-team-member-card__coordinator-badge,
+.secretaria-team-member-card .secretaria-team-member-card__desktop-action {
+  display: none !important;
+}
+
+.secretaria-team-member-card__contact-extra {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.secretaria-team-member-card__contact-extra svg {
+  flex-shrink: 0;
+}
+
+.secretaria-team-member-card__contact-extra.is-missing {
+  font-style: italic;
+}
+
+/* Aba "Confirmado"/"Pendente" presa ao canto do card. */
+.secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__confirmed-badge,
+.secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__pending-badge {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  padding: 0.35rem 0.7rem 0.4rem 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0 16px 0 14px;
+  background: linear-gradient(135deg, #1f8a68 0%, #17785a 55%, #11634a 100%);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+  animation: secretaria-badge-in 0.35s var(--ease-spring, ease-out);
+}
+
+.secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__confirmed-badge svg,
+.secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__pending-badge svg {
+  width: 16px;
+  height: 16px;
+  padding: 3px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: #fff;
+  color: #17785a;
+  stroke-width: 3.5;
+  flex-shrink: 0;
+}
+
+.secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__pending-badge {
+  background: linear-gradient(135deg, #b7832a 0%, #9c6b1c 55%, #7f5614 100%);
+}
+
+.secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__pending-badge svg {
+  padding: 1px;
+  color: #9c6b1c;
+  stroke-width: 3;
+}
+
+@keyframes secretaria-badge-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+
+.secretaria-team-member-card .secretaria-team-member-card__confirm-action {
+  background: var(--primary-color) !important;
+  border: none !important;
+  color: #fff !important;
+  opacity: 1 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem !important;
+  border-radius: 10px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.secretaria-team-member-card__remove-action {
+  color: #ef4444 !important;
+  border-color: rgba(239, 68, 68, 0.45) !important;
+}
+
+/* Ações do card (Desvincular / Editar / Ver resumo) */
+.secretaria-team-member-card .secretaria-team-member-card__mobile-actions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.secretaria-team-member-card .secretaria-team-member-card__mobile-actions .btn-secondary {
+  min-width: 0;
+  height: 42px;
+  padding: 0 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.secretaria-team-member-card .secretaria-team-member-card__mobile-actions svg {
+  flex-shrink: 0;
+}
+
+/* Mesma aparência no celular e no desktop: Desvincular (contorno vermelho), Editar (preenchido), Ver resumo (contorno). */
+.secretaria-team-member-card .secretaria-team-member-card__mobile-actions .btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border-color);
+}
+
+.secretaria-team-member-card .secretaria-team-member-card__mobile-actions .secretaria-team-member-card__edit-action {
+  background: var(--secondary-bg);
+}
+
+.secretaria-team-member-card .secretaria-team-member-card__mobile-actions .btn-secondary:hover:not(:disabled) {
+  background: rgba(var(--primary-rgb), 0.08);
+}
+
+/* ─── Painéis de Recepção e Recreação ──────────────────────────── */
+.secretaria-team-member-card .secretaria-team-member-card__sections {
+  margin-top: 0.9rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.secretaria-member-panel {
+  min-width: 0;
+  padding: 0.8rem 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: rgba(var(--primary-rgb), 0.03);
+}
+
+/* Botões com texto quando cabe; em painéis estreitos, os dois viram só ícone. */
+.secretaria-member-panel {
+  container-type: inline-size;
+}
+
+/* Tablet e desktop: botões em uma linha própria abaixo do texto, dividindo a largura. */
+@media (min-width: 769px) {
+  .secretaria-member-panel {
+    flex-wrap: wrap;
+  }
+
+  .secretaria-member-panel .secretaria-member-panel__actions {
+    flex: 1 1 100%;
+    display: flex;
+  }
+
+  .secretaria-member-panel .secretaria-member-panel__actions > button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  @container (max-width: 220px) {
+    .secretaria-member-panel__label {
+      display: none;
+    }
+
+    .secretaria-member-panel__action,
+    .secretaria-member-panel__icon-action {
+      padding: 0 !important;
+    }
+  }
+
+  /* Secretaria (Recepção e Recreação): botões na mesma linha do texto, à direita. */
+  .secretaria-team-member-card__sections--inline-actions .secretaria-member-panel {
+    flex-wrap: nowrap;
+  }
+
+  .secretaria-team-member-card__sections--inline-actions .secretaria-member-panel .secretaria-member-panel__actions {
+    flex: 0 0 auto;
+    display: inline-flex;
+  }
+
+  .secretaria-team-member-card__sections--inline-actions .secretaria-member-panel .secretaria-member-panel__actions > button {
+    flex: 0 0 auto;
+  }
+
+  @container (max-width: 400px) {
+    .secretaria-team-member-card__sections--inline-actions .secretaria-member-panel__actions:has(> :nth-child(2)) .secretaria-member-panel__label {
+      display: none;
+    }
+
+    .secretaria-team-member-card__sections--inline-actions .secretaria-member-panel__actions:has(> :nth-child(2)) > button {
+      width: 34px;
+      padding: 0 !important;
+    }
+  }
+}
+
+/* Celular: botões em linha, à direita do texto. Com pouco espaço, viram só ícone. */
+@media (max-width: 768px) {
+  @container (max-width: 400px) {
+    .secretaria-member-panel__actions:has(> :nth-child(2)) .secretaria-member-panel__label {
+      display: none;
+    }
+
+    .secretaria-member-panel__actions:has(> :nth-child(2)) > button {
+      width: 34px;
+      padding: 0 !important;
+    }
+  }
+
+  @container (max-width: 290px) {
+    .secretaria-member-panel__label {
+      display: none;
+    }
+
+    .secretaria-member-panel__action,
+    .secretaria-member-panel__icon-action {
+      width: 34px;
+      padding: 0 !important;
+    }
+  }
+}
+
+.secretaria-member-panel.is-empty {
+  border-style: dashed;
+  background: transparent;
+}
+
+.secretaria-member-panel__icon {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: rgba(var(--primary-rgb), 0.14);
+  color: var(--primary-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.secretaria-member-panel.is-empty .secretaria-member-panel__icon {
+  background: rgba(var(--primary-rgb), 0.07);
+  color: var(--muted-text);
+}
+
+.secretaria-member-panel__body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.secretaria-member-panel__body strong {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.secretaria-member-panel__body span {
+  color: var(--muted-text);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.secretaria-member-panel__actions {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.secretaria-member-panel__action,
+.secretaria-member-panel__icon-action {
+  height: 34px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.secretaria-member-panel__action {
+  padding: 0 0.75rem;
+}
+
+.secretaria-member-panel__action.is-add {
+  color: var(--primary-color);
+  border-color: rgba(var(--primary-rgb), 0.4);
+}
+
+.secretaria-member-panel__action svg,
+.secretaria-member-panel__icon-action svg {
+  flex-shrink: 0;
+}
+
+/* Excluir: quadrado vermelho suave, sem o padding global de botão que esmagava o ícone. */
+.secretaria-member-panel__icon-action {
+  min-width: 34px;
+  padding: 0 0.7rem;
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.secretaria-member-panel__action:hover {
+  background: rgba(var(--primary-rgb), 0.08);
+}
+
+.secretaria-member-panel__icon-action:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+/* Sem realce de toque nem contorno de foco ao clicar (o teclado mantém o foco visível). */
+.secretaria-team-member-card,
+.secretaria-team-member-card * {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.secretaria-team-member-card .secretaria-team-member-card__header:focus:not(:focus-visible),
+.secretaria-team-member-card button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Pagamento marcado (Taxa / Camisetas) */
+.secretaria-member-panel__action.is-paid {
+  background: #17785a;
+  border-color: #17785a;
+  color: #fff;
+}
+
+.secretaria-member-panel__action.is-paid:hover {
+  background: #11634a;
+}
+
+/* Lista de pedidos (janela de camisetas) */
+.secretaria-member-panel__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.secretaria-member-panel__list li {
+  min-width: 0;
+  padding: 0.45rem 0.4rem 0.45rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 8px;
+  background: rgba(var(--primary-rgb), 0.05);
+  font-size: 0.8rem;
+}
+
+.secretaria-member-panel__list-main {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.secretaria-member-panel__list-value {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.secretaria-member-panel__icon-action.secretaria-member-panel__icon-action--small {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+}
+
+.secretaria-team-member-card__maps-link {
+  color: var(--primary-color);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.secretaria-team-member-card__maps-link:hover {
+  text-decoration: underline;
+}
+
+/* ─── Celular ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .secretaria-team-add-member-action {
+    display: none;
+  }
+
+  .secretaria-team-member-card.card {
+    padding: 0.9rem 0.9rem 0.35rem !important;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__header {
+    align-items: center !important;
+    gap: 0.85rem !important;
+    cursor: pointer;
+  }
+
+  /* Espaço à direita para a aba não sobrepor o nome. */
+  .secretaria-team-member-card .secretaria-team-member-card__header > div:first-child {
+    flex-basis: 100%;
+    gap: 0.75rem !important;
+    padding-right: 6.75rem;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__header h3 {
+    font-size: 1rem !important;
+  }
+
+  /* No celular, e-mail e endereço ficam em "Mais detalhes". */
+  .secretaria-team-member-card__contact-extra {
+    display: none;
+  }
+
+  /* Ações: "Ver resumo" e "Confirmar dados" lado a lado; "Mais detalhes" abaixo. */
+  .secretaria-team-member-card .secretaria-team-member-card__actions {
+    flex: 1 1 100%;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.65rem !important;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__summary-action,
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__confirm-action {
+    width: 100% !important;
+    min-width: 0;
+    height: 42px !important;
+    padding: 0 0.5rem !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem !important;
+    border-radius: 10px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow: none;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__summary-action {
+    order: 1;
+    background: transparent !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-color);
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__confirm-action {
+    order: 2;
+  }
+
+  /* Sem "Ver resumo" (Minha Equipe): "Confirmar dados" ocupa a linha inteira. */
+  .secretaria-team-member-card .secretaria-team-member-card__actions--no-summary .secretaria-team-member-card__confirm-action {
+    grid-column: 1 / -1;
+  }
+
+  /* Confirmado: "Ver resumo" ocupa a linha inteira. */
+  .secretaria-team-member-card .secretaria-team-member-card__confirmed-badge ~ .secretaria-team-member-card__summary-action {
+    grid-column: 1 / -1;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  /* "Mais detalhes" ocupando toda a largura; só a seta gira. */
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__toggle {
+    order: 3;
+    grid-column: 1 / -1;
+    width: 100% !important;
+    height: 40px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border: none !important;
+    border-radius: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--primary-color) !important;
+    font-size: 0.8rem;
+    font-weight: 700;
+    transform: none;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__chevron {
+    width: 7px;
+    height: 7px;
+    display: block;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg) translate(-1px, -1px);
+    transition: transform 0.2s ease;
+  }
+
+  .secretaria-team-member-card--expanded .secretaria-team-member-card__chevron {
+    transform: rotate(225deg) translate(-1px, -1px);
+  }
+
+  /* Detalhes recolhíveis */
+  .secretaria-team-member-card__details {
+    display: none;
+  }
+
+  .secretaria-team-member-card--expanded .secretaria-team-member-card__details {
+    display: block;
+    padding-bottom: 0.65rem;
+    animation: fadeIn 0.2s ease;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__contact-details {
+    margin-top: 0.25rem;
+    padding: 0.9rem 0 0;
+    flex-direction: column;
+    gap: 0.65rem;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.8rem;
+  }
+
+  .secretaria-team-member-card__contact-details span {
+    overflow-wrap: anywhere;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__mobile-actions {
+    margin-top: 0.9rem;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__summary-inline {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .secretaria-team-member-photo {
+    width: 40px;
+    height: 40px;
+    font-size: 0.85rem;
+  }
+}
+
+/* ─── Tablet e desktop─────────────────────────────────────────────── */
+@media (min-width: 769px) {
+  .secretaria-team-member-add-bottom,
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__pending-badge,
+  .secretaria-team-member-card__contact-details,
+  .secretaria-team-member-card .secretaria-team-member-card__mobile-actions {
+    display: none !important;
+  }
+
+  /* Topo maior para a aba "Confirmado" não invadir o conteúdo. */
+  .secretaria-team-member-card.card {
+    padding: 2.4rem 1.4rem 1.4rem !important;
+    container-type: inline-size;
+  }
+
+  /* Nome e botões dividem a linha; se não couberem, os botões descem (o nome nunca é esmagado). */
+  .secretaria-team-member-card .secretaria-team-member-card__header {
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 1rem !important;
+    cursor: default;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__header > div:first-child {
+    flex: 3 1 22rem !important;
+    min-width: min(100%, 18rem) !important;
+    gap: 1rem !important;
+  }
+
+
+  .secretaria-team-member-photo {
+    width: 52px;
+    height: 52px;
+    font-size: 1.05rem;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__header h3 {
+    font-size: 1.15rem !important;
+    font-weight: 800 !important;
+  }
+
+  /* Linha de contato: telefone · e-mail · endereço, quebrando quando faltar espaço. */
+  .secretaria-team-member-card .secretaria-team-member-card__header > div:first-child > div > div:last-child {
+    margin-top: 0.35rem !important;
+    gap: 0.3rem 1.1rem !important;
+    font-size: 0.82rem !important;
+  }
+
+  .secretaria-team-member-card__contact-extra:not(.is-missing) {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Endereço sempre em linha própria, abaixo de telefone e e-mail. */
+  .secretaria-team-member-card .secretaria-team-member-card__contact-extra--address {
+    flex-basis: 100%;
+    min-width: 0;
+    display: flex;
+    gap: 0.35rem;
+    overflow: visible;
+  }
+
+  /* Texto do endereço termina em "…" dentro do espaço do nome, sem invadir os botões. */
+  .secretaria-team-member-card__address-label {
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .secretaria-team-member-card__contact-extra--address .secretaria-team-member-card__maps-link {
+    margin-left: 0.4rem;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  /* Botões da linha do nome com a mesma largura e altura. */
+  /* Cresce junto com o nome; quando quebra para a linha de baixo, ocupa a largura toda
+     com os botões em partes iguais (independe de quantos botões houver). */
+  .secretaria-team-member-card .secretaria-team-member-card__actions {
+    flex: 1 1 auto;
+    display: grid !important;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(9.5rem, 1fr);
+    gap: 0.5rem !important;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__confirm-action {
+    width: 100% !important;
+    height: 38px !important;
+    padding: 0 0.85rem !important;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    box-shadow: 0 6px 18px rgba(var(--primary-rgb), 0.35);
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__confirmed-badge {
+    padding: 0.45rem 0.85rem 0.5rem 0.6rem;
+    font-size: 0.72rem;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__confirmed-badge svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* Detalhes sempre abertos */
+  .secretaria-team-member-card .secretaria-team-member-card__details {
+    display: block;
+  }
+
+  /* Ações na linha do nome: Desvincular · Editar · Ver resumo · Confirmar dados */
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__desktop-action,
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__summary-action {
+    height: 38px !important;
+    width: 100% !important;
+    padding: 0 0.85rem !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 10px;
+    background: transparent !important;
+    color: var(--text-color) !important;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: none;
+    cursor: pointer;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__desktop-action:hover:not(:disabled),
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__summary-action:hover:not(:disabled) {
+    background: rgba(var(--primary-rgb), 0.08) !important;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__desktop-action--remove {
+    order: 1;
+    border-color: rgba(239, 68, 68, 0.45) !important;
+    color: #ef4444 !important;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__desktop-action--remove:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.1) !important;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__desktop-action--edit {
+    order: 2;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__summary-action {
+    order: 3;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions .secretaria-team-member-card__confirm-action {
+    order: 4;
+  }
+
+  /* Card estreito: ações descem para uma linha própria, alinhadas à direita. */
+  @container (max-width: 860px) {
+    .secretaria-team-member-card__header {
+      flex-wrap: wrap !important;
+    }
+
+    .secretaria-team-member-card__actions {
+      flex: 1 1 100%;
+      grid-auto-columns: minmax(0, 1fr) !important;
+    }
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__sections {
+    margin-top: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+
+  /* Minha Equipe: Taxa, Recepção, Recreação e Camisetas — 4 colunas iguais,
+     depois 2×2 e por fim 1 coluna, conforme a largura do card. */
+  .secretaria-team-member-card .secretaria-team-member-card__sections--four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  @container (max-width: 1000px) {
+    .secretaria-team-member-card__sections.secretaria-team-member-card__sections--four {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @container (max-width: 560px) {
+    .secretaria-team-member-card__sections.secretaria-team-member-card__sections--four {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Cards estreitos (janelas menores, sidebar aberta): reorganiza sem cortar. */
+  @container (max-width: 720px) {
+    .secretaria-team-member-card__sections:not(.secretaria-team-member-card__sections--four) {
+      grid-template-columns: 1fr !important;
+    }
+  }
+
+}
+
+/* Até 1024px: botões da linha do nome sempre abaixo do nome, ocupando a linha inteira. */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .secretaria-team-member-card .secretaria-team-member-card__header > div:first-child {
+    flex-basis: 100% !important;
+  }
+
+  .secretaria-team-member-card .secretaria-team-member-card__actions {
+    flex: 1 1 100%;
+    margin-left: 0;
+    grid-auto-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Janela de camisetas (Minha Equipe) */
+.team-shirt-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.team-shirt-modal__empty {
+  margin: 0;
+  color: var(--muted-text);
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.team-shirt-modal__summary {
+  padding-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px dashed var(--border-color);
+  font-size: 0.9rem;
+}
+
+.team-shirt-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--muted-text);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.team-shirt-modal__header .secretaria-member-panel__action {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.team-shirt-dropdown .grouped-dropdown-trigger {
+  height: 44px;
+  padding: 0 0.75rem;
+  font-size: 0.85rem;
+}

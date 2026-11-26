@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { inscricaoService } from '../../services/inscricaoService';
 import { equipeService } from '../../services/equipeService';
@@ -29,6 +29,7 @@ import {
   Search,
   X,
   UserX,
+  Camera,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -46,15 +47,13 @@ import { PessoaForm } from '../../components/pessoa/PessoaForm';
 import { useAuth } from '../../hooks/useAuth';
 import { validatePessoaForConfirmation } from '../../utils/pessoaValidation';
 import { PessoaContextDrawer } from '../../components/secretaria/PessoaContextDrawer';
+import { EncontreiroFotoModal, type EncontreiroFotoTarget } from '../../components/coordenador/EncontreiroFotoModal';
+import { getInitials } from '../../components/equipe/teamMemberCard';
+import '../../components/equipe/TeamMemberCard.css';
 
-function getInitials(name: string) {
-  return name
-    .split(' ')
-    .filter(n => n.length > 2)
-    .map(n => n[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+function formatEndereco(pessoa: Pick<Pessoa, 'endereco' | 'numero' | 'bairro' | 'cidade'>) {
+  const rua = [pessoa.endereco, pessoa.numero].filter(Boolean).join(', ');
+  return [rua, pessoa.bairro, pessoa.cidade].filter(Boolean).join(' · ');
 }
 
 function formatTelefone(tel: string | null | undefined) {
@@ -102,6 +101,9 @@ export function ConfirmationTeamDetailPage() {
   const [allInscricoesInEncontro, setAllInscricoesInEncontro] = useState<InscricaoEnriched[]>([]);
   const [showQuickAddPerson, setShowQuickAddPerson] = useState(false);
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
+  const [fotoTarget, setFotoTarget] = useState<EncontreiroFotoTarget | null>(null);
+  const [vehicleToRemove, setVehicleToRemove] = useState<{ id: string; nome: string } | null>(null);
+  const [isRemovingVehicle, setIsRemovingVehicle] = useState(false);
 
   const toggleMemberDetails = (memberId: string) => {
     setExpandedMemberId(currentId => currentId === memberId ? null : memberId);
@@ -116,12 +118,13 @@ export function ConfirmationTeamDetailPage() {
     }
   }, [encontroId, encontroAtivo]);
 
-  const loadData = async () => {
+  // silent: atualiza os registros sem trocar a lista pelo "Carregando..." (mantém a rolagem).
+  const loadData = async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!equipe_id || !encontroId) {
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
+    if (!silent) setIsLoading(true);
     try {
       const [parts, conf, equipe] = await Promise.all([
         inscricaoService.listarPorEquipeEEncontro(equipe_id, encontroId),
@@ -168,6 +171,15 @@ export function ConfirmationTeamDetailPage() {
         return a.pessoas.nome_completo.localeCompare(b.pessoas.nome_completo);
       });
   }, [participacoes, activeTeamFilter]);
+
+  // Rótulos de grupo exibidos no layout de celular/tablet.
+  const memberGroupStats = useMemo(() => {
+    const integrantes = filteredParts.filter(p => !p.coordenador);
+    return {
+      integrantes: integrantes.length,
+      pendentes: integrantes.filter(p => !p.dados_confirmados).length,
+    };
+  }, [filteredParts]);
 
   // ─── Confirmar integrante individual ────────────────────────────
   const handleConfirmOneMember = async (memberId: string) => {
@@ -335,12 +347,27 @@ export function ConfirmationTeamDetailPage() {
       toast.success(`${pessoa.nome_completo} adicionado(a) com sucesso!`);
       setShowAddModal(false);
       setSearchPessoa('');
-      await loadData();
+      await loadData({ silent: true });
     } catch (error) {
       console.error(error);
       toast.error('Erro ao adicionar integrante.');
     } finally {
       setIsActionLoading(false);
+    }
+  };
+
+  const handleRemoveVehicle = async () => {
+    if (!vehicleToRemove) return;
+    setIsRemovingVehicle(true);
+    try {
+      await recepcaoService.excluir(vehicleToRemove.id);
+      toast.success('Veículo removido!');
+      setVehicleToRemove(null);
+      await loadData({ silent: true });
+    } catch {
+      toast.error('Erro ao remover veículo');
+    } finally {
+      setIsRemovingVehicle(false);
     }
   };
 
@@ -351,7 +378,7 @@ export function ConfirmationTeamDetailPage() {
       await inscricaoService.desvincularDoEncontro(memberToRemove.id);
       toast.success(`${memberToRemove.pessoas?.nome_completo} removido(a) do encontro.`);
       setMemberToRemove(null);
-      await loadData();
+      await loadData({ silent: true });
     } catch {
       toast.error('Erro ao remover integrante.');
     } finally {
@@ -379,7 +406,7 @@ export function ConfirmationTeamDetailPage() {
       setShowQuickAddPerson(false);
       setShowAddModal(false);
       setSearchPessoa('');
-      await loadData();
+      await loadData({ silent: true });
     } catch (error) {
       console.error(error);
       toast.error('Erro ao cadastrar e adicionar pessoa.');
@@ -961,20 +988,38 @@ export function ConfirmationTeamDetailPage() {
           <span>Carregando integrantes...</span>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="secretaria-team-member-list">
           {filteredParts.length === 0 ? (
             <div className="card empty-state">
               <Users size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
               <p>Nenhum integrante encontrado.</p>
             </div>
           ) : (
-            filteredParts.map((p) => {
+            filteredParts.map((p, index) => {
               const isExpanded = expandedMemberId === p.id;
+              const previous = filteredParts[index - 1];
+              const showCoordinationLabel = p.coordenador && index === 0;
+              const showMembersLabel = !p.coordenador && (!previous || previous.coordenador);
 
               return (
+              <Fragment key={p.id}>
+              {showCoordinationLabel && (
+                <div className="secretaria-team-member-group-label">
+                  <span>Coordenação</span>
+                </div>
+              )}
+              {showMembersLabel && (
+                <div className="secretaria-team-member-group-label">
+                  <span>Integrantes ({memberGroupStats.integrantes})</span>
+                  {memberGroupStats.pendentes > 0 && (
+                    <small>
+                      {memberGroupStats.pendentes} {memberGroupStats.pendentes === 1 ? 'pendente' : 'pendentes'}
+                    </small>
+                  )}
+                </div>
+              )}
               <div
-                key={p.id}
-                className={`card animate-fade-in secretaria-team-member-card${isExpanded ? ' secretaria-team-member-card--expanded' : ''}`}
+                className={`card animate-fade-in secretaria-team-member-card${isExpanded ? ' secretaria-team-member-card--expanded' : ''}${p.dados_confirmados ? '' : ' secretaria-team-member-card--pending'}`}
                 style={{
                   padding: '1.25rem',
                   borderLeft: p.coordenador ? '4px solid #f59e0b' : '1px solid var(--border-color)'
@@ -995,13 +1040,35 @@ export function ConfirmationTeamDetailPage() {
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}
                 >
                   <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                    <div className="secretaria-team-member-card__avatar" style={{
-                      width: '44px', height: '44px', borderRadius: '12px',
-                      backgroundColor: 'rgba(var(--primary-rgb), 0.1)', color: 'var(--primary-color)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1rem'
-                    }}>
-                      {getInitials(p.pessoas.nome_completo)}
-                    </div>
+                    {/* A autorização definitiva fica na RPC definir_foto_encontreiro. */}
+                    <button
+                      type="button"
+                      className={`secretaria-team-member-photo secretaria-team-member-photo--${p.coordenador ? 'coordenacao' : 'integrante'}${p.foto_url ? '' : ' is-empty'}`}
+                      onClick={event => {
+                        event.stopPropagation();
+                        setFotoTarget({
+                          id: p.id,
+                          nome: p.pessoas.nome_completo,
+                          foto_url: p.foto_url ?? null,
+                          foto_posicao_y: p.foto_posicao_y ?? null,
+                        });
+                      }}
+                      onKeyDown={event => event.stopPropagation()}
+                      title={p.foto_url ? 'Alterar foto' : 'Adicionar foto'}
+                      aria-label={`${p.foto_url ? 'Alterar' : 'Adicionar'} foto de ${p.pessoas.nome_completo}`}
+                    >
+                      {p.foto_url ? (
+                        <img
+                          src={p.foto_url}
+                          alt=""
+                          loading="lazy"
+                          style={{ objectPosition: `center ${p.foto_posicao_y ?? 50}%` }}
+                        />
+                      ) : (
+                        <span className="secretaria-team-member-photo__initials">{getInitials(p.pessoas.nome_completo)}</span>
+                      )}
+                      <span className="secretaria-team-member-photo__badge" aria-hidden="true"><Camera size={10} /></span>
+                    </button>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                         <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700 }}>{p.pessoas.nome_completo}</h3>
@@ -1013,6 +1080,31 @@ export function ConfirmationTeamDetailPage() {
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           <Phone size={14} style={{ flexShrink: 0 }} /> {formatTelefone(p.pessoas.telefone)}
                         </span>
+                        {(() => {
+                          const endereco = formatEndereco(p.pessoas);
+                          if (!p.pessoas.email && !endereco) {
+                            return (
+                              <span className="secretaria-team-member-card__contact-extra is-missing">
+                                E-mail e endereço ainda não informados
+                              </span>
+                            );
+                          }
+                          return (
+                            <>
+                              {p.pessoas.email && (
+                                <span className="secretaria-team-member-card__contact-extra" title={p.pessoas.email}>
+                                  <Mail size={14} /> {p.pessoas.email}
+                                </span>
+                              )}
+                              {endereco && (
+                                <span className="secretaria-team-member-card__contact-extra secretaria-team-member-card__contact-extra--address" title={endereco}>
+                                  <MapPin size={14} />
+                                  <span className="secretaria-team-member-card__address-label">{endereco}</span>
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -1025,9 +1117,15 @@ export function ConfirmationTeamDetailPage() {
                   >
                     {p.dados_confirmados ? (
                       <span className="secretaria-team-member-card__confirmed-badge">
+                        <Check size={16} aria-hidden="true" />
                         Confirmado
                       </span>
                     ) : (
+                      <>
+                      <span className="secretaria-team-member-card__pending-badge">
+                        <AlertCircle size={16} aria-hidden="true" />
+                        Pendente
+                      </span>
                       <button
                         onClick={() => handleConfirmOneMember(p.id)}
                         disabled={isActionLoading}
@@ -1042,44 +1140,36 @@ export function ConfirmationTeamDetailPage() {
                         <Check size={18} style={{ flexShrink: 0 }} />
                         <span>Confirmar dados</span>
                       </button>
+                      </>
                     )}
                     <button
                       type="button"
                       onClick={() => setContextParticipantId(p.id)}
-                      className="btn-secondary"
+                      className="btn-secondary secretaria-team-member-card__summary-action"
                       title="Ver resumo da pessoa"
                     >
-                      <Users size={16} />
+                      <FileText size={16} />
                       <span>Ver resumo</span>
                     </button>
                     <button
-                      onClick={() => void handleOpenPessoaEdit(p.pessoas.id)}
-                      disabled={isActionLoading}
-                      className="btn-icon secretaria-team-member-card__desktop-action"
-                      style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.03)', border: '1px solid var(--border-color)',
-                        height: '32px', padding: '0 0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
-                        color: 'var(--text-color)'
-                      }}
-                      title="Editar Dados"
-                    >
-                      <Pencil size={18} style={{ flexShrink: 0 }} />
-                      <span>Editar</span>
-                    </button>
-                    <button
+                      type="button"
                       onClick={() => setMemberToRemove(p)}
                       disabled={isActionLoading}
-                      className="btn-icon secretaria-team-member-card__desktop-action secretaria-team-member-card__remove-action"
-                      style={{
-                        backgroundColor: 'rgba(239, 68, 68, 0.05)', color: '#ef4444',
-                        border: '1px solid rgba(239, 68, 68, 0.2)',
-                        height: '32px', padding: '0 0.65rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
-                        cursor: 'pointer'
-                      }}
-                      title="Desvincular Integrante"
+                      className="secretaria-team-member-card__desktop-action secretaria-team-member-card__desktop-action--remove"
+                      title="Desvincular integrante"
                     >
-                      <UserX size={18} style={{ flexShrink: 0 }} />
+                      <UserX size={16} />
                       <span>Desvincular</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenPessoaEdit(p.pessoas.id)}
+                      disabled={isActionLoading}
+                      className="secretaria-team-member-card__desktop-action secretaria-team-member-card__desktop-action--edit"
+                      title="Editar dados do integrante"
+                    >
+                      <Pencil size={16} />
+                      <span>Editar integrante</span>
                     </button>
                     <button
                       type="button"
@@ -1088,6 +1178,9 @@ export function ConfirmationTeamDetailPage() {
                       aria-label={isExpanded ? 'Ocultar detalhes do integrante' : 'Exibir detalhes do integrante'}
                       aria-expanded={isExpanded}
                     >
+                      <span className="secretaria-team-member-card__toggle-label">
+                        {isExpanded ? 'Menos detalhes' : 'Mais detalhes'}
+                      </span>
                       <span className="secretaria-team-member-card__chevron" aria-hidden="true" />
                     </button>
                   </div>
@@ -1107,10 +1200,6 @@ export function ConfirmationTeamDetailPage() {
                   </div>
 
                   <div className="secretaria-team-member-card__mobile-actions">
-                    <button type="button" onClick={() => void handleOpenPessoaEdit(p.pessoas.id)} disabled={isActionLoading} className="btn-secondary">
-                      <Pencil size={16} />
-                      Editar dados
-                    </button>
                     <button
                       type="button"
                       onClick={() => setMemberToRemove(p)}
@@ -1118,173 +1207,122 @@ export function ConfirmationTeamDetailPage() {
                       className="btn-secondary secretaria-team-member-card__remove-action"
                     >
                       <UserX size={16} />
-                      Remover do encontro
+                      Desvincular
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenPessoaEdit(p.pessoas.id)}
+                      disabled={isActionLoading}
+                      className="btn-secondary secretaria-team-member-card__edit-action"
+                    >
+                      <Pencil size={16} />
+                      Editar integrante
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setContextParticipantId(p.id)}
+                      className="btn-secondary secretaria-team-member-card__summary-inline"
+                    >
+                      <FileText size={16} />
+                      Ver resumo
                     </button>
                   </div>
 
-                {/* Seções de Recepção e Recreação */}
-                <div className="secretaria-team-member-card__sections" style={{
-                  display: 'grid',
-                  gap: '1.25rem',
-                  marginTop: '1.25rem',
-                  paddingTop: '1.25rem',
-                  borderTop: '1px solid var(--border-color)'
-                }}>
-                  {/* Recepção Section */}
-                  <div style={{
-                    padding: '1rem',
-                    backgroundColor: 'var(--surface-2, rgba(0,0,0,0.02))',
-                    borderRadius: '12px',
-                    border: '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem',
-                    minHeight: '120px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
-                        Recepção
-                      </div>
-                      <button
-                        onClick={() => {
-                          setRecepcaoParticipacaoId(p.id);
-                          setRecepcaoParticipanteNome(p.pessoas.nome_completo || '');
-                        }}
-                        className="btn-text"
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          fontSize: '0.6rem',
-                          fontWeight: 600,
-                          color: 'var(--primary-color)',
-                          letterSpacing: '0.05em',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Car size={16} />
-                          {p.recepcao_dados ? 'EDITAR' : 'CADASTRAR'}
-                        </div>
-                      </button>
-                    </div>
+                {/* Recepção e Recreação */}
+                {(() => {
+                  const recepcao = p.recepcao_dados;
+                  const criancas = [...(p.recreacao_dados || []), ...(p.recreacao_dados_secundario || [])];
+                  const openRecepcao = () => {
+                    setRecepcaoParticipacaoId(p.id);
+                    setRecepcaoParticipanteNome(p.pessoas.nome_completo || '');
+                  };
+                  const openRecreacao = () => {
+                    setRecreacaoParticipacaoId(p.id);
+                    setRecreacaoParticipanteNome(p.pessoas.nome_completo || '');
+                  };
 
-                    {!p.recepcao_dados ? (
-                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
-                        Não cadastrado
-                      </div>
-                    ) : (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Veículo</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.65rem' }}>Placa</th>
-                              <th style={{ width: '30px' }}></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                              <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>{p.recepcao_dados.veiculo_modelo} ({p.recepcao_dados.veiculo_cor})</td>
-                              <td style={{ padding: '0.4rem 0.25rem' }}>{formatPlate(p.recepcao_dados.veiculo_placa)}</td>
-                              <td style={{ padding: '0.25rem', textAlign: 'right' }}>
-                                <button
-                                  onClick={async () => {
-                                    if (window.confirm(`Deseja remover o veículo de ${p.pessoas.nome_completo}?`)) {
-                                      try {
-                                        await recepcaoService.excluir(p.recepcao_dados!.id);
-                                        toast.success('Veículo removido!');
-                                        loadData();
-                                      } catch {
-                                        toast.error('Erro ao remover veículo');
-                                      }
-                                    }
-                                  }}
-                                  style={{ background: 'none', border: 'none', color: '#ef4444', opacity: 0.5, cursor: 'pointer', padding: '0.25rem' }}
-                                  title="Remover Veículo"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Recreação Section */}
-                  <div style={{
-                    padding: '1rem',
-                    backgroundColor: 'rgba(var(--primary-rgb), 0.02)',
-                    borderRadius: '12px',
-                    border: '1px solid var(--border-color)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem',
-                    minHeight: '120px'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', opacity: 0.5, letterSpacing: '0.05em' }}>
-                        Recreação
-                      </div>
-                      <button
-                        onClick={() => {
-                          setRecreacaoParticipacaoId(p.id);
-                          setRecreacaoParticipanteNome(p.pessoas.nome_completo || '');
-                        }}
-                        className="btn-text"
-                        style={{
-                          padding: '0.25rem 0.5rem',
-                          fontSize: '0.6rem',
-                          fontWeight: 600,
-                          color: 'var(--primary-color)',
-                          letterSpacing: '0.05em',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <Baby size={16} />
-                          {(p.recreacao_dados && p.recreacao_dados.length > 0) || (p.recreacao_dados_secundario && p.recreacao_dados_secundario.length > 0) ? (
-                            'GERENCIAR'
+                  return (
+                    <div className="secretaria-team-member-card__sections secretaria-team-member-card__sections--inline-actions">
+                      <div className={`secretaria-member-panel${recepcao ? '' : ' is-empty'}`}>
+                        <span className="secretaria-member-panel__icon" aria-hidden="true"><Car size={18} /></span>
+                        <div className="secretaria-member-panel__body">
+                          <strong>Recepção</strong>
+                          {recepcao ? (
+                            <span>
+                              {recepcao.veiculo_tipo === 'moto' ? 'Moto' : 'Carro'} · {[recepcao.veiculo_modelo, recepcao.veiculo_cor].filter(Boolean).join(' ')}
+                              {recepcao.veiculo_placa ? ` · ${formatPlate(recepcao.veiculo_placa)}` : ''}
+                            </span>
                           ) : (
-                            'CADASTRAR'
+                            <span>Não cadastrado</span>
                           )}
                         </div>
-                      </button>
-                    </div>
+                        <div className="secretaria-member-panel__actions">
+                          {recepcao && (
+                            <button
+                              type="button"
+                              className="secretaria-member-panel__icon-action"
+                              onClick={() => setVehicleToRemove({ id: recepcao.id, nome: p.pessoas.nome_completo })}
+                              title="Remover veículo"
+                              aria-label={`Remover veículo de ${p.pessoas.nome_completo}`}
+                            >
+                              <Trash2 size={15} />
+                              <span className="secretaria-member-panel__label">Excluir</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className={`secretaria-member-panel__action${recepcao ? '' : ' is-add'}`}
+                            onClick={openRecepcao}
+                            title={recepcao ? 'Editar recepção' : 'Cadastrar recepção'}
+                          >
+                            {recepcao ? <Pencil size={14} /> : <Plus size={14} />}
+                            <span className="secretaria-member-panel__label">{recepcao ? 'Editar' : 'Cadastrar'}</span>
+                          </button>
+                        </div>
+                      </div>
 
-                    {(!p.recreacao_dados || p.recreacao_dados.length === 0) && (!p.recreacao_dados_secundario || p.recreacao_dados_secundario.length === 0) ? (
-                      <div style={{ height: '32px', display: 'flex', alignItems: 'center', fontSize: '0.8rem', opacity: 0.4, fontStyle: 'italic' }}>
-                        Não cadastrado
+                      <div className={`secretaria-member-panel${criancas.length > 0 ? '' : ' is-empty'}`}>
+                        <span className="secretaria-member-panel__icon" aria-hidden="true"><Baby size={18} /></span>
+                        <div className="secretaria-member-panel__body">
+                          <strong>
+                            Recreação
+                            {criancas.length > 0 && ` · ${criancas.length} ${criancas.length === 1 ? 'criança' : 'crianças'}`}
+                          </strong>
+                          <span>
+                            {criancas.length > 0
+                              ? criancas.map((c: RecreacaoDados) => `${c.nome_crianca}, ${c.idade} ${c.idade === 1 ? 'ano' : 'anos'}`).join(' · ')
+                              : 'Não cadastrado'}
+                          </span>
+                        </div>
+                        <div className="secretaria-member-panel__actions">
+                          <button
+                            type="button"
+                            className={`secretaria-member-panel__action${criancas.length > 0 ? '' : ' is-add'}`}
+                            onClick={openRecreacao}
+                            title={criancas.length > 0 ? 'Editar recreação' : 'Cadastrar recreação'}
+                          >
+                            {criancas.length > 0 ? <Pencil size={14} /> : <Plus size={14} />}
+                            <span className="secretaria-member-panel__label">{criancas.length > 0 ? 'Editar' : 'Cadastrar'}</span>
+                          </button>
+                        </div>
                       </div>
-                    ) : (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', fontSize: '0.7rem', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ textAlign: 'left', opacity: 0.5 }}>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.6rem' }}>Criança</th>
-                              <th style={{ padding: '0.35rem 0.25rem', fontWeight: 700, textTransform: 'uppercase', fontSize: '0.6rem' }}>Idade</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {[...(p.recreacao_dados || []), ...(p.recreacao_dados_secundario || [])].map((c: RecreacaoDados) => (
-                              <tr key={c.id} style={{ borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                                <td style={{ padding: '0.4rem 0.25rem', fontWeight: 600 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    {c.nome_crianca}
-                                  </div>
-                                </td>
-                                <td style={{ padding: '0.4rem 0.25rem' }}>{c.idade}a</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                    </div>
+                  );
+                })()}
                 </div>
               </div>
+              </Fragment>
               );
             })
           )}
+          <button
+            type="button"
+            onClick={() => setShowAddModal(true)}
+            className="secretaria-team-member-add-bottom"
+          >
+            <Plus size={17} />
+            <span>Adicionar integrante</span>
+          </button>
         </div>
       )}
 
@@ -1303,7 +1341,7 @@ export function ConfirmationTeamDetailPage() {
         isOpen={!!recepcaoParticipacaoId}
         onClose={() => {
           setRecepcaoParticipacaoId(null);
-          loadData();
+          loadData({ silent: true });
         }}
         participacaoId={recepcaoParticipacaoId || ''}
         participanteNome={recepcaoParticipanteNome}
@@ -1314,7 +1352,7 @@ export function ConfirmationTeamDetailPage() {
         isOpen={!!recreacaoParticipacaoId}
         onClose={() => {
           setRecreacaoParticipacaoId(null);
-          loadData();
+          loadData({ silent: true });
         }}
         participacaoId={recreacaoParticipacaoId || ''}
         participanteNome={recreacaoParticipanteNome}
@@ -1324,6 +1362,32 @@ export function ConfirmationTeamDetailPage() {
         participacaoId={contextParticipantId}
         encontroId={encontroId || null}
         onClose={() => setContextParticipantId(null)}
+      />
+      <EncontreiroFotoModal
+        target={fotoTarget}
+        onClose={() => setFotoTarget(null)}
+        onChange={(participacaoId, foto) => {
+          setParticipacoes(current => current.map(participacao => (
+            participacao.id === participacaoId ? { ...participacao, ...foto } : participacao
+          )));
+          setFotoTarget(current => (current?.id === participacaoId ? { ...current, ...foto } : current));
+        }}
+      />
+      <ConfirmDialog
+        isOpen={!!vehicleToRemove}
+        title="Remover veículo"
+        message={
+          <>
+            Deseja remover o veículo de <strong style={{ color: 'var(--text-color)' }}>{vehicleToRemove?.nome}</strong>?
+          </>
+        }
+        confirmText="Sim, remover"
+        loadingText="Removendo..."
+        cancelText="Cancelar"
+        onConfirm={() => void handleRemoveVehicle()}
+        onCancel={() => setVehicleToRemove(null)}
+        isLoading={isRemovingVehicle}
+        isDestructive
       />
       {/* Modal de remoção de integrante */}
       <ConfirmDialog

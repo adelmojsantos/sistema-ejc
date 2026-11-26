@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../hooks/useAuth';
+import { canAccessMinhaEquipe } from '../utils/accessControl';
 import { ConfirmDialog } from './ConfirmDialog';
 
 export function Header() {
@@ -12,7 +13,7 @@ export function Header() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { signOut, profile, userParticipacao, hasPermission } = useAuth();
+  const { signOut, profile, userParticipacao, hasPermission, hasExactPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -90,7 +91,11 @@ export function Header() {
     navLinks.push({ to: '/admin/email-institucional', label: 'E-mail' });
   }
 
-  if (hasPermission('modulo_coordenador') && userParticipacao?.coordenador) {
+  if (canAccessMinhaEquipe({
+    hasPermission,
+    hasExactPermission,
+    isCoordinator: Boolean(userParticipacao?.coordenador),
+  })) {
     if (!navLinks.some(link => link.to === '/coordenador/minha-equipe')) {
       navLinks.push({ to: '/coordenador/minha-equipe', label: 'Minha Equipe' });
     }

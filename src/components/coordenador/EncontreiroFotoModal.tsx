@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Camera, Loader, Minus, Plus, Trash2, Upload, User } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { Modal } from '../ui/Modal';
+import { MobileFileUploadButton } from '../ui/MobileFileUploadButton';
 import { inscricaoService } from '../../services/inscricaoService';
 import { userFacingError } from '../../utils/userFacingError';
 import './EncontreiroFotoModal.css';
@@ -40,7 +41,7 @@ function EncontreiroFotoModalContent({
   onClose,
   onChange,
 }: EncontreiroFotoModalProps & { target: EncontreiroFotoTarget }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const pickerTriggerRef = useRef<HTMLButtonElement>(null);
   const savedPosition = target.foto_posicao_y ?? 50;
   const [position, setPosition] = useState(savedPosition);
   const [busy, setBusy] = useState<'upload' | 'position' | 'remove' | null>(null);
@@ -201,7 +202,7 @@ function EncontreiroFotoModalContent({
             <button
               type="button"
               className="encontreiro-foto-action primary"
-              onClick={() => inputRef.current?.click()}
+              onClick={() => pickerTriggerRef.current?.click()}
               disabled={!!busy}
             >
               {hasPhoto ? <Camera size={17} /> : <Upload size={17} />}
@@ -214,16 +215,19 @@ function EncontreiroFotoModalContent({
           A foto aparece ao lado do nome no Quadrante do encontro. Prefira fotos de rosto, com boa iluminação.
         </p>
 
-        <input
-          ref={inputRef}
-          data-testid="encontreiro-foto-input"
-          type="file"
+        {/* No celular abre a gaveta padrão do sistema: tirar foto ou escolher da galeria. */}
+        <MobileFileUploadButton
+          triggerRef={pickerTriggerRef}
+          hideTrigger
+          label={hasPhoto ? 'Trocar foto' : 'Adicionar foto'}
+          sheetDescription="Escolha se deseja tirar uma foto agora ou selecionar uma imagem existente."
+          galleryLabel="Escolher da galeria"
+          multiple={false}
           accept="image/*"
-          hidden
-          onChange={(event) => {
-            const file = event.target.files?.[0];
+          disabled={!!busy}
+          onFiles={(files) => {
+            const file = files[0];
             if (file) void handleUpload(file);
-            event.target.value = '';
           }}
         />
       </div>

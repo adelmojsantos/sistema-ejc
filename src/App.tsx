@@ -23,6 +23,7 @@ import {
   PURCHASES_ROUTE_PERMISSIONS,
   SHIRT_ROUTE_PERMISSIONS,
   canAccessKitchenArea,
+  canAccessMinhaEquipe as canAccessMinhaEquipeArea,
 } from './utils/accessControl';
 
 function lazyNamed<TProps extends object = Record<string, never>>(
@@ -168,8 +169,12 @@ function RouteLoadingFallback() {
 
 function AnimatedRoutes() {
   const location = useLocation();
-  const { profile, hasPermission, userParticipacao } = useAuth();
-  const canAccessMinhaEquipe = hasPermission('modulo_coordenador') && !!userParticipacao?.coordenador;
+  const { profile, hasPermission, hasExactPermission, userParticipacao } = useAuth();
+  const canAccessMinhaEquipe = canAccessMinhaEquipeArea({
+    hasPermission,
+    hasExactPermission,
+    isCoordinator: Boolean(userParticipacao?.coordenador),
+  });
   const canAccessCozinha = canAccessKitchenArea({
     hasPermission,
     isCoordinator: Boolean(userParticipacao?.coordenador),

@@ -9,6 +9,7 @@ import {
   PURCHASES_ROUTE_PERMISSIONS,
   SHIRT_ROUTE_PERMISSIONS,
   canAccessKitchenArea,
+  canAccessMinhaEquipe,
   hasAnyPermission,
   syncBackendAdminPermission,
 } from './accessControl';
@@ -125,5 +126,16 @@ describe('accessControl', () => {
       isCoordinator: false,
       teamName: null,
     })).toBe(true);
+  });
+
+  it('libera Minha Equipe ao coordenador e ao desenvolvedor', () => {
+    const coordenador = checkerFor('modulo_coordenador');
+    const desenvolvedor = checkerFor('modulo_diagnosticos');
+    const admin = checkerFor('modulo_admin', 'modulo_coordenador');
+
+    expect(canAccessMinhaEquipe({ hasPermission: coordenador, hasExactPermission: coordenador, isCoordinator: true })).toBe(true);
+    expect(canAccessMinhaEquipe({ hasPermission: coordenador, hasExactPermission: coordenador, isCoordinator: false })).toBe(false);
+    expect(canAccessMinhaEquipe({ hasPermission: desenvolvedor, hasExactPermission: desenvolvedor, isCoordinator: false })).toBe(true);
+    expect(canAccessMinhaEquipe({ hasPermission: admin, hasExactPermission: admin, isCoordinator: false })).toBe(false);
   });
 });
