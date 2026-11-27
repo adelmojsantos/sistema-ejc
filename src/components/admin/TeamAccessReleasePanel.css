@@ -60,3 +60,183 @@
     padding-right: 0;
   }
 }
+
+.team-access-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.team-access-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.team-access-panel__header > div:first-child {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.team-access-panel__header-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.team-access-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.team-access-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.team-access-stats > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  background: var(--secondary-bg);
+  color: var(--muted-text);
+}
+
+.team-access-stats__warning { color: var(--ua-warning-text, #b45309) !important; }
+.team-access-stats__success { color: var(--success-text) !important; }
+.team-access-stats__danger { color: var(--danger-text) !important; }
+
+.team-access-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.team-access-filters .form-group {
+  margin: 0;
+}
+
+.team-access-filters__clear {
+  justify-self: start;
+  min-height: 2.5rem;
+}
+
+.team-access-list-toolbar__hint {
+  font-size: 0.84rem;
+}
+
+.team-access-empty-filter {
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+}
+
+.team-access-candidate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--surface-1);
+}
+
+.team-access-candidate--selected {
+  border-color: var(--primary-color);
+  background: var(--primary-light);
+}
+
+.team-access-candidate__person {
+  display: grid;
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.team-access-candidate__person small {
+  color: var(--muted-text);
+  overflow-wrap: anywhere;
+}
+
+.team-access-candidate__team {
+  display: grid;
+  flex: 1 1 150px;
+  font-size: 0.82rem;
+}
+
+.team-access-candidate__team span {
+  color: var(--muted-text);
+}
+
+.team-access-candidate__groups {
+  display: flex;
+  flex: 1 1 180px;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.team-access-candidate__status {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
+  flex: 0 1 170px;
+  margin-left: auto;
+  text-align: right;
+}
+
+.team-access-candidate__email {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  font-size: 0.78rem;
+}
+
+.team-access-result--ok { color: var(--success-text); }
+.team-access-result--error { color: var(--danger-text); }
+
+.team-access-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0 0.25rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--card-bg, var(--surface-1));
+}
+
+.team-access-footer > span {
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .team-access-panel__header-actions > button {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .team-access-candidate__status {
+    justify-items: start;
+    flex-basis: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .team-access-footer .btn-primary {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+}

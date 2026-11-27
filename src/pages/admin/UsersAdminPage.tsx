@@ -1,1990 +1,240 @@
-import type { SyntheticEvent } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { toast } from 'react-hot-toast';
-import { CheckCircle, Mail, RotateCcw, Search, ShieldCheck, UserPlus, Users2, X, Trash2 } from 'lucide-react';
-import { ActionStepper } from '../../components/ui/ActionStepper';
-import {
-    adminUserService,
-    type AdminUsersSummary,
-    type CoordenadorPastaAccessItem,
-    type CoordenadorPastaPrepareResult,
-} from '../../services/adminUserService';
-import type { Pessoa } from '../../types/pessoa';
-import { LiveSearchSelect } from '../../components/ui/LiveSearchSelect';
-import { encontroService } from '../../services/encontroService';
-import { equipeService } from '../../services/equipeService';
-import { inscricaoService } from '../../services/inscricaoService';
-import { useEncontros } from '../../contexts/EncontroContext';
-import { useDebounce } from '../../hooks/useDebounce';
-import type { InscricaoEnriched } from '../../types/inscricao';
-import type { Encontro } from '../../types/encontro';
-import type { Equipe } from '../../types/equipe';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { AlertTriangle, Info, ShieldCheck, UserPlus, Users2, UsersRound, Wand2 } from 'lucide-react';
+import { adminUserService, type AdminUserListItem } from '../../services/adminUserService';
+import { adminAccessService } from '../../services/adminAccessService';
 import { exportConfigService, type ExportConfig } from '../../services/exportConfigService';
-import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { Modal } from '../../components/ui/Modal';
-import { userFacingError } from '../../utils/userFacingError';
+import { useEncontros } from '../../contexts/EncontroContext';
+import { getPermissionName } from '../../utils/permissionLabels';
 import { TeamAccessReleasePanel } from '../../components/admin/TeamAccessReleasePanel';
+import { UsersListTab } from './users/UsersListTab';
+import { UserAccessDrawer } from './users/UserAccessDrawer';
+import { IndividualAccessTab } from './users/IndividualAccessTab';
+import { TeamCustomAccessTab } from './users/TeamCustomAccessTab';
+import { getEncontroLabel, type AccessContextId, type AdminGroup } from './users/usersAdminModel';
+import './users/UsersAdminPage.css';
 
-export interface UserExtended {
-    id: string;
-    email: string;
-    pessoaId?: string | null;
-    pessoaVinculo?: 'explicit' | 'email_fallback' | 'none';
-    temporary_password: boolean;
-    created_at: string;
-    grupos: import('../../services/adminUserService').UserGrupoVinculo[];
-    nome?: string;
-    encontrosIds?: string[];
-    equipesNomes?: Record<string, string>; // encontro_id -> nome_da_equipe
+type UsersTab = 'usuarios' | 'liberar' | 'equipe' | 'individual';
+
+const PERMANENT_OPTION = 'permanente';
+
+const TABS: { id: UsersTab; label: string; icon: typeof Users2; requiresEncounter: boolean }[] = [
+    { id: 'usuarios', label: 'Usuários', icon: Users2, requiresEncounter: false },
+    { id: 'liberar', label: 'Liberar acessos das equipes', icon: Wand2, requiresEncounter: true },
+    { id: 'equipe', label: 'Por equipe (perfis personalizados)', icon: UsersRound, requiresEncounter: true },
+    { id: 'individual', label: 'Acesso individual', icon: UserPlus, requiresEncounter: false },
+];
+
+function isUsersTab(value: string | null): value is UsersTab {
+    return TABS.some(tab => tab.id === value);
 }
 
 export function UsersAdminPage() {
-    const [users, setUsers] = useState<UserExtended[]>([]);
-    const [grupos, setGrupos] = useState<{ id: string, nome: string }[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [summary, setSummary] = useState<AdminUsersSummary>({
-        totalUsers: 0,
-        totalTemporaryPassword: 0,
-        totalWithoutPerson: 0,
-        totalWithTargetAccess: 0,
-        filteredTotal: 0,
-    });
-    const [currentPage, setCurrentPage] = useState(0);
-    const [pageSize, setPageSize] = useState(20);
-    const [totalUsers, setTotalUsers] = useState(0);
-    const [selectedGruposIds, setSelectedGruposIds] = useState<string[]>([]);
-    const [creating, setCreating] = useState(false);
-    const [updatingRoleById, setUpdatingRoleById] = useState<Record<string, boolean>>({});
-    const [resettingPasswordById, setResettingPasswordById] = useState<Record<string, boolean>>({});
-    const [confirmPendingSecurity, setConfirmPendingSecurity] = useState(false);
-    const [securingPendingPasswords, setSecuringPendingPasswords] = useState(false);
-    const [userToDelete, setUserToDelete] = useState<string | null>(null);
-    const [selectedUserDetails, setSelectedUserDetails] = useState<UserExtended | null>(null);
-    const [linkPessoa, setLinkPessoa] = useState<Pessoa | null>(null);
-    const [linkingPessoa, setLinkingPessoa] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
-
-    const [selectedPessoa, setSelectedPessoa] = useState<Pessoa | null>(null);
-    const [individualStep, setIndividualStep] = useState<'contexto' | 'pessoa' | 'perfil' | 'criar'>('pessoa');
-
-    // Bulk creation state
-    const [creationMode, setCreationMode] = useState<'liberar' | 'individual' | 'lote' | 'coordenadores'>('liberar');
     const { encontros, encontroSelecionadoId } = useEncontros();
-    const [selectedEncontroId, setSelectedEncontroId] = useState<string>('');
-    const [selectedEquipeId, setSelectedEquipeId] = useState<string>('');
-    const [selectedEquipeNome, setSelectedEquipeNome] = useState<string>('');
-    const [teamMembers, setTeamMembers] = useState<InscricaoEnriched[]>([]);
-    const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
-    const [bulkGruposIds, setBulkGruposIds] = useState<string[]>([]);
-    const [bulkStep, setBulkStep] = useState<'encontro' | 'equipe' | 'membros' | 'acesso' | 'criar'>('encontro');
-    const [bulkEncontroAlteradoManual, setBulkEncontroAlteradoManual] = useState(false);
-    const [loadingMembers, setLoadingMembers] = useState(false);
-    const [bulkResults, setBulkResults] = useState<{ id: string; success: boolean; message?: string }[]>([]);
-    const [coordenadoresPasta, setCoordenadoresPasta] = useState<CoordenadorPastaAccessItem[]>([]);
-    const [coordenadorGrupoId, setCoordenadorGrupoId] = useState('');
-    const [loadingCoordenadores, setLoadingCoordenadores] = useState(false);
-    const [preparingCoordenadores, setPreparingCoordenadores] = useState(false);
-    const [coordenadorResults, setCoordenadorResults] = useState<CoordenadorPastaPrepareResult[]>([]);
-    const [coordenadorEmailTarget, setCoordenadorEmailTarget] = useState<CoordenadorPastaAccessItem | null>(null);
-    const [coordenadorEmail, setCoordenadorEmail] = useState('');
-    const [savingCoordenadorEmail, setSavingCoordenadorEmail] = useState(false);
-
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [overriddenContext, setOverriddenContext] = useState<{ value: AccessContextId } | null>(null);
+    const [grupos, setGrupos] = useState<AdminGroup[]>([]);
+    const [groupModules, setGroupModules] = useState<Record<string, string[]>>({});
     const [exportConfigs, setExportConfigs] = useState<ExportConfig[]>([]);
+    const [selectedUser, setSelectedUser] = useState<AdminUserListItem | null>(null);
+    const [drawerChanged, setDrawerChanged] = useState(false);
+    const [reloadToken, setReloadToken] = useState(0);
 
-    const [targetEncontroId, setTargetEncontroId] = useState<string | null>(null); // The context for permissions
-    const [contextSelectionOverridden, setContextSelectionOverridden] = useState(false);
+    // Segue o encontro escolhido no sistema até o administrador escolher outro nesta tela.
+    const contextId: AccessContextId = overriddenContext ? overriddenContext.value : (encontroSelecionadoId || null);
+    const contextEncontro = contextId ? encontros.find(encontro => encontro.id === contextId) : undefined;
+    const isPermanent = contextId === null;
+    const contextLabel = isPermanent ? 'Acessos permanentes' : getEncontroLabel(contextEncontro);
 
-    // Filters
-    const [searchTerm, setSearchTerm] = useState('');
-    const debouncedSearchTerm = useDebounce(searchTerm, 400);
-    const [filterGrupoId, setFilterGrupoId] = useState<string>('all');
-    const [filterEncontroId, setFilterEncontroId] = useState<string>('all');
-    const [filterTempPassword, setFilterTempPassword] = useState<'all' | 'sim' | 'nao'>('all');
-    const [filterAccessScope, setFilterAccessScope] = useState<'with' | 'without' | 'all'>('with');
-    const [filterPersonLinkScope, setFilterPersonLinkScope] = useState<'linked' | 'unlinked' | 'all'>('all');
-    const loadUsersRequestIdRef = useRef(0);
+    const requestedTab = searchParams.get('aba');
+    const activeTab: UsersTab = isUsersTab(requestedTab)
+        && !(isPermanent && TABS.find(tab => tab.id === requestedTab)?.requiresEncounter)
+        ? requestedTab
+        : 'usuarios';
 
-    const loadSupportData = useCallback(async () => {
-        try {
-            const gruposData = await adminUserService.listGrupos();
-            setGrupos(gruposData);
-
-            const configs = await exportConfigService.listarTodas();
-            setExportConfigs(configs);
-        } catch (err) {
-            console.warn('Could not load users support data', err);
-        }
+    useEffect(() => {
+        let cancelled = false;
+        const loadSupportData = async () => {
+            try {
+                const [loadedGroups, permissoes, grupoPermissoes, configs] = await Promise.all([
+                    adminUserService.listGrupos(),
+                    adminAccessService.listPermissoes(),
+                    adminAccessService.listGrupoPermissoes(),
+                    exportConfigService.listarTodas(),
+                ]);
+                const permissionsById = new Map(permissoes.map(permissao => [permissao.id, permissao]));
+                const modules: Record<string, string[]> = {};
+                for (const grupo of loadedGroups) {
+                    const granted = grupoPermissoes
+                        .filter(item => item.grupo_id === grupo.id)
+                        .map(item => permissionsById.get(item.permissao_id))
+                        .filter((permissao): permissao is NonNullable<typeof permissao> => !!permissao);
+                    const topLevel = granted.filter(permissao => permissao.chave.startsWith('modulo_'));
+                    modules[grupo.id] = (topLevel.length > 0 ? topLevel : granted)
+                        .map(getPermissionName)
+                        .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+                }
+                if (cancelled) return;
+                setGrupos(loadedGroups);
+                setGroupModules(modules);
+                setExportConfigs(configs);
+            } catch (error) {
+                console.warn('Não foi possível carregar perfis e configurações da tela de usuários.', error);
+            }
+        };
+        void loadSupportData();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
-    const loadUsers = useCallback(async () => {
-        const requestId = ++loadUsersRequestIdRef.current;
-        setLoading(true);
-        setError(null);
-        try {
-            const response = await adminUserService.listUsers({
-                page: currentPage,
-                pageSize,
-                search: debouncedSearchTerm,
-                grupoId: filterGrupoId,
-                encontroId: filterEncontroId,
-                tempPassword: filterTempPassword,
-                targetEncontroId,
-                accessScope: filterAccessScope,
-                personLinkScope: filterPersonLinkScope,
-            });
+    const sortedEncontros = useMemo(
+        () => [...encontros].sort((a, b) => Number(b.ativo) - Number(a.ativo) || (b.edicao ?? 0) - (a.edicao ?? 0)),
+        [encontros],
+    );
 
-            if (requestId !== loadUsersRequestIdRef.current) return;
-            setUsers(response.users as UserExtended[]);
-            setTotalUsers(response.total);
-            setSummary(response.summary);
-
-        } catch (err: unknown) {
-            if (requestId !== loadUsersRequestIdRef.current) return;
-            console.error('Falha em loadUsers', err);
-            setError(userFacingError(err, 'Não foi possível carregar os usuários. Tente novamente.'));
-        } finally {
-            if (requestId === loadUsersRequestIdRef.current) setLoading(false);
-        }
-    }, [currentPage, pageSize, debouncedSearchTerm, filterGrupoId, filterEncontroId, filterTempPassword, filterAccessScope, filterPersonLinkScope, targetEncontroId]);
-
-    useEffect(() => {
-        loadSupportData();
-    }, [loadSupportData]);
-
-    useEffect(() => {
-        loadUsers();
-    }, [loadUsers]);
-
-    useEffect(() => {
-        setCurrentPage(0);
-    }, [debouncedSearchTerm, filterGrupoId, filterEncontroId, filterTempPassword, filterAccessScope, filterPersonLinkScope, targetEncontroId]);
-
-    // Segue o encontro global até que o administrador escolha outro contexto nesta tela.
-    useEffect(() => {
-        if (contextSelectionOverridden || !encontroSelecionadoId) return;
-        setTargetEncontroId(encontroSelecionadoId);
-        if (!selectedEncontroId) setSelectedEncontroId(encontroSelecionadoId);
-    }, [contextSelectionOverridden, encontroSelecionadoId, selectedEncontroId]);
-
-    useEffect(() => {
-        if (creationMode !== 'lote') return;
-        if (!targetEncontroId || bulkEncontroAlteradoManual) return;
-
-        if (selectedEncontroId !== targetEncontroId) {
-            setSelectedEncontroId(targetEncontroId);
-            setSelectedEquipeId('');
-            setSelectedEquipeNome('');
-            setTeamMembers([]);
-            setSelectedMemberIds([]);
-            setBulkResults([]);
-        }
-
-        setBulkStep('equipe');
-    }, [creationMode, targetEncontroId, selectedEncontroId, bulkEncontroAlteradoManual]);
-
-    useEffect(() => {
-        if (coordenadorGrupoId || grupos.length === 0) return;
-
-        const defaultGroup = grupos.find((grupo) => {
-            const normalizedName = grupo.nome
-                .normalize('NFD')
-                .replace(/[\u0300-\u036f]/g, '')
-                .toLowerCase();
-
-            return normalizedName.includes('pasta');
-        });
-
-        if (defaultGroup) setCoordenadorGrupoId(defaultGroup.id);
-    }, [coordenadorGrupoId, grupos]);
-
-    const loadCoordenadoresPasta = useCallback(async () => {
-        if (!targetEncontroId) {
-            setCoordenadoresPasta([]);
-            setCoordenadorResults([]);
-            return;
-        }
-
-        setLoadingCoordenadores(true);
-        try {
-            const response = await adminUserService.listCoordenadoresPasta(targetEncontroId, coordenadorGrupoId);
-            setCoordenadoresPasta(response.coordenadores);
-        } catch (loadError: unknown) {
-            toast.error(userFacingError(loadError, 'Não foi possível carregar os coordenadores. Tente novamente.'));
-        } finally {
-            setLoadingCoordenadores(false);
-        }
-    }, [coordenadorGrupoId, targetEncontroId]);
-
-    useEffect(() => {
-        if (creationMode !== 'coordenadores') return;
-        void loadCoordenadoresPasta();
-    }, [creationMode, loadCoordenadoresPasta]);
-
-    const handleContextChange = (value: string) => {
-        setContextSelectionOverridden(true);
-        setTargetEncontroId(value === 'global' ? null : value);
-    };
-
-    const handleClearFilters = () => {
-        setSearchTerm('');
-        setFilterGrupoId('all');
-        setFilterEncontroId('all');
-        setFilterTempPassword('all');
-        setFilterAccessScope('all');
-        setFilterPersonLinkScope('all');
-    };
-
-    const handleClearSelection = () => {
-        setSelectedPessoa(null);
-        setSelectedGruposIds([]);
-        setIndividualStep('pessoa');
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-        }
-    };
-
-    const handleCreateUser = async (event: SyntheticEvent) => {
-        event.preventDefault();
-
-        const email = selectedPessoa?.email;
-        if (!selectedPessoa || !email) {
-            toast.error('Selecione uma pessoa com e-mail cadastrado.');
-            return;
-        }
-        if (selectedGruposIds.length === 0) {
-            toast.error('Selecione ao menos um perfil de acesso.');
-            return;
-        }
-
-        setCreating(true);
-        try {
-            await adminUserService.createUser({
-                email,
-                pessoaId: selectedPessoa.id,
-                gruposIds: selectedGruposIds,
-                encontroId: targetEncontroId,
-            });
-            toast.success('Usuário criado e convite enviado por e-mail.');
-            handleClearSelection();
-            loadUsers();
-        } catch (createError: unknown) {
-            toast.error(userFacingError(createError, 'Não foi possível criar o usuário. Tente novamente.'));
-        } finally {
-            setCreating(false);
-        }
-    };
-
-    const handleToggleSelectedGrupo = (grupoId: string) => {
-        setSelectedGruposIds(prev => {
-            const next = prev.includes(grupoId)
-                ? prev.filter(x => x !== grupoId)
-                : [...prev, grupoId];
-
-            if (next.length > 0) {
-                setIndividualStep('criar');
-            } else {
-                setIndividualStep('perfil');
-            }
-
+    const changeTab = (tab: UsersTab) => {
+        setSearchParams(current => {
+            const next = new URLSearchParams(current);
+            if (tab === 'usuarios') next.delete('aba');
+            else next.set('aba', tab);
             return next;
-        });
+        }, { replace: true });
     };
 
-    const handleDeleteUser = async () => {
-        if (!userToDelete) return;
-        setIsDeleting(true);
-        try {
-            await adminUserService.deleteUser(userToDelete);
-            toast.success('Acesso removido com sucesso.');
-            setUsers((prev) => prev.filter(u => u.id !== userToDelete));
-            setUserToDelete(null);
-        } catch (err: unknown) {
-            toast.error(userFacingError(err, 'Não foi possível remover o usuário. Tente novamente.'));
-        } finally {
-            setIsDeleting(false);
-        }
-    };
+    const openUser = useCallback((user: AdminUserListItem) => {
+        setSelectedUser(user);
+        setDrawerChanged(false);
+    }, []);
 
-    const handleLoadTeamMembers = async (encontroId = selectedEncontroId, equipeId = selectedEquipeId) => {
-        if (!encontroId || !equipeId) return;
-        setLoadingMembers(true);
-        setSelectedMemberIds([]);
-        setBulkResults([]);
-        try {
-            const membros = await adminUserService.listTeamMembers(encontroId, equipeId);
-            setTeamMembers(membros as unknown as InscricaoEnriched[]);
-            setBulkStep('membros');
-        } catch {
-            toast.error('Erro ao carregar membros da equipe.');
-        } finally {
-            setLoadingMembers(false);
-        }
-    };
+    const closeDrawer = useCallback(() => {
+        setSelectedUser(null);
+        if (drawerChanged) setReloadToken(token => token + 1);
+        setDrawerChanged(false);
+    }, [drawerChanged]);
 
-    const handleBulkEncontroChange = (encontroId: string) => {
-        setBulkEncontroAlteradoManual(true);
-        setSelectedEncontroId(encontroId);
-        setSelectedEquipeId('');
-        setSelectedEquipeNome('');
-        setTeamMembers([]);
-        setSelectedMemberIds([]);
-        setBulkResults([]);
-        setBulkStep('equipe');
-    };
-
-    const handleBulkEquipeChange = (equipeId: string, equipe?: Equipe | null) => {
-        setSelectedEquipeId(equipeId);
-        setSelectedEquipeNome(equipe?.nome || '');
-        setTeamMembers([]);
-        setSelectedMemberIds([]);
-        setBulkResults([]);
-
-        if (selectedEncontroId && equipeId) {
-            void handleLoadTeamMembers(selectedEncontroId, equipeId);
-        }
-    };
-
-    const handleToggleBulkMember = (pessoaId: string) => {
-        setSelectedMemberIds(prev => {
-            const next = prev.includes(pessoaId) ? prev.filter(id => id !== pessoaId) : [...prev, pessoaId];
-            // setBulkStep(next.length > 0 ? 'acesso' : 'membros');
-            return next;
-        });
-    };
-
-    const handleToggleAllBulkMembers = () => {
-        const availableMembers = teamMembers.filter(m => m.pessoas?.email && !users.some(u => u.email === m.pessoas?.email));
-        if (selectedMemberIds.length === availableMembers.length) {
-            setSelectedMemberIds([]);
-            setBulkStep('membros');
-        } else {
-            setSelectedMemberIds(availableMembers.map(m => m.pessoa_id));
-            if (availableMembers.length > 0) setBulkStep('acesso');
-        }
-    };
-
-    const handleToggleBulkGrupo = (grupoId: string) => {
-        setBulkGruposIds(prev => {
-            const next = prev.includes(grupoId)
-                ? prev.filter(x => x !== grupoId)
-                : [...prev, grupoId];
-
-            if (next.length > 0) {
-                setBulkStep('criar');
-            } else {
-                setBulkStep('acesso');
-            }
-
-            return next;
-        });
-    };
-
-    const handleBulkCreate = async () => {
-        if (selectedMemberIds.length === 0) return;
-        if (bulkGruposIds.length === 0) {
-            toast.error('Selecione ao menos um perfil padrão para criar os acessos.');
-            return;
-        }
-
-        setCreating(true);
-        const results = [];
-
-        for (const pessoaId of selectedMemberIds) {
-            const member = teamMembers.find(m => m.pessoa_id === pessoaId);
-            if (!member || !member.pessoas?.email) continue;
-
-            try {
-                const result = await adminUserService.createUser({
-                    email: member.pessoas.email,
-                    pessoaId: member.pessoa_id,
-                    gruposIds: bulkGruposIds,
-                    encontroId: targetEncontroId,
-                });
-                setUsers(prev => [...prev, result.user]);
-                results.push({ id: pessoaId, success: true });
-            } catch (err: unknown) {
-                const message = userFacingError(err, 'Não foi possível criar este usuário.');
-                results.push({ id: pessoaId, success: false, message });
-            }
-        }
-
-        setBulkResults(results);
-        setCreating(false);
-        const successes = results.filter(r => r.success).length;
-        if (successes > 0) toast.success(`${successes} usuário(s) criado(s) com sucesso.`);
-        if (results.length > successes) toast.error(`${results.length - successes} erro(s) encontrados.`);
-        setSelectedMemberIds([]);
-        if (successes > 0) loadUsers();
-    };
-
-    const handlePrepareCoordenadoresPasta = async () => {
-        if (!targetEncontroId) {
-            toast.error('Selecione um encontro como contexto de edição.');
-            return;
-        }
-        if (!coordenadorGrupoId) {
-            toast.error('Selecione o perfil de coordenador de pasta.');
-            return;
-        }
-
-        setPreparingCoordenadores(true);
-        setCoordenadorResults([]);
-        try {
-            const response = await adminUserService.prepareCoordenadoresPasta(targetEncontroId, coordenadorGrupoId);
-            setCoordenadorResults(response.results);
-            await Promise.all([loadCoordenadoresPasta(), loadUsers()]);
-
-            const errors = response.results.filter((result) => !result.success).length;
-            if (response.created || response.granted) {
-                toast.success(`${response.created} usuário(s) criado(s) e ${response.granted} perfil(is) concedido(s).`);
-            } else if (errors === 0) {
-                toast.success('Todos os coordenadores já estavam preparados.');
-            }
-            if (errors > 0) {
-                toast.error(`${errors} coordenador(es) precisam de ajuste manual.`);
-            }
-        } catch (prepareError: unknown) {
-            toast.error(userFacingError(prepareError, 'Não foi possível preparar os coordenadores. Tente novamente.'));
-        } finally {
-            setPreparingCoordenadores(false);
-        }
-    };
-
-    const handleOpenCoordenadorEmail = (coordenador: CoordenadorPastaAccessItem) => {
-        setCoordenadorEmailTarget(coordenador);
-        setCoordenadorEmail(coordenador.email || '');
-    };
-
-    const handleSaveCoordenadorEmail = async (event: SyntheticEvent) => {
-        event.preventDefault();
-        if (!coordenadorEmailTarget) return;
-
-        const normalizedEmail = coordenadorEmail.trim().toLowerCase();
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-            toast.error('Informe um e-mail válido.');
-            return;
-        }
-
-        setSavingCoordenadorEmail(true);
-        try {
-            await adminUserService.updatePersonEmail(coordenadorEmailTarget.pessoa_id, normalizedEmail);
-            toast.success('E-mail cadastrado. O coordenador já pode ter o acesso preparado.');
-            setCoordenadorEmailTarget(null);
-            setCoordenadorEmail('');
-            await loadCoordenadoresPasta();
-        } catch (saveError: unknown) {
-            toast.error(userFacingError(saveError, 'Não foi possível salvar o e-mail. Tente novamente.'));
-        } finally {
-            setSavingCoordenadorEmail(false);
-        }
-    };
-
-    const handleConfirmMemberInBulk = async (participacaoId: string) => {
-        try {
-            await inscricaoService.confirmarDados(participacaoId);
-            toast.success('Membro confirmado.');
-            setTeamMembers(prev => prev.map(m => m.id === participacaoId ? { ...m, dados_confirmados: true } : m));
-        } catch {
-            toast.error('Erro ao confirmar dados.');
-        }
-    };
-
-    const handleToggleGroups = async (userId: string, gId: string, currentVinculos: import('../../services/adminUserService').UserGrupoVinculo[]) => {
-        setUpdatingRoleById((prev) => ({ ...prev, [userId]: true }));
-        try {
-            const hasVinculo = currentVinculos.some(v => v.grupo_id === gId && v.encontro_id === targetEncontroId);
-            const action = hasVinculo ? 'remove' : 'add';
-            const newVinculos = await adminUserService.updateGrupos(userId, currentVinculos, action, gId, targetEncontroId);
-
-            setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, grupos: newVinculos } : user)));
-            setSelectedUserDetails((prev) => (prev?.id === userId ? { ...prev, grupos: newVinculos } : prev));
-            toast.success(action === 'add' ? 'Acesso concedido.' : 'Acesso revogado.');
-        } catch (updateError: unknown) {
-            console.error('Error updating group:', updateError);
-            toast.error(userFacingError(updateError, 'Não foi possível atualizar o perfil de acesso. Tente novamente.'));
-        } finally {
-            setUpdatingRoleById((prev) => ({ ...prev, [userId]: false }));
-        }
-    }
-
-    const handleSendPasswordRecovery = async (userId: string) => {
-        setResettingPasswordById((prev) => ({ ...prev, [userId]: true }));
-        try {
-            const result = await adminUserService.sendPasswordRecovery(userId);
-            setUsers((prev) => prev.map((user) => (user.id === userId ? result.user : user)));
-            setSelectedUserDetails((prev) => (prev?.id === userId ? { ...prev, ...result.user } : prev));
-            toast.success('Link de redefinição enviado por e-mail.');
-        } catch (resetError: unknown) {
-            toast.error(userFacingError(resetError, 'Não foi possível enviar a recuperação de senha. Tente novamente.'));
-        } finally {
-            setResettingPasswordById((prev) => ({ ...prev, [userId]: false }));
-        }
-    };
-
-    const handleLinkUserToPerson = async () => {
-        if (!selectedUserDetails || !linkPessoa) return;
-        setLinkingPessoa(true);
-        try {
-            await adminUserService.linkUserToPerson(selectedUserDetails.id, linkPessoa.id);
-            toast.success('Pessoa vinculada ao usuário com sucesso.');
-            setSelectedUserDetails(prev => prev ? {
-                ...prev,
-                pessoaId: linkPessoa.id,
-                pessoaVinculo: 'explicit',
-                nome: linkPessoa.nome_completo,
-            } : null);
-            setLinkPessoa(null);
-            await loadUsers();
-        } catch (linkError: unknown) {
-            toast.error(userFacingError(linkError, 'Não foi possível vincular a pessoa. Tente novamente.'));
-        } finally {
-            setLinkingPessoa(false);
-        }
-    };
-
-    const handleSecurePendingPasswords = async () => {
-        setSecuringPendingPasswords(true);
-        try {
-            const result = await adminUserService.securePendingPasswords();
-            if (result.failed > 0) {
-                toast.error(
-                    `${result.invalidated} senha(s) invalidada(s), ${result.recoveryEmailsSent} e-mail(s) enviado(s) e ${result.failed} falha(s).`
-                );
-            } else {
-                toast.success(
-                    `${result.invalidated} senha(s) antiga(s) invalidadas e ${result.recoveryEmailsSent} link(s) enviado(s).`
-                );
-            }
-            await loadUsers();
-        } catch (secureError: unknown) {
-            const message = secureError instanceof Error
-                ? secureError.message
-                : 'Erro ao proteger os primeiros acessos pendentes.';
-            toast.error(message);
-        } finally {
-            setSecuringPendingPasswords(false);
-            setConfirmPendingSecurity(false);
-        }
-    };
-
-    const handleExportPDF = () => {
-        if (filteredUsers.length === 0) {
-            toast.error('Nenhum usuário para exportar.');
-            return;
-        }
-
-        const config = targetEncontroId
-            ? exportConfigs.find((current) => current.encontro_id === targetEncontroId)
-            : undefined;
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-        let startY = 30;
-
-        if (config) {
-            if (config.imagem_esq_base64) {
-                try { doc.addImage(config.imagem_esq_base64, 'PNG', 14, 10, 30, 30); } catch { /* ignore */ }
-            }
-            if (config.imagem_dir_base64) {
-                try { doc.addImage(config.imagem_dir_base64, 'PNG', 166, 10, 30, 30); } catch { /* ignore */ }
-            }
-
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            doc.text(config.titulo || '', 105, 18, { align: 'center' });
-
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.text(config.subtitulo || '', 105, 24, { align: 'center' });
-
-            doc.text(config.tema || '', 105, 30, { align: 'center' });
-
-            if (config.observacoes) {
-                doc.setFontSize(9);
-                doc.setFont('helvetica', 'italic');
-                doc.text(config.observacoes, 105, 38, { align: 'center' });
-                startY = 60;
-            } else {
-                startY = 60;
-            }
-
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Relatório de Usuários do Sistema', 14, startY - 8);
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(100);
-            doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')} • Total: ${filteredUsers.length} usuário(s)`, 14, startY - 2);
-            doc.setTextColor(0);
-        } else {
-            doc.setFontSize(16);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Relatório de Usuários do Sistema', 14, 18);
-
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(100);
-            doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')} • Total: ${filteredUsers.length} usuário(s)`, 14, 24);
-            doc.setTextColor(0);
-        }
-
-        const targetIdToUse = (filterEncontroId !== 'all' ? filterEncontroId : targetEncontroId) || '';
-
-        // Prepare and sort data
-        const dataForExport = filteredUsers.map(u => {
-            const equipe = u.equipesNomes?.[targetIdToUse] || Object.values(u.equipesNomes || {})[0] || '— Sem Equipe —';
-            return {
-                ...u,
-                resolvedEquipe: equipe,
-                resolvedNome: u.nome || '[Conta sem pessoa vinculada]'
-            };
-        });
-
-        dataForExport.sort((a, b) => {
-            const eqComp = a.resolvedEquipe.localeCompare(b.resolvedEquipe);
-            if (eqComp !== 0) return eqComp;
-            return a.resolvedNome.localeCompare(b.resolvedNome);
-        });
-
-        const columns = ['Equipe', 'Identificação (Nome / E-mail)', 'Status do acesso'];
-
-        const rows = dataForExport.map(u => {
-            const currentEquipe = u.resolvedEquipe;
-            const nameEmailStr = `${u.resolvedNome}\n${u.email}`;
-            const accessStatus = u.temporary_password ? 'Convite/primeiro acesso pendente' : 'Acesso configurado';
-
-            return [currentEquipe, nameEmailStr, accessStatus];
-        });
-
-        autoTable(doc, {
-            head: [columns],
-            body: rows,
-            startY: startY,
-            styles: {
-                fontSize: 8,
-                cellPadding: 3,
-                lineColor: [220, 220, 220],
-                lineWidth: 0.25,
-            },
-            headStyles: {
-                fillColor: [37, 99, 235],
-                textColor: [255, 255, 255],
-                fontStyle: 'bold',
-            },
-            columnStyles: {
-                0: { fontStyle: 'bold', textColor: [37, 99, 235], cellWidth: 50 },
-                1: { cellWidth: 'auto' },
-                2: { cellWidth: 50 }
-            },
-            alternateRowStyles: {
-                fillColor: [245, 247, 250],
-            },
-            margin: { left: 14, right: 14 }
-        });
-
-        doc.save(`usuarios_export_${new Date().getTime()}.pdf`);
-        toast.success('PDF gerado com sucesso!');
-    };
-
-    const handleExportCSV = () => {
-        const rows = [
-            ['Nome', 'Email', 'Criado em', 'Primeiro acesso pendente', 'Grupos']
-        ];
-
-        filteredUsers.forEach(u => {
-            const gNames = u.grupos?.map(v => grupos.find(g => g.id === v.grupo_id)?.nome || '').filter(Boolean).join('; ') || '';
-            rows.push([
-                `"${u.nome || 'Conta sem pessoa vinculada'}"`,
-                `"${u.email}"`,
-                `"${new Date(u.created_at).toLocaleDateString('pt-BR')}"`,
-                u.temporary_password ? 'Sim' : 'Não',
-                `"${gNames}"`
-            ]);
-        });
-
-        const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + rows.map(e => e.join(',')).join('\n');
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement('a');
-        link.setAttribute('href', encodedUri);
-        link.setAttribute('download', `usuarios_export_${new Date().getTime()}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
-    const filteredUsers = users;
-    const totalPages = Math.max(Math.ceil(totalUsers / pageSize), 1);
-    const pageStart = totalUsers === 0 ? 0 : currentPage * pageSize + 1;
-    const pageEnd = Math.min((currentPage + 1) * pageSize, totalUsers);
-    const contextoSelecionado = targetEncontroId
-        ? encontros.find((encontro) => encontro.id === targetEncontroId)
-        : null;
-    const contextoLabel = contextoSelecionado
-        ? (contextoSelecionado.nome || String(contextoSelecionado.edicao || '') || contextoSelecionado.tema || 'Encontro selecionado')
-        : 'Acesso global permanente';
-    const bulkEncontroSelecionado = selectedEncontroId
-        ? encontros.find((encontro) => encontro.id === selectedEncontroId)
-        : null;
-    const bulkEncontroLabel = bulkEncontroSelecionado
-        ? (bulkEncontroSelecionado.nome || String(bulkEncontroSelecionado.edicao || '') || bulkEncontroSelecionado.tema || 'Encontro selecionado')
-        : 'Selecione o encontro';
-    const bulkEquipeLabel = selectedEquipeNome || (selectedEquipeId ? 'Equipe selecionada' : 'Selecione a equipe');
-    const membrosElegiveis = teamMembers.filter(m => (m.pessoas?.email ?? '') !== '' && !users.some(u => u.email === m.pessoas?.email));
-    const bulkAcessosLabel = bulkGruposIds.length > 0
-        ? bulkGruposIds.map(id => grupos.find(g => g.id === id)?.nome).filter(Boolean).join(', ')
-        : 'Selecione ao menos um perfil';
-    const coordenadorGrupoLabel = coordenadorGrupoId
-        ? grupos.find((grupo) => grupo.id === coordenadorGrupoId)?.nome || 'Perfil selecionado'
-        : 'Selecione o perfil de coordenador';
-    const coordenadoresComEmail = coordenadoresPasta.filter((coordenador) => !!coordenador.email).length;
-    const coordenadoresPendentes = coordenadoresPasta.filter((coordenador) => coordenador.email && (!coordenador.possui_usuario || !coordenador.possui_perfil)).length;
-    const activeFilterCount = [
-        searchTerm.trim() !== '',
-        filterGrupoId !== 'all',
-        filterEncontroId !== 'all',
-        filterTempPassword !== 'all',
-        filterAccessScope !== 'all',
-        filterPersonLinkScope !== 'all',
-    ].filter(Boolean).length;
+    const bumpReload = useCallback(() => setReloadToken(token => token + 1), []);
 
     return (
-        <div className="container" style={{ paddingBottom: '2rem' }}>
-            <div className="page-header">
-                <div>
-                    <h1 className="page-title" style={{ fontSize: '1.5rem' }}>
-                        <ShieldCheck size={22} style={{ marginRight: '0.45rem', verticalAlign: 'middle' }} />
-                        Gestão de acessos
+        <div className="container users-admin-page">
+            <header className="users-admin-header">
+                <div className="users-admin-header__title">
+                    <h1 className="page-title">
+                        <ShieldCheck size={22} aria-hidden="true" />
+                        Usuários e acessos
                     </h1>
-                    <p className="text-muted" style={{ margin: '0.35rem 0 0' }}>
-                        Configure usuários, perfis de acesso, convites e recuperação por e-mail.
+                    <p className="text-muted">
+                        A conta é da pessoa e vale no sistema todo. Os perfis (o que ela pode acessar) são concedidos por encontro.
                     </p>
                 </div>
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--surface-1)', padding: '0.5rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-color)' }}>Contexto de edição:</label>
-                        <select
-                            className="form-input"
-                            style={{ padding: '0.2rem 2rem 0.2rem 0.5rem', height: '32px', minWidth: '220px', fontWeight: 600, color: targetEncontroId === null ? 'var(--danger-text)' : 'inherit' }}
-                            value={targetEncontroId === null ? 'global' : (targetEncontroId || '')}
-                            onChange={e => handleContextChange(e.target.value)}
-                        >
-                            <option value="global" style={{ color: 'var(--danger-text)' }}>Escopo global permanente</option>
-                            {encontros.map(e => (
-                                <option key={e.id} value={e.id}>{e.nome || e.edicao || e.tema} {e.ativo ? '⭐ (Atual Ativo)' : ''}</option>
-                            ))}
-                        </select>
-                    </div>
+                <div className="users-admin-context">
+                    <label className="form-label" htmlFor="users-admin-context">Encontro</label>
+                    <select
+                        id="users-admin-context"
+                        className="form-input"
+                        value={contextId ?? PERMANENT_OPTION}
+                        onChange={event => setOverriddenContext({
+                            value: event.target.value === PERMANENT_OPTION ? null : event.target.value,
+                        })}
+                    >
+                        {sortedEncontros.map(encontro => (
+                            <option key={encontro.id} value={encontro.id}>
+                                {getEncontroLabel(encontro)}{encontro.ativo ? ' (ativo)' : ''}
+                            </option>
+                        ))}
+                        <option value={PERMANENT_OPTION}>Acessos permanentes (administração e dirigência)</option>
+                    </select>
                 </div>
+            </header>
+
+            {isPermanent ? (
+                <div className="users-admin-banner users-admin-banner--info">
+                    <Info size={18} aria-hidden="true" />
+                    <p>
+                        <strong>Acessos permanentes</strong> valem em qualquer encontro e não expiram. Use somente para
+                        administração e dirigência. Os demais acessos devem ser concedidos no encontro.
+                    </p>
+                </div>
+            ) : contextEncontro && !contextEncontro.ativo ? (
+                <div className="users-admin-banner users-admin-banner--warning">
+                    <AlertTriangle size={18} aria-hidden="true" />
+                    <p>
+                        <strong>{contextLabel}</strong> não é o encontro ativo. Os perfis concedidos aqui só passam a valer
+                        quando ele for ativado. Isso serve para preparar o próximo encontro.
+                    </p>
+                </div>
+            ) : null}
+
+            <div className="tabs-modern-container users-admin-tabs" role="tablist" aria-label="Seções de usuários e acessos">
+                {TABS.filter(tab => !(isPermanent && tab.requiresEncounter)).map(tab => {
+                    const Icon = tab.icon;
+                    return (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={activeTab === tab.id}
+                            className={`tab-btn-modern${activeTab === tab.id ? ' active' : ''}`}
+                            onClick={() => changeTab(tab.id)}
+                        >
+                            <Icon size={16} aria-hidden="true" /> {tab.label}
+                        </button>
+                    );
+                })}
             </div>
 
-            <section className="access-summary-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.85rem', marginBottom: '1rem' }}>
-                <div className="card" style={{ padding: '1rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>Usuários</span>
-                    <strong style={{ display: 'block', fontSize: '1.6rem', marginTop: '0.25rem' }}>{summary.totalUsers}</strong>
-                    <small style={{ color: 'var(--muted-text)' }}>Total cadastrado no sistema</small>
-                </div>
-                <div className="card" style={{ padding: '1rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>Primeiro acesso</span>
-                    <strong style={{ display: 'block', fontSize: '1.6rem', marginTop: '0.25rem', color: 'var(--warning-color)' }}>{summary.totalTemporaryPassword}</strong>
-                    <small style={{ color: 'var(--muted-text)' }}>Aguardando definição de senha</small>
-                    {summary.totalTemporaryPassword > 0 && (
-                        <button
-                            type="button"
-                            className="btn-secondary"
-                            style={{ marginTop: '0.65rem', width: '100%', justifyContent: 'center', fontSize: '0.78rem' }}
-                            disabled={securingPendingPasswords}
-                            onClick={() => setConfirmPendingSecurity(true)}
-                        >
-                            <Mail size={13} style={{ marginRight: '0.3rem' }} />
-                            Proteger e enviar links
-                        </button>
-                    )}
-                </div>
-                <div className="card" style={{ padding: '1rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>Sem pessoa</span>
-                    <strong style={{ display: 'block', fontSize: '1.6rem', marginTop: '0.25rem' }}>{summary.totalWithoutPerson}</strong>
-                    <small style={{ color: 'var(--muted-text)' }}>Usuários sem vínculo cadastral</small>
-                </div>
-                <div className="card" style={{ padding: '1rem' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>No contexto</span>
-                    <strong style={{ display: 'block', fontSize: '1.6rem', marginTop: '0.25rem', color: 'var(--primary-color)' }}>{summary.totalWithTargetAccess}</strong>
-                    <small style={{ color: 'var(--muted-text)' }}>Com perfil no contexto selecionado</small>
-                </div>
-            </section>
-
-            <section className="card" style={{ marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-                    <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Conceder novo acesso</h2>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', backgroundColor: 'var(--secondary-bg)', padding: '0.25rem', borderRadius: '12px' }}>
-                        <button
-                            type="button"
-                            className={`btn-text ${creationMode === 'liberar' ? 'active' : ''}`}
-                            onClick={() => setCreationMode('liberar')}
-                            style={{
-                                backgroundColor: creationMode === 'liberar' ? 'var(--surface-1)' : 'transparent',
-                                color: creationMode === 'liberar' ? 'var(--primary-color)' : 'var(--muted-text)',
-                                boxShadow: creationMode === 'liberar' ? 'var(--shadow-sm)' : 'none',
-                                borderRadius: '8px',
-                                padding: '0.5rem 1rem',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            Liberar acessos
-                        </button>
-                        <button
-                            type="button"
-                            className={`btn-text ${creationMode === 'individual' ? 'active' : ''}`}
-                            onClick={() => {
-                                setSelectedPessoa(null)
-                                setCreationMode('individual')
-                                if(selectedEncontroId) setIndividualStep('pessoa')
-                            }}
-                            style={{
-                                backgroundColor: creationMode === 'individual' ? 'var(--surface-1)' : 'transparent',
-                                color: creationMode === 'individual' ? 'var(--primary-color)' : 'var(--muted-text)',
-                                boxShadow: creationMode === 'individual' ? 'var(--shadow-sm)' : 'none',
-                                borderRadius: '8px',
-                                padding: '0.5rem 1rem',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            Individual
-                        </button>
-                        <button
-                            type="button"
-                            className={`btn-text ${creationMode === 'lote' ? 'active' : ''}`}
-                            onClick={() => {
-                                setSelectedEquipeId('')
-                                setSelectedEquipeNome('')
-                                setSelectedMemberIds([])
-                                setSelectedGruposIds([])
-                                setBulkGruposIds([])
-                                setCreationMode('lote')
-                            }}
-                            style={{
-                                backgroundColor: creationMode === 'lote' ? 'var(--surface-1)' : 'transparent',
-                                color: creationMode === 'lote' ? 'var(--primary-color)' : 'var(--muted-text)',
-                                boxShadow: creationMode === 'lote' ? 'var(--shadow-sm)' : 'none',
-                                borderRadius: '8px',
-                                padding: '0.5rem 1rem',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            Em Lote (Equipe)
-                        </button>
-                    </div>
-                </div>
-
-                {creationMode === 'liberar' ? (
-                    <TeamAccessReleasePanel encontroId={targetEncontroId} encontroLabel={contextoLabel} />
-                ) : creationMode === 'individual' ? (
-                    <form onSubmit={handleCreateUser} onKeyDown={handleKeyDown}>
-                        <ActionStepper
-                            steps={[
-                                {
-                                    id: 'contexto',
-                                    title: 'Contexto',
-                                    summary: contextoLabel,
-                                    status: individualStep === 'contexto' ? 'current' : 'completed',
-                                    onEdit: () => setIndividualStep('contexto'),
-                                    editLabel: 'Alterar',
-                                    children: (
-                                        <div className="form-group">
-                                            <label className="form-label">Contexto de edição</label>
-                                            <select
-                                                className="form-input"
-                                                value={targetEncontroId === null ? 'global' : (targetEncontroId || '')}
-                                                onChange={e => handleContextChange(e.target.value)}
-                                            >
-                                                <option value="global">Escopo global permanente</option>
-                                                {encontros.map(e => (
-                                                    <option key={e.id} value={e.id}>
-                                                        {e.nome || e.edicao || e.tema} {e.ativo ? '(Atual ativo)' : ''}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.85rem' }}>
-                                                <button
-                                                    type="button"
-                                                    className="btn-primary"
-                                                    onClick={() => setIndividualStep('pessoa')}
-                                                >
-                                                    Continuar
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ),
-                                },
-                                {
-                                    id: 'pessoa',
-                                    title: 'Pessoa',
-                                    summary: selectedPessoa?.email
-                                        ? `${selectedPessoa.nome_completo} · ${selectedPessoa.email}`
-                                        : 'Busque uma pessoa com e-mail',
-                                    status: selectedPessoa?.email
-                                        ? (individualStep === 'pessoa' ? 'current' : 'completed')
-                                        : (individualStep === 'pessoa' ? 'current' : 'pending'),
-                                    onEdit: () => setIndividualStep('pessoa'),
-                                    editLabel: 'Alterar',
-                                    children: (
-                                        <div className="form-group">
-                                            <label className="form-label">
-                                                Pessoa <span className="form-label-required">*</span>
-                                            </label>
-                                            <LiveSearchSelect<Pessoa>
-                                                value={selectedPessoa?.id || ''}
-                                                onChange={(_, pessoa) => {
-                                                    setSelectedPessoa(pessoa);
-                                                    if (pessoa?.email) {
-                                                        setIndividualStep('perfil');
-                                                    }
-                                                }}
-                                                fetchData={(search, page) => adminUserService.searchPeople(search, page, 20)}
-                                                getOptionLabel={(pessoa) => pessoa.nome_completo}
-                                                getOptionValue={(pessoa) => pessoa.id}
-                                                placeholder="Buscar pessoa por nome, e-mail ou telefone..."
-                                                pageSize={20}
-                                                renderOption={(pessoa) => (
-                                                    <div>
-                                                        <div style={{ fontWeight: 700 }}>{pessoa.nome_completo}</div>
-                                                        <div style={{ color: 'var(--muted-text)', fontSize: '0.78rem' }}>
-                                                            {pessoa.email || 'Sem e-mail cadastrado'}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            />
-                                            {selectedPessoa && !selectedPessoa.email && (
-                                                <div style={{ marginTop: '0.5rem', color: 'var(--danger-text, #e53e3e)', fontSize: '0.82rem' }}>
-                                                    Esta pessoa não tem e-mail cadastrado.
-                                                </div>
-                                            )}
-                                            {selectedPessoa && (
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginTop: '0.85rem', flexWrap: 'wrap' }}>
-                                                    <button
-                                                        type="button"
-                                                        className="btn-text"
-                                                        onClick={handleClearSelection}
-                                                        style={{ padding: 0, fontSize: '0.78rem', color: 'var(--primary-color)' }}
-                                                    >
-                                                        Limpar seleção
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className="btn-primary"
-                                                        disabled={!selectedPessoa.email}
-                                                        onClick={() => setIndividualStep('perfil')}
-                                                    >
-                                                        Continuar
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ),
-                                },
-                                {
-                                    id: 'perfil',
-                                    title: 'Perfil',
-                                    summary: selectedGruposIds.length > 0
-                                        ? selectedGruposIds.map(id => grupos.find(g => g.id === id)?.nome).filter(Boolean).join(', ')
-                                        : 'Selecione ao menos um perfil',
-                                    status: selectedPessoa?.email
-                                        ? (selectedGruposIds.length > 0 && individualStep !== 'perfil' ? 'completed' : individualStep === 'perfil' ? 'current' : 'pending')
-                                        : 'pending',
-                                    onEdit: () => setIndividualStep('perfil'),
-                                    editLabel: 'Alterar',
-                                    children: (
-                                        <div className="form-group">
-                                            <label className="form-label">Perfis de acesso</label>
-                                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                {grupos.map((g) => (
-                                                    <button
-                                                        key={g.id}
-                                                        type="button"
-                                                        onClick={() => handleToggleSelectedGrupo(g.id)}
-                                                        style={{
-                                                            padding: '0.3rem 0.6rem',
-                                                            borderRadius: '20px',
-                                                            fontSize: '0.8rem',
-                                                            border: `1px solid ${selectedGruposIds.includes(g.id) ? 'var(--primary-color)' : 'var(--border-color)'}`,
-                                                            background: selectedGruposIds.includes(g.id) ? 'var(--primary-color)' : 'transparent',
-                                                            color: selectedGruposIds.includes(g.id) ? '#fff' : 'var(--text-color)',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                    >
-                                                        {g.nome}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.85rem' }}>
-                                                <button
-                                                    type="button"
-                                                    className="btn-primary"
-                                                    disabled={selectedGruposIds.length === 0}
-                                                    onClick={() => setIndividualStep('criar')}
-                                                >
-                                                    Continuar
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ),
-                                },
-                                {
-                                    id: 'criar',
-                                    title: 'Criar usuário',
-                                    summary: selectedPessoa?.email && selectedGruposIds.length > 0
-                                        ? `Um convite será enviado para ${selectedPessoa.email}`
-                                        : 'Complete as etapas anteriores',
-                                    status: selectedPessoa?.email && selectedGruposIds.length > 0 && individualStep === 'criar' ? 'current' : 'pending',
-                                    children: (
-                                        <div>
-                                            <div style={{ display: 'grid', gap: '0.35rem', marginBottom: '1rem', color: 'var(--muted-text)', fontSize: '0.86rem' }}>
-                                                <span><strong style={{ color: 'var(--text-color)' }}>Contexto:</strong> {contextoLabel}</span>
-                                                <span><strong style={{ color: 'var(--text-color)' }}>Pessoa:</strong> {selectedPessoa?.nome_completo}</span>
-                                                <span><strong style={{ color: 'var(--text-color)' }}>Perfis:</strong> {selectedGruposIds.map(id => grupos.find(g => g.id === id)?.nome).filter(Boolean).join(', ')}</span>
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                                <button className="btn-primary" type="submit" disabled={creating || !selectedPessoa?.email || selectedGruposIds.length === 0}>
-                                                    <UserPlus size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
-                                                    {creating ? 'Criando...' : 'Criar usuário'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ),
-                                },
-                            ]}
-                        />
-                    </form>
-                ) : creationMode === 'lote' ? (
-                    <div className="bulk-creation-form">
-                        <ActionStepper
-                            steps={[
-                                {
-                                    id: 'encontro',
-                                    title: 'Encontro',
-                                    summary: bulkEncontroLabel,
-                                    status: selectedEncontroId ? (bulkStep === 'encontro' ? 'current' : 'completed') : 'current',
-                                    onEdit: () => setBulkStep('encontro'),
-                                    editLabel: 'Alterar',
-                                    children: (
-                                        <div className="form-group">
-                                            <label className="form-label">Encontro</label>
-                                            <LiveSearchSelect<Encontro>
-                                                value={selectedEncontroId}
-                                                onChange={(val) => handleBulkEncontroChange(val)}
-                                                fetchData={async (search, page) => await encontroService.buscarComPaginacao(search, page)}
-                                                getOptionLabel={(e) => `${e.nome} ${e.ativo ? '(Ativo)' : ''}`}
-                                                getOptionValue={(e) => String(e.id)}
-                                                placeholder="Selecione um encontro..."
-                                                initialOptions={encontros}
-                                            />
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.85rem' }}>
-                                                <button
-                                                    type="button"
-                                                    className="btn-primary"
-                                                    disabled={!selectedEncontroId}
-                                                    onClick={() => setBulkStep('equipe')}
-                                                >
-                                                    Continuar
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ),
-                                },
-                                {
-                                    id: 'equipe',
-                                    title: 'Equipe',
-                                    summary: loadingMembers ? 'Buscando membros...' : bulkEquipeLabel,
-                                    status: selectedEncontroId
-                                        ? (selectedEquipeId && bulkStep !== 'equipe' ? 'completed' : bulkStep === 'equipe' ? 'current' : 'pending')
-                                        : 'pending',
-                                    onEdit: () => setBulkStep('equipe'),
-                                    editLabel: 'Alterar',
-                                    children: (
-                                        <div className="form-group">
-                                            <label className="form-label">Equipe</label>
-                                            <LiveSearchSelect<Equipe>
-                                                value={selectedEquipeId}
-                                                onChange={(val, equipe) => handleBulkEquipeChange(val, equipe)}
-                                                fetchData={async (search, page) => await equipeService.buscarComPaginacao(search, page)}
-                                                getOptionLabel={(e) => e.nome || ''}
-                                                getOptionValue={(e) => String(e.id)}
-                                                placeholder="Selecione uma equipe..."
-                                            />
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.85rem' }}>
-                                                <button
-                                                    type="button"
-                                                    className="btn-primary"
-                                                    disabled={!selectedEncontroId || !selectedEquipeId || loadingMembers}
-                                                    onClick={() => handleLoadTeamMembers()}
-                                                >
-                                                    <Search size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
-                                                    {loadingMembers ? 'Buscando...' : 'Continuar'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ),
-                                },
-                                {
-                                    id: 'membros',
-                                    title: 'Selecionar membros',
-                                    summary: teamMembers.length > 0
-                                        ? `${selectedMemberIds.length} de ${membrosElegiveis.length} elegível(is) selecionado(s)`
-                                        : 'Carregue os membros da equipe',
-                                    status: selectedEquipeId
-                                        ? (selectedMemberIds.length > 0 && bulkStep !== 'membros' ? 'completed' : bulkStep === 'membros' ? 'current' : 'pending')
-                                        : 'pending',
-                                    onEdit: () => setBulkStep('membros'),
-                                    editLabel: 'Alterar',
-                                    children: (
-                                        <div>
-                                            {loadingMembers && (
-                                                <div className="text-center text-muted" style={{ padding: '1.5rem' }}>Buscando membros...</div>
-                                            )}
-                                            {!loadingMembers && selectedEquipeId && teamMembers.length === 0 && (
-                                                <div className="text-center text-muted" style={{ padding: '1.5rem' }}>Nenhum membro encontrado.</div>
-                                            )}
-                                            {teamMembers.length > 0 && (
-                                                <>
-                                                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', padding: '0.75rem', background: 'var(--secondary-bg)', borderRadius: '8px', flexWrap: 'wrap' }}>
-                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedMemberIds.length > 0 && selectedMemberIds.length === membrosElegiveis.length}
-                                                                onChange={handleToggleAllBulkMembers}
-                                                                style={{ width: '1.2rem', height: '1.2rem' }}
-                                                            />
-                                                            Selecionar todos elegíveis
-                                                        </label>
-                                                        <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--muted-text)' }}>
-                                                            {selectedMemberIds.length} selecionados
-                                                        </span>
-                                                    </div>
-                                                    <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '0.5rem' }}>
-                                                        {teamMembers.map(member => {
-                                                            const pessoa = member.pessoas;
-                                                            const hasEmail = !!pessoa?.email;
-                                                            const existingUser = users.find(u => u.email === (pessoa?.email || ''));
-                                                            const isEligible = hasEmail && !existingUser;
-                                                            const isSelected = selectedMemberIds.includes(member.pessoa_id);
-                                                            const result = bulkResults.find(r => r.id === member.pessoa_id);
-
-                                                            return (
-                                                                <div key={member.id} className="bulk-member-card" style={{
-                                                                    display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.75rem 1rem',
-                                                                    background: isSelected ? 'var(--primary-light)' : 'var(--card-bg)',
-                                                                    border: `1px solid ${isSelected ? 'var(--primary-color)' : 'var(--border-color)'}`,
-                                                                    borderRadius: '8px',
-                                                                    opacity: isEligible ? 1 : 0.6,
-                                                                    flexWrap: 'wrap',
-                                                                }}>
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={isSelected}
-                                                                        disabled={!isEligible || creating}
-                                                                        onChange={() => handleToggleBulkMember(member.pessoa_id)}
-                                                                        style={{ width: '1.2rem', height: '1.2rem', cursor: isEligible ? 'pointer' : 'not-allowed' }}
-                                                                    />
-                                                                    <div style={{ flex: 1, minWidth: '180px' }}>
-                                                                        <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pessoa?.nome_completo}</div>
-                                                                        <div style={{ fontSize: '0.8rem', color: 'var(--muted-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                            {pessoa?.email || 'Sem e-mail'}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div style={{ fontSize: '0.8rem', textAlign: 'right', minWidth: '150px', display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-end', marginLeft: 'auto' }}>
-                                                                        {!hasEmail && <span style={{ color: 'var(--danger-text)' }}>Falta e-mail</span>}
-                                                                        {existingUser && <span style={{ color: 'var(--success-text)' }}>Já cadastrado</span>}
-                                                                        {result && (
-                                                                            <span style={{ color: result.success ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 600 }}>
-                                                                                {result.success ? '✓ Criado' : `✗ ${result.message}`}
-                                                                            </span>
-                                                                        )}
-                                                                        {member.dados_confirmados ? (
-                                                                            <span style={{
-                                                                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                                                                                color: '#10b981',
-                                                                                padding: '0.2rem 0.5rem',
-                                                                                borderRadius: '20px',
-                                                                                fontSize: '0.7rem',
-                                                                                fontWeight: 700,
-                                                                                display: 'flex',
-                                                                                alignItems: 'center',
-                                                                                gap: '0.3rem',
-                                                                                border: '1px solid rgba(16, 185, 129, 0.2)'
-                                                                            }}>
-                                                                                <CheckCircle size={12} /> Confirmado
-                                                                            </span>
-                                                                        ) : (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={(e) => { e.stopPropagation(); handleConfirmMemberInBulk(member.id); }}
-                                                                                style={{
-                                                                                    padding: '0.1rem 0.4rem',
-                                                                                    fontSize: '0.7rem',
-                                                                                    background: 'none',
-                                                                                    border: '1px solid var(--border-color)',
-                                                                                    borderRadius: '4px',
-                                                                                    cursor: 'pointer'
-                                                                                }}
-                                                                            >
-                                                                                Confirmar Dados
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.85rem' }}>
-                                                        <button
-                                                            type="button"
-                                                            className="btn-primary"
-                                                            disabled={selectedMemberIds.length === 0}
-                                                            onClick={() => setBulkStep('acesso')}
-                                                        >
-                                                            Continuar
-                                                        </button>
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
-                                    ),
-                                },
-                                {
-                                    id: 'acesso',
-                                    title: 'Acesso',
-                                    summary: bulkAcessosLabel,
-                                    status: selectedMemberIds.length > 0
-                                        ? (bulkGruposIds.length > 0 && bulkStep !== 'acesso' ? 'completed' : bulkStep === 'acesso' ? 'current' : 'pending')
-                                        : 'pending',
-                                    onEdit: () => setBulkStep('acesso'),
-                                    editLabel: 'Alterar',
-                                    children: (
-                                        <div className="form-group">
-                                            <label className="form-label">Perfis padrão</label>
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.5rem' }}>
-                                                {grupos.map((g) => (
-                                                    <button
-                                                        key={g.id}
-                                                        type="button"
-                                                        onClick={() => handleToggleBulkGrupo(g.id)}
-                                                        style={{
-                                                            padding: '0.2rem 0.6rem',
-                                                            borderRadius: '20px',
-                                                            fontSize: '0.75rem',
-                                                            border: `1px solid ${bulkGruposIds.includes(g.id) ? 'var(--primary-color)' : 'var(--border-color)'}`,
-                                                            background: bulkGruposIds.includes(g.id) ? 'var(--primary-color)' : 'transparent',
-                                                            color: bulkGruposIds.includes(g.id) ? '#fff' : 'var(--text-color)',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                    >
-                                                        {g.nome}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.85rem' }}>
-                                                <button
-                                                    type="button"
-                                                    className="btn-primary"
-                                                    disabled={bulkGruposIds.length === 0}
-                                                    onClick={() => setBulkStep('criar')}
-                                                >
-                                                    Continuar
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ),
-                                },
-                                {
-                                    id: 'criar',
-                                    title: 'Criar',
-                                    summary: selectedMemberIds.length > 0 && bulkGruposIds.length > 0
-                                        ? `${selectedMemberIds.length} usuário(s) com ${bulkGruposIds.length} perfil(is)`
-                                        : 'Complete as etapas anteriores',
-                                    status: selectedMemberIds.length > 0 && bulkGruposIds.length > 0 && bulkStep === 'criar' ? 'current' : 'pending',
-                                    children: (
-                                        <div>
-                                            <div style={{ display: 'grid', gap: '0.35rem', marginBottom: '1rem', color: 'var(--muted-text)', fontSize: '0.86rem' }}>
-                                                <span><strong style={{ color: 'var(--text-color)' }}>Encontro:</strong> {bulkEncontroLabel}</span>
-                                                <span><strong style={{ color: 'var(--text-color)' }}>Equipe:</strong> {bulkEquipeLabel}</span>
-                                                <span><strong style={{ color: 'var(--text-color)' }}>Membros:</strong> {selectedMemberIds.length} selecionado(s)</span>
-                                                <span><strong style={{ color: 'var(--text-color)' }}>Acessos:</strong> {bulkAcessosLabel}</span>
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                                                <button className="btn-primary" onClick={handleBulkCreate} disabled={creating || selectedMemberIds.length === 0 || bulkGruposIds.length === 0}>
-                                                    <UserPlus size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
-                                                    {creating ? 'Processando...' : `Criar ${selectedMemberIds.length} usuário(s)`}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ),
-                                },
-                            ]}
-                        />
-                    </div>
-                ) : (
-                    <div className="bulk-creation-form">
-                        <div style={{ display: 'grid', gap: '1rem' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-                                <div className="card" style={{ padding: '1rem', background: 'var(--surface-1)' }}>
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>Contexto</span>
-                                    <strong style={{ display: 'block', marginTop: '0.25rem' }}>{contextoLabel}</strong>
-                                    <small style={{ color: 'var(--muted-text)' }}>Use o seletor no topo para trocar o encontro.</small>
-                                </div>
-                                <div className="card" style={{ padding: '1rem', background: 'var(--surface-1)' }}>
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>Coordenadores</span>
-                                    <strong style={{ display: 'block', fontSize: '1.4rem', marginTop: '0.25rem' }}>{coordenadoresPasta.length}</strong>
-                                    <small style={{ color: 'var(--muted-text)' }}>{coordenadoresPendentes} pendente(s) de acesso/perfil.</small>
-                                </div>
-                                <div className="card" style={{ padding: '1rem', background: 'var(--surface-1)' }}>
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)', fontWeight: 700, textTransform: 'uppercase' }}>Com e-mail</span>
-                                    <strong style={{ display: 'block', fontSize: '1.4rem', marginTop: '0.25rem' }}>{coordenadoresComEmail}</strong>
-                                    <small style={{ color: 'var(--muted-text)' }}>{coordenadoresPasta.length - coordenadoresComEmail} sem e-mail cadastrado.</small>
-                                </div>
-                            </div>
-
-                            <div className="card" style={{ padding: '1rem', background: 'var(--surface-1)' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', alignItems: 'center' }}>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label">Perfil de coordenador de pasta</label>
-                                        <select
-                                            className="form-input"
-                                            value={coordenadorGrupoId}
-                                            onChange={(event) => {
-                                                setCoordenadorGrupoId(event.target.value);
-                                                setCoordenadorResults([]);
-                                            }}
-                                        >
-                                            <option value="">Selecione o perfil</option>
-                                            {grupos.map((grupo) => (
-                                                <option key={grupo.id} value={grupo.id}>{grupo.nome}</option>
-                                            ))}
-                                        </select>
-                                        <small style={{ color: 'var(--muted-text)' }}>
-                                            Perfil atual: {coordenadorGrupoLabel}
-                                        </small>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        className="btn-secondary"
-                                        onClick={loadCoordenadoresPasta}
-                                        disabled={!targetEncontroId || loadingCoordenadores}
-                                    >
-                                        <RotateCcw size={15} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
-                                        {loadingCoordenadores ? 'Atualizando...' : 'Atualizar'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn-primary"
-                                        onClick={handlePrepareCoordenadoresPasta}
-                                        disabled={!targetEncontroId || !coordenadorGrupoId || preparingCoordenadores || coordenadoresPendentes === 0}
-                                    >
-                                        <Users2 size={16} style={{ marginRight: '0.4rem', verticalAlign: 'middle' }} />
-                                        {preparingCoordenadores ? 'Preparando...' : 'Preparar coordenadores'}
-                                    </button>
-                                </div>
-                            </div>
-
-                            {!targetEncontroId && (
-                                <div className="alert alert--error">
-                                    Selecione um encontro no contexto de edição. Coordenadores de pasta não devem ser preparados no escopo global.
-                                </div>
-                            )}
-
-                            {loadingCoordenadores ? (
-                                <p className="text-muted">Carregando coordenadores...</p>
-                            ) : coordenadoresPasta.length === 0 ? (
-                                <div className="empty-state" style={{ padding: '1.5rem' }}>
-                                    Nenhum coordenador encontrado no contexto selecionado.
-                                </div>
-                            ) : (
-                                <div style={{ display: 'grid', gap: '0.5rem', maxHeight: '440px', overflowY: 'auto', paddingRight: '0.35rem' }}>
-                                    {coordenadoresPasta.map((coordenador) => {
-                                        const result = coordenadorResults.find((current) => current.participacao_id === coordenador.participacao_id);
-                                        const isReady = coordenador.possui_usuario && coordenador.possui_perfil;
-
-                                        return (
-                                            <div
-                                                key={coordenador.participacao_id}
-                                                className="bulk-member-card"
-                                                style={{
-                                                    display: 'grid',
-                                                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                                                    gap: '0.85rem',
-                                                    alignItems: 'center',
-                                                    padding: '0.85rem 1rem',
-                                                    background: 'var(--card-bg)',
-                                                    border: '1px solid var(--border-color)',
-                                                    borderRadius: '10px',
-                                                }}
-                                            >
-                                                <div style={{ minWidth: 0 }}>
-                                                    <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {coordenador.nome_completo}
-                                                    </strong>
-                                                    <small style={{ color: 'var(--muted-text)' }}>
-                                                        {coordenador.email || 'Sem e-mail cadastrado'}
-                                                    </small>
-                                                </div>
-                                                <div style={{ color: 'var(--muted-text)', fontSize: '0.86rem' }}>
-                                                    <strong style={{ color: 'var(--text-color)' }}>{coordenador.equipe_nome || 'Equipe não informada'}</strong>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.45rem', flexWrap: 'wrap' }}>
-                                                    {!coordenador.email ? (
-                                                        <button
-                                                            type="button"
-                                                            className="btn-secondary"
-                                                            onClick={() => handleOpenCoordenadorEmail(coordenador)}
-                                                            style={{ fontSize: '0.78rem', padding: '0.35rem 0.6rem', color: 'var(--danger-text)' }}
-                                                        >
-                                                            <Mail size={13} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />
-                                                            Cadastrar e-mail
-                                                        </button>
-                                                    ) : isReady ? (
-                                                        <span className="badge" style={{ color: 'var(--success-text)', borderColor: 'var(--success-text)' }}>Pronto</span>
-                                                    ) : !coordenador.possui_usuario ? (
-                                                        <span className="badge" style={{ color: 'var(--warning-color)', borderColor: 'var(--warning-color)' }}>Criar usuário</span>
-                                                    ) : (
-                                                        <span className="badge" style={{ color: 'var(--primary-color)', borderColor: 'var(--primary-color)' }}>Conceder perfil</span>
-                                                    )}
-                                                    {result && (
-                                                        <span style={{ fontSize: '0.78rem', color: result.success ? 'var(--success-text)' : 'var(--danger-text)', fontWeight: 700 }}>
-                                                            {result.success
-                                                                ? result.created
-                                                                    ? 'Criado · convite enviado'
-                                                                    : result.granted
-                                                                        ? 'Perfil concedido'
-                                                                        : 'Já estava pronto'
-                                                                : result.message}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+            <section className="card users-admin-panel" role="tabpanel">
+                {activeTab === 'usuarios' && (
+                    <UsersListTab
+                        contextId={contextId}
+                        contextLabel={contextLabel}
+                        grupos={grupos}
+                        exportConfigs={exportConfigs}
+                        reloadToken={reloadToken}
+                        onOpenUser={openUser}
+                        onUserRemoved={() => setSelectedUser(null)}
+                    />
+                )}
+                {activeTab === 'liberar' && contextId && (
+                    <TeamAccessReleasePanel key={contextId} encontroId={contextId} encontroLabel={contextLabel} />
+                )}
+                {activeTab === 'equipe' && contextId && (
+                    <TeamCustomAccessTab
+                        key={contextId}
+                        contextId={contextId}
+                        contextLabel={contextLabel}
+                        grupos={grupos}
+                        groupModules={groupModules}
+                        onChanged={bumpReload}
+                    />
+                )}
+                {activeTab === 'individual' && (
+                    <IndividualAccessTab
+                        key={contextId ?? PERMANENT_OPTION}
+                        contextId={contextId}
+                        contextLabel={contextLabel}
+                        grupos={grupos}
+                        groupModules={groupModules}
+                        onOpenUser={openUser}
+                        onCreated={bumpReload}
+                    />
                 )}
             </section>
 
-            <section className="card">
-                <div className="admin-users-table-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <div>
-                        <h2 style={{ margin: 0, fontSize: '1.1rem' }}>Usuários cadastrados</h2>
-                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.82rem', color: 'var(--muted-text)' }}>
-                            {totalUsers === 0 ? 'Nenhum usuário encontrado' : `${pageStart}-${pageEnd} de ${totalUsers} usuário(s)`}
-                            {summary.filteredTotal !== summary.totalUsers && (
-                                <span style={{ marginLeft: '0.5rem', fontWeight: 600 }}>
-                                    · {summary.filteredTotal} no filtro
-                                </span>
-                            )}
-                            {filteredUsers.filter(u => u.temporary_password).length > 0 && (
-                                <span style={{ marginLeft: '0.5rem', color: 'var(--warning-color)', fontWeight: 600 }}>
-                                    · {filteredUsers.filter(u => u.temporary_password).length} nesta página com senha pendente
-                                </span>
-                            )}
-                        </p>
-                    </div>
-                    <button className="btn-secondary" type="button" onClick={loadUsers} disabled={loading} title="Atualizar lista" style={{ padding: '0.4rem 0.75rem' }}>
-                        <RotateCcw size={15} />
-                    </button>
-                </div>
-
-                {loading && <p className="text-muted">Carregando usuários...</p>}
-                {!loading && error && <div className="alert alert--error">{error}</div>}
-
-                {/* Area de Filtros */}
-                <div style={{ padding: '1rem', border: '1px solid var(--border-color)', background: 'var(--surface-1)', borderRadius: '12px' }}>
-                    <div style={{ display: 'grid', gap: '1rem' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', alignItems: 'end' }}>
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Buscar por nome, e-mail ou equipe</label>
-                                <div className="form-input-wrapper">
-                                    <div className="form-input-icon"><Search size={16} /></div>
-                                    <input
-                                        type="text"
-                                        className="form-input form-input--with-icon"
-                                        placeholder="Digite para buscar usuários..."
-                                        value={searchTerm}
-                                        onChange={e => setSearchTerm(e.target.value)}
-                                    />
-                                    {searchTerm && (
-                                        <button type="button" onClick={() => setSearchTerm('')} className="icon-btn" title="Limpar busca" style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)' }}>
-                                            <X size={14} />
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                            <button type="button" className="btn-secondary" onClick={handleClearFilters} disabled={activeFilterCount === 0} style={{ height: '39px', whiteSpace: 'nowrap' }}>
-                                Limpar filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-                            </button>
-                        </div>
-
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Acesso em {contextoLabel}</label>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                                {([
-                                    ['with', 'Com perfil'],
-                                    ['without', 'Sem perfil'],
-                                    ['all', 'Todos'],
-                                ] as const).map(([value, label]) => (
-                                    <button
-                                        key={value}
-                                        type="button"
-                                        className={filterAccessScope === value ? 'btn-primary' : 'btn-secondary'}
-                                        onClick={() => {
-                                            setFilterAccessScope(value);
-                                            if (value === 'without') setFilterGrupoId('all');
-                                        }}
-                                        style={{ padding: '0.4rem 0.75rem', fontSize: '0.82rem' }}
-                                    >
-                                        {label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.85rem', alignItems: 'end' }}>
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Perfil de acesso no contexto</label>
-                                <select className="form-input" value={filterGrupoId} onChange={e => setFilterGrupoId(e.target.value)} disabled={filterAccessScope === 'without'}>
-                                    <option value="all">Todos os perfis</option>
-                                    {grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
-                                </select>
-                            </div>
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Participação da pessoa</label>
-                                <select className="form-input" value={filterEncontroId} onChange={e => setFilterEncontroId(e.target.value)}>
-                                    <option value="all">Qualquer participação</option>
-                                    {encontros.map(enc => <option key={enc.id} value={enc.id}>{enc.edicao} - {enc.tema}</option>)}
-                                </select>
-                            </div>
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Vínculo com pessoa</label>
-                                <select className="form-input" value={filterPersonLinkScope} onChange={e => setFilterPersonLinkScope(e.target.value as 'linked' | 'unlinked' | 'all')}>
-                                    <option value="all">Todos os vínculos</option>
-                                    <option value="linked">Com pessoa vinculada</option>
-                                    <option value="unlinked">Sem pessoa vinculada</option>
-                                </select>
-                            </div>
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Status da conta</label>
-                                <select className="form-input" value={filterTempPassword} onChange={e => setFilterTempPassword(e.target.value as 'all' | 'sim' | 'nao')}>
-                                    <option value="all">Qualquer status</option>
-                                    <option value="sim">Primeiro acesso pendente</option>
-                                    <option value="nao">Primeiro acesso concluído</option>
-                                </select>
-                            </div>
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--muted-text)' }}>Resultados por página</label>
-                                <select className="form-input" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(0); }}>
-                                    <option value={10}>10</option><option value={20}>20</option><option value={50}>50</option><option value={100}>100</option>
-                                </select>
-                            </div>
-                            <div style={{ display: 'flex', gap: '0.5rem', minWidth: '220px' }}>
-                                <button onClick={handleExportCSV} className="btn-secondary" style={{ height: '39px', flex: 1, padding: '0 0.5rem', fontSize: '0.85rem' }}>Planilha CSV</button>
-                                <button onClick={handleExportPDF} className="btn-primary" style={{ height: '39px', flex: 1, padding: '0 0.5rem', fontSize: '0.85rem' }}>Acessos PDF</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {!loading && !error && (
-                    <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
-                        {filteredUsers.length === 0 && (
-                            <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>Nenhum usuário encontrado.</div>
-                        )}
-                        {filteredUsers.map((user) => {
-                            const passwordResetting = !!resettingPasswordById[user.id];
-                            const initial = (user.nome || user.email).charAt(0).toUpperCase();
-                            const activeGroups = grupos.filter(g => user.grupos?.some(v => v.grupo_id === g.id && v.encontro_id === targetEncontroId));
-                            const targetEquipe = targetEncontroId ? user.equipesNomes?.[targetEncontroId] : Object.values(user.equipesNomes || {})[0];
-
-                            return (
-                                <div key={user.id} style={{
-                                    display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-start',
-                                    padding: '1rem 1.25rem',
-                                    background: 'var(--surface-1)',
-                                    border: '1px solid var(--border-color)',
-                                    borderRadius: '12px',
-                                    transition: 'box-shadow 0.2s'
-                                }}>
-                                    {/* Avatar */}
-                                    <div style={{
-                                        width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
-                                        background: 'var(--primary-color)', color: '#fff',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontWeight: 700, fontSize: '1.1rem'
-                                    }}>{initial}</div>
-
-                                    {/* Info */}
-                                    <div style={{ flex: 1, minWidth: '160px' }}>
-                                        <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>
-                                            {user.nome || <span style={{ fontStyle: 'italic', opacity: 0.6 }}>Conta sem pessoa vinculada</span>}
-                                        </div>
-                                        <div style={{ fontSize: '0.82rem', color: 'var(--muted-text)' }}>{user.email}</div>
-                                        {targetEquipe && (
-                                            <div style={{ fontSize: '0.78rem', color: 'var(--muted-text)', marginTop: '0.15rem' }}>{targetEquipe}</div>
-                                        )}
-                                        {user.temporary_password && (
-                                            <span style={{ fontSize: '0.7rem', background: 'var(--warning-color)', color: '#fff', padding: '0.15rem 0.5rem', borderRadius: '12px', display: 'inline-block', marginTop: '0.3rem', fontWeight: 600 }}>
-                                                Primeiro acesso pendente
-                                            </span>
-                                        )}
-                                    </div>
-
-                                    {/* Perfis ativos */}
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', alignItems: 'center', minWidth: '140px', maxWidth: '280px' }}>
-                                        {activeGroups.length === 0 ? (
-                                            <span style={{ fontSize: '0.78rem', color: 'var(--muted-text)' }}>Sem perfil neste contexto</span>
-                                        ) : (
-                                            activeGroups.slice(0, 3).map(g => (
-                                                <span
-                                                    key={g.id}
-                                                    style={{
-                                                        padding: '0.2rem 0.55rem',
-                                                        fontSize: '0.75rem',
-                                                        borderRadius: '999px',
-                                                        border: '1px solid var(--primary-color)',
-                                                        background: 'var(--primary-color)',
-                                                        color: '#fff',
-                                                        fontWeight: 700,
-                                                    }}
-                                                >
-                                                    {g.nome}
-                                                </span>
-                                            ))
-                                        )}
-                                        {activeGroups.length > 3 && (
-                                            <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)' }}>+{activeGroups.length - 3}</span>
-                                        )}
-                                    </div>
-
-                                    {/* Ação */}
-                                    <div style={{ flexShrink: 0, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                        <button
-                                            type="button"
-                                            className="btn-secondary"
-                                            onClick={() => setSelectedUserDetails(user)}
-                                            style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem', whiteSpace: 'nowrap' }}
-                                        >
-                                            Detalhes
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn-secondary"
-                                            disabled={passwordResetting}
-                                            onClick={() => handleSendPasswordRecovery(user.id)}
-                                            style={{ fontSize: '0.82rem', padding: '0.4rem 0.75rem', whiteSpace: 'nowrap' }}
-                                        >
-                                            <Mail size={13} style={{ marginRight: '0.3rem', verticalAlign: 'middle' }} />
-                                            {passwordResetting ? 'Enviando...' : 'Enviar recuperação'}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn-secondary"
-                                            onClick={() => setUserToDelete(user.id)}
-                                            style={{ fontSize: '0.82rem', padding: '0.4rem', color: 'var(--danger-text)', borderColor: 'transparent', background: 'transparent' }}
-                                            title="Remover acesso"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {!loading && !error && totalUsers > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.85rem', color: 'var(--muted-text)' }}>
-                            Página {currentPage + 1} de {totalPages}
-                        </span>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button
-                                type="button"
-                                className="btn-secondary"
-                                disabled={currentPage === 0 || loading}
-                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 0))}
-                            >
-                                Anterior
-                            </button>
-                            <button
-                                type="button"
-                                className="btn-secondary"
-                                disabled={currentPage >= totalPages - 1 || loading}
-                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages - 1))}
-                            >
-                                Próxima
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </section>
-            <Modal
-                isOpen={!!coordenadorEmailTarget}
-                onClose={() => {
-                    if (savingCoordenadorEmail) return;
-                    setCoordenadorEmailTarget(null);
-                    setCoordenadorEmail('');
-                }}
-                title="Cadastrar e-mail do coordenador"
-            >
-                {coordenadorEmailTarget && (
-                    <form onSubmit={handleSaveCoordenadorEmail} style={{ display: 'grid', gap: '1rem' }}>
-                        <div style={{ padding: '0.85rem 1rem', border: '1px solid var(--border-color)', borderRadius: '10px', background: 'var(--surface-1)' }}>
-                            <strong style={{ display: 'block' }}>{coordenadorEmailTarget.nome_completo}</strong>
-                            <small style={{ color: 'var(--muted-text)' }}>{coordenadorEmailTarget.equipe_nome || 'Equipe não informada'}</small>
-                        </div>
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label className="form-label" htmlFor="coordenador-email">E-mail</label>
-                            <input
-                                id="coordenador-email"
-                                type="email"
-                                className="form-input"
-                                value={coordenadorEmail}
-                                onChange={(event) => setCoordenadorEmail(event.target.value)}
-                                placeholder="nome@exemplo.com"
-                                autoComplete="email"
-                                autoFocus
-                                required
-                                disabled={savingCoordenadorEmail}
-                            />
-                            <small style={{ color: 'var(--muted-text)' }}>
-                                Salvar o e-mail não envia convite. Depois, use “Preparar coordenadores”.
-                            </small>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexWrap: 'wrap' }}>
-                            <button
-                                type="button"
-                                className="btn-secondary"
-                                disabled={savingCoordenadorEmail}
-                                onClick={() => {
-                                    setCoordenadorEmailTarget(null);
-                                    setCoordenadorEmail('');
-                                }}
-                            >
-                                Cancelar
-                            </button>
-                            <button type="submit" className="btn-primary" disabled={savingCoordenadorEmail || !coordenadorEmail.trim()}>
-                                {savingCoordenadorEmail ? 'Salvando...' : 'Salvar e-mail'}
-                            </button>
-                        </div>
-                    </form>
-                )}
-            </Modal>
-            <ConfirmDialog
-                isOpen={!!userToDelete}
-                title="Remover Acesso"
-                message={
-                    <>
-                        <p>Tem certeza que deseja remover o acesso deste usuário?</p>
-                        <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--muted-text)' }}>
-                            Isso apagará o usuário do sistema de login. As participações no histórico serão mantidas.
-                        </p>
-                    </>
-                }
-                onConfirm={handleDeleteUser}
-                onCancel={() => setUserToDelete(null)}
-                confirmText={isDeleting ? 'Removendo...' : 'Sim, Remover Acesso'}
-                cancelText="Cancelar"
-            />
-            <ConfirmDialog
-                isOpen={confirmPendingSecurity}
-                title="Proteger primeiros acessos"
-                message={
-                    <>
-                        <p>
-                            As senhas temporárias antigas serão invalidadas imediatamente e cada usuário
-                            receberá um link para definir a própria senha.
-                        </p>
-                        <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: 'var(--muted-text)' }}>
-                            Usuários que não receberem o e-mail poderão solicitar outro link em “Esqueci minha senha”.
-                        </p>
-                    </>
-                }
-                onConfirm={handleSecurePendingPasswords}
-                onCancel={() => setConfirmPendingSecurity(false)}
-                confirmText={securingPendingPasswords ? 'Protegendo...' : `Proteger ${summary.totalTemporaryPassword} conta(s)`}
-                cancelText="Cancelar"
-            />
-            {selectedUserDetails && (
-                <div
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        zIndex: 1000,
-                        display: 'flex',
-                        justifyContent: 'flex-end',
-                        background: 'rgba(15, 23, 42, 0.45)',
+            {selectedUser && (
+                <UserAccessDrawer
+                    key={`${selectedUser.id}-${contextId ?? PERMANENT_OPTION}`}
+                    user={selectedUser}
+                    contextId={contextId}
+                    contextLabel={contextLabel}
+                    grupos={grupos}
+                    groupModules={groupModules}
+                    onUserChange={user => {
+                        setSelectedUser(user);
+                        setDrawerChanged(true);
                     }}
-                    onClick={() => {
-                        setSelectedUserDetails(null);
-                        setLinkPessoa(null);
-                    }}
-                >
-                    <aside
-                        className="card"
-                        style={{
-                            width: 'min(460px, 100%)',
-                            height: '100%',
-                            borderRadius: 0,
-                            padding: '1.5rem',
-                            overflowY: 'auto',
-                            boxShadow: 'var(--shadow-xl)',
-                        }}
-                        onClick={(event) => event.stopPropagation()}
-                    >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-                            <div>
-                                <h2 style={{ margin: 0, fontSize: '1.25rem' }}>{selectedUserDetails.nome || 'Usuário sem pessoa vinculada'}</h2>
-                                <p style={{ margin: '0.25rem 0 0', color: 'var(--muted-text)', fontSize: '0.9rem' }}>{selectedUserDetails.email}</p>
-                            </div>
-                            <button className="btn-secondary" type="button" onClick={() => {
-                                setSelectedUserDetails(null);
-                                setLinkPessoa(null);
-                            }} style={{ padding: '0.35rem' }}>
-                                <X size={18} />
-                            </button>
-                        </div>
-
-                        <div style={{ display: 'grid', gap: '1rem' }}>
-                            {selectedUserDetails.pessoaVinculo !== 'explicit' && (
-                                <section style={{ padding: '1rem', border: '1px solid var(--warning-color)', borderRadius: '12px', background: 'var(--surface-1)' }}>
-                                    <strong>Vínculo cadastral pendente</strong>
-                                    <p style={{ margin: '0.35rem 0 0.85rem', color: 'var(--muted-text)', fontSize: '0.82rem' }}>
-                                        {selectedUserDetails.pessoaVinculo === 'email_fallback'
-                                            ? 'O cadastro foi localizado pelo e-mail, mas o vínculo ainda precisa ser confirmado.'
-                                            : 'Selecione a pessoa correta. O sistema não vincula automaticamente e-mails duplicados ou ambíguos.'}
-                                    </p>
-                                    <LiveSearchSelect<Pessoa>
-                                        value={linkPessoa?.id || ''}
-                                        onChange={(_, pessoa) => setLinkPessoa(pessoa)}
-                                        fetchData={(search, page) => adminUserService.searchPeople(search, page, 20)}
-                                        getOptionLabel={(pessoa) => `${pessoa.nome_completo}${pessoa.email ? ` — ${pessoa.email}` : ''}`}
-                                        getOptionValue={(pessoa) => pessoa.id}
-                                        placeholder="Buscar pessoa para vincular..."
-                                        initialOptions={linkPessoa ? [linkPessoa] : []}
-                                    />
-                                    <button
-                                        type="button"
-                                        className="btn-primary"
-                                        disabled={!linkPessoa || linkingPessoa}
-                                        onClick={handleLinkUserToPerson}
-                                        style={{ width: '100%', justifyContent: 'center', marginTop: '0.75rem' }}
-                                    >
-                                        {linkingPessoa ? 'Vinculando...' : 'Confirmar vínculo com a pessoa'}
-                                    </button>
-                                </section>
-                            )}
-                            <section style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'var(--surface-1)' }}>
-                                <strong>Status da conta</strong>
-                                <p style={{ margin: '0.35rem 0 0', color: selectedUserDetails.temporary_password ? 'var(--warning-color)' : 'var(--success-color)', fontWeight: 700 }}>
-                                    {selectedUserDetails.temporary_password ? 'Primeiro acesso pendente' : 'Primeiro acesso concluído'}
-                                </p>
-                                <small style={{ color: 'var(--muted-text)' }}>
-                                    Criado em {new Date(selectedUserDetails.created_at).toLocaleDateString('pt-BR')}
-                                </small>
-                            </section>
-
-                            <section style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'var(--surface-1)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                                    <strong>Perfis no contexto atual</strong>
-                                    {updatingRoleById[selectedUserDetails.id] && (
-                                        <span style={{ fontSize: '0.75rem', color: 'var(--muted-text)' }}>Atualizando...</span>
-                                    )}
-                                </div>
-                                <p style={{ margin: '0.25rem 0 0', color: 'var(--muted-text)', fontSize: '0.8rem' }}>
-                                    Clique nos perfis para conceder ou revogar acesso no contexto selecionado.
-                                </p>
-                                <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.75rem' }}>
-                                    {grupos.map(g => {
-                                        const active = selectedUserDetails.grupos?.some(v => v.grupo_id === g.id && v.encontro_id === targetEncontroId);
-                                        return (
-                                            <button
-                                                key={g.id}
-                                                type="button"
-                                                disabled={!!updatingRoleById[selectedUserDetails.id]}
-                                                onClick={() => handleToggleGroups(selectedUserDetails.id, g.id, selectedUserDetails.grupos || [])}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'space-between',
-                                                    gap: '1rem',
-                                                    width: '100%',
-                                                    padding: '0.65rem 0.75rem',
-                                                    borderRadius: '10px',
-                                                    border: `1px solid ${active ? 'var(--primary-color)' : 'var(--border-color)'}`,
-                                                    background: active ? 'var(--primary-color)' : 'var(--card-bg)',
-                                                    color: active ? '#fff' : 'var(--text-color)',
-                                                    cursor: 'pointer',
-                                                    fontWeight: 700,
-                                                    textAlign: 'left',
-                                                }}
-                                            >
-                                                <span>{g.nome}</span>
-                                                <span style={{ fontSize: '0.75rem', opacity: 0.85 }}>{active ? 'Ativo' : 'Inativo'}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </section>
-
-                            <section style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'var(--surface-1)' }}>
-                                <strong>Ações de conta</strong>
-                                <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.75rem' }}>
-                                    <button
-                                        type="button"
-                                        className="btn-secondary"
-                                        disabled={!!resettingPasswordById[selectedUserDetails.id]}
-                                        onClick={() => handleSendPasswordRecovery(selectedUserDetails.id)}
-                                        style={{ justifyContent: 'center' }}
-                                    >
-                                        <Mail size={14} style={{ marginRight: '0.35rem' }} />
-                                        {resettingPasswordById[selectedUserDetails.id] ? 'Enviando...' : 'Enviar link de redefinição'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="btn-secondary"
-                                        onClick={() => {
-                                            setUserToDelete(selectedUserDetails.id);
-                                            setSelectedUserDetails(null);
-                                        }}
-                                        style={{ justifyContent: 'center', color: 'var(--danger-text)' }}
-                                    >
-                                        <Trash2 size={14} style={{ marginRight: '0.35rem' }} />
-                                        Remover acesso
-                                    </button>
-                                </div>
-                            </section>
-
-                            <section style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '12px', background: 'var(--surface-1)' }}>
-                                <strong>Participações encontradas</strong>
-                                <div style={{ display: 'grid', gap: '0.5rem', marginTop: '0.75rem' }}>
-                                    {(selectedUserDetails.encontrosIds || []).length === 0 && (
-                                        <span style={{ color: 'var(--muted-text)', fontSize: '0.85rem' }}>Nenhuma participação vinculada à pessoa.</span>
-                                    )}
-                                    {(selectedUserDetails.encontrosIds || []).map(encontroId => {
-                                        const encontro = encontros.find(e => e.id === encontroId);
-                                        const equipe = selectedUserDetails.equipesNomes?.[encontroId] || 'Sem equipe';
-                                        return (
-                                            <div key={encontroId} style={{ padding: '0.75rem', borderRadius: '10px', border: '1px solid var(--border-color)', background: 'var(--card-bg)' }}>
-                                                <div style={{ fontWeight: 700 }}>{encontro?.nome || encontroId}</div>
-                                                <div style={{ color: 'var(--muted-text)', fontSize: '0.82rem' }}>{equipe}</div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </section>
-                        </div>
-                    </aside>
-                </div>
+                    onClose={closeDrawer}
+                />
             )}
         </div>
     );

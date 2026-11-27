@@ -36,6 +36,9 @@ export interface AdminUsersSummary {
     totalTemporaryPassword: number;
     totalWithoutPerson: number;
     totalWithTargetAccess: number;
+    /** Ausentes em versões antigas da Edge Function. */
+    totalWithTargetAccessPendingFirstLogin?: number;
+    totalWithTargetAccessWithoutPerson?: number;
     filteredTotal: number;
 }
 
@@ -45,39 +48,6 @@ export interface AdminUsersListResponse {
     page: number;
     pageSize: number;
     summary: AdminUsersSummary;
-}
-
-export interface CoordenadorPastaAccessItem {
-    participacao_id: string;
-    pessoa_id: string;
-    nome_completo: string;
-    email: string | null;
-    equipe_id: string | null;
-    equipe_nome: string | null;
-    user_id: string | null;
-    possui_usuario: boolean;
-    possui_perfil: boolean;
-    temporary_password: boolean | null;
-}
-
-export interface CoordenadorPastaPrepareResult {
-    participacao_id: string;
-    pessoa_id: string;
-    nome_completo: string;
-    email: string | null;
-    user_id: string | null;
-    created: boolean;
-    granted: boolean;
-    success: boolean;
-    message?: string;
-}
-
-export interface CoordenadorPastaAccessResponse {
-    coordenadores: CoordenadorPastaAccessItem[];
-    total: number;
-    semEmail: number;
-    semUsuario: number;
-    semPerfil: number;
 }
 
 interface CreateAdminUserPayload {
@@ -176,43 +146,15 @@ export const adminUserService = {
         };
     },
 
-    async listCoordenadoresPasta(encontroId: string, grupoId?: string): Promise<CoordenadorPastaAccessResponse> {
-        const headers = await getAuthHeaders();
-
-        const { data, error } = await supabase.functions.invoke('admin-users', {
-            body: {
-                action: 'list-folder-coordinators',
-                encontroId,
-                grupoId: grupoId || null,
-            },
-            headers,
-        });
-
-        if (error) throw error;
-        if (data?.error) throw new Error(data.error);
-        return data as CoordenadorPastaAccessResponse;
-    },
-
-    async prepareCoordenadoresPasta(encontroId: string, grupoId: string): Promise<{
-        results: CoordenadorPastaPrepareResult[];
-        created: number;
-        granted: number;
-        skipped: number;
-    }> {
-        const headers = await getAuthHeaders();
-
-        const { data, error } = await supabase.functions.invoke('admin-users', {
-            body: {
-                action: 'prepare-folder-coordinators',
-                encontroId,
-                grupoId,
-            },
-            headers,
-        });
-
-        if (error) throw error;
-        if (data?.error) throw new Error(data.error);
-        return data;
+    /** Percorre todas as páginas do filtro informado (exportação e conferência de contas). */
+    async listAllUsers(query: Omit<AdminUsersQuery, 'page' | 'pageSize'>): Promise<AdminUserListItem[]> {
+        const pageSize = 100;
+        const users: AdminUserListItem[] = [];
+        for (let page = 0; ; page += 1) {
+            const response = await this.listUsers({ ...query, page, pageSize });
+            users.push(...response.users);
+            if (response.users.length < pageSize || users.length >= response.total) return users;
+        }
     },
 
     async updatePersonEmail(pessoaId: string, email: string): Promise<{ id: string; nome_completo: string; email: string }> {
@@ -370,8 +312,8 @@ export const adminUserService = {
         if (error) throw error;
     },
 
-    async listGrupos(): Promise<{ id: string, nome: string }[]> {
-        const { data, error } = await supabase.from('grupos').select('id, nome').order('nome');
+    async listGrupos(): Promise<{ id: string, nome: string, descricao: string | null }[]> {
+        const { data, error } = await supabase.from('grupos').select('id, nome, descricao').order('nome');
         if (error) throw error;
         return data || [];
     },

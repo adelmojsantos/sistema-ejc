@@ -75,3 +75,25 @@ export function matchesUserSearch(
 
   return searchable.includes(search);
 }
+
+interface UserWithAccountStatus extends UserWithMemberships, UserWithPersonLink {
+  temporary_password: boolean | null;
+}
+
+/**
+ * Contadores do contexto selecionado. As permissões valem por encontro, então
+ * pendências de primeiro acesso e de vínculo são contadas só entre quem tem
+ * perfil no contexto.
+ */
+export function summarizeContextAccess(
+  users: UserWithAccountStatus[],
+  targetEncontroId: string | null,
+) {
+  const withAccess = users.filter((user) => hasAccessInContext(user, targetEncontroId));
+
+  return {
+    totalWithTargetAccess: withAccess.length,
+    totalWithTargetAccessPendingFirstLogin: withAccess.filter((user) => user.temporary_password === true).length,
+    totalWithTargetAccessWithoutPerson: withAccess.filter((user) => user.pessoaVinculo === 'none').length,
+  };
+}

@@ -3,6 +3,7 @@ import {
   matchesContextMembershipFilters,
   matchesPersonLinkScope,
   matchesUserSearch,
+  summarizeContextAccess,
 } from './listFilters';
 
 const user = {
@@ -89,5 +90,23 @@ describe('admin user search', () => {
 
   it('considera todas as equipes apenas no contexto global', () => {
     expect(matchesUserSearch(searchableUser, 'cozinha', null)).toBe(true);
+  });
+});
+
+describe('summarizeContextAccess', () => {
+  it('conta pendências somente entre quem tem perfil no encontro selecionado', () => {
+    const users = [
+      { grupos: [{ grupo_id: 'g', encontro_id: 'atual' }], temporary_password: true, pessoaVinculo: 'none' as const },
+      { grupos: [{ grupo_id: 'g', encontro_id: 'atual' }], temporary_password: false, pessoaVinculo: 'explicit' as const },
+      { grupos: [{ grupo_id: 'g', encontro_id: 'anterior' }], temporary_password: true, pessoaVinculo: 'none' as const },
+      { grupos: [{ grupo_id: 'admin', encontro_id: null }], temporary_password: true, pessoaVinculo: 'none' as const },
+    ];
+
+    expect(summarizeContextAccess(users, 'atual')).toEqual({
+      totalWithTargetAccess: 2,
+      totalWithTargetAccessPendingFirstLogin: 1,
+      totalWithTargetAccessWithoutPerson: 1,
+    });
+    expect(summarizeContextAccess(users, null).totalWithTargetAccess).toBe(1);
   });
 });

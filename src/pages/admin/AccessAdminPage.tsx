@@ -7,42 +7,8 @@ import { bibliotecaService } from '../../services/bibliotecaService';
 import type { Grupo, Permissao, GrupoPermissao } from '../../services/adminAccessService';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Modal } from '../../components/ui/Modal';
+import { getPermissionName } from '../../utils/permissionLabels';
 import './AccessAdminPage.css';
-
-const PERMISSION_TERM_LABELS: Record<string, string> = {
-    admin: 'Administração',
-    almoxarifado: 'Almoxarifado',
-    arquivos: 'Arquivos',
-    biblioteca: 'Biblioteca',
-    cadastros: 'Cadastros',
-    circulos: 'Círculos',
-    compras: 'Compras',
-    consultar: 'Consultar',
-    coordenador: 'Coordenadores',
-    coordenar: 'Coordenação',
-    criar: 'Criar',
-    cuidados: 'Cuidados',
-    dashboard: 'Página inicial',
-    diagnosticos: 'Diagnósticos técnicos',
-    drive: 'Drive',
-    duplas: 'Duplas',
-    email: 'E-mail',
-    financeiro: 'Financeiro',
-    gerenciar: 'Gerenciar',
-    google: 'Google',
-    importar: 'Importar',
-    inscricao: 'Inscrições',
-    institucional: 'institucional',
-    ligacao: 'Ligação',
-    mediador: 'Mediadores',
-    movimentar: 'Movimentar estoque',
-    pedidos: 'Pedidos',
-    recepcao: 'Recepção',
-    recreacao: 'Recreação',
-    responder: 'Responder',
-    secretaria: 'Secretaria',
-    visitacao: 'Visitação',
-};
 
 const SPECIFIC_PERMISSION_PARENT_KEYS: Record<string, string> = {
     almoxarifado_compras_operar: 'modulo_almoxarifado',
@@ -56,21 +22,6 @@ const SPECIFIC_PERMISSION_PARENT_KEYS: Record<string, string> = {
     email_institucional_responder: 'modulo_email_institucional',
     financeiro_gerenciar: 'modulo_financeiro',
 };
-
-function humanizePermissionKey(key: string) {
-    return key
-        .replace(/^modulo_/, '')
-        .split('_')
-        .map(term => PERMISSION_TERM_LABELS[term] || `${term.charAt(0).toUpperCase()}${term.slice(1)}`)
-        .join(' · ');
-}
-
-function getPermissionName(permission: Permissao) {
-    const registeredName = permission.nome?.trim();
-    if (!registeredName) return humanizePermissionKey(permission.chave);
-
-    return registeredName.replace(/^Acesso\s+(?:à|às|ao|aos)\s+/i, '');
-}
 
 function sortPermissions(permissions: Permissao[]) {
     return [...permissions].sort((first, second) =>

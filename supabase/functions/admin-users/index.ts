@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import {
-  hasAccessInContext,
+  summarizeContextAccess,
   matchesContextMembershipFilters,
   matchesPersonLinkScope,
   matchesUserSearch,
@@ -1185,9 +1185,7 @@ Deno.serve(async (request) => {
       const totalUsers = enrichedUsers.length;
       const totalTemporaryPassword = enrichedUsers.filter((u) => u.temporary_password).length;
       const totalWithoutPerson = enrichedUsers.filter((u) => !u.nome).length;
-      const totalWithTargetAccess = enrichedUsers.filter(
-        (user) => hasAccessInContext(user, targetEncontroId),
-      ).length;
+      const contextSummary = summarizeContextAccess(enrichedUsers, targetEncontroId);
 
       const filteredUsers = enrichedUsers.filter((user) => {
         if (!matchesContextMembershipFilters(user, { targetEncontroId, accessScope, grupoId })) return false;
@@ -1217,7 +1215,7 @@ Deno.serve(async (request) => {
           totalUsers,
           totalTemporaryPassword,
           totalWithoutPerson,
-          totalWithTargetAccess,
+          ...contextSummary,
           filteredTotal: total,
         },
       });

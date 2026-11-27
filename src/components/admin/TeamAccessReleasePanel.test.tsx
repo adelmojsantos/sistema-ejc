@@ -3,8 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TeamAccessReleasePanel } from './TeamAccessReleasePanel';
 
-const { listCandidatesMock } = vi.hoisted(() => ({
+const { listCandidatesMock, updatePersonEmailMock } = vi.hoisted(() => ({
   listCandidatesMock: vi.fn(),
+  updatePersonEmailMock: vi.fn(),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -18,6 +19,20 @@ vi.mock('../../services/accessProvisioningService', () => ({
     prepareCandidates: vi.fn(),
   },
 }));
+
+vi.mock('../../services/adminUserService', () => ({
+  adminUserService: { updatePersonEmail: updatePersonEmailMock },
+}));
+
+const baseCandidate = {
+  pessoa_id: 'pessoa-x',
+  email: 'x@example.test',
+  grupo_ids: ['grupo-1'],
+  grupos_nomes: ['Coordenadores de Pasta'],
+  user_id: null,
+  pessoa_vinculada: false,
+  grupos_pendentes_ids: ['grupo-1'],
+};
 
 describe('TeamAccessReleasePanel', () => {
   beforeEach(() => {
@@ -57,5 +72,43 @@ describe('TeamAccessReleasePanel', () => {
     await user.click(screen.getByRole('button', { name: 'Recolher lista' }));
 
     await waitFor(() => expect(list).not.toHaveClass('team-access-candidate-list--expanded'));
+  });
+
+  it('filtra por equipe e função e seleciona só as pendências filtradas', async () => {
+    const user = userEvent.setup();
+    listCandidatesMock.mockResolvedValue([
+      { ...baseCandidate, participacao_id: 'p1', nome_completo: 'Ana', equipe_id: 'e1', equipe_nome: 'Liturgia', papel: 'coordenador', status: 'sem_usuario' },
+      { ...baseCandidate, participacao_id: 'p2', nome_completo: 'Bruno', equipe_id: 'e1', equipe_nome: 'Liturgia', papel: 'integrante', status: 'perfis_pendentes' },
+      { ...baseCandidate, participacao_id: 'p3', nome_completo: 'Carla', equipe_id: 'e2', equipe_nome: 'Cozinha', papel: 'integrante', status: 'sem_usuario' },
+    ]);
+    render(<TeamAccessReleasePanel encontroId="encontro-1" encontroLabel="52º EJC" />);
+
+    await screen.findByText('Ana');
+    await user.selectOptions(screen.getByLabelText('Equipe'), 'e1');
+    await user.selectOptions(screen.getByLabelText('Função'), 'integrante');
+
+    expect(screen.queryByText('Ana')).not.toBeInTheDocument();
+    expect(screen.queryByText('Carla')).not.toBeInTheDocument();
+    expect(screen.getByText('Bruno')).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText(/Selecionar pendências filtradas/));
+    expect(screen.getByRole('button', { name: /Liberar selecionados \(1\)/ })).toBeEnabled();
+  });
+
+  it('permite cadastrar o e-mail de quem está sem e-mail', async () => {
+    const user = userEvent.setup();
+    listCandidatesMock.mockResolvedValue([
+      { ...baseCandidate, participacao_id: 'p1', pessoa_id: 'pessoa-ana', nome_completo: 'Ana', email: null, equipe_id: 'e1', equipe_nome: 'Liturgia', papel: 'coordenador', status: 'sem_email' },
+    ]);
+    updatePersonEmailMock.mockResolvedValue({ id: 'pessoa-ana', nome_completo: 'Ana', email: 'ana@example.test' });
+    render(<TeamAccessReleasePanel encontroId="encontro-1" encontroLabel="52º EJC" />);
+
+    await user.click(await screen.findByRole('button', { name: /Cadastrar e-mail/ }));
+    const loadsBeforeSave = listCandidatesMock.mock.calls.length;
+    await user.type(screen.getByLabelText('E-mail'), 'Ana@Example.test');
+    await user.click(screen.getByRole('button', { name: 'Salvar e-mail' }));
+
+    await waitFor(() => expect(updatePersonEmailMock).toHaveBeenCalledWith('pessoa-ana', 'ana@example.test'));
+    await waitFor(() => expect(listCandidatesMock.mock.calls.length).toBeGreaterThan(loadsBeforeSave));
   });
 });
